@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v3]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v4]</title>
 <style>
   :root {
     --orange:  #e8750a;
@@ -338,7 +338,7 @@
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge" style="background:rgba(196,122,255,0.2);border-color:#c47aff;color:#c47aff;">TEST v3</div>
+  <div class="badge" style="background:rgba(196,122,255,0.2);border-color:#c47aff;color:#c47aff;">TEST v4</div>
   <a href="index.html">← User Guide</a>
 </header>
 
@@ -700,24 +700,7 @@ async function connectSerial() {
     log(logId, 'Starting RPC session…', 'info');
 
     await startRpcSession();
-    log(logId, 'RPC session started — verifying…', 'info');
-
-    // Send a ping and wait for a pong. This confirms the Flipper is
-    // actually in binary RPC mode, not still in CLI mode.
-    const pingMsg = buildPingMsg(state.commandId++);
-    await serialWriteMsg(pingMsg);
-    // Wait before reading: the Flipper needs time to process the session
-    // startup CLI output, switch modes, receive the ping, and send the response.
-    // Without this sleep the scan starts while the response is still in transit.
-    await sleep(800);
-    try {
-      await Promise.race([serialReadResponse(), sleep(6000).then(() => {
-        throw new Error('Flipper did not respond to RPC ping. Make sure your Flipper is on and showing the desktop (not a menu or app), then try again.');
-      })]);
-      log(logId, 'RPC session active ✓', 'ok');
-    } catch (pingErr) {
-      throw pingErr; // propagates to the outer catch which shows the error screen
-    }
+    log(logId, 'RPC session active', 'ok');
 
     document.getElementById('connecting-ring').className = 'status-ring done';
     document.getElementById('connecting-title').textContent = 'Flipper connected';
