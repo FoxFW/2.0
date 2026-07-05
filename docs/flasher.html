@@ -274,22 +274,28 @@ async function doConnect() {
 async function connectSerial() {
   if (!('serial' in navigator)) throw new Error('Web Serial not supported — use Chrome or Edge');
   serialPort = await navigator.serial.requestPort({ filters:[{ usbVendorId:VID }] });
-  await serialPort.open({ baudRate:115200 });
+  await serialPort.open({ baudRate: 115200 });
   serialWriter = serialPort.writable.getWriter();
   serialReader = serialPort.readable.getReader();
   
-  log('Sending reset sequence...', 'in');
-  // Send a hard reset sequence to clear any existing CLI state
-  await serialWriter.write(new TextEncoder().encode('\x03\r\n')); // Ctrl+C to stop current command
+  log('Forcing Binary Mode...', 'in');
+  // 1. Send multiple Ctrl+C to break any active CLI process
+  await serialWriter.write(new TextEncoder().encode('\x03\x03\x03'));
   await sleep(500);
-  await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
-  await sleep(1000); 
   
-  // Mandatory sync
-  await syncSerial(); 
+  // 2. Clear any pending CLI output
+  await syncSerial();
+  
+  // 3. Request RPC and wait for the specific "started" signal
+  await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
+  
+  // 4. Final synchronization before the Ping
+  await sleep(1000);
+  await syncSerial();
   
   cmdId = 1;
-  connUI('on','Flipper Zero — Connected','USB serial · Standard Update (RPC)');
+  connUI('on', 'Flipper Zero — Connected', 'Ready for RPC');
+  log('Binary session established', 'ok');
 }
 
 async function connectDFU() {
