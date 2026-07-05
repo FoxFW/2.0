@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v21]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v22]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v21 · 2026-07-05 19:29 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v22 · 2026-07-05 19:47 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -439,12 +439,12 @@ async function rpcWriteFile(path, data, onProgress) {
       }
     }));
 
-    // CRITICAL: wait 20ms between chunks so the Flipper can write each
-    // chunk to SD card before we send the next. Without this delay,
-    // the Flipper buffers all incoming chunks in heap RAM and crashes
-    // with a hard fault at ~256KB (41% of firmware.dfu = 344KB in heap
-    // = hard fault because Flipper only has 256KB total RAM).
-    await sleep(20);
+    // NO artificial delay — USB NACK flow control naturally paces us to
+    // exactly match the Flipper's SD write speed. Artificial delays
+    // disrupt the timing and cause stream buffer overflow → decode error
+    // → RPC session crash → Flipper freeze.
+    // Just yield the event loop so bgDrain can run between chunks.
+    await sleep(1);
 
     if (onProgress) onProgress((i+1)/chunks);
     log(`  ${Math.round((i+1)/chunks*100)}%`);
