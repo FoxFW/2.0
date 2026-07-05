@@ -229,7 +229,25 @@ function selMethod(m) {
   $('fw-file').textContent   = m==='tgz' ? 'flipper-z-f7-update-local.tgz' : 'flipper-z-f7-full-local.dfu';
 }
 
+
+async function syncSerial() {
+    log('Synchronizing serial port...', 'dm');
+    let stable = false;
+    while (!stable) {
+        try {
+            const res = await Promise.race([
+                serialReader.read(),
+                sleep(500).then(() => ({ timeout: true }))
+            ]);
+            if (res.timeout) { stable = true; } // Port is silent
+            else { /* Keep reading until silent */ }
+        } catch (e) { break; }
+    }
+    log('Serial port synchronized.', 'ok');
+}
+
 // ── CONNECT ──────────────────────────────────────────────────────
+
 async function doConnect() {
   if (busy) return;
   clearNotices();
@@ -255,18 +273,19 @@ async function doConnect() {
 
 async function connectSerial() {
   if (!('serial' in navigator)) throw new Error('Web Serial not supported — use Chrome or Edge');
-  log('Requesting serial port…','in');
   serialPort = await navigator.serial.requestPort({ filters:[{ usbVendorId:VID }] });
   await serialPort.open({ baudRate:115200 });
   serialWriter = serialPort.writable.getWriter();
   serialReader = serialPort.readable.getReader();
+  
+  log('Starting RPC session…','in');
+  await serialWriter.write(new TextEncoder().encode('\r\nstart_rpc_session\r\n'));
+  await sleep(1000); 
+  
+  // Mandatory sync before any RPC
+  await syncSerial(); 
+  
   cmdId = 1;
-  log('Port opened — starting RPC session…','ok');
-  await serialWriter.write(new TextEncoder().encode('\r\n'));
-  await sleep(200);
-  await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
-  await sleep(700);
-  log('RPC session active','ok');
   connUI('on','Flipper Zero — Connected','USB serial · Standard Update (RPC)');
 }
 
@@ -388,12 +407,12 @@ async function doFlashTGZ() {
 
   pg(0.30,'Creating directories…');
   
-  // FIX: Clear out the OS serial buffer before initiating Protobuf commands
-  await flushRx(); 
+// Clear buffer one last time before starting binary RPC[cite: 2]
+  await syncSerial(); 
   cmdId = 1; 
   rxBuffer = new Uint8Array(0);
 
-  log('Creating update directory on SD card…','in');
+  log('Creating update directory…','in');
   await rpcMkdir('/ext/update');
   await rpcMkdir(sdBase);
 
