@@ -398,37 +398,28 @@ async function doFlash() {
 
 // ── TGZ / RPC FLASH ──────────────────────────────────────────────
 async function doFlashTGZ() {
-  pg(0.01,'Downloading firmware…'); log('Downloading '+TGZ_URL+'…','in');
+  pg(0.01,'Downloading firmware…'); 
   const tgz = await fetchXHR(TGZ_URL, p=>pg(0.01+p*0.28,`Downloading… ${Math.round(p*100)}%`));
-  log(`Downloaded ${(tgz.length/1024/1024).toFixed(1)} MB`,'ok');
-  pg(0.29,'Decompressing…'); log('Decompressing…');
   const tar   = pako.inflate(tgz);
   const files = parseTar(tar);
-  log(`Found ${files.length} files in package`,'ok');
-  if (!files.length) throw new Error('No files in firmware package');
-
   const topDir     = files[0].name.split('/')[0];
   const sdBase     = `/ext/update/${topDir}`;
-  const manifest   = files.find(f=>f.name.endsWith('update.fuf'));
-  if (!manifest) throw new Error('update.fuf manifest not found in TGZ');
-  const manifestSD = `/ext/update/${manifest.name}`;
-  log(`Update directory: ${sdBase}`,'in');
+  const manifestSD = `/ext/update/${files.find(f=>f.name.endsWith('update.fuf')).name}`;
 
-  pg(0.30,'Creating directories…');
-  
-// Clear buffer one last time before starting binary RPC[cite: 2]
- await syncSerial(); 
+  // 1. Reset commandId and state
   cmdId = 1; 
   rxBuffer = new Uint8Array(0);
 
+  // 2. Perform the mkdir IMMEDIATELY. 
+  // No syncSerial() calls here. No extra delays.
   log('Creating update directory…','in');
-
- await rpcMkdir('/ext/update');
-  await sleep(1000); // Give the filesystem a moment to commit
-  await rpcMkdir(sdBase);
-
-  // Upload each file synchronously
-  for (let fi=0; fi<files.length; fi++) {
+  
+  try {
+    await rpcMkdir('/ext/update');
+    await rpcMkdir(sdBase);
+    
+    // Upload files
+    for (let fi=0; fi<files.length; fi++) {
     const f = files[fi];
     const sdPath = `/ext/update/${f.name}`;
     log(`Uploading ${f.name} (${(f.data.length/1024).toFixed(0)} KB)…`);
