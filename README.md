@@ -23,7 +23,8 @@ and a polished system-wide experience. It is designed around three goals:
 
 | Feature | Description |
 |---|---|
-| 🔐 **PIN Lock System** | Configurable attempt limits, auto-lock timer, and a Honeypot / Fake-Wipe defence mode |
+| 📡 **Sub-GHz** | Completely overhauled Sub-GHz app with all new features like Modulation Analyzer, RF Jammer and Garage Door Remote all included! |
+| 🔐 **PIN Lock System** | Configurable attempt limits, auto-lock timer, and an On Exceed lock action |
 | 🔌 **Disconnect on Lock** | Individually toggle BLE, GPIO, and USB disconnection when the screen locks |
 | 📁 **Fox File Browser** | SD card browser with Favorites, firmware install, and app launch — replaces the stock Archive |
 | 📡 **Modulation Analyzer** | FoxFW-exclusive: find what modulation an unknown device uses, then open the Receiver pre-configured for it |
@@ -146,7 +147,7 @@ The complete guide covers every feature in detail — first-boot setup, all Fox
 Settings options, the Fox File Browser, the Sub-GHz toolset, firmware updates,
 and lockout recovery.
 
-**[→ Open the Full User Guide](https://foxcustomfirmware.github.io/FoxFW/)**
+**[→ Open the Full User Guide](https://foxfw.github.io/2.0/)**
 
 *(The guide is an HTML file hosted on GitHub Pages. You can also find it in
 this repository as `FoxFW_Help.html` and open it locally in any browser.)*
