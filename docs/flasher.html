@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v22]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v23]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v22 · 2026-07-05 19:47 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v23 · 2026-07-05 23:27 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -265,184 +265,140 @@ async function connectSerial() {
   serialReader = serialPort.readable.getReader();
   cmdId = 1;
   log('Port opened — starting RPC session…','ok');
+
+  // 1. Wake CLI and send start command
   await serialWriter.write(new TextEncoder().encode('\r\n'));
   await sleep(200);
   await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
-  await sleep(700);
-  log('RPC session active','ok');
+  await sleep(800); // wait for Flipper to process CLI command and switch modes
+
+  // 2. Clean slate: release reader (cancels dangling reads), wait, re-acquire
+  serialReader.releaseLock();
+  await sleep(100);
+  serialReader = serialPort.readable.getReader();
+
+  // 3. Drain any CLI response text that accumulated during the 900ms sleep.
+  //    We do ONE read with a race. Whether we get data (CLI echo) or timeout
+  //    (buffer already clean), we then release AGAIN to ensure no dangling read.
+  await Promise.race([ serialReader.read().then(({value})=>{
+    if(value) log('CLI: '+new TextDecoder().decode(value).trim(),'dm');
+  }), sleep(300) ]);
+  serialReader.releaseLock();
+  await sleep(50);
+  serialReader = serialPort.readable.getReader();
+
+  // 4. Verify RPC mode with a ping — read the response directly
+  log('Verifying RPC session…','in');
+  const pingBytes = encodeMain({ commandId:cmdId++, systemPingRequest:{} });
+  await serialWriter.write(pingBytes);
+
+  let pingResp = null;
+  try {
+    const { value, done } = await Promise.race([
+      serialReader.read(),
+      sleep(5000).then(()=>({ value:null, done:true }))
+    ]);
+    if (value && value.length > 0) {
+      // Flip: release then re-acquire so we have a clean reader for the response
+      serialReader.releaseLock();
+      serialReader = serialPort.readable.getReader();
+      pingResp = await readRespDirect(5000);
+    }
+  } catch(e) { log('Ping read error: '+e.message,'er'); }
+
+  if (!pingResp) throw new Error(
+    'RPC session verification failed. Make sure your Flipper is on the desktop (not in an app) and try again.');
+  log('RPC session verified ✓  (cmd_status='+pingResp.commandStatus+')','ok');
   connUI('on','Flipper Zero — Connected','USB serial · Standard Update (RPC)');
 }
 
-async function connectDFU() {
-  if (!('usb' in navigator)) throw new Error('WebUSB not supported — use Chrome or Edge');
-  log('Requesting DFU device…','in');
-  const granted = (await navigator.usb.getDevices()).find(d=>d.vendorId===VID&&d.productId===PID_DFU);
-  window._dfuDev = granted || await navigator.usb.requestDevice({ filters:[{vendorId:VID,productId:PID_DFU}] });
-  log('DFU device: '+(window._dfuDev.productName||'STM32'),'ok');
-  connUI('on','Flipper Zero — DFU Mode','WebUSB · DFU Recovery');
-}
+// ── RESPONSE READER ──────────────────────────────────────────────
+// Reads bytes until a complete varint-delimited protobuf message is received.
+// NO dangling reads — it accumulates into a local buffer and returns when done.
+async function readRespDirect(timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let buf = [];
 
-async function doDisconnect() {
-  connected = false; busy = false;
-  $('bflash').disabled=true; $('dnote').style.display='none'; $('bdis').style.display='none';
-  $('pgwrap').style.display='none'; $('sbox').classList.remove('show');
-  try { if (serialReader) { await serialReader.cancel(); serialReader.releaseLock(); }} catch {}
-  try { if (serialWriter) { serialWriter.releaseLock(); }} catch {}
-  try { if (serialPort)   { await serialPort.close(); }} catch {}
-  serialPort=serialWriter=serialReader=null;
-  connUI('off','Not connected','Connect your Flipper via USB to begin');
-  log('Disconnected','dm');
-}
+  while (Date.now() < deadline) {
+    let result;
+    try {
+      result = await Promise.race([
+        serialReader.read(),
+        sleep(Math.min(timeoutMs, 1000)).then(()=>({ value:null, done:false, _timeout:true }))
+      ]);
+    } catch { break; }
 
-// ── WRITE HELPERS ────────────────────────────────────────────────
-async function wMsg(bytes) {
-  // If write() blocks for >30s, the Flipper has permanently stopped
-  // accepting data (deadlock or device error) — surface it immediately
-  await Promise.race([
-    serialWriter.write(bytes),
-    sleep(30000).then(() => { throw new Error('Flipper stopped accepting data — write timeout after 30s'); })
-  ]);
-}
+    if (!result || result.done) break;
+    if (result._timeout) continue; // no data yet — keep waiting
+    if (result.value) for (const b of result.value) buf.push(b);
 
-// ── BACKGROUND DRAIN ────────────────────────────────────────────
-// Runs concurrently throughout the upload. Reads & discards every
-// response/error byte the Flipper sends. If we don't drain, the
-// Flipper's USB IN buffer fills → its RPC task blocks → it can't
-// drain its OUT buffer → Chrome's write() deadlocks.
-let drainReader = null;
-async function bgDrain() {
-  try {
-    while (drainReader) {
-      const { value, done } = await drainReader.read();
-      if (done || !drainReader) break;
-      if (value && value.length > 0) {
-        // Log received bytes — helps diagnose Flipper error responses mid-upload
-        const hex = Array.from(value.slice(0,20)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
-        log(`[flipper→us ${value.length}B] ${hex}${value.length>20?'…':''}`, 'dm');
-      }
+    // Try to parse a complete delimited protobuf message
+    if (buf.length < 1) continue;
+    let pos=0, msgLen=0, shift=0;
+    while(pos < buf.length && pos < 5) {
+      const b = buf[pos++];
+      msgLen |= (b & 0x7F) << shift;
+      shift += 7;
+      if ((b & 0x80) === 0) break;
     }
-  } catch (e) {
-    log('[bgDrain stopped: '+e.message+']','dm');
+    if (buf.length >= pos + msgLen && pos > 0 && msgLen > 0 && msgLen < 65536) {
+      try {
+        return Main.decode(new Uint8Array(buf.slice(pos, pos + msgLen)));
+      } catch { buf = buf.slice(1); }
+    }
   }
-}
-function startDrain() {
-  // Release global reader to drain; get it back after upload
-  drainReader = serialReader;
-  serialReader = null;
-  bgDrain(); // fire and forget — runs concurrently
-}
-function stopDrain() {
-  drainReader = null;
+  return null;
 }
 
-// ── FLASH DISPATCHER ─────────────────────────────────────────────
-async function doFlash() {
-  if (busy||!connected) return;
-  busy=true; $('bflash').disabled=true; $('bcon').disabled=true; $('bdis').style.display='none';
-  clearNotices(); $('sbox').classList.remove('show');
-  $('pgwrap').style.display=''; pg(0,'Starting…');
-  $('pgfill').classList.add('pulse');
-  try {
-    if (method==='dfu') await doFlashDFU();
-    else                await doFlashTGZ();
-    pg(1,'Complete!'); $('pgfill').classList.remove('pulse');
-    $('sbox').classList.add('show');
-    $('smsg').textContent = method==='dfu'
-      ? 'DFU flash complete. Unplug your Flipper, then hold power to boot.'
-      : 'Firmware uploaded. Your Flipper is rebooting — the progress bar on its screen shows the install.';
-    connUI('on','FoxFW Installed ✓','Flash complete');
-  } catch (err) {
-    showErr(err.message); log('FAILED: '+err.message,'er');
-    pg(0,'Failed'); $('pgfill').classList.remove('pulse');
-    connUI('off','Failed',err.message.slice(0,60));
-  }
-  busy=false; $('bflash').disabled=false; $('bcon').disabled=false;
-}
-
-// ── TGZ / RPC FLASH ──────────────────────────────────────────────
-async function doFlashTGZ() {
-  // 1. Download + decompress + parse FIRST (Flipper RPC has no timeout,
-  //    so the session remains valid during the download)
-  pg(0.01,'Downloading firmware…'); log('Downloading '+TGZ_URL+'…','in');
-  const tgz = await fetchXHR(TGZ_URL, p=>pg(0.01+p*0.28,`Downloading… ${Math.round(p*100)}%`));
-  log(`Downloaded ${(tgz.length/1024/1024).toFixed(1)} MB`,'ok');
-  pg(0.29,'Decompressing…'); log('Decompressing…');
-  const tar   = pako.inflate(tgz);
-  const files = parseTar(tar);
-  log(`Found ${files.length} files in package`,'ok');
-  if (!files.length) throw new Error('No files in firmware package');
-
-  const topDir     = files[0].name.split('/')[0];
-  const sdBase     = `/ext/update/${topDir}`;
-  const manifest   = files.find(f=>f.name.endsWith('update.fuf'));
-  if (!manifest) throw new Error('update.fuf manifest not found in TGZ');
-  const manifestSD = `/ext/update/${manifest.name}`;
-  log(`Update directory: ${sdBase}`,'in');
-
-  // 2. Start background drain and upload immediately — no re-send of
-  //    start_rpc_session (would break the already-active session)
-  pg(0.30,'Creating directories…');
-  cmdId = 1; // reset command counter for clean upload session
-  startDrain();
-
-  // 3. Create update directories
-  log('Creating update directory on SD card…','in');
-  await rpcMkdir('/ext/update');
-  await rpcMkdir(sdBase);
-
-  // 4. Upload each file
-  for (let fi=0; fi<files.length; fi++) {
-    const f = files[fi];
-    const sdPath = `/ext/update/${f.name}`;
-    log(`Uploading ${f.name} (${(f.data.length/1024).toFixed(0)} KB)…`);
-    await rpcWriteFile(sdPath, f.data, p => {
-      pg(0.32 + ((fi+p)/files.length)*0.60, `Uploading ${f.name}… ${Math.round(p*100)}%`);
-    });
-    log(`✓ ${f.name}`,'ok');
-  }
-
-  // 5. Trigger update
-  log('Triggering firmware update…','in'); pg(0.93,'Triggering update…');
-  const updateBytes = encodeMain({
-    commandId:1,
-    systemUpdateRequest:{ updateManifest: manifestSD }
-  });
-  await wMsg(updateBytes);
-  stopDrain();
-  await sleep(1000);
-  log('Update triggered — Flipper is rebooting','ok');
-  pg(1,'Done!');
-  try { await doDisconnect(); } catch {}
-}
-
-// ── RPC FILE OPERATIONS (using protobufjs encoding) ──────────────
+// ── RPC HELPERS ──────────────────────────────────────────────────
 async function rpcMkdir(path) {
-  const bytes = encodeMain({ commandId: cmdId++, storageMkdirRequest:{ path } });
-  await wMsg(bytes);
-  await sleep(400); // let Flipper process mkdir; bgDrain reads the response
+  const bytes = encodeMain({ commandId:cmdId++, storageMkdirRequest:{ path } });
+  await serialWriter.write(bytes);
+  // Release + re-acquire for clean response read (no dangling reads)
+  serialReader.releaseLock();
+  serialReader = serialPort.readable.getReader();
+  const resp = await readRespDirect(5000);
+  if (resp) log(`  mkdir ${path}: status=${resp.commandStatus}`,'dm');
+  else       log(`  mkdir ${path}: timeout`,'dm');
 }
 
 async function rpcWriteFile(path, data, onProgress) {
   const chunks = Math.ceil(data.length / CHUNK);
-  
-  for (let i = 0; i < chunks; i++) {
-    const chunk = data.slice(i * CHUNK, (i + 1) * CHUNK);
-    const isLast = i === chunks - 1;
-    
-    // Only set path on the first chunk to initialize the write session
-    const writeReq = { file: { data: chunk } };
-    if (i === 0) writeReq.path = path;
+  const id     = cmdId++;
+
+  for (let i=0; i<chunks; i++) {
+    const chunk  = data.slice(i*CHUNK, (i+1)*CHUNK);
+    const isLast = i === chunks-1;
 
     await wMsg(encodeMain({
-      commandId: cmdId++, // Ensure unique IDs
-      hasNext: !isLast,
-      storageWriteRequest: writeReq
+      commandId: id,
+      hasNext:   !isLast,
+      storageWriteRequest: {
+        path: i === 0 ? path : undefined, // path on first chunk only (protocol spec)
+        file: { data: chunk }
+      }
     }));
 
-    // Crucial: yield to the event loop so bgDrain can process the Flipper's ACKs
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await sleep(1); // yield for event loop
+    if (onProgress) onProgress((i+1)/chunks);
+    const pct = Math.round((i+1)/chunks*100);
+    if (pct !== Math.round(i/chunks*100)) log(`  ${pct}%`);
 
-    if (onProgress) onProgress((i + 1) / chunks);
+    if (isLast) {
+      const waitMs = Math.min(30000, Math.max(5000, Math.ceil(data.length/50000)*1000));
+      log(`  Waiting ${(waitMs/1000).toFixed(0)}s for SD write…`);
+      // Release + re-acquire for clean last-chunk response read
+      serialReader.releaseLock();
+      serialReader = serialPort.readable.getReader();
+      const resp = await readRespDirect(waitMs);
+      if (resp) {
+        if (resp.commandStatus && resp.commandStatus !== 0)
+          throw new Error(`Write failed for ${path}: error code ${resp.commandStatus}`);
+        log(`  Write response OK`,'ok');
+      } else {
+        log(`  Write response timeout (file may still be OK)`,'dm');
+      }
+    }
   }
 }
 
