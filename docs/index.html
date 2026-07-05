@@ -293,6 +293,7 @@
   <div class="cols">
     <ol>
       <li><a href="#about">About FoxFW</a></li>
+      <li><a href="#web-flasher">Web Installer</a></li>
       <li><a href="#first-boot">First Boot — Fox Setup Wizard</a>
         <ul class="sub">
           <li><a href="#wizard-name">Rename your Flipper</a></li>
@@ -373,6 +374,56 @@
     <li>A built-in <strong>Garage Door Remote</strong> app accessible directly from the Sub-GHz main screen — no App Menu navigation needed.</li>
     <li>A <strong>Sub-GHz Bruteforcer</strong> app in the App Menu for brute-forcing fixed-code remotes across common protocols.</li>
   </ul>
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 1b · WEB FLASHER ══════════════════ -->
+<section class="section" id="web-flasher">
+  <div class="chapter-label">Chapter 1b</div>
+  <h2>Web Installer <span class="badge">New</span></h2>
+  <p>
+    FoxFW can be installed directly from your browser — no software required.
+    Connect your Flipper via USB and the web installer handles everything,
+    including downloading the firmware and triggering the update.
+  </p>
+
+  <div class="box tip">
+    <strong>Recommended for most users.</strong> Works in Chrome and Edge on
+    desktop. Your Flipper must be connected via USB before you begin.
+  </div>
+
+  <div style="text-align:center;margin:28px 0;">
+    <a href="https://foxfw.github.io/2.0/docs/flasher.html"
+       style="display:inline-block;background:var(--orange);color:#fff;font-weight:700;
+              font-size:1.05rem;padding:16px 40px;border-radius:8px;text-decoration:none;
+              box-shadow:0 0 20px rgba(232,117,10,0.35);letter-spacing:0.3px;"
+       target="_blank">
+      ⚡ Open Web Installer →
+    </a>
+    <p style="margin-top:12px;font-size:0.82rem;color:#888;">
+      Opens at foxfw.github.io/2.0/docs/flasher.html
+    </p>
+  </div>
+
+  <h3>How it works</h3>
+  <ol style="color:#ccc;padding-left:22px;line-height:1.9;">
+    <li>Open the web installer in Chrome or Edge.</li>
+    <li>Choose <strong>Standard Update</strong> (Flipper on) or <strong>DFU Recovery</strong> (Flipper unresponsive).</li>
+    <li>Click <strong>Connect Flipper</strong> and select your device from the browser dialog.</li>
+    <li>Click <strong>Install Now</strong> — the installer downloads the firmware and transfers it automatically.</li>
+    <li>Your Flipper reboots and applies the update. The Fox Setup Wizard runs on first boot.</li>
+  </ol>
+
+  <div class="box info" style="margin-top:18px;">
+    <strong>Standard Update</strong> uploads the firmware as a <code>.tgz</code> package to
+    your SD card via the Flipper's USB connection, then triggers the install on reboot.
+    Your files and settings are preserved.<br><br>
+    <strong>DFU Recovery</strong> writes the firmware directly to the Flipper's internal flash
+    via WebUSB — use this if your Flipper will not boot normally.
+    SD card contents are not affected.
+  </div>
+
   <div class="back-top"><a href="#top">↑ Back to top</a></div>
 </section>
 

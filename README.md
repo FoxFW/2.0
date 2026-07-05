@@ -163,7 +163,23 @@ this repository as `FoxFW_Help.html` and open it locally in any browser.)*
 
 ## 🚀 Installing FoxFW
 
-### Via qFlipper (recommended)
+### ⚡ Via Web Installer (recommended)
+
+Install FoxFW directly from your browser — no software required.
+
+**[→ Open the FoxFW Web Installer](https://foxfw.github.io/2.0/docs/flasher.html)** `Recommended`
+
+1. Open the link above in **Chrome** or **Edge** on desktop.
+2. Connect your Flipper Zero via USB.
+3. Click **Connect Flipper** and select your device.
+4. Click **Install Now** — the installer downloads and transfers the firmware automatically.
+5. Your Flipper reboots and runs the Fox Setup Wizard.
+
+> Supports **Standard Update** (Flipper on, normal mode) and **DFU Recovery** (Flipper unresponsive / screen off).
+
+---
+
+### Via qFlipper
 
 1. Connect your Flipper to your computer via USB.
 2. Open **qFlipper** (v1.3.3 or later).
