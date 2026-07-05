@@ -278,11 +278,14 @@ async function connectSerial() {
   serialWriter = serialPort.writable.getWriter();
   serialReader = serialPort.readable.getReader();
   
-  log('Starting RPC session…','in');
-  await serialWriter.write(new TextEncoder().encode('\r\nstart_rpc_session\r\n'));
+  log('Sending reset sequence...', 'in');
+  // Send a hard reset sequence to clear any existing CLI state
+  await serialWriter.write(new TextEncoder().encode('\x03\r\n')); // Ctrl+C to stop current command
+  await sleep(500);
+  await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
   await sleep(1000); 
   
-  // Mandatory sync before any RPC
+  // Mandatory sync
   await syncSerial(); 
   
   cmdId = 1;
