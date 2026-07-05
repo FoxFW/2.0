@@ -699,7 +699,20 @@ async function connectSerial() {
     log(logId, 'Starting RPC session…', 'info');
 
     await startRpcSession();
-    log(logId, 'RPC session active', 'ok');
+    log(logId, 'RPC session started — verifying…', 'info');
+
+    // Send a ping and wait for a pong. This confirms the Flipper is
+    // actually in binary RPC mode, not still in CLI mode.
+    const pingMsg = buildPingMsg(state.commandId++);
+    await serialWriteMsg(pingMsg);
+    try {
+      await Promise.race([serialReadResponse(), sleep(4000).then(() => {
+        throw new Error('Flipper did not respond to RPC ping. Make sure your Flipper is on and showing the desktop (not a menu or app), then try again.');
+      })]);
+      log(logId, 'RPC session active ✓', 'ok');
+    } catch (pingErr) {
+      throw pingErr; // propagates to the outer catch which shows the error screen
+    }
 
     document.getElementById('connecting-ring').className = 'status-ring done';
     document.getElementById('connecting-title').textContent = 'Flipper connected';
@@ -753,6 +766,10 @@ async function goFlash() {
 
     // Phase 2: flash
     document.getElementById('progress-eyebrow').textContent = 'Phase 2 of 2 — Installing';
+    document.getElementById('progress-title').textContent   = state.method === 'dfu' ? 'Flashing firmware…' : 'Uploading firmware…';
+    document.getElementById('progress-sub').textContent     = state.method === 'dfu'
+      ? 'Writing firmware directly to Flipper flash memory.'
+      : 'Uploading firmware package to Flipper SD card via RPC.';
     setProgress(0, 'Installing', '');
     document.getElementById('progress-fill').classList.add('pulse');
 
@@ -897,6 +914,14 @@ function frame(msg) {
 }
 
 // Build Storage.WriteRequest (field 22 of Main)
+// System.PingRequest (field 6 of Main) — used to verify RPC mode is active
+function buildPingMsg(cmdId) {
+  return PB.cat([
+    PB.field_varint(1, cmdId),
+    PB.field_msg(6, new Uint8Array(0)), // empty ping request
+  ]);
+}
+
 function buildWriteMsg(cmdId, hasNext, path, data) {
   // File sub-message: {1: data_bytes}
   const fileMsg = PB.field_bytes(1, data);
@@ -1083,12 +1108,17 @@ async function uploadFile(sdPath, data, onProgress) {
     // Yield to the event loop every 100 chunks so the USB stack can
     // flush and the Flipper's receive buffer doesn't overflow.
     if (i > 0 && i % 100 === 0) await sleep(10);
+    if (onProgress) onProgress((i + 1) / chunks);
+    // Log every 10% so the user can see actual upload progress in the console
+    const pct10 = Math.round(((i + 1) / chunks) * 10);
+    if (pct10 !== Math.round((i / chunks) * 10) && i > 0) {
+      log('log-flash', `${pct10 * 10}%`);
+    }
     if (isLast) {
       // Wait for the Flipper's WriteResponse. Large files (firmware.dfu is ~840KB)
       // need several seconds to be written to the SD card — use a generous timeout.
       try { await Promise.race([serialReadResponse(), sleep(15000)]); } catch { /* ignore */ }
     }
-    if (onProgress) onProgress((i + 1) / chunks);
   }
 }
 
