@@ -278,19 +278,16 @@ async function connectSerial() {
   serialWriter = serialPort.writable.getWriter();
   serialReader = serialPort.readable.getReader();
   
-  log('Forcing Binary Mode...', 'in');
-  // 1. Send multiple Ctrl+C to break any active CLI process
-  await serialWriter.write(new TextEncoder().encode('\x03\x03\x03'));
-  await sleep(500);
+  log('Hard resetting Flipper...', 'in');
+  // Send a full reboot command string to force the Flipper to drop all locks
+  await serialWriter.write(new TextEncoder().encode('\x03reboot\r\n')); 
+  await sleep(3000); // Wait for the Flipper to fully reboot and re-initialize
   
-  // 2. Clear any pending CLI output
-  await syncSerial();
-  
-  // 3. Request RPC and wait for the specific "started" signal
+  // Now attempt to start the session
+  log('Starting RPC session...', 'in');
   await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
   
-  // 4. Final synchronization before the Ping
-  await sleep(1000);
+  await sleep(1000); 
   await syncSerial();
   
   cmdId = 1;
