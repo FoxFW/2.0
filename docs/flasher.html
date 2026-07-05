@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v19]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v20]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v19 · 2026-07-05 18:53 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v20 · 2026-07-05 19:11 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -122,7 +122,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 // ── CONFIG ──────────────────────────────────────────────────────
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
-const CHUNK    = 4096;   // 4KB chunks: efficient SD writes, within nanopb message limit
+const CHUNK    = 512;   // 512 bytes — proven safe, matches qFlipper
 const DFU_BLK  = 2048;
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
@@ -424,7 +424,7 @@ async function rpcMkdir(path) {
 
 async function rpcWriteFile(path, data, onProgress) {
   const chunks = Math.ceil(data.length / CHUNK);
-  const id     = cmdId++; // same command_id for ALL chunks of one file
+  const id     = cmdId++;
 
   for (let i=0; i<chunks; i++) {
     const chunk  = data.slice(i*CHUNK, (i+1)*CHUNK);
@@ -434,21 +434,20 @@ async function rpcWriteFile(path, data, onProgress) {
       commandId: id,
       hasNext:   !isLast,
       storageWriteRequest: {
-        path: i === 0 ? path : undefined, // path only on first chunk
+        path: i === 0 ? path : undefined,
         file: { data: chunk }
       }
     }));
 
-    // CRITICAL: yield to the event loop every chunk so bgDrain gets CPU time
-    // to read and discard any Flipper responses. Without this yield, Chrome
-    // never hands control to bgDrain, Flipper's IN buffer fills, deadlock.
-    await sleep(1);
+    // CRITICAL: wait 20ms between chunks so the Flipper can write each
+    // chunk to SD card before we send the next. Without this delay,
+    // the Flipper buffers all incoming chunks in heap RAM and crashes
+    // with a hard fault at ~256KB (41% of firmware.dfu = 344KB in heap
+    // = hard fault because Flipper only has 256KB total RAM).
+    await sleep(20);
 
     if (onProgress) onProgress((i+1)/chunks);
-
-    // Log EVERY percent — spams console but lets us see exactly where it stops
-    const pct = Math.round((i+1)/chunks*100);
-    if (pct !== Math.round(i/chunks*100)) log(`  ${pct}%`);
+    log(`  ${Math.round((i+1)/chunks*100)}%`);
 
     if (isLast) {
       const waitMs = Math.min(30000, Math.max(5000, Math.ceil(data.length/50000)*1000));
