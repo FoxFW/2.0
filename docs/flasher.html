@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v12 · 2026-07-05 10:58 UTC]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v13 · 2026-07-05 11:24 UTC]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -78,7 +78,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 10:30 UTC" style="cursor:default;">TEST v12 · 2026-07-05 10:58 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 10:30 UTC" style="cursor:default;">TEST v13 · 2026-07-05 11:24 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 
@@ -388,10 +388,14 @@ const PB = {
   cat(a){ const t=a.reduce((s,x)=>s+x.length,0),o=new Uint8Array(t);let i=0;for(const x of a){o.set(x,i);i+=x.length;}return o; }
 };
 
+// Flipper RPC uses VARINT-prefixed delimited format (nanopb PB_DECODE_DELIMITED),
+// NOT a fixed 4-byte LE header. Using 4-byte LE was the root cause of all upload
+// failures: Flipper read the first byte as a 1-byte varint (~60 bytes for 8KB msg),
+// parsed garbage, and wrote nothing to the SD card.
 function frame(msg){
-  const b=new Uint8Array(4+msg.length);
-  new DataView(b.buffer).setUint32(0,msg.length,true);
-  b.set(msg,4); return b;
+  const lv=PB.vi(msg.length);
+  const b=new Uint8Array(lv.length+msg.length);
+  b.set(lv,0); b.set(msg,lv.length); return b;
 }
 
 // Storage.MkdirRequest (field 28 of Main)
