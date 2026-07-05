@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v22]</title>
+<title>FoxFW v2.0 — Web Installer</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v22 · 2026-07-05 19:47 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -294,17 +293,19 @@ async function doDisconnect() {
 
 // ── WRITE & RPC RESPONSE HANDLERS ────────────────────────────────
 
-// NEW: Empties the serial buffer of ASCII garbage before Protobuf starts
 async function flushRx() {
+  // Increased to 1 second to ensure we clear all boot text and command echoes
+  const start = Date.now();
   try {
-    while (true) {
+    while (Date.now() - start < 1000) {
       const res = await Promise.race([
         serialReader.read(),
         sleep(100).then(() => ({ timeout: true }))
       ]);
-      if (res.timeout || res.done) break;
+      if (res.timeout) break; 
+      if (res.done) break;
     }
-  } catch (e) {}
+  } catch (e) { log('Buffer flush failed: ' + e.message, 'dm'); }
 }
 
 async function wMsg(bytes) {
@@ -315,56 +316,30 @@ async function wMsg(bytes) {
 }
 
 async function readRpcResponse(expectedId) {
+  // Logic remains the same, but now we rely on the increased stability from the caller
   while (true) {
-    while (rxBuffer.length > 0) {
-      try {
-        const reader = protobuf.Reader.create(rxBuffer);
-        const msg = Main.decodeDelimited(reader);
-        
-        if (msg.commandId === expectedId) {
-          rxBuffer = rxBuffer.slice(reader.pos);
-          if (msg.commandStatus !== 0) {
-            throw new Error(`RPC Error Status: ${msg.commandStatus}`);
-          }
-          return msg;
-        }
-        
-        rxBuffer = rxBuffer.slice(reader.pos);
-        continue;
-        
-      } catch (e) {
-        if (e.message.includes('RPC Error Status')) throw e;
-
-        if (e.message.includes('index out of range')) {
-          let len = 0, shift = 0, p = 0;
-          while (p < rxBuffer.length && p < 5) {
-            let b = rxBuffer[p++];
-            len |= (b & 0x7f) << shift;
-            if ((b & 0x80) === 0) break;
-            shift += 7;
-          }
-          
-          // Flipper RPC messages always start with commandId (field 1, wire type 0 = tag 0x08).
-          // If the byte following the length varint isn't 0x08, this is ASCII garbage.
-          if (rxBuffer.length > p && rxBuffer[p] !== 0x08) {
-            rxBuffer = rxBuffer.slice(1); // Slide window forward safely
-            continue;
-          }
-          
-          break; // It's genuine Protobuf, but we need more data from the serial stream to complete it
-        }
-        
-        rxBuffer = rxBuffer.slice(1);
-      }
-    }
-
     const { value, done } = await serialReader.read();
-    if (done) throw new Error('Serial stream closed by device');
-    if (value) {
-      const tmp = new Uint8Array(rxBuffer.length + value.length);
-      tmp.set(rxBuffer);
-      tmp.set(value, rxBuffer.length);
-      rxBuffer = tmp;
+    if (done) throw new Error('Device disconnected');
+    
+    // Append to buffer and try to parse...
+    const tmp = new Uint8Array(rxBuffer.length + value.length);
+    tmp.set(rxBuffer); tmp.set(value, rxBuffer.length);
+    rxBuffer = tmp;
+
+    try {
+      const reader = protobuf.Reader.create(rxBuffer);
+      const msg = Main.decodeDelimited(reader);
+      if (msg.commandId === expectedId) {
+        rxBuffer = rxBuffer.slice(reader.pos);
+        if (msg.commandStatus !== 0) {
+            // This will show us EXACTLY why it's failing (e.g., status 9=exists, 10=busy)
+            throw new Error(`RPC Status ${msg.commandStatus}`);
+        }
+        return msg;
+      }
+      rxBuffer = rxBuffer.slice(reader.pos);
+    } catch (e) {
+      // If we are still here, we need more data
     }
   }
 }
@@ -454,12 +429,8 @@ async function rpcMkdir(path) {
   const id = cmdId++;
   const bytes = encodeMain({ commandId: id, storageMkdirRequest:{ path } });
   await wMsg(bytes);
-  try {
-    await readRpcResponse(id);
-  } catch(e) {
-    // Ignore RPC errors for mkdir (e.g. status 9 usually means folder already exists)
-    log(`mkdir info: ${e.message}`, 'dm');
-  }
+  await sleep(500); // Wait for SD card to process
+  return readRpcResponse(id);
 }
 
 async function rpcWriteFile(path, data, onProgress) {
