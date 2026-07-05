@@ -505,6 +505,27 @@
     <div class="result-title err" id="error-title">Installation Failed</div>
     <p style="text-align:center;" id="error-message">An unexpected error occurred.</p>
     <div class="log-box" id="log-error" style="margin-top:16px;"></div>
+
+    <!-- Manual file fallback (shown when download fails) -->
+    <div id="manual-fallback" style="display:none;margin-top:24px;">
+      <div class="info-box warn">
+        <strong>Download blocked by a browser extension?</strong><br>
+        Disable ad blockers / privacy extensions and try again, or download
+        the firmware file yourself and load it below.
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px;">
+        <a id="manual-dl-link" href="#" target="_blank" class="btn btn-secondary" style="text-decoration:none;">
+          ⬇ Download firmware file
+        </a>
+        <span style="color:#666;font-size:0.85rem;">then →</span>
+        <label class="btn btn-primary" style="cursor:pointer;">
+          📂 Load file from computer
+          <input type="file" id="manual-file-input" accept=".tgz,.dfu"
+                 style="display:none;" onchange="loadManualFile(this)">
+        </label>
+      </div>
+    </div>
+
     <div class="btn-row" style="justify-content:center;margin-top:24px;">
       <button class="btn btn-primary" onclick="resetInstaller()">Try Again</button>
       <a href="mailto:foxcustomfirmware@gmail.com" class="btn btn-secondary">Contact Support</a>
@@ -593,6 +614,7 @@ function resetInstaller() {
   document.getElementById('log-connect').innerHTML = '';
   document.getElementById('log-flash').innerHTML = '';
   document.getElementById('log-error').innerHTML = '';
+  document.getElementById('manual-fallback').style.display = 'none';
   setProgress(0, 'Progress', '0%');
   document.getElementById('progress-do-not-unplug').style.display = 'none';
   showScreen('screen-welcome');
@@ -714,10 +736,19 @@ async function goFlash() {
     log('log-flash', 'Starting firmware download…', 'info');
 
     const url = state.method === 'dfu' ? DFU_URL : TGZ_URL;
-    const data = await fetchWithProgress(url, (pct) => {
-      setProgress(pct, 'Downloading', '');
-      log('log-flash', `Downloaded ${Math.round(pct * 100)}%`);
-    });
+    let data;
+    try {
+      data = await fetchWithProgress(url, (pct) => {
+        setProgress(pct, 'Downloading', '');
+        log('log-flash', `Downloaded ${Math.round(pct * 100)}%`);
+      });
+    } catch (dlErr) {
+      // Download failed — show with manual-file fallback
+      log('log-flash', dlErr.message, 'err');
+      showError('Download Failed', dlErr.message, /* isDownloadError */ true);
+      log('log-error', dlErr.message, 'err');
+      return;
+    }
     log('log-flash', `Download complete — ${(data.length / 1024 / 1024).toFixed(1)} MB`, 'ok');
 
     // Phase 2: flash
@@ -746,39 +777,89 @@ async function goFlash() {
   }
 }
 
-function showError(title, message) {
+function showError(title, message, isDownloadError = false) {
   showScreen('screen-error');
   document.getElementById('error-title').textContent   = title;
   document.getElementById('error-message').textContent = message;
+  const fallback = document.getElementById('manual-fallback');
+  fallback.style.display = isDownloadError ? '' : 'none';
+  if (isDownloadError) {
+    const url = state.method === 'dfu' ? DFU_URL : TGZ_URL;
+    document.getElementById('manual-dl-link').href = url;
+  }
+}
+
+// User picked a file manually after a download failure
+async function loadManualFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  showScreen('screen-progress');
+  document.getElementById('progress-eyebrow').textContent = 'Loading file…';
+  document.getElementById('progress-title').textContent   = `Loading ${file.name}…`;
+  document.getElementById('progress-sub').textContent     = 'Reading file from your computer.';
+  document.getElementById('progress-do-not-unplug').style.display = '';
+  log('log-flash', `Reading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)…`, 'info');
+
+  try {
+    const data = new Uint8Array(await file.arrayBuffer());
+    log('log-flash', 'File loaded OK', 'ok');
+
+    document.getElementById('progress-eyebrow').textContent = 'Phase 2 of 2 — Installing';
+    setProgress(0, 'Installing', '');
+    document.getElementById('progress-fill').classList.add('pulse');
+
+    if (state.method === 'dfu') {
+      await flashDFU(data);
+    } else {
+      await flashTGZ(data);
+    }
+
+    setProgress(1, 'Complete', '');
+    document.getElementById('progress-fill').classList.remove('pulse');
+    document.getElementById('success-message').textContent =
+      state.method === 'dfu'
+        ? 'DFU flash complete! Unplug your Flipper, hold the power button to boot.'
+        : 'Firmware package uploaded. Your Flipper is rebooting to apply the update.';
+    setTimeout(() => showScreen('screen-success'), 800);
+
+  } catch (err) {
+    showError('Installation Failed', err.message);
+    log('log-error', err.stack || err.message, 'err');
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
-//  FETCH WITH PROGRESS
+//  FETCH WITH PROGRESS  (uses XHR, not fetch — avoids extension
+//  overrides of window.fetch which cause "Failed to fetch" errors)
 // ════════════════════════════════════════════════════════════════
-async function fetchWithProgress(url, onProgress) {
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching firmware`);
+function fetchWithProgress(url, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'arraybuffer';
 
-  const contentLength = parseInt(resp.headers.get('Content-Length') || '0');
-  const reader = resp.body.getReader();
-  const chunks = [];
-  let received = 0;
-  let lastLogged = -1;
+    xhr.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+    };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    const pct = contentLength ? received / contentLength : 0;
-    const tenths = Math.floor(pct * 10);
-    if (tenths !== lastLogged) { onProgress(pct); lastLogged = tenths; }
-  }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(new Uint8Array(xhr.response));
+      } else {
+        reject(new Error(`HTTP ${xhr.status} downloading firmware`));
+      }
+    };
 
-  const out = new Uint8Array(received);
-  let offset = 0;
-  for (const c of chunks) { out.set(c, offset); offset += c.length; }
-  return out;
+    xhr.onerror = () => reject(new Error(
+      'Download failed. A browser extension may be blocking the request — ' +
+      'try disabling extensions or use the "Load file from computer" option below.'
+    ));
+
+    xhr.ontimeout = () => reject(new Error('Download timed out'));
+    xhr.timeout = 120000; // 2-minute timeout for large files
+    xhr.send();
+  });
 }
 
 // ════════════════════════════════════════════════════════════════
