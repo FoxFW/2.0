@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v10 · 2026-07-05 10:39 UTC]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v11 · 2026-07-05 10:49 UTC]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -78,7 +78,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 10:30 UTC" style="cursor:default;">TEST v10 · 2026-07-05 10:39 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 10:30 UTC" style="cursor:default;">TEST v11 · 2026-07-05 10:49 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 
@@ -322,16 +322,16 @@ async function doFlashTGZ() {
   if (!manifest) throw new Error('update.fuf manifest not found in TGZ package');
   const manifestSD = `/ext/update/${manifest.name}`;
 
-  // ── Step 2: Re-establish RPC session immediately before upload ────
-  // We re-send start_rpc_session right now so the Flipper is in a
-  // known-fresh RPC state with zero idle time before our first write.
+  // ── Step 2: Start drain + upload immediately ──────────────────────
+  // The Flipper has been in RPC mode since connectSerial() — the session
+  // has NO timeout (FuriWaitForever in the firmware), so it is still valid
+  // after the download. Do NOT re-send start_rpc_session here: sending CLI
+  // text to a Flipper in RPC mode makes the RPC handler read it as a
+  // 1.9 GB message length and hang, breaking the session entirely.
   log('Re-establishing RPC session…', 'in');
   pg(0.32, 'Starting RPC session…');
   readBuf = new Uint8Array(0); cmdId = 1;
-  await serialWriter.write(new TextEncoder().encode('\r\nstart_rpc_session\r\n'));
-  await sleep(600); // let the Flipper switch modes
-  readBuf = new Uint8Array(0); // discard any CLI response text
-  log('RPC session ready — beginning upload', 'ok');
+  log('Beginning upload…', 'ok');
 
   // ── Step 3: Start drain + upload immediately ──────────────────────
   // bgDrain runs concurrently to prevent the Flipper's USB send buffer
