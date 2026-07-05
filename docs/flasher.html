@@ -472,7 +472,7 @@ async function rpcPing() {
 async function rpcMkdir(path) {
   const bytes = encodeMain({ commandId: cmdId++, storageMkdirRequest:{ path } });
   await wMsg(bytes);
-  await sleep(400); // let Flipper process mkdir; bgDrain reads the response
+  await sleep(400); 
 }
 
 async function rpcWriteFile(path, data, onProgress) {
@@ -486,20 +486,26 @@ async function rpcWriteFile(path, data, onProgress) {
     const reqObj = {
       commandId: id,
       hasNext: !isLast,
-      storageWriteRequest: {
-        file: { data: chunk }
-      }
+      storageWriteRequest: { file: { data: chunk } }
     };
     
-    if (i === 0) {
-      reqObj.storageWriteRequest.path = path;
-    }
+    if (i === 0) reqObj.storageWriteRequest.path = path;
 
     await wMsg(encodeMain(reqObj));
-    await readRpcResponse(id); 
+    
+    // Add this timeout check to see if the Flipper is still talking to us
+    try {
+        await Promise.race([
+            readRpcResponse(id),
+            sleep(2000).then(() => { throw new Error('Timeout on chunk ' + i); })
+        ]);
+    } catch (e) {
+        log('Error at chunk ' + i + ': ' + e.message, 'er');
+        throw e;
+    }
 
     if (onProgress) onProgress((i+1)/chunks);
-    if (i % 10 === 0 || isLast) log(`  ${Math.round((i+1)/chunks*100)}%`);
+    if (i % 20 === 0) log(`  Progress: ${Math.round((i+1)/chunks*100)}%`);
   }
 }
 
