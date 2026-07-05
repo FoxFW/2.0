@@ -66,6 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v22 · 2026-07-05 19:47 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -292,6 +293,20 @@ async function doDisconnect() {
 }
 
 // ── WRITE & RPC RESPONSE HANDLERS ────────────────────────────────
+
+// NEW: Empties the serial buffer of ASCII garbage before Protobuf starts
+async function flushRx() {
+  try {
+    while (true) {
+      const res = await Promise.race([
+        serialReader.read(),
+        sleep(100).then(() => ({ timeout: true }))
+      ]);
+      if (res.timeout || res.done) break;
+    }
+  } catch (e) {}
+}
+
 async function wMsg(bytes) {
   await Promise.race([
     serialWriter.write(bytes),
@@ -314,17 +329,13 @@ async function readRpcResponse(expectedId) {
           return msg;
         }
         
-        // Decoded correctly, but wrong ID (e.g. an old message in the buffer). Discard it.
         rxBuffer = rxBuffer.slice(reader.pos);
         continue;
         
       } catch (e) {
-        // If it's a genuine Flipper error we threw above, bubble it up.
         if (e.message.includes('RPC Error Status')) throw e;
 
-        // If the buffer is too short to fulfill the parsed varint length, ProtobufJS throws this error.
         if (e.message.includes('index out of range')) {
-          // Verify if the varint length is sane. If it's ridiculously large, we are parsing garbage.
           let len = 0, shift = 0, p = 0;
           while (p < rxBuffer.length && p < 5) {
             let b = rxBuffer[p++];
@@ -332,20 +343,21 @@ async function readRpcResponse(expectedId) {
             if ((b & 0x80) === 0) break;
             shift += 7;
           }
-          if (len < 500000) {
-            // Length is sane (< 500KB), we likely just need to wait for the rest of the message to arrive.
-            break; 
+          
+          // Flipper RPC messages always start with commandId (field 1, wire type 0 = tag 0x08).
+          // If the byte following the length varint isn't 0x08, this is ASCII garbage.
+          if (rxBuffer.length > p && rxBuffer[p] !== 0x08) {
+            rxBuffer = rxBuffer.slice(1); // Slide window forward safely
+            continue;
           }
+          
+          break; // It's genuine Protobuf, but we need more data from the serial stream to complete it
         }
         
-        // If we reach here, it's either an invalid wire type, illegal tag, or an insane length.
-        // This means the parser is chewing on non-Protobuf garbage (like the CLI prompt).
-        // Slide the window forward by 1 byte and try again to re-sync.
         rxBuffer = rxBuffer.slice(1);
       }
     }
 
-    // Read more data from stream
     const { value, done } = await serialReader.read();
     if (done) throw new Error('Serial stream closed by device');
     if (value) {
@@ -400,8 +412,11 @@ async function doFlashTGZ() {
   log(`Update directory: ${sdBase}`,'in');
 
   pg(0.30,'Creating directories…');
+  
+  // FIX: Clear out the OS serial buffer before initiating Protobuf commands
+  await flushRx(); 
   cmdId = 1; 
-  rxBuffer = new Uint8Array(0); // clear any stale rx data from before session start
+  rxBuffer = new Uint8Array(0);
 
   log('Creating update directory on SD card…','in');
   await rpcMkdir('/ext/update');
@@ -463,13 +478,12 @@ async function rpcWriteFile(path, data, onProgress) {
       }
     };
     
-    // Fix: Only send the file path on the FIRST chunk of a transfer.
     if (i === 0) {
       reqObj.storageWriteRequest.path = path;
     }
 
     await wMsg(encodeMain(reqObj));
-    await readRpcResponse(id); // Flow Control: Wait for Flipper to acknowledge chunk
+    await readRpcResponse(id); 
 
     if (onProgress) onProgress((i+1)/chunks);
     if (i % 10 === 0 || isLast) log(`  ${Math.round((i+1)/chunks*100)}%`);
