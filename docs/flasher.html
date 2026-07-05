@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v16]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v17]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v16 · 2026-07-05 18:23 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v17 · 2026-07-05 18:34 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -299,30 +299,20 @@ async function wMsg(bytes) {
   await serialWriter.write(bytes);
 }
 
-// ── BACKGROUND DRAIN ─────────────────────────────────────────────
-// Continuously reads & discards Flipper responses during upload.
-// Without this, the Flipper's USB send buffer fills with unread
-// responses → its CDC task blocks → USB NACK → our writes deadlock.
-let draining = false;
-async function bgDrain(reader) {
-  draining = true;
+// ── DRAIN HELPER ─────────────────────────────────────────────────
+// Reads and discards any bytes the Flipper has sent back.
+// Called explicitly between write batches so the Flipper's USB IN
+// buffer never fills and blocks its RPC task.
+// Multiple concurrent calls are fine — reads queue on the same reader.
+async function drain(ms) {
+  if (!serialReader) return;
   try {
-    while (draining) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      // discard — we don't parse RPC responses during fire-and-forget upload
-    }
-  } catch { }
-  finally { draining = false; }
+    await Promise.race([
+      serialReader.read().then(() => {}),
+      sleep(ms)
+    ]);
+  } catch {}
 }
-function startDrain() {
-  draining = false;
-  // transfer reader to drain; null out global so we don't accidentally use it
-  const dr = serialReader;
-  serialReader = null;
-  bgDrain(dr); // fire and forget — runs concurrently
-}
-function stopDrain() { draining = false; }
 
 // ── FLASH DISPATCHER ─────────────────────────────────────────────
 async function doFlash() {
@@ -372,7 +362,6 @@ async function doFlashTGZ() {
   //    start_rpc_session (would break the already-active session)
   pg(0.30,'Creating directories…');
   cmdId = 1; // reset command counter for clean upload session
-  startDrain();
 
   // 3. Create update directories
   log('Creating update directory on SD card…','in');
@@ -397,7 +386,6 @@ async function doFlashTGZ() {
     systemUpdateRequest:{ updateManifest: manifestSD }
   });
   await wMsg(updateBytes);
-  stopDrain();
   await sleep(1000);
   log('Update triggered — Flipper is rebooting','ok');
   pg(1,'Done!');
@@ -408,7 +396,7 @@ async function doFlashTGZ() {
 async function rpcMkdir(path) {
   const bytes = encodeMain({ commandId: cmdId++, storageMkdirRequest:{ path } });
   await wMsg(bytes);
-  await sleep(300); // drain handles response; sleep gives Flipper time to process
+  await drain(500); // read mkdir response so Flipper's IN buffer stays clear
 }
 
 async function rpcWriteFile(path, data, onProgress) {
@@ -418,34 +406,34 @@ async function rpcWriteFile(path, data, onProgress) {
   for (let i=0; i<chunks; i++) {
     const chunk  = data.slice(i*CHUNK, (i+1)*CHUNK);
     const isLast = i === chunks-1;
-    const isFirst= i === 0;
 
     const msgObj = {
       commandId: id,
       hasNext:   !isLast,
       storageWriteRequest: {
-        // protobufjs omits empty string fields (proto3 default) — only first chunk has path
-        path: isFirst ? path : '',
+        // undefined = field omitted entirely (avoids proto2/proto3 ambiguity
+        // with empty string which could be encoded as an explicit empty field)
+        path: i === 0 ? path : undefined,
         file: { data: chunk }
       }
     };
     await wMsg(encodeMain(msgObj));
 
-    // No artificial delay — USB flow control naturally rate-limits us.
-    // Yield to event loop every 50 chunks so bgDrain can read Flipper responses.
-    if (i % 50 === 49) await sleep(0);
+    // Drain every 10 chunks — reads any error/ack responses the Flipper
+    // sent back, keeping its USB IN buffer clear so it can keep receiving.
+    if (i % 10 === 9) await drain(20);
+
     if (onProgress) onProgress((i+1)/chunks);
 
-    // Log every ~10%
-    if (i > 0 && Math.floor((i+1)/chunks*10) > Math.floor(i/chunks*10)) {
-      log(`  ${Math.round((i+1)/chunks*100)}%`);
-    }
+    // Log at 25%, 50%, 75%, 100%
+    const q = Math.floor((i+1)/chunks*4);
+    if (q > Math.floor(i/chunks*4)) log(`  ${Math.round((i+1)/chunks*100)}%`);
 
     if (isLast) {
-      // Wait for SD card to flush. Scale by file size at ~80KB/s write speed.
-      const waitMs = Math.min(25000, Math.max(4000, Math.ceil(data.length/80000)*1000));
+      // Drain and wait for final WriteResponse + SD flush
+      const waitMs = Math.min(30000, Math.max(5000, Math.ceil(data.length/50000)*1000));
       log(`  Waiting ${(waitMs/1000).toFixed(0)}s for SD write…`);
-      await sleep(waitMs);
+      await drain(waitMs);
     }
   }
 }
