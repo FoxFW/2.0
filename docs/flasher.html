@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer </title>
+<title>FoxFW v2.0 — Web Installer [TEST v22]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,6 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v22 · 2026-07-05 19:47 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -121,12 +122,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 // ── CONFIG ──────────────────────────────────────────────────────
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
-const CHUNK    = 512;
+const CHUNK    = 512;   // 512 bytes — proven safe, matches qFlipper
 const DFU_BLK  = 2048;
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
 
 // ── FLIPPER PROTOBUF SCHEMA ──────────────────────────────────────
+// Defined inline — same field numbers as flipperzero-protobuf/flipper.proto
 const PROTO_JSON = {
   nested: {
     PB: {
@@ -179,16 +181,17 @@ function initProto() {
   Main = PBRoot.lookupType('PB.Main');
 }
 
+// Encode a PB.Main message and return length-delimited (varint-prefixed) bytes
 function encodeMain(obj) {
   const err = Main.verify(obj);
   if (err) throw new Error('Protobuf encode error: ' + err);
+  // encodeDelimited writes varint(length) + message bytes
   return Main.encodeDelimited(obj).finish();
 }
 
 // ── STATE ────────────────────────────────────────────────────────
 let method = 'tgz', cmdId = 1, busy = false, connected = false;
 let serialPort = null, serialWriter = null, serialReader = null;
-let rxBuffer = new Uint8Array(0);
 
 // ── UI HELPERS ───────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -229,25 +232,7 @@ function selMethod(m) {
   $('fw-file').textContent   = m==='tgz' ? 'flipper-z-f7-update-local.tgz' : 'flipper-z-f7-full-local.dfu';
 }
 
-
-async function syncSerial() {
-    log('Synchronizing serial port...', 'dm');
-    let stable = false;
-    while (!stable) {
-        try {
-            const res = await Promise.race([
-                serialReader.read(),
-                sleep(500).then(() => ({ timeout: true }))
-            ]);
-            if (res.timeout) { stable = true; } // Port is silent
-            else { /* Keep reading until silent */ }
-        } catch (e) { break; }
-    }
-    log('Serial port synchronized.', 'ok');
-}
-
 // ── CONNECT ──────────────────────────────────────────────────────
-
 async function doConnect() {
   if (busy) return;
   clearNotices();
@@ -273,26 +258,19 @@ async function doConnect() {
 
 async function connectSerial() {
   if (!('serial' in navigator)) throw new Error('Web Serial not supported — use Chrome or Edge');
+  log('Requesting serial port…','in');
   serialPort = await navigator.serial.requestPort({ filters:[{ usbVendorId:VID }] });
-  await serialPort.open({ baudRate: 115200 });
+  await serialPort.open({ baudRate:115200 });
   serialWriter = serialPort.writable.getWriter();
   serialReader = serialPort.readable.getReader();
-  
-  log('Hard resetting Flipper...', 'in');
-  // Send a full reboot command string to force the Flipper to drop all locks
-  await serialWriter.write(new TextEncoder().encode('\x03reboot\r\n')); 
-  await sleep(3000); // Wait for the Flipper to fully reboot and re-initialize
-  
-  // Now attempt to start the session
-  log('Starting RPC session...', 'in');
-  await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
-  
-  await sleep(1000); 
-  await syncSerial();
-  
   cmdId = 1;
-  connUI('on', 'Flipper Zero — Connected', 'Ready for RPC');
-  log('Binary session established', 'ok');
+  log('Port opened — starting RPC session…','ok');
+  await serialWriter.write(new TextEncoder().encode('\r\n'));
+  await sleep(200);
+  await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
+  await sleep(700);
+  log('RPC session active','ok');
+  connUI('on','Flipper Zero — Connected','USB serial · Standard Update (RPC)');
 }
 
 async function connectDFU() {
@@ -316,57 +294,45 @@ async function doDisconnect() {
   log('Disconnected','dm');
 }
 
-// ── WRITE & RPC RESPONSE HANDLERS ────────────────────────────────
-
-async function flushRx() {
-  // Increased to 1 second to ensure we clear all boot text and command echoes
-  const start = Date.now();
-  try {
-    while (Date.now() - start < 1000) {
-      const res = await Promise.race([
-        serialReader.read(),
-        sleep(100).then(() => ({ timeout: true }))
-      ]);
-      if (res.timeout) break; 
-      if (res.done) break;
-    }
-  } catch (e) { log('Buffer flush failed: ' + e.message, 'dm'); }
-}
-
+// ── WRITE HELPERS ────────────────────────────────────────────────
 async function wMsg(bytes) {
+  // If write() blocks for >30s, the Flipper has permanently stopped
+  // accepting data (deadlock or device error) — surface it immediately
   await Promise.race([
     serialWriter.write(bytes),
-    sleep(15000).then(() => { throw new Error('Write timeout - Flipper stopped accepting data'); })
+    sleep(30000).then(() => { throw new Error('Flipper stopped accepting data — write timeout after 30s'); })
   ]);
 }
 
-async function readRpcResponse(expectedId) {
-  // Logic remains the same, but now we rely on the increased stability from the caller
-  while (true) {
-    const { value, done } = await serialReader.read();
-    if (done) throw new Error('Device disconnected');
-    
-    // Append to buffer and try to parse...
-    const tmp = new Uint8Array(rxBuffer.length + value.length);
-    tmp.set(rxBuffer); tmp.set(value, rxBuffer.length);
-    rxBuffer = tmp;
-
-    try {
-      const reader = protobuf.Reader.create(rxBuffer);
-      const msg = Main.decodeDelimited(reader);
-      if (msg.commandId === expectedId) {
-        rxBuffer = rxBuffer.slice(reader.pos);
-        if (msg.commandStatus !== 0) {
-            // This will show us EXACTLY why it's failing (e.g., status 9=exists, 10=busy)
-            throw new Error(`RPC Status ${msg.commandStatus}`);
-        }
-        return msg;
+// ── BACKGROUND DRAIN ────────────────────────────────────────────
+// Runs concurrently throughout the upload. Reads & discards every
+// response/error byte the Flipper sends. If we don't drain, the
+// Flipper's USB IN buffer fills → its RPC task blocks → it can't
+// drain its OUT buffer → Chrome's write() deadlocks.
+let drainReader = null;
+async function bgDrain() {
+  try {
+    while (drainReader) {
+      const { value, done } = await drainReader.read();
+      if (done || !drainReader) break;
+      if (value && value.length > 0) {
+        // Log received bytes — helps diagnose Flipper error responses mid-upload
+        const hex = Array.from(value.slice(0,20)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+        log(`[flipper→us ${value.length}B] ${hex}${value.length>20?'…':''}`, 'dm');
       }
-      rxBuffer = rxBuffer.slice(reader.pos);
-    } catch (e) {
-      // If we are still here, we need more data
     }
+  } catch (e) {
+    log('[bgDrain stopped: '+e.message+']','dm');
   }
+}
+function startDrain() {
+  // Release global reader to drain; get it back after upload
+  drainReader = serialReader;
+  serialReader = null;
+  bgDrain(); // fire and forget — runs concurrently
+}
+function stopDrain() {
+  drainReader = null;
 }
 
 // ── FLASH DISPATCHER ─────────────────────────────────────────────
@@ -395,117 +361,88 @@ async function doFlash() {
 
 // ── TGZ / RPC FLASH ──────────────────────────────────────────────
 async function doFlashTGZ() {
-  pg(0.01,'Downloading firmware…'); 
+  // 1. Download + decompress + parse FIRST (Flipper RPC has no timeout,
+  //    so the session remains valid during the download)
+  pg(0.01,'Downloading firmware…'); log('Downloading '+TGZ_URL+'…','in');
   const tgz = await fetchXHR(TGZ_URL, p=>pg(0.01+p*0.28,`Downloading… ${Math.round(p*100)}%`));
+  log(`Downloaded ${(tgz.length/1024/1024).toFixed(1)} MB`,'ok');
+  pg(0.29,'Decompressing…'); log('Decompressing…');
   const tar   = pako.inflate(tgz);
   const files = parseTar(tar);
+  log(`Found ${files.length} files in package`,'ok');
+  if (!files.length) throw new Error('No files in firmware package');
+
   const topDir     = files[0].name.split('/')[0];
   const sdBase     = `/ext/update/${topDir}`;
-  const manifestSD = `/ext/update/${files.find(f=>f.name.endsWith('update.fuf')).name}`;
+  const manifest   = files.find(f=>f.name.endsWith('update.fuf'));
+  if (!manifest) throw new Error('update.fuf manifest not found in TGZ');
+  const manifestSD = `/ext/update/${manifest.name}`;
+  log(`Update directory: ${sdBase}`,'in');
 
-  // 1. Reset commandId and state
-  cmdId = 1; 
-  rxBuffer = new Uint8Array(0);
+  // 2. Start background drain and upload immediately — no re-send of
+  //    start_rpc_session (would break the already-active session)
+  pg(0.30,'Creating directories…');
+  cmdId = 1; // reset command counter for clean upload session
+  startDrain();
 
-  // 2. Perform the mkdir IMMEDIATELY. 
-  log('Creating update directory…','in');
-  
-  try {
-    await rpcMkdir('/ext/update');
-    await rpcMkdir(sdBase);
-    
-    // Upload files
-    for (let fi=0; fi<files.length; fi++) {
-      const f = files[fi];
-      const sdPath = `/ext/update/${f.name}`;
-      log(`Uploading ${f.name} (${(f.data.length/1024).toFixed(0)} KB)…`);
-      await rpcWriteFile(sdPath, f.data, p => {
-        pg(0.32 + ((fi+p)/files.length)*0.60, `Uploading ${f.name}… ${Math.round(p*100)}%`);
-      });
-      log(`✓ ${f.name}`,'ok');
-    }
+  // 3. Create update directories
+  log('Creating update directory on SD card…','in');
+  await rpcMkdir('/ext/update');
+  await rpcMkdir(sdBase);
 
-    // Trigger update
-    log('Triggering firmware update…','in'); pg(0.93,'Triggering update…');
-    const id = cmdId++;
-    const updateBytes = encodeMain({
-      commandId: id,
-      systemUpdateRequest:{ updateManifest: manifestSD }
+  // 4. Upload each file
+  for (let fi=0; fi<files.length; fi++) {
+    const f = files[fi];
+    const sdPath = `/ext/update/${f.name}`;
+    log(`Uploading ${f.name} (${(f.data.length/1024).toFixed(0)} KB)…`);
+    await rpcWriteFile(sdPath, f.data, p => {
+      pg(0.32 + ((fi+p)/files.length)*0.60, `Uploading ${f.name}… ${Math.round(p*100)}%`);
     });
-    await wMsg(updateBytes);
-    try { await readRpcResponse(id); } catch(e){} 
-    await sleep(1000);
-    
-    log('Update triggered — Flipper is rebooting','ok');
-    pg(1,'Done!');
-    try { await doDisconnect(); } catch {}
-
-  } catch (e) {
-    log('CRITICAL: ' + e.message, 'er');
-    throw e;
+    log(`✓ ${f.name}`,'ok');
   }
+
+  // 5. Trigger update
+  log('Triggering firmware update…','in'); pg(0.93,'Triggering update…');
+  const updateBytes = encodeMain({
+    commandId:1,
+    systemUpdateRequest:{ updateManifest: manifestSD }
+  });
+  await wMsg(updateBytes);
+  stopDrain();
+  await sleep(1000);
+  log('Update triggered — Flipper is rebooting','ok');
+  pg(1,'Done!');
+  try { await doDisconnect(); } catch {}
 }
 
-// ── RPC FILE OPERATIONS ──────────────────────────────────────────
-async function rpcPing() {
-  const id = cmdId++;
-  // We use a very simple Protobuf structure to ensure maximum compatibility
-  const msg = {
-      commandId: id,
-      // Some Flipper firmware versions require a specific field structure
-      systemPingRequest: {} 
-  };
-  
-  log('Sending low-level ping...', 'in');
-  const bytes = encodeMain(msg);
-  
-  // Directly write bytes to serial
-  await serialWriter.write(bytes);
-  
-  // Set a hard timeout for the ping
-  return Promise.race([
-      readRpcResponse(id),
-      sleep(3000).then(() => { throw new Error('Ping timed out: Flipper is not responding to RPC'); })
-  ]);
-}
-
+// ── RPC FILE OPERATIONS (using protobufjs encoding) ──────────────
 async function rpcMkdir(path) {
   const bytes = encodeMain({ commandId: cmdId++, storageMkdirRequest:{ path } });
   await wMsg(bytes);
-  await sleep(400); 
+  await sleep(400); // let Flipper process mkdir; bgDrain reads the response
 }
 
 async function rpcWriteFile(path, data, onProgress) {
   const chunks = Math.ceil(data.length / CHUNK);
   
-  for (let i=0; i<chunks; i++) {
-    const chunk  = data.slice(i*CHUNK, (i+1)*CHUNK);
-    const isLast = i === chunks-1;
-    const id = cmdId++;
+  for (let i = 0; i < chunks; i++) {
+    const chunk = data.slice(i * CHUNK, (i + 1) * CHUNK);
+    const isLast = i === chunks - 1;
+    
+    // Only set path on the first chunk to initialize the write session
+    const writeReq = { file: { data: chunk } };
+    if (i === 0) writeReq.path = path;
 
-    const reqObj = {
-      commandId: id,
+    await wMsg(encodeMain({
+      commandId: cmdId++, // Ensure unique IDs
       hasNext: !isLast,
-      storageWriteRequest: { file: { data: chunk } }
-    };
-    
-    if (i === 0) reqObj.storageWriteRequest.path = path;
+      storageWriteRequest: writeReq
+    }));
 
-    await wMsg(encodeMain(reqObj));
-    
-    // Add this timeout check to see if the Flipper is still talking to us
-    try {
-        await Promise.race([
-            readRpcResponse(id),
-            sleep(2000).then(() => { throw new Error('Timeout on chunk ' + i); })
-        ]);
-    } catch (e) {
-        log('Error at chunk ' + i + ': ' + e.message, 'er');
-        throw e;
-    }
+    // Crucial: yield to the event loop so bgDrain can process the Flipper's ACKs
+    await new Promise(resolve => setTimeout(resolve, 0));
 
-    if (onProgress) onProgress((i+1)/chunks);
-    if (i % 20 === 0) log(`  Progress: ${Math.round((i+1)/chunks*100)}%`);
+    if (onProgress) onProgress((i + 1) / chunks);
   }
 }
 
@@ -600,6 +537,7 @@ function fetchXHR(url,onProg){
     n.classList.add('show'); n.style.display='';
     $('bcon').disabled=true; $('bflash').disabled=true;
   }
+  // protobufjs loaded from CDN — init when ready
   if(typeof protobuf!=='undefined') initProto();
   else setTimeout(()=>{if(typeof protobuf!=='undefined')initProto();},500);
   selMethod('tgz');
