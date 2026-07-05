@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v18]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v19]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v18 · 2026-07-05 18:46 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v19 · 2026-07-05 18:53 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -296,7 +296,12 @@ async function doDisconnect() {
 
 // ── WRITE HELPERS ────────────────────────────────────────────────
 async function wMsg(bytes) {
-  await serialWriter.write(bytes);
+  // If write() blocks for >30s, the Flipper has permanently stopped
+  // accepting data (deadlock or device error) — surface it immediately
+  await Promise.race([
+    serialWriter.write(bytes),
+    sleep(30000).then(() => { throw new Error('Flipper stopped accepting data — write timeout after 30s'); })
+  ]);
 }
 
 // ── BACKGROUND DRAIN ────────────────────────────────────────────
@@ -310,9 +315,15 @@ async function bgDrain() {
     while (drainReader) {
       const { value, done } = await drainReader.read();
       if (done || !drainReader) break;
-      // discard — we use fire-and-forget for the upload
+      if (value && value.length > 0) {
+        // Log received bytes — helps diagnose Flipper error responses mid-upload
+        const hex = Array.from(value.slice(0,20)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+        log(`[flipper→us ${value.length}B] ${hex}${value.length>20?'…':''}`, 'dm');
+      }
     }
-  } catch {}
+  } catch (e) {
+    log('[bgDrain stopped: '+e.message+']','dm');
+  }
 }
 function startDrain() {
   // Release global reader to drain; get it back after upload
