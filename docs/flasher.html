@@ -427,7 +427,7 @@ async function doFlashTGZ() {
       pg(0.32 + ((fi+p)/files.length)*0.60, `Uploading ${f.name}… ${Math.round(p*100)}%`);
     });
     log(`✓ ${f.name}`,'ok');
-  }}
+  }
 
   // Trigger update
   log('Triggering firmware update…','in'); pg(0.93,'Triggering update…');
@@ -443,7 +443,7 @@ async function doFlashTGZ() {
   log('Update triggered — Flipper is rebooting','ok');
   pg(1,'Done!');
   try { await doDisconnect(); } catch {}
-}
+}}
 
 // ── RPC FILE OPERATIONS ──────────────────────────────────────────
 async function rpcPing() {
