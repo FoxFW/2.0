@@ -37,6 +37,11 @@ and a polished system-wide experience. It is designed around three goals:
 
 ---
 
+<div align="center">
+  <video src="docs/FoxFW2.0.mp4" width="100%" controls style="max-width:100%;aspect-ratio:auto;">
+    <a href="docs/FoxFW2.0.mp4">▶ Watch the FoxFW 2.0 overview video</a>
+  </video>
+</div>
 
 ---
 
