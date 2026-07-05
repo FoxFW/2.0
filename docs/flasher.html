@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v13 · 2026-07-05 11:24 UTC]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v14 · 2026-07-05 11:34 UTC]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -78,7 +78,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 10:30 UTC" style="cursor:default;">TEST v13 · 2026-07-05 11:24 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 10:30 UTC" style="cursor:default;">TEST v14 · 2026-07-05 11:34 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 
@@ -149,7 +149,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 // Files served from same directory as flasher.html (GitHub Pages)
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
-const CHUNK    = 8192;
+const CHUNK    = 512;
 const DFU_BLK  = 2048;
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
@@ -328,10 +328,9 @@ async function doFlashTGZ() {
   // after the download. Do NOT re-send start_rpc_session here: sending CLI
   // text to a Flipper in RPC mode makes the RPC handler read it as a
   // 1.9 GB message length and hang, breaking the session entirely.
-  log('Re-establishing RPC session…', 'in');
-  pg(0.32, 'Starting RPC session…');
+  pg(0.32, 'Beginning upload…');
   readBuf = new Uint8Array(0); cmdId = 1;
-  log('Beginning upload…', 'ok');
+  log('Starting upload with 512-byte chunks (qFlipper protocol)…', 'ok');
 
   // ── Step 3: Start drain + upload immediately ──────────────────────
   // bgDrain runs concurrently to prevent the Flipper's USB send buffer
@@ -496,8 +495,8 @@ async function rpcWriteFile(path, data, onProgress){
     const chunk=data.slice(i*CHUNK,(i+1)*CHUNK);
     const isLast=i===chunks-1;
     await wMsg(writeMsg(id,!isLast,i===0?path:null,chunk));
-    // Rate-limit: 30ms per 8KB chunk = ~270KB/s — lets Flipper keep up with SD writes
-    await sleep(30);
+    // Rate-limit: 5ms per 512-byte chunk ≈ 100KB/s — matches qFlipper chunk size
+    await sleep(5);
     if(onProgress) onProgress((i+1)/chunks);
     if(isLast){
       // Wait for SD card to finish writing. Scale with file size at a
