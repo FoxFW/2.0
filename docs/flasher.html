@@ -953,19 +953,17 @@ async function startRpcSession() {
 // We read one chunk with a strict timeout so we never leave a dangling
 // pending read() promise that would conflict with later serialReadExact calls.
 async function drainSerialBuffer(timeoutMs) {
+  // Just sleep — do NOT call serialReader.read() here.
+  // Calling read() and then having the timeout fire before data arrives
+  // leaves a permanently pending read() that will silently consume the
+  // first real RPC response (the WriteResponse after upload), causing
+  // serialReadResponse to hang forever waiting for data already discarded.
+  //
+  // Instead we simply wait, letting CLI bytes accumulate in the stream's
+  // internal buffer. serialReadResponse handles skipping them with a
+  // sliding-window scan.
+  await sleep(timeoutMs);
   readBuffer = new Uint8Array(0);
-  await new Promise((resolve) => {
-    let resolved = false;
-    const done = () => { if (!resolved) { resolved = true; resolve(); } };
-    const timer = setTimeout(done, timeoutMs);
-    serialReader.read().then(({ value }) => {
-      clearTimeout(timer);
-      // If data arrived, accumulate it so a second read isn't pending
-      // (the data is CLI text we don't need — discard it)
-      readBuffer = new Uint8Array(0);
-      done();
-    }).catch(() => { clearTimeout(timer); done(); });
-  });
 }
 
 async function serialReadExact(n) {
@@ -982,10 +980,25 @@ async function serialReadExact(n) {
 }
 
 async function serialReadResponse() {
-  const hdr = await serialReadExact(4);
-  const len = new DataView(hdr.buffer).getUint32(0, true);
-  if (len === 0 || len > 2 * 1024 * 1024) throw new Error(`Invalid RPC response length: ${len}`);
-  return await serialReadExact(len);
+  // The stream may contain leftover CLI text bytes from session startup
+  // (e.g. "\r\nOK\r\n" from start_rpc_session) before the first real
+  // binary RPC message. Use a sliding-window scan: read 4 bytes, check
+  // if they form a plausible message length (1–32768 bytes). If not,
+  // slide forward by 1 byte and try again. CLI text produces lengths
+  // outside that range (e.g. 0x0A0D4B4F = 170,967,887).
+  for (let skip = 0; skip < 128; skip++) {
+    const hdr = await serialReadExact(4);
+    const len = new DataView(hdr.buffer).getUint32(0, true);
+    if (len >= 1 && len <= 32768) {
+      return await serialReadExact(len);
+    }
+    // Slide window: put 3 bytes back, advance by 1
+    const slide = new Uint8Array(3 + readBuffer.length);
+    slide.set(hdr.slice(1));
+    slide.set(readBuffer, 3);
+    readBuffer = slide;
+  }
+  throw new Error('No valid RPC response found — session may not be in RPC mode');
 }
 
 async function serialWriteMsg(msg) {
@@ -1067,6 +1080,9 @@ async function uploadFile(sdPath, data, onProgress) {
       chunk
     );
     await serialWriteMsg(msg);
+    // Yield to the event loop every 100 chunks so the USB stack can
+    // flush and the Flipper's receive buffer doesn't overflow.
+    if (i > 0 && i % 100 === 0) await sleep(10);
     if (isLast) {
       // Wait for the Flipper's WriteResponse. Large files (firmware.dfu is ~840KB)
       // need several seconds to be written to the SD card — use a generous timeout.
