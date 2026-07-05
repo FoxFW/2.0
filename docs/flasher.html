@@ -449,10 +449,24 @@ async function doFlashTGZ() {
 // ── RPC FILE OPERATIONS ──────────────────────────────────────────
 async function rpcPing() {
   const id = cmdId++;
-  log('Pinging Flipper...', 'dm');
-  const bytes = encodeMain({ commandId: id, systemPingRequest: {} });
-  await wMsg(bytes);
-  return readRpcResponse(id);
+  // We use a very simple Protobuf structure to ensure maximum compatibility
+  const msg = {
+      commandId: id,
+      // Some Flipper firmware versions require a specific field structure
+      systemPingRequest: {} 
+  };
+  
+  log('Sending low-level ping...', 'in');
+  const bytes = encodeMain(msg);
+  
+  // Directly write bytes to serial
+  await serialWriter.write(bytes);
+  
+  // Set a hard timeout for the ping
+  return Promise.race([
+      readRpcResponse(id),
+      sleep(3000).then(() => { throw new Error('Ping timed out: Flipper is not responding to RPC'); })
+  ]);
 }
 
 async function rpcMkdir(path) {
