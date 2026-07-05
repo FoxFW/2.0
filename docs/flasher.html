@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer</title>
+<title>FoxFW v2.0 — Web Installer [TEST v3]</title>
 <style>
   :root {
     --orange:  #e8750a;
@@ -338,6 +338,7 @@
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
+  <div class="badge" style="background:rgba(196,122,255,0.2);border-color:#c47aff;color:#c47aff;">TEST v3</div>
   <a href="index.html">← User Guide</a>
 </header>
 
@@ -705,8 +706,12 @@ async function connectSerial() {
     // actually in binary RPC mode, not still in CLI mode.
     const pingMsg = buildPingMsg(state.commandId++);
     await serialWriteMsg(pingMsg);
+    // Wait before reading: the Flipper needs time to process the session
+    // startup CLI output, switch modes, receive the ping, and send the response.
+    // Without this sleep the scan starts while the response is still in transit.
+    await sleep(800);
     try {
-      await Promise.race([serialReadResponse(), sleep(4000).then(() => {
+      await Promise.race([serialReadResponse(), sleep(6000).then(() => {
         throw new Error('Flipper did not respond to RPC ping. Make sure your Flipper is on and showing the desktop (not a menu or app), then try again.');
       })]);
       log(logId, 'RPC session active ✓', 'ok');
@@ -1011,7 +1016,7 @@ async function serialReadResponse() {
   // if they form a plausible message length (1–32768 bytes). If not,
   // slide forward by 1 byte and try again. CLI text produces lengths
   // outside that range (e.g. 0x0A0D4B4F = 170,967,887).
-  for (let skip = 0; skip < 128; skip++) {
+  for (let skip = 0; skip < 512; skip++) {
     const hdr = await serialReadExact(4);
     const len = new DataView(hdr.buffer).getUint32(0, true);
     if (len >= 1 && len <= 32768) {
