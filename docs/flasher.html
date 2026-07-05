@@ -444,30 +444,35 @@ async function doFlashTGZ() {
 }
 
 // ── RPC FILE OPERATIONS ──────────────────────────────────────────
-async function rpcMkdir(path) {
+async function rpcPing() {
   const id = cmdId++;
-  log(`Requesting mkdir: ${path}...`, 'in');
+  log('Pinging Flipper...', 'dm');
+  const bytes = encodeMain({ commandId: id, systemPingRequest: {} });
+  await wMsg(bytes);
+  return readRpcResponse(id);
+}
+
+async function rpcMkdir(path) {
+  // 1. Verify session is alive
+  await rpcPing();
   
-  // Construct the request
+  const id = cmdId++;
+  log(`Sending mkdir: ${path}...`, 'in');
+  
   const bytes = encodeMain({ commandId: id, storageMkdirRequest:{ path } });
+  await wMsg(bytes);
   
   try {
-    // Send the command
-    await wMsg(bytes);
-    
-    // Explicitly wait for the RPC response with a longer timeout
-    // If the directory exists, the Flipper returns status 0 (Success) or 9 (Already Exists)
-    const response = await readRpcResponse(id);
+    const res = await readRpcResponse(id);
     log(`Mkdir success: ${path}`, 'ok');
-    return response;
+    return res;
   } catch (e) {
-    // If it fails because the directory already exists (Status 9), we treat it as success
+    // If the error code is 9, the directory exists - we should treat this as a success
     if (e.message.includes('Status 9')) {
-      log(`Directory already exists: ${path}`, 'dm');
+      log(`Directory already exists (Status 9): ${path}`, 'dm');
       return; 
     }
-    // Otherwise, re-throw to stop the flasher
-    throw new Error(`Failed to create ${path}: ${e.message}`);
+    throw e;
   }
 }
 
