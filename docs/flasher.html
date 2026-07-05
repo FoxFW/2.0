@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FoxFW v2.0 — Web Installer</title>
+<style>
+  :root {
+    --orange:  #e8750a;
+    --dark:    #0d0d0d;
+    --mid:     #1a1a1a;
+    --card:    #222;
+    --border:  #333;
+    --light:   #f5f0eb;
+    --accent:  #ff9a3c;
+    --green:   #3dba6a;
+    --red:     #e04040;
+    --glow:    rgba(232,117,10,0.25);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--dark);
+    color: var(--light);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── Header ───────────────────────────────────────── */
+  .topbar {
+    width: 100%;
+    background: #0a0a0a;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .topbar .logo {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+  }
+  .topbar .logo span { color: #fff; }
+  .topbar .badge {
+    background: rgba(232,117,10,0.18);
+    border: 1px solid var(--orange);
+    color: var(--accent);
+    font-size: 0.7rem;
+    padding: 2px 9px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+    font-weight: 700;
+  }
+  .topbar a {
+    margin-left: auto;
+    color: #888;
+    font-size: 0.85rem;
+    text-decoration: none;
+  }
+  .topbar a:hover { color: var(--accent); }
+
+  /* ── Main wrapper ─────────────────────────────────── */
+  .wrapper {
+    width: 100%;
+    max-width: 700px;
+    padding: 40px 24px 80px;
+    flex: 1;
+  }
+
+  /* ── Screen management ────────────────────────────── */
+  .screen { display: none; animation: fadeIn 0.35s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* ── Typography ───────────────────────────────────── */
+  h1 {
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+    color: #fff;
+  }
+  h1 .fox { color: var(--accent); }
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 10px;
+  }
+  p { color: #aaa; line-height: 1.75; margin-bottom: 14px; }
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  code {
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 3px;
+    padding: 1px 7px;
+    font-size: 0.88rem;
+    color: #ffa040;
+    font-family: 'Consolas', 'Courier New', monospace;
+  }
+
+  /* ── Cards ────────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 26px;
+    margin-bottom: 16px;
+  }
+  .card.glow { border-color: var(--orange); box-shadow: 0 0 20px var(--glow); }
+  .card.selected { border-color: var(--accent); background: #1d1400; }
+
+  /* ── Method selector ──────────────────────────────── */
+  .method-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 24px 0; }
+  @media (max-width: 540px) { .method-grid { grid-template-columns: 1fr; } }
+  .method-btn {
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 20px;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .method-btn:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px var(--glow);
+  }
+  .method-btn.selected {
+    border-color: var(--accent);
+    background: #1d1400;
+    box-shadow: 0 0 22px var(--glow);
+  }
+  .method-btn .m-icon { font-size: 2rem; margin-bottom: 10px; }
+  .method-btn .m-title { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .method-btn .m-desc { font-size: 0.82rem; color: #888; line-height: 1.5; }
+  .method-btn .m-tag {
+    position: absolute;
+    top: 12px; right: 12px;
+    font-size: 0.68rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 700;
+  }
+  .m-tag.recommended { background: rgba(61,186,106,0.2); color: var(--green); border: 1px solid var(--green); }
+  .m-tag.recovery    { background: rgba(232,117,10,0.15); color: var(--accent); border: 1px solid var(--orange); }
+
+  /* ── Buttons ──────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 32px;
+    border-radius: 8px;
+    font-size: 0.98rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .btn-primary {
+    background: var(--orange);
+    color: #fff;
+    box-shadow: 0 0 20px var(--glow);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent);
+    box-shadow: 0 0 30px rgba(255,154,60,0.4);
+    transform: translateY(-1px);
+  }
+  .btn-secondary {
+    background: transparent;
+    color: #888;
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { color: var(--light); border-color: #555; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+  .btn-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 24px; }
+  .btn-full { width: 100%; justify-content: center; }
+
+  /* ── Status / connection indicator ───────────────── */
+  .status-ring {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    margin: 32px auto 24px;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status-ring.done   { border-color: var(--green); border-top-color: var(--green); animation: none; }
+  .status-ring.error  { border-color: var(--red);   border-top-color: var(--red);   animation: none; }
+  .status-ring.idle   { border-color: var(--border); border-top-color: var(--accent); animation: none; }
+  .status-icon { display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 28px auto 20px; }
+  .status-center { text-align: center; }
+
+  /* ── Progress bar ─────────────────────────────────── */
+  .progress-wrap { margin: 20px 0; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 0.82rem; color: #888; margin-bottom: 8px; }
+  .progress-track {
+    height: 6px; background: #1a1a1a;
+    border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--orange), var(--accent));
+    border-radius: 6px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px var(--glow);
+    width: 0%;
+  }
+  .progress-fill.pulse { animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 8px var(--glow); } 50% { box-shadow: 0 0 20px rgba(255,154,60,0.6); } }
+
+  /* ── Log terminal ─────────────────────────────────── */
+  .log-box {
+    background: #060606;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.78rem;
+    color: #666;
+    max-height: 160px;
+    overflow-y: auto;
+    margin-top: 16px;
+    line-height: 1.7;
+  }
+  .log-box .log-ok  { color: var(--green); }
+  .log-box .log-err { color: var(--red); }
+  .log-box .log-info { color: var(--accent); }
+
+  /* ── Info boxes ───────────────────────────────────── */
+  .info-box {
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+  .info-box.tip   { background: #0f2a1a; border: 1px solid #1a5030; color: #80c890; }
+  .info-box.warn  { background: #2a1a00; border: 1px solid #6a4000; color: #d09040; }
+  .info-box.compat{ background: #1a1000; border: 1px solid var(--border); color: #bbb; }
+  .info-box strong { font-weight: 700; }
+
+  /* ── Divider ──────────────────────────────────────── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+
+  /* ── Detected badge ───────────────────────────────── */
+  .detect-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #1a1000;
+    border: 1px solid var(--orange);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 0.85rem;
+    color: var(--accent);
+    margin: 14px 0;
+  }
+  .detect-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: blink 1.2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* ── Success / error ──────────────────────────────── */
+  .result-icon { font-size: 4rem; text-align: center; margin: 24px 0 16px; }
+  .result-title { font-size: 1.6rem; font-weight: 800; text-align: center; margin-bottom: 10px; }
+  .result-title.ok  { color: var(--green); }
+  .result-title.err { color: var(--red); }
+
+  /* ── Compat warning ───────────────────────────────── */
+  #compat-warning {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  #compat-warning.show { display: flex; }
+  .compat-box {
+    background: var(--card);
+    border: 2px solid var(--red);
+    border-radius: 12px;
+    padding: 36px;
+    max-width: 480px;
+    text-align: center;
+  }
+  .compat-box h2 { color: var(--red); margin-bottom: 14px; }
+  .compat-box p  { color: #bbb; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+
+<!-- ── Compatibility overlay ─────────────────────────────────────── -->
+<div id="compat-warning">
+  <div class="compat-box">
+    <div style="font-size:2.5rem;margin-bottom:14px;">⚠️</div>
+    <h2>Browser Not Supported</h2>
+    <p>
+      The FoxFW web installer requires <strong>Google Chrome</strong> or
+      <strong>Microsoft Edge</strong> (desktop). These browsers support the
+      Web Serial and WebUSB APIs needed to communicate with your Flipper Zero.
+    </p>
+    <p style="font-size:0.85rem;color:#666;">Firefox and Safari do not currently support these APIs.</p>
+    <a href="https://www.google.com/chrome/" style="color:var(--accent);">Download Chrome →</a>
+  </div>
+</div>
+
+<!-- ── Top bar ────────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
+  <div class="badge">WEB INSTALLER</div>
+  <a href="index.html">← User Guide</a>
+</header>
+
+<!-- ── Main ──────────────────────────────────────────────────────── -->
+<main class="wrapper">
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN 1 — Welcome / method select
+  ══════════════════════════════════════════════ -->
+  <div id="screen-welcome" class="screen active">
+    <div class="eyebrow">FoxFW v2.0 — Web Installer</div>
+    <h1>Install <span class="fox">FoxFW</span><br>on your Flipper Zero</h1>
+    <p>
+      This installer runs entirely in your browser — no software to install.
+      Connect your Flipper via USB and choose the install method below.
+    </p>
+
+    <div class="info-box compat">
+      <strong>⚡ Requirements:</strong> Chrome or Edge on desktop · Flipper Zero connected via USB ·
+      For the Standard Update, your Flipper must be on and showing the desktop.
+      For DFU Recovery, hold the left and back buttons during boot until the screen goes dark.
+    </div>
+
+    <hr class="divider">
+
+    <div class="eyebrow" style="margin-bottom:6px;">Select install type</div>
+    <div class="method-grid">
+      <button class="method-btn selected" id="btn-method-tgz" onclick="selectMethod('tgz')">
+        <span class="m-tag recommended">Recommended</span>
+        <div class="m-icon">📲</div>
+        <div class="m-title">Standard Update</div>
+        <div class="m-desc">
+          Flipper is on &amp; connected normally.
+          Uploads firmware via the Flipper's RPC protocol to the SD card, then triggers install.
+          Safest method — your data is preserved.
+        </div>
+      </button>
+      <button class="method-btn" id="btn-method-dfu" onclick="selectMethod('dfu')">
+        <span class="m-tag recovery">Recovery</span>
+        <div class="m-icon">🛠️</div>
+        <div class="m-title">DFU Recovery</div>
+        <div class="m-desc">
+          Flipper screen is dark / unresponsive.
+          Writes directly to STM32 flash via WebUSB, bypassing the SD card entirely.
+          Use when your Flipper will not boot.
+        </div>
+      </button>
+    </div>
+
+    <div class="info-box tip" id="method-hint-tgz">
+      <strong>Standard Update:</strong> Your Flipper should be on and showing the desktop or any app screen.
+      Plug in via USB. The firmware will be uploaded as a <code>.tgz</code> package to your SD card and installed on reboot.
+    </div>
+    <div class="info-box warn" id="method-hint-dfu" style="display:none;">
+      <strong>DFU Recovery:</strong> Boot your Flipper into DFU mode by holding
+      <strong>Left + Back</strong> while powering on until the screen goes dark and stays dark.
+      Then connect via USB. The firmware (<code>.dfu</code>) is written directly to internal flash —
+      your SD card files are untouched.
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary btn-full" onclick="goConnect()">
+        Connect Flipper &amp; Continue →
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN 2 — Connecting
+  ══════════════════════════════════════════════ -->
+  <div id="screen-connecting" class="screen">
+    <div class="status-center">
+      <div class="status-ring" id="connecting-ring"></div>
+      <h2 id="connecting-title">Connecting to Flipper…</h2>
+      <p id="connecting-sub">A browser dialog will appear — select your Flipper Zero from the list.</p>
+    </div>
+    <div class="log-box" id="log-connect"></div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN 3 — Confirmed / ready to flash
+  ══════════════════════════════════════════════ -->
+  <div id="screen-confirmed" class="screen">
+    <div class="eyebrow">Device detected</div>
+    <h1>Ready to Install</h1>
+
+    <div class="detect-badge">
+      <div class="detect-dot"></div>
+      <span id="confirmed-device-label">Flipper Zero connected</span>
+    </div>
+
+    <div class="card glow" style="margin-top:20px;">
+      <div class="eyebrow">Firmware package</div>
+      <p style="font-size:1rem;color:#fff;margin-bottom:4px;font-weight:700;">FoxFW v2.0</p>
+      <p style="margin-bottom:0;font-size:0.85rem;" id="confirmed-file-label">—</p>
+    </div>
+
+    <div class="info-box warn" id="confirmed-warn-tgz">
+      <strong>Before continuing:</strong> Make sure your Flipper's SD card is inserted.
+      The installer will upload the firmware package to the SD card and then reboot your Flipper to apply it.
+      This takes 1–3 minutes depending on USB speed.
+    </div>
+    <div class="info-box warn" id="confirmed-warn-dfu" style="display:none;">
+      <strong>DFU flash will begin immediately.</strong> Do not unplug your Flipper during the process.
+      The internal firmware flash takes about 30–90 seconds.
+      Your SD card contents are completely unaffected.
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="goFlash()">⚡ Install Now</button>
+      <button class="btn btn-secondary" onclick="showScreen('screen-welcome')">← Back</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN 4 — Downloading + Flashing progress
+  ══════════════════════════════════════════════ -->
+  <div id="screen-progress" class="screen">
+    <div class="eyebrow" id="progress-eyebrow">Downloading</div>
+    <h1 id="progress-title">Downloading firmware…</h1>
+    <p id="progress-sub">Fetching the firmware package from GitHub Releases.</p>
+
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span id="prog-label-left">Progress</span>
+        <span id="prog-label-right">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill pulse" id="progress-fill"></div>
+      </div>
+    </div>
+
+    <div class="log-box" id="log-flash"></div>
+
+    <div class="info-box tip" id="progress-do-not-unplug" style="margin-top:20px;display:none;">
+      <strong>⚠️ Do not unplug your Flipper</strong> until the installer shows the success screen.
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN 5 — Success
+  ══════════════════════════════════════════════ -->
+  <div id="screen-success" class="screen">
+    <div class="result-icon">✅</div>
+    <div class="result-title ok">FoxFW Installed!</div>
+    <p style="text-align:center;" id="success-message">
+      Your Flipper Zero is rebooting and will apply the firmware update.
+      This takes about 60 seconds — the progress bar on the Flipper's screen will show you.
+    </p>
+    <div class="info-box tip" style="margin-top:20px;">
+      <strong>First boot:</strong> The Fox Setup Wizard will run after the update completes.
+      You'll be guided through naming your device and optionally setting a PIN.
+    </div>
+    <div class="btn-row" style="justify-content:center;margin-top:28px;">
+      <a href="index.html" class="btn btn-primary">Open User Guide →</a>
+      <button class="btn btn-secondary" onclick="resetInstaller()">Install Again</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN 6 — Error
+  ══════════════════════════════════════════════ -->
+  <div id="screen-error" class="screen">
+    <div class="result-icon">❌</div>
+    <div class="result-title err" id="error-title">Installation Failed</div>
+    <p style="text-align:center;" id="error-message">An unexpected error occurred.</p>
+    <div class="log-box" id="log-error" style="margin-top:16px;"></div>
+    <div class="btn-row" style="justify-content:center;margin-top:24px;">
+      <button class="btn btn-primary" onclick="resetInstaller()">Try Again</button>
+      <a href="mailto:foxcustomfirmware@gmail.com" class="btn btn-secondary">Contact Support</a>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── pako for gzip decompression ──────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════════════════
+const TGZ_URL = 'https://github.com/FoxFW/2.0/releases/download/Releases/flipper-z-f7-update-local.tgz';
+const DFU_URL = 'https://github.com/FoxFW/2.0/releases/download/Releases/flipper-z-f7-full-local.dfu';
+const CHUNK_SIZE = 512;          // bytes per RPC write message
+const DFU_BLOCK_SIZE = 2048;     // bytes per DFU download block
+const FLIPPER_VID = 0x0483;
+const FLIPPER_PID_NORMAL = 0x5740;   // USB CDC (running)
+const FLIPPER_PID_DFU    = 0xDF11;   // STM32 DFU bootloader
+
+// ════════════════════════════════════════════════════════════════
+//  APP STATE
+// ════════════════════════════════════════════════════════════════
+let state = {
+  method: 'tgz',          // 'tgz' | 'dfu'
+  serialPort: null,
+  usbDevice: null,
+  commandId: 1,
+};
+
+// ════════════════════════════════════════════════════════════════
+//  BROWSER COMPATIBILITY CHECK
+// ════════════════════════════════════════════════════════════════
+function checkCompat() {
+  const hasSerial = 'serial' in navigator;
+  const hasUSB    = 'usb' in navigator;
+  if (!hasSerial && !hasUSB) {
+    document.getElementById('compat-warning').classList.add('show');
+  }
+}
+checkCompat();
+
+// ════════════════════════════════════════════════════════════════
+//  UI HELPERS
+// ════════════════════════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function log(boxId, msg, type = '') {
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  const line = document.createElement('div');
+  if (type) line.className = 'log-' + type;
+  line.textContent = `> ${msg}`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setProgress(pct, labelLeft, labelRight) {
+  const fill = document.getElementById('progress-fill');
+  fill.style.width = Math.min(100, Math.round(pct * 100)) + '%';
+  if (fill.style.width === '100%') fill.classList.remove('pulse');
+  if (labelLeft)  document.getElementById('prog-label-left').textContent  = labelLeft;
+  if (labelRight) document.getElementById('prog-label-right').textContent = Math.round(pct * 100) + '%';
+}
+
+function selectMethod(method) {
+  state.method = method;
+  document.getElementById('btn-method-tgz').classList.toggle('selected', method === 'tgz');
+  document.getElementById('btn-method-dfu').classList.toggle('selected', method === 'dfu');
+  document.getElementById('method-hint-tgz').style.display = method === 'tgz' ? '' : 'none';
+  document.getElementById('method-hint-dfu').style.display = method === 'dfu' ? '' : 'none';
+}
+
+function resetInstaller() {
+  state = { method: 'tgz', serialPort: null, usbDevice: null, commandId: 1 };
+  selectMethod('tgz');
+  document.getElementById('log-connect').innerHTML = '';
+  document.getElementById('log-flash').innerHTML = '';
+  document.getElementById('log-error').innerHTML = '';
+  setProgress(0, 'Progress', '0%');
+  document.getElementById('progress-do-not-unplug').style.display = 'none';
+  showScreen('screen-welcome');
+}
+
+// ════════════════════════════════════════════════════════════════
+//  CONNECT FLOW
+// ════════════════════════════════════════════════════════════════
+async function goConnect() {
+  showScreen('screen-connecting');
+  document.getElementById('connecting-ring').className = 'status-ring';
+
+  if (state.method === 'dfu') {
+    await connectDFU();
+  } else {
+    await connectSerial();
+  }
+}
+
+async function connectDFU() {
+  const logId = 'log-connect';
+  log(logId, 'Requesting WebUSB device…', 'info');
+  log(logId, 'Select your Flipper Zero from the browser dialog.');
+
+  if (!('usb' in navigator)) {
+    showError('WebUSB not supported', 'Please use Chrome or Edge on desktop.');
+    return;
+  }
+
+  try {
+    state.usbDevice = await navigator.usb.requestDevice({
+      filters: [{ vendorId: FLIPPER_VID, productId: FLIPPER_PID_DFU }]
+    });
+    log(logId, `Connected: ${state.usbDevice.productName || 'STM32 DFU'}`, 'ok');
+    await state.usbDevice.open();
+    log(logId, 'USB device opened', 'ok');
+
+    document.getElementById('connecting-ring').className = 'status-ring done';
+    document.getElementById('connecting-title').textContent = 'Flipper detected in DFU mode';
+    document.getElementById('connecting-sub').textContent = 'Ready to flash.';
+
+    // Show confirmed screen
+    document.getElementById('confirmed-device-label').textContent = 'Flipper Zero — DFU Recovery Mode';
+    document.getElementById('confirmed-file-label').textContent   = 'flipper-z-f7-full-local.dfu (full firmware flash)';
+    document.getElementById('confirmed-warn-tgz').style.display   = 'none';
+    document.getElementById('confirmed-warn-dfu').style.display   = '';
+    setTimeout(() => showScreen('screen-confirmed'), 800);
+  } catch (err) {
+    document.getElementById('connecting-ring').className = 'status-ring error';
+    if (err.name === 'NotFoundError') {
+      log(logId, 'No device selected or device not found.', 'err');
+      log(logId, 'Make sure the Flipper is in DFU mode (screen dark) and plugged in.', 'err');
+    } else {
+      log(logId, `Error: ${err.message}`, 'err');
+    }
+    document.getElementById('connecting-title').textContent = 'Connection failed';
+    document.getElementById('connecting-sub').textContent   = 'Check the log below and try again.';
+    setTimeout(() => {
+      showScreen('screen-error');
+      document.getElementById('error-title').textContent   = 'Connection Failed';
+      document.getElementById('error-message').textContent = err.message;
+    }, 1200);
+  }
+}
+
+async function connectSerial() {
+  const logId = 'log-connect';
+  log(logId, 'Requesting serial port…', 'info');
+  log(logId, 'Select your Flipper Zero from the browser dialog.');
+
+  if (!('serial' in navigator)) {
+    showError('Web Serial not supported', 'Please use Chrome or Edge on desktop.');
+    return;
+  }
+
+  try {
+    state.serialPort = await navigator.serial.requestPort({
+      filters: [{ usbVendorId: FLIPPER_VID }]
+    });
+    await state.serialPort.open({ baudRate: 230400 });
+    log(logId, 'Serial port opened at 230400 baud', 'ok');
+    log(logId, 'Starting RPC session…', 'info');
+
+    await startRpcSession();
+    log(logId, 'RPC session active', 'ok');
+
+    document.getElementById('connecting-ring').className = 'status-ring done';
+    document.getElementById('connecting-title').textContent = 'Flipper connected';
+    document.getElementById('connecting-sub').textContent   = 'RPC session established.';
+
+    document.getElementById('confirmed-device-label').textContent = 'Flipper Zero — Normal Mode';
+    document.getElementById('confirmed-file-label').textContent   = 'flipper-z-f7-update-local.tgz (SD card update)';
+    document.getElementById('confirmed-warn-tgz').style.display   = '';
+    document.getElementById('confirmed-warn-dfu').style.display   = 'none';
+    setTimeout(() => showScreen('screen-confirmed'), 800);
+  } catch (err) {
+    document.getElementById('connecting-ring').className = 'status-ring error';
+    log(logId, `Error: ${err.message}`, 'err');
+    document.getElementById('connecting-title').textContent = 'Connection failed';
+    document.getElementById('connecting-sub').textContent   = 'Check the log and try again.';
+    setTimeout(() => {
+      showError('Connection Failed', err.message);
+    }, 1200);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  FLASH FLOW
+// ════════════════════════════════════════════════════════════════
+async function goFlash() {
+  showScreen('screen-progress');
+  document.getElementById('progress-do-not-unplug').style.display = '';
+
+  try {
+    // Phase 1: download firmware
+    document.getElementById('progress-eyebrow').textContent = 'Phase 1 of 2 — Downloading';
+    document.getElementById('progress-title').textContent   = 'Downloading firmware…';
+    document.getElementById('progress-sub').textContent     = 'Fetching firmware from GitHub Releases.';
+    log('log-flash', 'Starting firmware download…', 'info');
+
+    const url = state.method === 'dfu' ? DFU_URL : TGZ_URL;
+    const data = await fetchWithProgress(url, (pct) => {
+      setProgress(pct, 'Downloading', '');
+      log('log-flash', `Downloaded ${Math.round(pct * 100)}%`);
+    });
+    log('log-flash', `Download complete — ${(data.length / 1024 / 1024).toFixed(1)} MB`, 'ok');
+
+    // Phase 2: flash
+    document.getElementById('progress-eyebrow').textContent = 'Phase 2 of 2 — Installing';
+    setProgress(0, 'Installing', '');
+    document.getElementById('progress-fill').classList.add('pulse');
+
+    if (state.method === 'dfu') {
+      await flashDFU(data);
+    } else {
+      await flashTGZ(data);
+    }
+
+    // Success
+    setProgress(1, 'Complete', '');
+    document.getElementById('progress-fill').classList.remove('pulse');
+    document.getElementById('success-message').textContent =
+      state.method === 'dfu'
+        ? 'DFU flash complete! Unplug your Flipper, hold the power button to boot, and the first-boot wizard will run.'
+        : 'Firmware package uploaded. Your Flipper is rebooting — the progress bar on its screen will show the install.';
+    setTimeout(() => showScreen('screen-success'), 800);
+
+  } catch (err) {
+    showError('Installation Failed', err.message);
+    log('log-error', err.stack || err.message, 'err');
+  }
+}
+
+function showError(title, message) {
+  showScreen('screen-error');
+  document.getElementById('error-title').textContent   = title;
+  document.getElementById('error-message').textContent = message;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  FETCH WITH PROGRESS
+// ════════════════════════════════════════════════════════════════
+async function fetchWithProgress(url, onProgress) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching firmware`);
+
+  const contentLength = parseInt(resp.headers.get('Content-Length') || '0');
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let received = 0;
+  let lastLogged = -1;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    const pct = contentLength ? received / contentLength : 0;
+    const tenths = Math.floor(pct * 10);
+    if (tenths !== lastLogged) { onProgress(pct); lastLogged = tenths; }
+  }
+
+  const out = new Uint8Array(received);
+  let offset = 0;
+  for (const c of chunks) { out.set(c, offset); offset += c.length; }
+  return out;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MINIMAL PROTOBUF ENCODER
+// ════════════════════════════════════════════════════════════════
+const PB = {
+  varint(v) {
+    const out = [];
+    v = v >>> 0;
+    while (v > 0x7F) { out.push((v & 0x7F) | 0x80); v >>>= 7; }
+    out.push(v & 0x7F);
+    return new Uint8Array(out);
+  },
+  tag(fn, wt) { return PB.varint((fn << 3) | wt); },
+  field_varint(fn, v) { return PB.cat([PB.tag(fn, 0), PB.varint(v)]); },
+  field_bytes(fn, data) {
+    return PB.cat([PB.tag(fn, 2), PB.varint(data.length), data]);
+  },
+  field_string(fn, str) { return PB.field_bytes(fn, new TextEncoder().encode(str)); },
+  field_msg(fn, inner)  { return PB.field_bytes(fn, inner); },
+  cat(arrays) {
+    const total = arrays.reduce((s, a) => s + a.length, 0);
+    const out = new Uint8Array(total);
+    let i = 0; for (const a of arrays) { out.set(a, i); i += a.length; }
+    return out;
+  }
+};
+
+// Frame a protobuf message with 4-byte LE length prefix
+function frame(msg) {
+  const buf = new Uint8Array(4 + msg.length);
+  new DataView(buf.buffer).setUint32(0, msg.length, true);
+  buf.set(msg, 4);
+  return buf;
+}
+
+// Build Storage.WriteRequest (field 22 of Main)
+function buildWriteMsg(cmdId, hasNext, path, data) {
+  // File sub-message: {1: data_bytes}
+  const fileMsg = PB.field_bytes(1, data);
+  // WriteRequest: {1: path (only on first chunk), 2: File}
+  const wrParts = [];
+  if (path) wrParts.push(PB.field_string(1, path));
+  wrParts.push(PB.field_msg(2, fileMsg));
+  const writeReq = PB.cat(wrParts);
+  // Main: {1: cmd_id, 2: has_next, 22: WriteRequest}
+  return PB.cat([
+    PB.field_varint(1, cmdId),
+    ...(hasNext ? [PB.field_varint(2, 1)] : []),
+    PB.field_msg(22, writeReq),
+  ]);
+}
+
+// Build System.UpdateRequest (field 34 of Main)
+function buildUpdateMsg(cmdId, manifestPath) {
+  const req = PB.field_string(1, manifestPath);
+  return PB.cat([PB.field_varint(1, cmdId), PB.field_msg(34, req)]);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  SERIAL RPC SESSION
+// ════════════════════════════════════════════════════════════════
+let serialReader = null;
+let serialWriter = null;
+let readBuffer   = new Uint8Array(0);
+
+async function startRpcSession() {
+  const port = state.serialPort;
+  serialWriter = port.writable.getWriter();
+  serialReader = port.readable.getReader();
+  readBuffer   = new Uint8Array(0);
+
+  // Send the CLI command to enter RPC mode
+  const cmd = new TextEncoder().encode('\r\nstart_rpc_session\r\n');
+  await serialWriter.write(cmd);
+  await sleep(300);
+
+  // Drain any pending plain-text response
+  let drained = false;
+  const drainTimeout = Date.now() + 1000;
+  while (!drained && Date.now() < drainTimeout) {
+    try {
+      const { value, done } = await Promise.race([
+        serialReader.read(),
+        sleep(200).then(() => ({ done: true }))
+      ]);
+      if (done || !value) { drained = true; break; }
+      readBuffer = new Uint8Array(0); // discard
+    } catch { drained = true; }
+  }
+}
+
+async function serialReadExact(n) {
+  while (readBuffer.length < n) {
+    const { value, done } = await serialReader.read();
+    if (done) throw new Error('Serial connection closed');
+    const nb = new Uint8Array(readBuffer.length + value.length);
+    nb.set(readBuffer); nb.set(value, readBuffer.length);
+    readBuffer = nb;
+  }
+  const out = readBuffer.slice(0, n);
+  readBuffer = readBuffer.slice(n);
+  return out;
+}
+
+async function serialReadResponse() {
+  const hdr = await serialReadExact(4);
+  const len = new DataView(hdr.buffer).getUint32(0, true);
+  if (len === 0 || len > 2 * 1024 * 1024) throw new Error(`Invalid RPC response length: ${len}`);
+  return await serialReadExact(len);
+}
+
+async function serialWriteMsg(msg) {
+  await serialWriter.write(frame(msg));
+}
+
+// ════════════════════════════════════════════════════════════════
+//  TGZ FLASH
+// ════════════════════════════════════════════════════════════════
+async function flashTGZ(tgzData) {
+  log('log-flash', 'Decompressing firmware package…', 'info');
+  const tarData = pako.inflate(tgzData);
+  log('log-flash', `Decompressed: ${(tarData.length / 1024).toFixed(0)} KB`, 'ok');
+
+  log('log-flash', 'Parsing tar archive…', 'info');
+  const files = parseTar(tarData);
+  log('log-flash', `Found ${files.length} files in package`, 'ok');
+
+  if (files.length === 0) throw new Error('No files found in firmware package');
+
+  // Find the update manifest
+  let manifestPath = null;
+  let manifestFile = files.find(f => f.name.endsWith('update.fuf'));
+  if (!manifestFile) throw new Error('update.fuf manifest not found in package');
+
+  // Determine the update directory from the manifest filename
+  const topDir = manifestFile.name.split('/')[0];
+  const sdBase = `/ext/update/${topDir}`;
+  manifestPath = `${sdBase}/update.fuf`;
+
+  log('log-flash', `Update directory: ${sdBase}`, 'info');
+
+  // Upload files
+  let uploaded = 0;
+  for (const file of files) {
+    const sdPath = `/ext/update/${file.name}`;
+    log('log-flash', `Uploading ${file.name} (${(file.data.length / 1024).toFixed(0)} KB)…`);
+    await uploadFile(sdPath, file.data, (pct) => {
+      const overall = (uploaded + pct) / files.length;
+      setProgress(overall, `Uploading ${file.name}`, '');
+    });
+    uploaded++;
+    setProgress(uploaded / files.length, 'Upload progress', '');
+    log('log-flash', `✓ ${file.name}`, 'ok');
+  }
+
+  log('log-flash', `Triggering update with manifest: ${manifestPath}`, 'info');
+  const updateMsg = buildUpdateMsg(state.commandId++, manifestPath);
+  await serialWriteMsg(updateMsg);
+  await sleep(500);
+  // Read response (Flipper will reboot, so we may not get it)
+  try { await Promise.race([serialReadResponse(), sleep(2000)]); } catch { /* expected */ }
+
+  log('log-flash', 'Update triggered — Flipper is rebooting', 'ok');
+  try {
+    serialReader.releaseLock();
+    serialWriter.releaseLock();
+    await state.serialPort.close();
+  } catch { /* ignore */ }
+}
+
+async function uploadFile(sdPath, data, onProgress) {
+  const chunks = Math.ceil(data.length / CHUNK_SIZE);
+  for (let i = 0; i < chunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const chunk = data.slice(start, start + CHUNK_SIZE);
+    const isFirst = i === 0;
+    const isLast  = i === chunks - 1;
+    const msg = buildWriteMsg(
+      state.commandId++,
+      !isLast,
+      isFirst ? sdPath : null,
+      chunk
+    );
+    await serialWriteMsg(msg);
+    if (isLast) {
+      try { await Promise.race([serialReadResponse(), sleep(3000)]); } catch { /* timeout ok */ }
+    }
+    if (onProgress) onProgress((i + 1) / chunks);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  TAR PARSER
+// ════════════════════════════════════════════════════════════════
+function parseTar(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const td = new TextDecoder();
+  const files = [];
+  let offset = 0;
+
+  while (offset + 512 <= bytes.length) {
+    if (bytes[offset] === 0) break; // end of archive
+
+    const readStr = (start, len) => {
+      let end = start;
+      while (end < start + len && bytes[end] !== 0) end++;
+      return td.decode(bytes.slice(start, end)).trim();
+    };
+
+    const name = readStr(offset, 100);
+    const sizeOctal = readStr(offset + 124, 12);
+    const size = parseInt(sizeOctal, 8) || 0;
+    const typeflag = String.fromCharCode(bytes[offset + 156]);
+    // UStar has a prefix at offset 345
+    const prefix = readStr(offset + 345, 155);
+    const fullName = prefix ? `${prefix}/${name}` : name;
+
+    offset += 512; // skip header
+
+    if ((typeflag === '0' || typeflag === '\x00') && size > 0 && !fullName.endsWith('/')) {
+      files.push({ name: fullName, data: bytes.slice(offset, offset + size) });
+    }
+
+    offset += Math.ceil(size / 512) * 512;
+  }
+  return files;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  DFU FLASH (WebUSB + STM32 DFU protocol)
+// ════════════════════════════════════════════════════════════════
+async function flashDFU(dfuFileData) {
+  const device = state.usbDevice;
+
+  // Find DFU interface
+  let dfuIface = null;
+  for (const config of device.configurations) {
+    for (const iface of config.interfaces) {
+      for (const alt of iface.alternates) {
+        if (alt.interfaceClass === 0xFE && alt.interfaceSubclass === 0x01) {
+          dfuIface = iface;
+        }
+      }
+    }
+  }
+  if (!dfuIface) throw new Error('No DFU interface found on device');
+
+  await device.selectConfiguration(1);
+  await device.claimInterface(dfuIface.interfaceNumber);
+  log('log-flash', `DFU interface claimed (iface ${dfuIface.interfaceNumber})`, 'ok');
+
+  // Parse the DFU file
+  log('log-flash', 'Parsing DFU file…', 'info');
+  const targets = parseDFUFile(dfuFileData);
+  log('log-flash', `Found ${targets.length} target(s)`, 'ok');
+
+  // Clear any previous error state
+  const initStatus = await dfuGetStatus(device, dfuIface.interfaceNumber);
+  if (initStatus.bStatus !== 0 || initStatus.bState === 10 /* dfuERROR */) {
+    await dfuClearStatus(device, dfuIface.interfaceNumber);
+    log('log-flash', 'Cleared previous error state', 'info');
+  }
+
+  // Flash each target
+  let totalBlocks = 0, flashedBlocks = 0;
+  for (const t of targets) for (const e of t.elements)
+    totalBlocks += Math.ceil(e.data.length / DFU_BLOCK_SIZE);
+
+  for (const target of targets) {
+    for (const element of target.elements) {
+      log('log-flash', `Flashing element @ 0x${element.address.toString(16).toUpperCase()} (${(element.data.length/1024).toFixed(0)} KB)…`);
+
+      // Set Address Pointer
+      const addrCmd = new Uint8Array([0x21,
+        element.address & 0xFF, (element.address >> 8) & 0xFF,
+        (element.address >> 16) & 0xFF, (element.address >> 24) & 0xFF]);
+      await dfuDownload(device, dfuIface.interfaceNumber, 0, addrCmd);
+      await dfuPollIdle(device, dfuIface.interfaceNumber);
+
+      // Download blocks (block number starts at 2 for data)
+      const numBlocks = Math.ceil(element.data.length / DFU_BLOCK_SIZE);
+      for (let b = 0; b < numBlocks; b++) {
+        const start = b * DFU_BLOCK_SIZE;
+        const block = element.data.slice(start, start + DFU_BLOCK_SIZE);
+        await dfuDownload(device, dfuIface.interfaceNumber, b + 2, block);
+        await dfuPollIdle(device, dfuIface.interfaceNumber);
+        flashedBlocks++;
+        setProgress(flashedBlocks / totalBlocks, 'Flashing to device', '');
+        if (b % 10 === 0) log('log-flash', `Block ${b + 1}/${numBlocks} written`);
+      }
+      log('log-flash', '✓ Element flashed', 'ok');
+    }
+  }
+
+  // Signal end of download
+  await dfuDownload(device, dfuIface.interfaceNumber, 0, new Uint8Array(0));
+  log('log-flash', 'DFU manifest triggered — device is leaving DFU mode', 'ok');
+  try { await dfuPollIdle(device, dfuIface.interfaceNumber); } catch { /* device reboots */ }
+
+  try { await device.close(); } catch { /* expected after reboot */ }
+}
+
+// DFU USB control transfers
+async function dfuDownload(device, ifaceNum, blockNum, data) {
+  const result = await device.controlTransferOut({
+    requestType: 'class', recipient: 'interface',
+    request: 1 /* DFU_DNLOAD */, value: blockNum, index: ifaceNum
+  }, data instanceof Uint8Array ? data : new Uint8Array(data));
+  if (result.status !== 'ok') throw new Error(`DFU_DNLOAD failed: ${result.status}`);
+}
+
+async function dfuGetStatus(device, ifaceNum) {
+  const result = await device.controlTransferIn({
+    requestType: 'class', recipient: 'interface',
+    request: 3 /* DFU_GETSTATUS */, value: 0, index: ifaceNum
+  }, 6);
+  const d = result.data;
+  return {
+    bStatus: d.getUint8(0),
+    bwPollTimeout: d.getUint8(1) | (d.getUint8(2) << 8) | (d.getUint8(3) << 16),
+    bState: d.getUint8(4),
+  };
+}
+
+async function dfuClearStatus(device, ifaceNum) {
+  await device.controlTransferOut({
+    requestType: 'class', recipient: 'interface',
+    request: 4 /* DFU_CLRSTATUS */, value: 0, index: ifaceNum
+  });
+}
+
+async function dfuPollIdle(device, ifaceNum) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const s = await dfuGetStatus(device, ifaceNum);
+    if (s.bState === 10 /* dfuERROR */) {
+      await dfuClearStatus(device, ifaceNum);
+      throw new Error(`DFU error: bStatus=${s.bStatus}`);
+    }
+    if (s.bState === 2 /* dfuDNLOAD-IDLE */ || s.bState === 7 /* dfuMANIFEST-WAIT-RESET */ || s.bState === 4 /* dfuDNBUSY */ === false) {
+      if (s.bState !== 4) return s;
+    }
+    if (s.bwPollTimeout > 0) await sleep(s.bwPollTimeout);
+    else await sleep(50);
+  }
+  throw new Error('DFU timeout waiting for idle');
+}
+
+// ════════════════════════════════════════════════════════════════
+//  DFU FILE PARSER
+// ════════════════════════════════════════════════════════════════
+function parseDFUFile(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const view  = new DataView(buffer.buffer || buffer);
+  const td = new TextDecoder();
+
+  const sig = td.decode(bytes.slice(0, 5));
+  if (sig !== 'DfuSe') throw new Error('Not a valid DFU file (missing DfuSe signature)');
+
+  const numTargets = bytes[10];
+  const targets = [];
+  let offset = 11;
+
+  for (let t = 0; t < numTargets; t++) {
+    const tSig = td.decode(bytes.slice(offset, offset + 6));
+    if (tSig !== 'Target') throw new Error('Invalid DFU target signature');
+
+    const nbElements = view.getUint32(offset + 270, true);
+    offset += 274;
+
+    const elements = [];
+    for (let e = 0; e < nbElements; e++) {
+      const address = view.getUint32(offset, true);
+      const size    = view.getUint32(offset + 4, true);
+      const data    = bytes.slice(offset + 8, offset + 8 + size);
+      elements.push({ address, data });
+      offset += 8 + size;
+    }
+    targets.push({ elements });
+  }
+  return targets;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  UTILITIES
+// ════════════════════════════════════════════════════════════════
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+</script>
+</body>
+</html>
