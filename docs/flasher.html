@@ -3,19 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v14 · 2026-07-05 11:34 UTC]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v15]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:var(--light);display:flex;flex-direction:column;min-height:100vh}
-/* topbar */
 .topbar{background:#080808;border-bottom:1px solid var(--border);padding:11px 22px;display:flex;align-items:center;gap:10px;flex-shrink:0}
 .logo{font-size:1.05rem;font-weight:700;color:var(--accent)}.logo span{color:#fff}
 .badge{background:rgba(232,117,10,.13);border:1px solid var(--orange);color:var(--accent);font-size:.66rem;padding:2px 8px;border-radius:20px;letter-spacing:1px;font-weight:700}
 .badge.test{background:rgba(196,122,255,.13);border-color:#c47aff;color:#c47aff}
 .topbar a{margin-left:auto;color:#555;font-size:.82rem;text-decoration:none}.topbar a:hover{color:var(--accent)}
-/* connbar */
 .connbar{background:var(--mid);border-bottom:1px solid var(--border);padding:11px 22px;display:flex;align-items:center;gap:12px;flex-shrink:0}
 .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;transition:background .3s}
 .dot.off{background:#c0392b;box-shadow:0 0 5px #c0392b80}
@@ -29,46 +26,37 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 .bsm.pri{background:var(--orange);border-color:var(--orange);color:#fff;box-shadow:0 0 10px var(--glow)}
 .bsm.pri:hover{background:var(--accent);border-color:var(--accent)}
 .bsm:disabled{opacity:.3;cursor:not-allowed;box-shadow:none}
-/* main */
 .wrap{flex:1;max-width:860px;width:100%;margin:0 auto;padding:24px 22px}
-/* methods */
 .mrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
 @media(max-width:520px){.mrow{grid-template-columns:1fr}}
 .mc{background:var(--card);border:2px solid var(--border);border-radius:7px;padding:14px 16px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
-.mc:hover{border-color:#444}
-.mc.sel{border-color:var(--accent);box-shadow:0 0 14px var(--glow)}
+.mc:hover{border-color:#444}.mc.sel{border-color:var(--accent);box-shadow:0 0 14px var(--glow)}
 .mc .mh{display:flex;align-items:center;gap:8px;margin-bottom:5px}
 .mc .mi{font-size:1.3rem}.mc .mt{font-size:.9rem;font-weight:700;color:#fff}
 .mc .tag{margin-left:auto;font-size:.6rem;padding:2px 7px;border-radius:10px;font-weight:700}
 .tag-r{background:rgba(61,186,106,.15);color:var(--green);border:1px solid var(--green)}
 .tag-d{background:rgba(232,117,10,.15);color:var(--accent);border:1px solid var(--orange)}
 .mc .md{font-size:.79rem;color:#777;line-height:1.55}
-/* fw info */
 .fwcard{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 20px;margin-bottom:18px}
 .fwf .k{font-size:.62rem;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:2px}
 .fwf .v{font-size:.88rem;color:var(--accent);font-weight:600}.fwf .v.d{color:#777;font-weight:400}
-/* notice */
 .notice{border-radius:6px;padding:12px 16px;margin-bottom:16px;font-size:.84rem;line-height:1.6;display:none}
 .notice.show{display:block}
 .notice.warn{background:#1f0a0a;border:1px solid var(--red);color:#e08080}
 .notice.tip{background:#0d1a0f;border:1px solid #2a5a35;color:#80c890}
-/* action */
 .arow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 .bflash{background:var(--orange);color:#fff;border:none;font-size:.98rem;font-weight:700;padding:12px 30px;border-radius:7px;cursor:pointer;box-shadow:0 0 16px var(--glow);transition:all .15s}
 .bflash:hover:not(:disabled){background:var(--accent);box-shadow:0 0 24px rgba(255,154,60,.42);transform:translateY(-1px)}
 .bflash:disabled{opacity:.3;cursor:not-allowed;transform:none;box-shadow:none}
 .dnote{font-size:.8rem;color:#666}.dnote strong{color:var(--accent)}
-/* progress */
 .pgwrap{margin-bottom:18px;display:none}
 .pgrow{display:flex;justify-content:space-between;font-size:.8rem;color:#666;margin-bottom:6px}
 .pgtrack{height:4px;background:#111;border:1px solid var(--border);border-radius:4px;overflow:hidden}
 .pgfill{height:100%;width:0%;border-radius:4px;background:linear-gradient(90deg,var(--orange),var(--accent));box-shadow:0 0 5px var(--glow);transition:width .25s ease}
 .pgfill.pulse{animation:pgp 1.3s ease-in-out infinite}
 @keyframes pgp{0%,100%{box-shadow:0 0 5px var(--glow)}50%{box-shadow:0 0 16px rgba(255,154,60,.5)}}
-/* log */
-.log{background:#050505;border:1px solid #181818;border-radius:6px;padding:12px 15px;font-family:'Consolas','Courier New',monospace;font-size:.78rem;color:#444;max-height:240px;overflow-y:auto;line-height:1.7}
+.log{background:#050505;border:1px solid #181818;border-radius:6px;padding:12px 15px;font-family:'Consolas','Courier New',monospace;font-size:.78rem;color:#444;max-height:280px;overflow-y:auto;line-height:1.7}
 .log .ok{color:var(--green)}.log .er{color:var(--red)}.log .in{color:var(--accent)}.log .dm{color:#333}
-/* success */
 .sbox{display:none;background:#0a1a0d;border:1px solid var(--green);border-radius:7px;padding:18px 22px;margin-bottom:18px;text-align:center}
 .sbox.show{display:block}.sbox h3{color:var(--green);font-size:1.2rem;margin:8px 0 6px}
 .sbox p{color:#888;font-size:.85rem;line-height:1.65}
@@ -78,10 +66,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 10:30 UTC" style="cursor:default;">TEST v14 · 2026-07-05 11:34 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v15 · 2026-07-05 11:45 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
-
 <div class="connbar">
   <div class="dot off" id="dot"></div>
   <div class="conn-text">
@@ -93,73 +80,120 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
     <button class="bsm pri" id="bcon" onclick="doConnect()">Connect Flipper</button>
   </div>
 </div>
-
 <div class="wrap">
-  <div class="notice warn" id="n-compat"><strong>⚠ Browser not supported.</strong> Please use Google Chrome or Microsoft Edge on desktop — Firefox and Safari do not support the required Web Serial / WebUSB APIs.</div>
-  <div class="notice warn" id="n-qflipper" style="display:none"><strong>⚠ Close qFlipper first!</strong> qFlipper locks the Flipper's COM port — you must quit qFlipper before the web installer can connect.</div>
-  <div class="notice warn" id="n-error"   style="display:none"></div>
-  <div class="notice tip"  id="n-tip"     style="display:none"></div>
-
-  <div class="mrow" id="mrow">
+  <div class="notice warn" id="n-compat"></div>
+  <div class="notice warn" id="n-qflipper" style="display:none"><strong>⚠ Close qFlipper first!</strong> qFlipper locks the Flipper's COM port.</div>
+  <div class="notice warn" id="n-error" style="display:none"></div>
+  <div class="mrow">
     <div class="mc sel" id="mc-tgz" onclick="selMethod('tgz')">
-      <div class="mh">
-        <span class="mi">📲</span>
-        <span class="mt">Standard Update</span>
-        <span class="tag tag-r">RECOMMENDED</span>
-      </div>
-      <div class="md">Flipper is on and at the desktop. Uploads the firmware package to your SD card via USB and triggers the install. Your files and settings are preserved.</div>
+      <div class="mh"><span class="mi">📲</span><span class="mt">Standard Update</span><span class="tag tag-r">RECOMMENDED</span></div>
+      <div class="md">Flipper is on and at the desktop. Uploads firmware to SD card via USB RPC and triggers install. Files preserved.</div>
     </div>
     <div class="mc" id="mc-dfu" onclick="selMethod('dfu')">
-      <div class="mh">
-        <span class="mi">🛠️</span>
-        <span class="mt">DFU Recovery</span>
-        <span class="tag tag-d">RECOVERY</span>
-      </div>
-      <div class="md">Flipper is unresponsive or screen is off. Hold <strong>Left + Back</strong> while powering on to enter DFU mode. Writes firmware directly to internal flash via WebUSB.</div>
+      <div class="mh"><span class="mi">🛠️</span><span class="mt">DFU Recovery</span><span class="tag tag-d">RECOVERY</span></div>
+      <div class="md">Flipper unresponsive. Hold <strong>Left + Back</strong> while powering on. Writes firmware directly via WebUSB.</div>
     </div>
   </div>
-
   <div class="fwcard">
     <div class="fwf"><div class="k">Firmware</div><div class="v">FoxFW v2.0</div></div>
     <div class="fwf"><div class="k">Target</div><div class="v d">Flipper Zero · STM32WB55</div></div>
     <div class="fwf"><div class="k">Method</div><div class="v d" id="fw-method">RPC over USB Serial → SD card</div></div>
     <div class="fwf"><div class="k">File</div><div class="v d" id="fw-file">flipper-z-f7-update-local.tgz</div></div>
   </div>
-
   <div class="sbox" id="sbox"><div style="font-size:2.2rem">✅</div><h3>FoxFW Installed!</h3><p id="smsg"></p></div>
-
   <div class="arow">
     <button class="bflash" id="bflash" disabled onclick="doFlash()">⚡ Install Firmware</button>
     <div class="dnote" id="dnote" style="display:none"><strong>⚠ Do not unplug</strong> until the install completes.</div>
   </div>
-
   <div class="pgwrap" id="pgwrap">
     <div class="pgrow"><span id="pglabel">Preparing…</span><span id="pgpct">0%</span></div>
     <div class="pgtrack"><div class="pgfill pulse" id="pgfill"></div></div>
   </div>
-
   <div class="log" id="log"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+<!-- protobufjs for correct Flipper RPC message encoding -->
+<script src="https://cdn.jsdelivr.net/npm/protobufjs@7.4.0/dist/protobuf.min.js"></script>
+
 <script>
 'use strict';
 
 // ── CONFIG ──────────────────────────────────────────────────────
-// Files served from same directory as flasher.html (GitHub Pages)
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
-const CHUNK    = 512;
+const CHUNK    = 512;    // bytes per RPC write chunk — matches qFlipper
 const DFU_BLK  = 2048;
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
 
-// ── STATE ────────────────────────────────────────────────────────
-let method = 'tgz';
-let serialPort = null, cmdId = 1, busy = false, connected = false;
-let serialReader = null, serialWriter = null, readBuf = new Uint8Array(0);
+// ── FLIPPER PROTOBUF SCHEMA ──────────────────────────────────────
+// Defined inline — same field numbers as flipperzero-protobuf/flipper.proto
+const PROTO_JSON = {
+  nested: {
+    PB: {
+      nested: {
+        Main: {
+          oneofs: { content: { oneof: [
+            'storageWriteRequest','storageMkdirRequest',
+            'systemUpdateRequest','systemPingRequest'
+          ]}},
+          fields: {
+            commandId:            { type:'uint32', id:1 },
+            hasNext:              { type:'bool',   id:2 },
+            commandStatus:        { type:'uint32', id:3 },
+            systemPingRequest:    { type:'PB.System.PingRequest',    id:6  },
+            storageWriteRequest:  { type:'PB.Storage.WriteRequest',  id:24 },
+            storageMkdirRequest:  { type:'PB.Storage.MkdirRequest',  id:28 },
+            systemUpdateRequest:  { type:'PB.System.UpdateRequest',  id:34 }
+          }
+        },
+        Storage: {
+          nested: {
+            WriteRequest: {
+              fields: {
+                path: { type:'string',            id:1, options:{} },
+                file: { type:'PB.Storage.File',   id:2 }
+              }
+            },
+            File: {
+              fields: { data: { type:'bytes', id:1 } }
+            },
+            MkdirRequest: {
+              fields: { path: { type:'string', id:1 } }
+            }
+          }
+        },
+        System: {
+          nested: {
+            PingRequest:   { fields: {} },
+            UpdateRequest: { fields: { updateManifest: { type:'string', id:1 } } }
+          }
+        }
+      }
+    }
+  }
+};
 
-// ── UI ───────────────────────────────────────────────────────────
+let PBRoot, Main;
+function initProto() {
+  PBRoot = protobuf.Root.fromJSON(PROTO_JSON);
+  Main = PBRoot.lookupType('PB.Main');
+}
+
+// Encode a PB.Main message and return length-delimited (varint-prefixed) bytes
+function encodeMain(obj) {
+  const err = Main.verify(obj);
+  if (err) throw new Error('Protobuf encode error: ' + err);
+  // encodeDelimited writes varint(length) + message bytes
+  return Main.encodeDelimited(obj).finish();
+}
+
+// ── STATE ────────────────────────────────────────────────────────
+let method = 'tgz', cmdId = 1, busy = false, connected = false;
+let serialPort = null, serialWriter = null, serialReader = null;
+
+// ── UI HELPERS ───────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -171,37 +205,31 @@ function log(msg, cls) {
   $('log').scrollTop = 9e9;
 }
 function pg(pct, label) {
-  const f = $('pgfill'), p = Math.min(100, Math.round(pct * 100));
-  f.style.width = p + '%';
-  if (p >= 100) f.classList.remove('pulse');
+  const p = Math.min(100, Math.round(pct * 100));
+  $('pgfill').style.width = p + '%';
+  if (p >= 100) $('pgfill').classList.remove('pulse');
   if (label) $('pglabel').textContent = label;
   $('pgpct').textContent = p + '%';
 }
-function connUI(state, label, sub) {
-  $('dot').className = 'dot ' + state;
-  $('clabel').textContent = label;
+function connUI(s, l, sub) {
+  $('dot').className = 'dot ' + s;
+  $('clabel').textContent = l;
   $('csub').textContent   = sub;
 }
 function showErr(msg) {
   const n = $('n-error');
-  n.innerHTML = '<strong>❌ Error:</strong> ' + msg;
-  n.classList.add('show');
-}
-function showTip(msg) {
-  $('n-tip').innerHTML = msg;
-  $('n-tip').classList.add('show');
+  n.innerHTML = '<strong>❌</strong> ' + msg;
+  n.classList.add('show'); n.style.display = '';
 }
 function clearNotices() {
-  ['n-error','n-tip','n-qflipper'].forEach(id => { $(id).classList.remove('show'); $(id).style.display='none'; });
-  $('n-qflipper').style.display='none';
+  ['n-error','n-qflipper'].forEach(id => { $(id).classList.remove('show'); $(id).style.display='none'; });
 }
-
 function selMethod(m) {
   method = m;
-  $('mc-tgz').classList.toggle('sel', m === 'tgz');
-  $('mc-dfu').classList.toggle('sel', m === 'dfu');
-  $('fw-method').textContent = m === 'tgz' ? 'RPC over USB Serial → SD card' : 'WebUSB DFU → internal flash';
-  $('fw-file').textContent   = m === 'tgz' ? 'flipper-z-f7-update-local.tgz' : 'flipper-z-f7-full-local.dfu';
+  $('mc-tgz').classList.toggle('sel', m==='tgz');
+  $('mc-dfu').classList.toggle('sel', m==='dfu');
+  $('fw-method').textContent = m==='tgz' ? 'RPC over USB Serial → SD card' : 'WebUSB DFU → internal flash';
+  $('fw-file').textContent   = m==='tgz' ? 'flipper-z-f7-update-local.tgz' : 'flipper-z-f7-full-local.dfu';
 }
 
 // ── CONNECT ──────────────────────────────────────────────────────
@@ -209,348 +237,233 @@ async function doConnect() {
   if (busy) return;
   clearNotices();
   busy = true; $('bcon').disabled = true;
-  connUI('busy', 'Connecting…', 'Select your Flipper from the browser dialog');
-
+  connUI('busy','Connecting…','Select your Flipper from the browser dialog');
   try {
-    if (method === 'dfu') {
-      await connectDFU();
-    } else {
-      await connectSerial();
-    }
+    if (method === 'dfu') await connectDFU();
+    else                  await connectSerial();
     connected = true;
     $('bflash').disabled = false;
     $('dnote').style.display = '';
-    $('bdis').style.display = '';
+    $('bdis').style.display  = '';
   } catch (err) {
     let msg = err.message || String(err);
-    // Detect the "port already open" error and give a helpful message
     if (msg.includes('Failed to open') || msg.includes('already open') || msg.includes('Access is denied')) {
       $('n-qflipper').style.display = '';
-      msg = 'Could not open serial port — please close qFlipper and try again.';
     }
-    showErr(msg);
-    connUI('off', 'Connection failed', 'See error above');
-    log('Connection failed: ' + msg, 'er');
+    showErr(msg); log('Connect failed: ' + msg, 'er');
+    connUI('off','Connection failed','See error above');
   }
-
   busy = false; $('bcon').disabled = false;
 }
 
 async function connectSerial() {
-  if (!('serial' in navigator)) throw new Error('Web Serial API not supported — use Chrome or Edge on desktop');
-  log('Requesting serial port…', 'in');
-  serialPort = await navigator.serial.requestPort({ filters: [{ usbVendorId: VID }] });
-  await serialPort.open({ baudRate: 115200 });
-  serialReader = serialPort.readable.getReader();
+  if (!('serial' in navigator)) throw new Error('Web Serial not supported — use Chrome or Edge');
+  log('Requesting serial port…','in');
+  serialPort = await navigator.serial.requestPort({ filters:[{ usbVendorId:VID }] });
+  await serialPort.open({ baudRate:115200 });
   serialWriter = serialPort.writable.getWriter();
-  readBuf = new Uint8Array(0); cmdId = 1;
-  log('Port opened — starting RPC session…', 'ok');
-  await startRpc();
-  log('RPC session active', 'ok');
-  connUI('on', 'Flipper Zero — Connected', 'USB serial · Standard Update (RPC)');
-}
-
-async function connectDFU() {
-  if (!('usb' in navigator)) throw new Error('WebUSB not supported — use Chrome or Edge on desktop');
-  log('Requesting DFU device — select 0483:DF11 from the dialog…', 'in');
-  const granted = (await navigator.usb.getDevices()).find(d => d.vendorId === VID && d.productId === PID_DFU);
-  const dev = granted || await navigator.usb.requestDevice({ filters: [{ vendorId: VID, productId: PID_DFU }] });
-  log('DFU device: ' + (dev.productName || 'STM32 bootloader'), 'ok');
-  connUI('on', 'Flipper Zero — DFU Mode', 'WebUSB · DFU Recovery');
-  window._dfuDev = dev;
-}
-
-async function doDisconnect() {
-  connected = false; busy = false;
-  $('bflash').disabled = true; $('dnote').style.display = 'none'; $('bdis').style.display = 'none';
-  $('pgwrap').style.display = 'none'; $('sbox').classList.remove('show');
-  try { if (serialReader) { await serialReader.cancel(); serialReader.releaseLock(); } } catch {}
-  try { if (serialWriter) { serialWriter.releaseLock(); } } catch {}
-  try { if (serialPort) { await serialPort.close(); } } catch {}
-  serialPort = serialReader = serialWriter = null; readBuf = new Uint8Array(0);
-  connUI('off', 'Not connected', 'Connect your Flipper via USB to begin');
-  log('Disconnected', 'dm');
-}
-
-// ── FLASH DISPATCHER ─────────────────────────────────────────────
-async function doFlash() {
-  if (busy || !connected) return;
-  busy = true; $('bflash').disabled = true; $('bcon').disabled = true; $('bdis').style.display = 'none';
-  clearNotices(); $('sbox').classList.remove('show');
-  $('pgwrap').style.display = ''; pg(0, 'Starting…');
-  $('pgfill').classList.add('pulse');
-
-  try {
-    if (method === 'dfu') await doFlashDFU();
-    else                  await doFlashTGZ();
-    pg(1, 'Complete!'); $('pgfill').classList.remove('pulse');
-    $('sbox').classList.add('show');
-    $('smsg').textContent = method === 'dfu'
-      ? 'DFU flash complete. Unplug your Flipper, then hold the power button to boot.'
-      : 'Firmware uploaded. Your Flipper is rebooting — the progress bar on its screen shows the install.';
-    connUI('on', 'FoxFW Installed ✓', 'Flash complete');
-  } catch (err) {
-    showErr(err.message); log('FAILED: ' + err.message, 'er');
-    pg(0, 'Failed'); $('pgfill').classList.remove('pulse');
-    connUI('off', 'Failed', err.message.slice(0, 60));
-  }
-
-  busy = false; $('bflash').disabled = false; $('bcon').disabled = false;
-}
-
-// ── TGZ / RPC FLASH ──────────────────────────────────────────────
-async function doFlashTGZ() {
-  // ── Step 1: Download + parse while serial sits idle ───────────────
-  // Do ALL the slow work (8MB download, decompress, parse) BEFORE
-  // we do anything time-sensitive with the serial port. The Flipper's
-  // RPC session can time out if we leave it idle for several seconds.
-  pg(0.01, 'Downloading firmware…'); log('Downloading ' + TGZ_URL + '…', 'in');
-  const tgz = await fetchXHR(TGZ_URL, p => pg(0.01 + p * 0.30, `Downloading… ${Math.round(p*100)}%`));
-  log(`Downloaded ${(tgz.length/1024/1024).toFixed(1)} MB`, 'ok');
-
-  pg(0.31, 'Decompressing…'); log('Decompressing…');
-  const tar = pako.inflate(tgz);
-  const files = parseTar(tar);
-  log(`Found ${files.length} files in package`, 'ok');
-  if (!files.length) throw new Error('No files found in firmware package — is the TGZ valid?');
-
-  const topDir = files[0].name.split('/')[0];
-  const sdBase = `/ext/update/${topDir}`;
-  log(`Update directory: ${sdBase}`, 'in');
-
-  const manifest = files.find(f => f.name.endsWith('update.fuf'));
-  if (!manifest) throw new Error('update.fuf manifest not found in TGZ package');
-  const manifestSD = `/ext/update/${manifest.name}`;
-
-  // ── Step 2: Start drain + upload immediately ──────────────────────
-  // The Flipper has been in RPC mode since connectSerial() — the session
-  // has NO timeout (FuriWaitForever in the firmware), so it is still valid
-  // after the download. Do NOT re-send start_rpc_session here: sending CLI
-  // text to a Flipper in RPC mode makes the RPC handler read it as a
-  // 1.9 GB message length and hang, breaking the session entirely.
-  pg(0.32, 'Beginning upload…');
-  readBuf = new Uint8Array(0); cmdId = 1;
-  log('Starting upload with 512-byte chunks (qFlipper protocol)…', 'ok');
-
-  // ── Step 3: Start drain + upload immediately ──────────────────────
-  // bgDrain runs concurrently to prevent the Flipper's USB send buffer
-  // filling with unread responses and deadlocking the write path.
-  startDrain();
-
-  log('Creating update directory on SD card…', 'in');
-  pg(0.33, 'Creating directories…');
-  await rpcMkdir('/ext/update');
-  await rpcMkdir(sdBase);
-
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    const sdPath = `/ext/update/${f.name}`;
-    log(`Uploading ${f.name} (${(f.data.length/1024).toFixed(0)} KB)…`);
-    await rpcWriteFile(sdPath, f.data, p => {
-      pg(0.35 + ((i + p) / files.length) * 0.58, `Uploading ${f.name}… ${Math.round(p*100)}%`);
-    });
-    log(`✓ ${f.name}`, 'ok');
-  }
-
-  // ── Step 4: Trigger update ────────────────────────────────────────
-  log('Triggering firmware update…', 'in');
-  pg(0.94, 'Triggering update…');
-  await rpcUpdate(manifestSD);
-  stopDrain();
-  log('Update triggered — Flipper is rebooting to install', 'ok');
-  pg(1, 'Done!');
-  try { await doDisconnect(); } catch {}
-}
-
-// ── PROTOBUF ENCODER ─────────────────────────────────────────────
-// Field numbers from flipperzero-protobuf/flipper.proto
-// storage_read_request    = 22
-// storage_read_response   = 23
-// storage_write_request   = 24  ← KEY: was incorrectly 22 before
-// storage_write_response  = 25
-// storage_delete_request  = 26
-// storage_mkdir_request   = 28
-// storage_mkdir_response  = 29
-// system_update_request   = 34
-
-const PB = {
-  vi(v) {
-    const o=[]; v=v>>>0;
-    while(v>0x7F){o.push((v&0x7F)|0x80);v>>>=7;}
-    o.push(v&0x7F); return new Uint8Array(o);
-  },
-  tag(fn,wt){ return PB.vi((fn<<3)|wt); },
-  fv(fn,v){ return PB.cat([PB.tag(fn,0),PB.vi(v)]); },
-  fb(fn,d){ return PB.cat([PB.tag(fn,2),PB.vi(d.length),d]); },
-  fs(fn,s){ return PB.fb(fn,new TextEncoder().encode(s)); },
-  fm(fn,m){ return PB.fb(fn,m); },
-  cat(a){ const t=a.reduce((s,x)=>s+x.length,0),o=new Uint8Array(t);let i=0;for(const x of a){o.set(x,i);i+=x.length;}return o; }
-};
-
-// Flipper RPC uses VARINT-prefixed delimited format (nanopb PB_DECODE_DELIMITED),
-// NOT a fixed 4-byte LE header. Using 4-byte LE was the root cause of all upload
-// failures: Flipper read the first byte as a 1-byte varint (~60 bytes for 8KB msg),
-// parsed garbage, and wrote nothing to the SD card.
-function frame(msg){
-  const lv=PB.vi(msg.length);
-  const b=new Uint8Array(lv.length+msg.length);
-  b.set(lv,0); b.set(msg,lv.length); return b;
-}
-
-// Storage.MkdirRequest (field 28 of Main)
-function mkdirMsg(path){
-  return PB.cat([PB.fv(1,cmdId++),PB.fm(28,PB.fs(1,path))]);
-}
-
-// Storage.WriteRequest (field 24 of Main) — FIXED from 22
-function writeMsg(id,hasNext,path,data){
-  const file=PB.fb(1,data);
-  const wr=path
-    ? PB.cat([PB.fs(1,path),PB.fm(2,file)])
-    : PB.fm(2,file);
-  return PB.cat([
-    PB.fv(1,id),
-    ...(hasNext?[PB.fv(2,1)]:[]),
-    PB.fm(24,wr)  // ← 24, not 22
-  ]);
-}
-
-// System.UpdateRequest (field 34 of Main)
-function updateMsg(manifest){
-  return PB.cat([PB.fv(1,cmdId++),PB.fm(34,PB.fs(1,manifest))]);
-}
-
-// ── SERIAL I/O ───────────────────────────────────────────────────
-async function startRpc(){
+  serialReader = serialPort.readable.getReader();
+  cmdId = 1;
+  log('Port opened — starting RPC session…','ok');
   await serialWriter.write(new TextEncoder().encode('\r\n'));
   await sleep(200);
   await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
   await sleep(700);
-  readBuf = new Uint8Array(0);
+  log('RPC session active','ok');
+  connUI('on','Flipper Zero — Connected','USB serial · Standard Update (RPC)');
 }
 
-async function rdExact(n){
-  while(readBuf.length<n){
-    const{value,done}=await serialReader.read();
-    if(done) throw new Error('Serial closed unexpectedly');
-    const nb=new Uint8Array(readBuf.length+value.length);
-    nb.set(readBuf); nb.set(value,readBuf.length); readBuf=nb;
-  }
-  const out=readBuf.slice(0,n); readBuf=readBuf.slice(n); return out;
+async function connectDFU() {
+  if (!('usb' in navigator)) throw new Error('WebUSB not supported — use Chrome or Edge');
+  log('Requesting DFU device…','in');
+  const granted = (await navigator.usb.getDevices()).find(d=>d.vendorId===VID&&d.productId===PID_DFU);
+  window._dfuDev = granted || await navigator.usb.requestDevice({ filters:[{vendorId:VID,productId:PID_DFU}] });
+  log('DFU device: '+(window._dfuDev.productName||'STM32'),'ok');
+  connUI('on','Flipper Zero — DFU Mode','WebUSB · DFU Recovery');
 }
 
-async function rdResponse(){
-  // Sliding window to skip any CLI text before the first binary RPC message.
-  // CLI text produces 4-byte LE values >> 1024; valid RPC messages are <= 1024 bytes.
-  for(let skip=0;skip<512;skip++){
-    const h=await rdExact(4);
-    const len=new DataView(h.buffer).getUint32(0,true);
-    if(len>=1&&len<=1024){ return await rdExact(len); }
-    // Slide: put back 3 bytes, advance by 1
-    const s=new Uint8Array(3+readBuf.length);
-    s.set(h.slice(1)); s.set(readBuf,3); readBuf=s;
-  }
-  throw new Error('No valid RPC response found — check Flipper is at the desktop (not in an app)');
+async function doDisconnect() {
+  connected = false; busy = false;
+  $('bflash').disabled=true; $('dnote').style.display='none'; $('bdis').style.display='none';
+  $('pgwrap').style.display='none'; $('sbox').classList.remove('show');
+  try { if (serialReader) { await serialReader.cancel(); serialReader.releaseLock(); }} catch {}
+  try { if (serialWriter) { serialWriter.releaseLock(); }} catch {}
+  try { if (serialPort)   { await serialPort.close(); }} catch {}
+  serialPort=serialWriter=serialReader=null;
+  connUI('off','Not connected','Connect your Flipper via USB to begin');
+  log('Disconnected','dm');
 }
 
-async function wMsg(msg){ await serialWriter.write(frame(msg)); }
+// ── WRITE HELPERS ────────────────────────────────────────────────
+async function wMsg(bytes) {
+  await serialWriter.write(bytes);
+}
 
 // ── BACKGROUND DRAIN ─────────────────────────────────────────────
-// Continuously reads and discards bytes from the Flipper while we're
-// uploading. Without this, the Flipper's USB send buffer fills with
-// unread mkdir/write responses, its CDC task blocks trying to flush,
-// and that blocks its receive handler → our serialWriter.write() deadlocks.
-let drainActive = false;
-async function bgDrain() {
-  drainActive = true;
-  const dr = serialReader;
-  serialReader = null; // transfer ownership to the drainer
+// Continuously reads & discards Flipper responses during upload.
+// Without this, the Flipper's USB send buffer fills with unread
+// responses → its CDC task blocks → USB NACK → our writes deadlock.
+let draining = false;
+async function bgDrain(reader) {
+  draining = true;
   try {
-    while (drainActive) {
-      const { value, done } = await dr.read();
+    while (draining) {
+      const { value, done } = await reader.read();
       if (done) break;
-      // just discard — we don't need RPC responses during upload
+      // discard — we don't parse RPC responses during fire-and-forget upload
     }
-  } catch { /* port closed or cancelled — expected */ }
-  finally { drainActive = false; }
+  } catch { }
+  finally { draining = false; }
 }
-function startDrain() { bgDrain(); /* fire and forget */ }
-function stopDrain()  { drainActive = false; /* drain will stop after next read */ }
-// Do NOT read responses here — an abandoned Promise.race leaves a dangling
-// serialReader.read() that will silently consume the next real response.
-async function rpcMkdir(path){
-  await wMsg(mkdirMsg(path));
-  await sleep(300); // give Flipper time to process without reading response
+function startDrain() {
+  draining = false;
+  // transfer reader to drain; null out global so we don't accidentally use it
+  const dr = serialReader;
+  serialReader = null;
+  bgDrain(dr); // fire and forget — runs concurrently
+}
+function stopDrain() { draining = false; }
+
+// ── FLASH DISPATCHER ─────────────────────────────────────────────
+async function doFlash() {
+  if (busy||!connected) return;
+  busy=true; $('bflash').disabled=true; $('bcon').disabled=true; $('bdis').style.display='none';
+  clearNotices(); $('sbox').classList.remove('show');
+  $('pgwrap').style.display=''; pg(0,'Starting…');
+  $('pgfill').classList.add('pulse');
+  try {
+    if (method==='dfu') await doFlashDFU();
+    else                await doFlashTGZ();
+    pg(1,'Complete!'); $('pgfill').classList.remove('pulse');
+    $('sbox').classList.add('show');
+    $('smsg').textContent = method==='dfu'
+      ? 'DFU flash complete. Unplug your Flipper, then hold power to boot.'
+      : 'Firmware uploaded. Your Flipper is rebooting — the progress bar on its screen shows the install.';
+    connUI('on','FoxFW Installed ✓','Flash complete');
+  } catch (err) {
+    showErr(err.message); log('FAILED: '+err.message,'er');
+    pg(0,'Failed'); $('pgfill').classList.remove('pulse');
+    connUI('off','Failed',err.message.slice(0,60));
+  }
+  busy=false; $('bflash').disabled=false; $('bcon').disabled=false;
 }
 
-// Write file in chunks. Same command_id across all chunks (required by RPC).
-// No response reads between chunks. After the last chunk we simply wait long
-// enough for the Flipper to finish the SD write, then move on.
-// Trying to read a response via Promise.race() leaves dangling reads that
-// consume the NEXT file's response — this was the root cause of the stall.
-async function rpcWriteFile(path, data, onProgress){
-  const chunks=Math.ceil(data.length/CHUNK);
-  const id=cmdId++;
-  for(let i=0;i<chunks;i++){
-    const chunk=data.slice(i*CHUNK,(i+1)*CHUNK);
-    const isLast=i===chunks-1;
-    await wMsg(writeMsg(id,!isLast,i===0?path:null,chunk));
-    // Rate-limit: 5ms per 512-byte chunk ≈ 100KB/s — matches qFlipper chunk size
-    await sleep(5);
-    if(onProgress) onProgress((i+1)/chunks);
-    if(isLast){
-      // Wait for SD card to finish writing. Scale with file size at a
-      // conservative 80KB/s write speed, minimum 5s, maximum 30s.
-      const waitMs = Math.min(30000, Math.max(5000, Math.ceil(data.length / 80000) * 1000));
+// ── TGZ / RPC FLASH ──────────────────────────────────────────────
+async function doFlashTGZ() {
+  // 1. Download + decompress + parse FIRST (Flipper RPC has no timeout,
+  //    so the session remains valid during the download)
+  pg(0.01,'Downloading firmware…'); log('Downloading '+TGZ_URL+'…','in');
+  const tgz = await fetchXHR(TGZ_URL, p=>pg(0.01+p*0.28,`Downloading… ${Math.round(p*100)}%`));
+  log(`Downloaded ${(tgz.length/1024/1024).toFixed(1)} MB`,'ok');
+  pg(0.29,'Decompressing…'); log('Decompressing…');
+  const tar   = pako.inflate(tgz);
+  const files = parseTar(tar);
+  log(`Found ${files.length} files in package`,'ok');
+  if (!files.length) throw new Error('No files in firmware package');
+
+  const topDir     = files[0].name.split('/')[0];
+  const sdBase     = `/ext/update/${topDir}`;
+  const manifest   = files.find(f=>f.name.endsWith('update.fuf'));
+  if (!manifest) throw new Error('update.fuf manifest not found in TGZ');
+  const manifestSD = `/ext/update/${manifest.name}`;
+  log(`Update directory: ${sdBase}`,'in');
+
+  // 2. Start background drain and upload immediately — no re-send of
+  //    start_rpc_session (would break the already-active session)
+  pg(0.30,'Creating directories…');
+  cmdId = 1; // reset command counter for clean upload session
+  startDrain();
+
+  // 3. Create update directories
+  log('Creating update directory on SD card…','in');
+  await rpcMkdir('/ext/update');
+  await rpcMkdir(sdBase);
+
+  // 4. Upload each file
+  for (let fi=0; fi<files.length; fi++) {
+    const f = files[fi];
+    const sdPath = `/ext/update/${f.name}`;
+    log(`Uploading ${f.name} (${(f.data.length/1024).toFixed(0)} KB)…`);
+    await rpcWriteFile(sdPath, f.data, p => {
+      pg(0.32 + ((fi+p)/files.length)*0.60, `Uploading ${f.name}… ${Math.round(p*100)}%`);
+    });
+    log(`✓ ${f.name}`,'ok');
+  }
+
+  // 5. Trigger update
+  log('Triggering firmware update…','in'); pg(0.93,'Triggering update…');
+  const updateBytes = encodeMain({
+    commandId:1,
+    systemUpdateRequest:{ updateManifest: manifestSD }
+  });
+  await wMsg(updateBytes);
+  stopDrain();
+  await sleep(1000);
+  log('Update triggered — Flipper is rebooting','ok');
+  pg(1,'Done!');
+  try { await doDisconnect(); } catch {}
+}
+
+// ── RPC FILE OPERATIONS (using protobufjs encoding) ──────────────
+async function rpcMkdir(path) {
+  const bytes = encodeMain({ commandId: cmdId++, storageMkdirRequest:{ path } });
+  await wMsg(bytes);
+  await sleep(300); // drain handles response; sleep gives Flipper time to process
+}
+
+async function rpcWriteFile(path, data, onProgress) {
+  const chunks = Math.ceil(data.length / CHUNK);
+  const id     = cmdId++; // same command_id for ALL chunks of one file
+
+  for (let i=0; i<chunks; i++) {
+    const chunk  = data.slice(i*CHUNK, (i+1)*CHUNK);
+    const isLast = i === chunks-1;
+    const isFirst= i === 0;
+
+    const msgObj = {
+      commandId: id,
+      hasNext:   !isLast,
+      storageWriteRequest: {
+        // protobufjs omits empty string fields (proto3 default) — only first chunk has path
+        path: isFirst ? path : '',
+        file: { data: chunk }
+      }
+    };
+    await wMsg(encodeMain(msgObj));
+
+    await sleep(5); // rate-limit: ~100KB/s effective
+    if (onProgress) onProgress((i+1)/chunks);
+
+    // Log every ~10%
+    if (i > 0 && Math.floor((i+1)/chunks*10) > Math.floor(i/chunks*10)) {
+      log(`  ${Math.round((i+1)/chunks*100)}%`);
+    }
+
+    if (isLast) {
+      // Wait for SD card to flush. Scale by file size at ~80KB/s write speed.
+      const waitMs = Math.min(25000, Math.max(4000, Math.ceil(data.length/80000)*1000));
       log(`  Waiting ${(waitMs/1000).toFixed(0)}s for SD write…`);
       await sleep(waitMs);
     }
   }
 }
 
-// Trigger update — fire and disconnect. Flipper reboots into updater.
-async function rpcUpdate(manifest){
-  await wMsg(updateMsg(manifest));
-  await sleep(1000);
-  // Flipper is rebooting — don't try to read a response
-}
-
-// ── TAR PARSER ───────────────────────────────────────────────────
-function parseTar(buf){
-  const bytes=new Uint8Array(buf), td=new TextDecoder(), files=[];
-  let off=0;
-  while(off+512<=bytes.length){
-    if(!bytes[off]) break;
-    const rs=(s,l)=>{ let e=s;while(e<s+l&&bytes[e])e++;return td.decode(bytes.slice(s,e)).trim(); };
-    const name   = rs(off,100);
-    const size   = parseInt(rs(off+124,12)||'0',8);
-    const type   = String.fromCharCode(bytes[off+156]);
-    const prefix = rs(off+345,155);
-    const full   = prefix?`${prefix}/${name}`:name;
-    off+=512;
-    if((type==='0'||type==='\x00')&&size>0&&!full.endsWith('/'))
-      files.push({name:full,data:bytes.slice(off,off+size)});
-    off+=Math.ceil(size/512)*512;
-  }
-  return files;
-}
-
 // ── DFU FLASH ────────────────────────────────────────────────────
-async function doFlashDFU(){
+async function doFlashDFU() {
   log('Downloading DFU firmware…','in'); pg(0.02,'Downloading…');
   const dfuData=await fetchXHR(DFU_URL,p=>pg(0.02+p*0.30,`Downloading… ${Math.round(p*100)}%`));
   log(`Downloaded ${(dfuData.length/1024/1024).toFixed(1)} MB`,'ok');
   pg(0.32,'Flashing via DFU…');
   const dev=window._dfuDev;
-  if(!dev) throw new Error('No DFU device connected. Enter DFU mode first (hold Left + Back while powering on), reconnect, then try again.');
+  if(!dev) throw new Error('No DFU device connected. Boot Flipper into DFU mode first.');
   await dev.open();
   let ifn=0;
   for(const c of dev.configurations) for(const i of c.interfaces) for(const a of i.alternates)
     if(a.interfaceClass===0xFE&&a.interfaceSubclass===0x01) ifn=i.interfaceNumber;
   await dev.selectConfiguration(1); await dev.claimInterface(ifn);
-  log(`DFU interface ${ifn} claimed`,'ok');
+  log(`DFU iface ${ifn} claimed`,'ok');
   const st=await dfuGetSt(dev,ifn);
-  if(st.bStatus!==0||st.bState===10){ await dfuClrSt(dev,ifn); }
+  if(st.bStatus!==0||st.bState===10){await dfuClrSt(dev,ifn);}
   const targets=parseDFU(dfuData);
   let tot=0,done=0;
   for(const t of targets) for(const e of t.elements) tot+=Math.ceil(e.data.length/DFU_BLK);
@@ -563,14 +476,14 @@ async function doFlashDFU(){
       for(let b=0;b<nb;b++){
         await dfuDnload(dev,ifn,b+2,el.data.slice(b*DFU_BLK,(b+1)*DFU_BLK));
         await dfuPoll(dev,ifn); done++;
-        pg(0.32+(done/tot)*0.66,`Flashing… block ${done}/${tot}`);
-        if(b%15===0) log(`  ${Math.round((b/nb)*100)}%`);
+        pg(0.32+(done/tot)*0.66,`Flashing… ${done}/${tot}`);
+        if(b%15===0) log(`  ${Math.round(b/nb*100)}%`);
       }
       log('✓ element done','ok');
     }
   }
   await dfuDnload(dev,ifn,0,new Uint8Array(0));
-  log('DFU manifest complete — Flipper rebooting','ok');
+  log('DFU manifest — Flipper rebooting','ok');
   try{await dfuPoll(dev,ifn);}catch{}
   try{await dev.close();}catch{} window._dfuDev=null;
 }
@@ -578,55 +491,57 @@ async function doFlashDFU(){
 function parseDFU(buf){
   const b=new Uint8Array(buf),v=new DataView(buf.buffer||buf),td=new TextDecoder();
   if(td.decode(b.slice(0,5))!=='DfuSe') throw new Error('Not a valid DFU file');
-  let off=11; const ts=[];
+  let off=11;const ts=[];
   for(let t=0;t<b[10];t++){
     if(td.decode(b.slice(off,off+6))!=='Target') throw new Error('Invalid DFU target');
-    const ne=v.getUint32(off+270,true); off+=274;
+    const ne=v.getUint32(off+270,true);off+=274;
     const els=[];
-    for(let e=0;e<ne;e++){ const a=v.getUint32(off,true),s=v.getUint32(off+4,true); els.push({address:a,data:b.slice(off+8,off+8+s)}); off+=8+s; }
+    for(let e=0;e<ne;e++){const a=v.getUint32(off,true),s=v.getUint32(off+4,true);els.push({address:a,data:b.slice(off+8,off+8+s)});off+=8+s;}
     ts.push({elements:els});
   }
   return ts;
 }
+async function dfuDnload(d,i,n,data){const r=await d.controlTransferOut({requestType:'class',recipient:'interface',request:1,value:n,index:i},data);if(r.status!=='ok')throw new Error('DFU_DNLOAD: '+r.status);}
+async function dfuGetSt(d,i){const r=await d.controlTransferIn({requestType:'class',recipient:'interface',request:3,value:0,index:i},6),v=r.data;return{bStatus:v.getUint8(0),bwPollTimeout:v.getUint8(1)|(v.getUint8(2)<<8)|(v.getUint8(3)<<16),bState:v.getUint8(4)};}
+async function dfuClrSt(d,i){await d.controlTransferOut({requestType:'class',recipient:'interface',request:4,value:0,index:i});}
+async function dfuPoll(d,i){for(let n=0;n<200;n++){const s=await dfuGetSt(d,i);if(s.bState===10){await dfuClrSt(d,i);throw new Error(`DFU error bStatus=${s.bStatus}`);}if(s.bState!==4)return s;await sleep(Math.max(s.bwPollTimeout,10));}throw new Error('DFU poll timeout');}
 
-async function dfuDnload(d,i,n,data){
-  const r=await d.controlTransferOut({requestType:'class',recipient:'interface',request:1,value:n,index:i},data);
-  if(r.status!=='ok') throw new Error('DFU_DNLOAD: '+r.status);
-}
-async function dfuGetSt(d,i){
-  const r=await d.controlTransferIn({requestType:'class',recipient:'interface',request:3,value:0,index:i},6),v=r.data;
-  return{bStatus:v.getUint8(0),bwPollTimeout:v.getUint8(1)|(v.getUint8(2)<<8)|(v.getUint8(3)<<16),bState:v.getUint8(4)};
-}
-async function dfuClrSt(d,i){ await d.controlTransferOut({requestType:'class',recipient:'interface',request:4,value:0,index:i}); }
-async function dfuPoll(d,i){
-  for(let n=0;n<200;n++){
-    const s=await dfuGetSt(d,i);
-    if(s.bState===10){await dfuClrSt(d,i);throw new Error(`DFU error state, bStatus=${s.bStatus}`);}
-    if(s.bState!==4) return s;
-    await sleep(Math.max(s.bwPollTimeout,10));
+// ── TAR PARSER ───────────────────────────────────────────────────
+function parseTar(buf){
+  const bytes=new Uint8Array(buf),td=new TextDecoder(),files=[];
+  let off=0;
+  while(off+512<=bytes.length){
+    if(!bytes[off])break;
+    const rs=(s,l)=>{let e=s;while(e<s+l&&bytes[e])e++;return td.decode(bytes.slice(s,e)).trim();};
+    const name=rs(off,100),size=parseInt(rs(off+124,12)||'0',8),type=String.fromCharCode(bytes[off+156]),prefix=rs(off+345,155),full=prefix?`${prefix}/${name}`:name;
+    off+=512;
+    if((type==='0'||type==='\x00')&&size>0&&!full.endsWith('/')) files.push({name:full,data:bytes.slice(off,off+size)});
+    off+=Math.ceil(size/512)*512;
   }
-  throw new Error('DFU poll timeout');
+  return files;
 }
 
-// ── FETCH (XHR — avoids extension overrides of window.fetch) ─────
+// ── XHR DOWNLOAD ─────────────────────────────────────────────────
 function fetchXHR(url,onProg){
   return new Promise((ok,fail)=>{
-    const x=new XMLHttpRequest(); x.open('GET',url,true); x.responseType='arraybuffer';
-    x.timeout=180000;
+    const x=new XMLHttpRequest();x.open('GET',url,true);x.responseType='arraybuffer';x.timeout=180000;
     x.onprogress=e=>{if(e.lengthComputable&&onProg)onProg(e.loaded/e.total);};
     x.onload=()=>x.status>=200&&x.status<300?ok(new Uint8Array(x.response)):fail(new Error('HTTP '+x.status));
-    x.onerror=()=>fail(new Error('Download failed — check your connection or try the manual file picker'));
-    x.ontimeout=()=>fail(new Error('Download timed out'));
-    x.send();
+    x.onerror=()=>fail(new Error('Download failed'));x.ontimeout=()=>fail(new Error('Download timed out'));x.send();
   });
 }
 
 // ── INIT ─────────────────────────────────────────────────────────
 (function init(){
   if(!('serial' in navigator)||!('usb' in navigator)){
-    $('n-compat').classList.add('show');
+    const n=$('n-compat');
+    n.innerHTML='<strong>⚠ Browser not supported.</strong> Use Chrome or Edge on desktop.';
+    n.classList.add('show'); n.style.display='';
     $('bcon').disabled=true; $('bflash').disabled=true;
   }
+  // protobufjs loaded from CDN — init when ready
+  if(typeof protobuf!=='undefined') initProto();
+  else setTimeout(()=>{if(typeof protobuf!=='undefined')initProto();},500);
   selMethod('tgz');
 })();
 </script>
