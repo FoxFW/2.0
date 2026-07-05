@@ -2,7 +2,7 @@
   <h1>🦊 FoxFW v2.0</h1>
   <p><em>A custom Flipper Zero firmware built for power users.</em></p>
   <p>
-    <a href="https://foxcustomfirmware.github.io/FoxFW/">📖 Full User Guide</a>
+    <a href="https://foxfw.github.io/2.0/">📖 Full User Guide</a>
     &nbsp;·&nbsp;
     <a href="mailto:foxcustomfirmware@gmail.com">📧 Support</a>
   </p>
