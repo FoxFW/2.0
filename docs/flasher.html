@@ -411,7 +411,6 @@ async function doFlashTGZ() {
   rxBuffer = new Uint8Array(0);
 
   // 2. Perform the mkdir IMMEDIATELY. 
-  // No syncSerial() calls here. No extra delays.
   log('Creating update directory…','in');
   
   try {
@@ -420,30 +419,35 @@ async function doFlashTGZ() {
     
     // Upload files
     for (let fi=0; fi<files.length; fi++) {
-    const f = files[fi];
-    const sdPath = `/ext/update/${f.name}`;
-    log(`Uploading ${f.name} (${(f.data.length/1024).toFixed(0)} KB)…`);
-    await rpcWriteFile(sdPath, f.data, p => {
-      pg(0.32 + ((fi+p)/files.length)*0.60, `Uploading ${f.name}… ${Math.round(p*100)}%`);
-    });
-    log(`✓ ${f.name}`,'ok');
-  }
+      const f = files[fi];
+      const sdPath = `/ext/update/${f.name}`;
+      log(`Uploading ${f.name} (${(f.data.length/1024).toFixed(0)} KB)…`);
+      await rpcWriteFile(sdPath, f.data, p => {
+        pg(0.32 + ((fi+p)/files.length)*0.60, `Uploading ${f.name}… ${Math.round(p*100)}%`);
+      });
+      log(`✓ ${f.name}`,'ok');
+    }
 
-  // Trigger update
-  log('Triggering firmware update…','in'); pg(0.93,'Triggering update…');
-  const id = cmdId++;
-  const updateBytes = encodeMain({
-    commandId: id,
-    systemUpdateRequest:{ updateManifest: manifestSD }
-  });
-  await wMsg(updateBytes);
-  try { await readRpcResponse(id); } catch(e){} // Catch error in case it reboots before ACKing
-  await sleep(1000);
-  
-  log('Update triggered — Flipper is rebooting','ok');
-  pg(1,'Done!');
-  try { await doDisconnect(); } catch {}
-}} 
+    // Trigger update
+    log('Triggering firmware update…','in'); pg(0.93,'Triggering update…');
+    const id = cmdId++;
+    const updateBytes = encodeMain({
+      commandId: id,
+      systemUpdateRequest:{ updateManifest: manifestSD }
+    });
+    await wMsg(updateBytes);
+    try { await readRpcResponse(id); } catch(e){} 
+    await sleep(1000);
+    
+    log('Update triggered — Flipper is rebooting','ok');
+    pg(1,'Done!');
+    try { await doDisconnect(); } catch {}
+
+  } catch (e) {
+    log('CRITICAL: ' + e.message, 'er');
+    throw e;
+  }
+}
 
 // ── RPC FILE OPERATIONS ──────────────────────────────────────────
 async function rpcPing() {
