@@ -189,7 +189,7 @@ function encodeMain(obj) {
 // ── STATE ────────────────────────────────────────────────────────
 let method = 'tgz', cmdId = 1, busy = false, connected = false;
 let serialPort = null, serialWriter = null, serialReader = null;
-let rxBuffer = new Uint8Array(0); // Holds incoming data for Protobuf parsing
+let rxBuffer = new Uint8Array(0);
 
 // ── UI HELPERS ───────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -302,22 +302,47 @@ async function wMsg(bytes) {
 
 async function readRpcResponse(expectedId) {
   while (true) {
-    if (rxBuffer.length > 0) {
+    while (rxBuffer.length > 0) {
       try {
         const reader = protobuf.Reader.create(rxBuffer);
         const msg = Main.decodeDelimited(reader);
-        rxBuffer = rxBuffer.slice(reader.pos); // advance buffer past the decoded message
         
         if (msg.commandId === expectedId) {
+          rxBuffer = rxBuffer.slice(reader.pos);
           if (msg.commandStatus !== 0) {
             throw new Error(`RPC Error Status: ${msg.commandStatus}`);
           }
           return msg;
         }
+        
+        // Decoded correctly, but wrong ID (e.g. an old message in the buffer). Discard it.
+        rxBuffer = rxBuffer.slice(reader.pos);
+        continue;
+        
       } catch (e) {
-        // If it's a real error surfaced by our own check, throw it.
+        // If it's a genuine Flipper error we threw above, bubble it up.
         if (e.message.includes('RPC Error Status')) throw e;
-        // Otherwise, it's a partial buffer (decodeDelimited failed), so we just wait for more data.
+
+        // If the buffer is too short to fulfill the parsed varint length, ProtobufJS throws this error.
+        if (e.message.includes('index out of range')) {
+          // Verify if the varint length is sane. If it's ridiculously large, we are parsing garbage.
+          let len = 0, shift = 0, p = 0;
+          while (p < rxBuffer.length && p < 5) {
+            let b = rxBuffer[p++];
+            len |= (b & 0x7f) << shift;
+            if ((b & 0x80) === 0) break;
+            shift += 7;
+          }
+          if (len < 500000) {
+            // Length is sane (< 500KB), we likely just need to wait for the rest of the message to arrive.
+            break; 
+          }
+        }
+        
+        // If we reach here, it's either an invalid wire type, illegal tag, or an insane length.
+        // This means the parser is chewing on non-Protobuf garbage (like the CLI prompt).
+        // Slide the window forward by 1 byte and try again to re-sync.
+        rxBuffer = rxBuffer.slice(1);
       }
     }
 
