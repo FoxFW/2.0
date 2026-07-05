@@ -1,0 +1,15 @@
+App(
+    appid="subghz_modulation_analyzer",
+    name="Modulation Analyzer",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="subghz_modulation_analyzer_app",
+    requires=[
+        "gui",
+    ],
+    stack_size=2 * 1024,
+    order=31,
+    fap_icon="icon.png",
+    fap_category="Sub-GHz",
+    fap_description="Scans modulation presets at a fixed frequency to identify an unknown signal's encoding",
+    fap_version=(1, 0),
+)

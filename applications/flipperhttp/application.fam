@@ -1,0 +1,6 @@
+# Placeholder
+App(
+    appid="flipperhttpapps",
+    name="Special folder for FlipperHTTP apps",
+    apptype=FlipperAppType.METAPACKAGE,
+)

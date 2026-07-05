@@ -1,0 +1,16 @@
+App(
+    appid="fox_setup",
+    name="Fox Setup",
+    apptype=FlipperAppType.EXTSETTINGS,
+    entry_point="fox_setup_app",
+    cdefines=["APP_FOX_SETUP"],
+    requires=[
+        "desktop",   # grants access to desktop.h, desktop_settings.h, helpers/pin_code.h SDK headers
+        "gui",
+    ],
+    stack_size=4 * 1024,
+    order=0,
+    fap_icon="icon.png",
+    fap_icon_assets="images",
+    fap_category="Settings",
+)

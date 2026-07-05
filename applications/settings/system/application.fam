@@ -1,0 +1,9 @@
+App(
+    appid="system_settings",
+    name="System",
+    apptype=FlipperAppType.SETTINGS,
+    entry_point="system_settings_app",
+    requires=["gui", "locale", "storage"],
+    stack_size=2 * 1024,
+    order=30,
+)

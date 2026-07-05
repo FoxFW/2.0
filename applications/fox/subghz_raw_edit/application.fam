@@ -1,0 +1,18 @@
+App(
+    appid="subghz_raw_edit",
+    name="SubGHz RAW Edit",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="subghz_raw_edit_app",
+    requires=[
+        "gui",
+        "dialogs",
+        "storage",
+        "notification",
+    ],
+    stack_size=6 * 1024,
+    order=30,
+    fap_category="Sub-GHz",
+    fap_icon="icon.png",
+    fap_description="Waveform editor for SubGHz RAW captures (.sub files)",
+    fap_version=(1, 0),
+)

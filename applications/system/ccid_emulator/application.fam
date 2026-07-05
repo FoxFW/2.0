@@ -1,0 +1,12 @@
+App(
+    appid="ccid_emulator",
+    name="CCID Emulator",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="ccid_emulator_app",
+    stack_size=4 * 1024,
+    fap_category="USB",
+    fap_version=(1, 0),
+    fap_icon="ccid_emulator.png",
+    fap_description="Programmable USB smartcard emulator via CCID",
+    fap_author="PentestSuite",
+)

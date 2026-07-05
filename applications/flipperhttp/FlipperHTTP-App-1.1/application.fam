@@ -1,0 +1,14 @@
+App(
+    appid="flipper_http",
+    name="FlipperHTTP",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="flipper_http_main",
+    stack_size=4 * 1024,
+    fap_icon="app.png",
+    fap_category="FlipperHTTP",
+    fap_icon_assets="assets",
+    fap_description="FlipperHTTP Companion App", 
+    fap_author="JBlanked",
+    fap_weburl="https://github.com/jblanked",
+    fap_version="1.1",
+)

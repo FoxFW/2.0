@@ -1,0 +1,15 @@
+# fox_ui — canonical source location for shared FoxFW UI helpers.
+#
+# fbt stages each FAP into .extapps/<appname>/ before compiling, so
+# cross-folder relative paths in 'sources' don't resolve.  The correct
+# workflow is to COPY fox_scroll_text.c/.h into each app folder that
+# needs it; fox_ui/ is the authoritative reference copy only.
+#
+# FlipperAppType.METAPACKAGE suppresses the "missing manifest" warning
+# without creating any build targets.
+
+App(
+    appid="fox_ui",
+    name="Fox UI Helpers (reference only — copy files into each app)",
+    apptype=FlipperAppType.METAPACKAGE,
+)

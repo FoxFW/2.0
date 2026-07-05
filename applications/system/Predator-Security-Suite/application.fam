@@ -1,0 +1,142 @@
+App(
+    appid="predator_professional",
+    name="Predator Security Suite",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="predator_app",
+    requires=["gui", "dialogs", "storage", "notification", "subghz", "nfc", "bt", "gpio", "power"],
+    stack_size=3584,  # 3.5KB - optimized for transit cards
+    fap_category="Tools",
+    fap_description="Professional Security Toolkit - Memory Optimized",
+    fap_version="2.0",
+    fap_icon="icon.png",
+    fap_author="Nico Lococo - Elon's Startup",
+    fap_weburl="https://github.com/predator-momentum/flipper",
+    targets=["f7"],
+    cdefines=["HEAP_SIZE=6000", "MEMORY_OPTIMIZED=1", "EMERGENCY_MODE=1"],  # Stable: tested working for real HW
+    sources=[
+        # Core application
+        "predator.c",
+        "predator_uart.c",
+
+        # Essential helpers only
+        "helpers/predator_boards.c",
+        "helpers/predator_error.c",
+        "helpers/predator_esp32.c",
+        "helpers/predator_gps.c",
+        "helpers/predator_compliance.c",
+        "helpers/predator_models_hardcoded.c",
+        
+        # v2.0 REFACTORED: Modular SubGHz (was 1 file @ 52KB, now 4 files @ 12-15KB each)
+        "helpers/subghz/predator_subghz_core.c",      # Hardware init/deinit
+        "helpers/subghz/predator_subghz_car.c",       # Car-specific attacks
+        "helpers/subghz/predator_subghz_rolling.c",   # Rolling code attacks
+        "helpers/subghz/predator_subghz_jamming.c",   # Jamming operations
+        
+        "helpers/predator_ui_elements.c",
+        "helpers/predator_settings.c",
+        "helpers/predator_logging.c",
+        "helpers/predator_real_attack_engine.c",
+        "helpers/predator_memory_optimized.c",  # OPTIMIZED: Replaces 4 heavy helpers
+        "helpers/predator_constants.c",  # SHARED: Constants implementation
+        "helpers/predator_crypto_engine.c",  # PRODUCTION: Keeloq, Hitag2, AES-128
+        "helpers/predator_crypto_packets.c",  # PRODUCTION: Manufacturer-specific packets
+        
+        # Phase 3: Transit Cards Implementation (FeliCa & Calypso)
+        "helpers/predator_crypto_felica_impl.c",   # FeliCa: Station DB, card names, crypto
+        "helpers/predator_crypto_calypso_impl.c",  # Calypso: Station DB, card names, crypto
+        
+        # Scene router
+        "scenes/predator_scene.c",
+
+        # PROFESSIONAL - ESSENTIAL SCENES ONLY
+        "scenes/predator_scene_main_menu_ui.c",
+        
+        # Tesla & Car Security (CORE BUSINESS)
+        "scenes/predator_scene_car_tesla_ui.c",
+        "scenes/predator_scene_car_continent_ui.c",        # NEW: Continent picker (Europe/Asia/America)
+        "scenes/predator_scene_car_models_ui.c",           # Simple model picker (WORKING)
+        "scenes/predator_scene_car_model_attacks_ui.c",    # Attacks for selected model (WORKING)
+        "scenes/predator_scene_protocol_test_ui.c",        # Protocol testing (Keeloq/Hitag2/AES)
+        "scenes/predator_scene_barrier_region_select_ui.c",  # ENTERPRISE: Smart region selection for barriers
+        "scenes/predator_scene_parking_barriers_ui.c",  # ENTERPRISE: Professional parking barrier testing
+        "scenes/predator_scene_barrier_manufacturer_select_ui.c",  # ENTERPRISE: Choose manufacturer or try all
+        "scenes/predator_scene_barrier_attack_ui.c",   # ENTERPRISE: Dedicated barrier security research with crypto
+        # "scenes/predator_scene_walking_open_ui.c",    # REMOVED: Konami code easter egg replaces this
+        "scenes/predator_scene_car_key_bruteforce_ui.c",
+        "scenes/predator_scene_dictionary_attack_ui.c",  # 🔥 NEW: 980+ keys dictionary attack
+        "scenes/predator_scene_car_jamming_ui.c",
+        
+        # Transit Cards (FeliCa & Calypso) - FIXING ALL SCENES
+        "scenes/predator_scene_transit_cards_menu_ui.c",
+        "scenes/predator_scene_felica_reader_ui.c",
+        "scenes/predator_scene_felica_actions_ui.c",
+        "scenes/predator_scene_felica_history_ui.c",
+        "scenes/predator_scene_felica_balance_ui.c",
+        "scenes/predator_scene_felica_dump_ui.c",
+        "scenes/predator_scene_calypso_reader_ui.c",
+        "scenes/predator_scene_calypso_actions_ui.c",
+        "scenes/predator_scene_calypso_buy_ticket_ui.c",
+        "scenes/predator_scene_calypso_emulate_ui.c",
+        "scenes/predator_scene_calypso_journey_ui.c",
+        "scenes/predator_scene_calypso_contracts_ui.c",
+        
+        # Access Control DISABLED - Saves 12KB for Transit Cards
+        # "scenes/predator_scene_access_control_menu_ui.c",
+        # "scenes/predator_scene_wiegand_reader_ui.c",
+        # "scenes/predator_scene_wiegand_actions_ui.c",
+        # "scenes/predator_scene_wiegand_emulate_ui.c",
+        # "scenes/predator_scene_wiegand_bruteforce_ui.c",
+        # "scenes/predator_scene_em4305_clone_ui.c",
+        # "scenes/predator_scene_em4305_actions_ui.c",
+        # "scenes/predator_scene_em4305_password_attack_ui.c",
+        # "scenes/predator_scene_em4305_custom_write_ui.c",
+        # "scenes/predator_scene_iso15693_scanner_ui.c",
+        # "scenes/predator_scene_iso15693_actions_ui.c",
+        # "scenes/predator_scene_iso15693_block_viewer_ui.c",
+        # "scenes/predator_scene_iso15693_password_attack_ui.c",
+        # "scenes/predator_scene_iso15693_eas_ui.c",
+        
+        "scenes/predator_scene_car_passive_opener_ui.c",
+        
+        # WiFi Attacks - REDUCED FOR MEMORY (Keep essentials only)
+        "scenes/predator_scene_wifi_attacks_ui.c",
+        "scenes/predator_scene_wifi_scan_ui.c",
+        "scenes/predator_scene_wifi_deauth_ui.c",
+        "scenes/predator_scene_wifi_evil_twin_ui.c",   # RE-ADDED: Testing stability
+        # "scenes/predator_scene_wifi_handshake_ui.c",   # REMOVED: Out of memory
+        "scenes/predator_scene_wifi_pmkid_ui.c",       # KEPT: More important than handshake
+        
+        # Bluetooth Attacks - REDUCED FOR MEMORY
+        "scenes/predator_scene_bluetooth_attacks_ui.c",
+        "scenes/predator_scene_ble_scan_ui.c",
+        "scenes/predator_scene_ble_spam_ui.c",         # RE-ADDED: Testing stability
+        
+        # RFID Attacks - REDUCED FOR MEMORY
+        "scenes/predator_scene_rfid_attacks_ui.c",
+        "scenes/predator_scene_rfid_clone_ui.c",
+        "scenes/predator_scene_rfid_bruteforce_ui.c",  # RE-ADDED: Testing stability
+        # "scenes/predator_scene_rfid_fuzzing_ui.c",     # REMOVED: Memory optimization
+        
+        # SubGHz Attacks - REDUCED FOR MEMORY
+        "scenes/predator_scene_subghz_attacks_ui.c",
+        "scenes/predator_scene_subghz_jamming_ui.c",   # RE-ADDED: Testing stability
+        # "scenes/predator_scene_subghz_raw_send_ui.c",  # REMOVED: Memory optimization
+        
+        # GPS & Navigation (ESSENTIAL)
+        #"scenes/predator_scene_gps_tracker_ui.c",
+        #"scenes/predator_scene_wardriving_ui.c",
+        
+        # Social Engineering (ESSENTIAL)
+        #"scenes/predator_scene_social_engineering_ui.c",
+        
+        # Government Contracts (CRITICAL) - Temporarily disabled due to compilation errors
+        # "scenes/predator_scene_traffic_light_security_ui.c",
+        
+        # System & Utility (ESSENTIAL)
+        "scenes/predator_scene_module_status_ui.c",
+        "scenes/predator_scene_board_selection_ui.c",
+        "scenes/predator_scene_settings_ui.c",
+        "scenes/predator_scene_about_ui.c",
+        "scenes/predator_scene_live_monitor_ui.c",
+    ],
+)

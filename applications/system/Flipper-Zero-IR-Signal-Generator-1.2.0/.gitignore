@@ -1,0 +1,11 @@
+# Flipper Zero Build Artifacts
+*.fap
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+
+# OS specific
+.DS_Store
+Thumbs.db

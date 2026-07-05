@@ -1,0 +1,12 @@
+App(
+    appid="subghz_spectrum",
+    name="SubGHz Spectrum",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="subghz_spectrum_app",
+    stack_size=4 * 1024,
+    fap_category="Sub-GHz",
+    fap_version=(1, 0),
+    fap_icon="subghz_spectrum.png",
+    fap_description="Real-time Sub-GHz spectrum analyzer with waterfall display",
+    fap_author="PentestSuite",
+)

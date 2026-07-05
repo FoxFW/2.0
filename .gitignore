@@ -1,0 +1,93 @@
+*~
+*.swp
+*.swo
+*.gdb_history
+*.old
+
+
+# LSP
+.cache
+compile_commands.json
+
+# JetBrains IDEs
+.idea/
+.claude/
+# Sublime Text
+.sublime-project.sublime-workspace
+
+# Python VirtEnvironments
+.env
+.venv
+env/
+venv/
+
+# Python Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pickle
+
+.obj/
+bindings/
+.DS_Store
+.mxproject
+Brewfile.lock.json
+
+# Kate
+.kateproject
+.kateconfig
+
+# kde
+.directory
+null.d
+
+# SCons
+.sconsign.dblite
+
+
+# bundle output
+/dist
+/artifacts-default
+/artifacts-ofw-anims
+/artifacts-rgb-patch
+/artifacts-extra-apps
+/artifacts-clean
+
+# SCons build dir
+/build
+
+# Toolchain
+/toolchain
+
+# openocd output file
+openocd.log
+
+# PVS Studio temporary files
+.PVS-Studio/
+PVS-Studio.log
+*.PVS-Studio.*
+
+.gdbinit
+
+/fbt_options_local.py
+
+# JS packages
+node_modules/
+
+# cli_perf script output in case of errors
+/block.bin
+/return_block.bin
+/RE-mario-full
+
+#companion app
+/companion
+/Flipper-Android-App
+
+#WIP not ready to push protocols
+
+lib/subghz/protocols/subghz_protocol_honda_pandora.c
+lib/subghz/protocols/honda_rolling.c
+lib/subghz/protocols/honda_rolling.h
+lib/subghz/protocols/honda_pandora.c
+lib/subghz/protocols/honda_pandora.h
+applications/system/picopass-main/videos/NR-MAC.mkv

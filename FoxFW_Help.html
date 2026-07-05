@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FoxFW v2.0 — Complete User Guide</title>
+<style>
+  :root {
+    --orange: #e8750a;
+    --dark:   #1a1a1a;
+    --mid:    #2d2d2d;
+    --light:  #f5f0eb;
+    --border: #3a3a3a;
+    --accent: #ff9a3c;
+    --new:    #c47aff;
+    --green:  #3dba6a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--dark);
+    color: var(--light);
+    line-height: 1.75;
+    padding: 0 0 80px;
+  }
+
+  /* ── Hero header ─────────────────────────────────────────────────────── */
+  .hero {
+    background: linear-gradient(135deg, #b85500 0%, var(--orange) 60%, #ff9a3c 100%);
+    color: #fff;
+    padding: 56px 40px 48px;
+    border-bottom: 3px solid #a04800;
+  }
+  .hero-inner { max-width: 860px; margin: 0 auto; }
+  .hero h1 { font-size: 2.6rem; letter-spacing: 1px; margin-bottom: 10px; }
+  .hero p  { opacity: 0.92; font-size: 1.05rem; max-width: 600px; line-height: 1.6; }
+  .hero .version {
+    display: inline-block;
+    background: rgba(0,0,0,0.25);
+    border-radius: 20px;
+    padding: 3px 14px;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+  }
+  .hero .support-note {
+    margin-top: 18px;
+    background: rgba(0,0,0,0.22);
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 0.9rem;
+    max-width: 540px;
+  }
+  .hero .support-note a { color: #ffe0b0; }
+
+  /* ── Layout ──────────────────────────────────────────────────────────── */
+  .content { max-width: 860px; margin: 0 auto; padding: 48px 24px 0; }
+
+  /* ── Index / TOC ─────────────────────────────────────────────────────── */
+  .index {
+    background: var(--mid);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px 32px;
+    margin-bottom: 52px;
+  }
+  .index h2 {
+    color: var(--accent);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 18px;
+  }
+  .index .cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 32px;
+  }
+  @media (max-width: 600px) { .index .cols { grid-template-columns: 1fr; } }
+  .index ol { padding-left: 20px; }
+  .index li { margin: 6px 0; font-size: 0.95rem; }
+  .index a  { color: var(--accent); text-decoration: none; }
+  .index a:hover { text-decoration: underline; }
+  .index .sub { list-style: disc; padding-left: 18px; margin: 4px 0 6px; }
+  .index .sub li { font-size: 0.88rem; margin: 3px 0; }
+
+  /* ── Chapter labels ──────────────────────────────────────────────────── */
+  .chapter-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+
+  /* ── Section ─────────────────────────────────────────────────────────── */
+  .section { margin-bottom: 64px; }
+  .section h2 {
+    font-size: 1.5rem;
+    color: var(--accent);
+    border-bottom: 2px solid var(--orange);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+  .section h3 {
+    font-size: 1.05rem;
+    color: #e0e0e0;
+    margin: 26px 0 10px;
+    padding-left: 10px;
+    border-left: 3px solid #555;
+  }
+  .section p  { margin-bottom: 13px; color: #ccc; }
+  .section ul { padding-left: 22px; color: #ccc; margin-bottom: 13px; }
+  .section ul li { margin: 5px 0; }
+  .section ol { padding-left: 22px; color: #ccc; margin-bottom: 13px; }
+  .section ol li { margin: 6px 0; }
+
+  /* ── Setting rows ────────────────────────────────────────────────────── */
+  .setting {
+    background: var(--mid);
+    border-left: 3px solid var(--orange);
+    border-radius: 0 6px 6px 0;
+    padding: 13px 18px;
+    margin: 10px 0;
+  }
+  .setting .name   { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+  .setting .desc   { font-size: 0.93rem; color: #bbb; }
+  .setting .values { font-size: 0.88rem; color: #999; margin-top: 6px; }
+  .setting .values span { color: #d0d0d0; }
+
+  /* ── Key shortcut chips ──────────────────────────────────────────────── */
+  .keys { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .key-row {
+    background: var(--mid);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .key-badge {
+    background: #444;
+    border: 1px solid #666;
+    border-radius: 4px;
+    padding: 2px 9px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .key-desc { color: #bbb; font-size: 0.9rem; }
+
+  /* ── Boxes ───────────────────────────────────────────────────────────── */
+  .box {
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 0.93rem;
+    line-height: 1.65;
+  }
+  .box.warn  { background: #3a1f00; border: 1px solid #a05000; color: #f0c080; }
+  .box.tip   { background: #0f2a1a; border: 1px solid #1a6030; color: #80c890; }
+  .box.info  { background: #131d2e; border: 1px solid #1a3a5a; color: #80aad0; }
+  .box.new   { background: #1e0f2e; border: 1px solid #7c3aed; color: #d4a8ff; }
+  .box.alert { background: #2d0f0f; border: 1px solid #7a2020; color: #f0a0a0; }
+  .box strong { font-weight: 700; }
+
+  /* ── Badge ───────────────────────────────────────────────────────────── */
+  .badge {
+    display: inline-block;
+    background: var(--new);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+
+  /* ── Tables ──────────────────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 0.9rem; }
+  th { background: #333; color: var(--accent); padding: 9px 12px; text-align: left; }
+  td { padding: 8px 12px; border-bottom: 1px solid #333; color: #ccc; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Modulation grid ─────────────────────────────────────────────────── */
+  .mod-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+    gap: 8px;
+    margin: 14px 0;
+  }
+  .mod-card { background: var(--mid); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; }
+  .mod-card .mname { font-weight: 600; color: var(--accent); }
+  .mod-card .mtype { font-size: 0.82rem; color: #888; margin-top: 2px; }
+  .mod-card .muse  { font-size: 0.85rem; color: #bbb; margin-top: 5px; }
+
+  /* ── Flow steps ──────────────────────────────────────────────────────── */
+  .flow { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+  .flow-step {
+    background: var(--mid);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 0.88rem;
+    color: #ccc;
+    flex: 1;
+    min-width: 105px;
+  }
+  .flow-step .n { color: var(--accent); font-weight: 700; display: block; font-size: 0.82rem; margin-bottom: 2px; }
+  .arrow { align-self: center; color: #555; font-size: 1.2rem; }
+
+  /* ── Code ────────────────────────────────────────────────────────────── */
+  code {
+    background: #111;
+    border: 1px solid #444;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 0.87rem;
+    color: #ffa040;
+  }
+
+  /* ── Divider ─────────────────────────────────────────────────────────── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+  /* ── Back to top ─────────────────────────────────────────────────────── */
+  .back-top { text-align: right; margin-top: 32px; }
+  .back-top a {
+    color: var(--orange);
+    font-size: 0.85rem;
+    text-decoration: none;
+    border: 1px solid var(--orange);
+    border-radius: 20px;
+    padding: 4px 14px;
+  }
+  .back-top a:hover { background: var(--orange); color: #fff; }
+
+  /* ── Shortcut table colours ──────────────────────────────────────────── */
+  .fixed { color: #88ccff; font-style: italic; }
+  .cfg   { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ HERO ══════════════════ -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="version">🦊 FoxFW v2.0</div>
+    <h1>Complete User Guide</h1>
+    <p>
+      FoxFW is a custom Flipper Zero firmware built from the ground up for
+      power users who want enhanced security, a smarter file browser,
+      deeper Sub-GHz tooling, and a polished system-wide experience.
+    </p>
+    <div class="support-note">
+      🔒 <strong>Locked out?</strong> If you have exhausted your PIN attempts and
+      cannot access the device, email us at
+      <a href="mailto:foxcustomfirmware@gmail.com">foxcustomfirmware@gmail.com</a>
+      for recovery support.
+    </div>
+  </div>
+</header>
+
+<div class="content">
+
+<!-- ══════════════════ TABLE OF CONTENTS ══════════════════ -->
+<nav class="index" id="top">
+  <h2>Contents</h2>
+  <div class="cols">
+    <ol>
+      <li><a href="#about">About FoxFW</a></li>
+      <li><a href="#first-boot">First Boot — Fox Setup Wizard</a>
+        <ul class="sub">
+          <li><a href="#wizard-name">Rename your Flipper</a></li>
+          <li><a href="#wizard-pin">Set a PIN</a></li>
+        </ul>
+      </li>
+      <li><a href="#desktop">Desktop Overview</a>
+        <ul class="sub">
+          <li><a href="#shortcuts">Button Shortcuts</a></li>
+          <li><a href="#lock-menu">Lock Menu</a></li>
+          <li><a href="#lock-screen">Lock Screen</a></li>
+        </ul>
+      </li>
+      <li><a href="#ffb">Fox File Browser</a>
+        <ul class="sub">
+          <li><a href="#ffb-browse">Browse SD Card</a></li>
+          <li><a href="#ffb-favorites">Favorites</a></li>
+          <li><a href="#ffb-actions">File Actions</a></li>
+        </ul>
+      </li>
+      <li><a href="#fox-settings">Fox Settings</a>
+        <ul class="sub">
+          <li><a href="#security">Security &amp; Privacy</a></li>
+          <li><a href="#wallpaper">Custom Wallpaper</a></li>
+          <li><a href="#name">Change Flipper Name</a></li>
+          <li><a href="#battery">Battery View</a></li>
+          <li><a href="#clock">Show Clock</a></li>
+          <li><a href="#menu-style">Menu Style</a></li>
+          <li><a href="#fav-apps">Favorite Apps</a></li>
+        </ul>
+      </li>
+    </ol>
+    <ol start="6">
+      <li><a href="#subghz">Sub-GHz</a>
+        <ul class="sub">
+          <li><a href="#read">Read</a></li>
+          <li><a href="#read-raw">Read RAW</a></li>
+          <li><a href="#saved">Saved Files &amp; RAW Editor</a></li>
+          <li><a href="#visualizer">Signal Display</a></li>
+          <li><a href="#freq-analyzer">Frequency Analyzer</a></li>
+          <li><a href="#mod-analyzer">Modulation Analyzer</a></li>
+          <li><a href="#protocol-list">Protocol List</a></li>
+          <li><a href="#gdr">Garage Door Remote</a></li>
+          <li><a href="#radio-settings">Radio Settings</a></li>
+        </ul>
+      </li>
+      <li><a href="#ux">System UX — Bounce Scroll &amp; Fonts</a></li>
+      <li><a href="#firmware-update">Installing Firmware Updates</a></li>
+      <li><a href="#lockout">Lockout &amp; Recovery</a></li>
+    </ol>
+  </div>
+</nav>
+
+
+<!-- ══════════════════ 1 · ABOUT ══════════════════ -->
+<section class="section" id="about">
+  <div class="chapter-label">Chapter 1</div>
+  <h2>About FoxFW</h2>
+  <p>
+    FoxFW is a fully custom Flipper Zero firmware that extends the official
+    firmware with a large set of exclusive features. It is designed around
+    three goals: <strong>security</strong>, <strong>usability</strong>, and
+    <strong>deeper RF tooling</strong>.
+  </p>
+  <p>Key things that make FoxFW different from stock firmware:</p>
+  <ul>
+    <li>A multi-screen <strong>first-boot setup wizard</strong> that guides you through naming and securing your device.</li>
+    <li>A full <strong>PIN lock system</strong> with configurable attempt limits, automatic lock timers, and an On Exceed security action.</li>
+    <li>Granular <strong>Disconnect on Lock</strong> — choose whether BLE, GPIO, and USB are disabled when the screen locks.</li>
+    <li>A custom <strong>Fox File Browser (FFB)</strong> that replaces the stock Archive, with a Favorites system and firmware-install support.</li>
+    <li><strong>System-wide bounce-scroll text</strong> — any label too long to fit bounces left and right automatically rather than wrapping or truncating.</li>
+    <li>A <strong>Modulation Analyzer</strong> exclusive to FoxFW — find what modulation an unknown device uses, then open the Receiver pre-configured for it.</li>
+    <li>An in-app <strong>RAW Waveform Editor</strong> for trimming Sub-GHz captures without leaving the device.</li>
+    <li>A live <strong>Waterfall Signal Display</strong> for spotting intermittent transmissions.</li>
+    <li>Per-protocol <strong>enable / disable toggles</strong> in the Protocol List.</li>
+    <li>An extended <strong>Custom Wallpaper</strong> system with a factory-seeded template that generates automatically if missing.</li>
+    <li>A built-in <strong>Garage Door Remote</strong> app accessible directly from the Sub-GHz main screen — no App Menu navigation needed.</li>
+    <li>A <strong>Sub-GHz Bruteforcer</strong> app in the App Menu for brute-forcing fixed-code remotes across common protocols.</li>
+  </ul>
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 2 · FIRST BOOT ══════════════════ -->
+<section class="section" id="first-boot">
+  <div class="chapter-label">Chapter 2</div>
+  <h2>First Boot — Fox Setup Wizard</h2>
+  <p>
+    After installing FoxFW (or after a firmware update that includes a wizard
+    reset), the device automatically launches the <strong>Fox Setup Wizard</strong>
+    on the first boot. You cannot skip the wizard entirely — you must at least
+    reach the final page and press <strong>Finish</strong>.
+  </p>
+  <p>The wizard walks through four pages:</p>
+  <ol>
+    <li><strong>Welcome</strong> — Introduces FoxFW. Press Right or OK to continue.</li>
+    <li><strong>Rename your Flipper</strong> — Optionally set a custom device name.</li>
+    <li><strong>Set a PIN</strong> — Optionally secure the device with a lock-screen PIN.</li>
+    <li><strong>Done</strong> — Summary. If you made changes the device restarts automatically to apply them.</li>
+  </ol>
+  <div class="box tip">
+    <strong>You can skip both name and PIN</strong> by pressing <strong>Left (Skip)</strong>
+    on those pages. The wizard will still complete and the device will boot normally.
+    You can configure both later in Fox Settings.
+  </div>
+
+  <h3 id="wizard-name">Renaming your Flipper</h3>
+  <p>
+    Enter a name using the on-screen keyboard. Allowed characters are
+    letters (A–Z, a–z) and numbers (0–9). Maximum length is 7 characters.
+    Leave the field empty and confirm to use the hardware default name.
+  </p>
+  <p>
+    The device name appears on the lock screen greeting and is used as the
+    Bluetooth advertised device name.
+  </p>
+
+  <h3 id="wizard-pin">Setting a PIN in the wizard</h3>
+  <p>
+    The PIN grid shows digits 0–9 arranged in a 3-column layout. Navigate
+    with the directional buttons, press <strong>OK</strong> to select a digit,
+    and press <strong>Back</strong> to delete the last digit. Once you have
+    entered at least one digit you will be asked to confirm by entering the
+    same PIN again.
+  </p>
+  <p>
+    The PIN is applied <strong>immediately</strong> — you do not need to
+    reboot for the lock-screen PIN to become active. The PIN is also
+    stored persistently so it survives power cycles.
+  </p>
+  <div class="box info">
+    <strong>Done page text:</strong><br>
+    If you changed your Flipper name → <em>"Flipper will restart to apply your changes."</em>
+    The restart happens automatically when you press Finish.<br>
+    If you only set a PIN (no name change) or made no changes →
+    <em>"Please join our Discord!"</em> and the device does not restart.
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 3 · DESKTOP ══════════════════ -->
+<section class="section" id="desktop">
+  <div class="chapter-label">Chapter 3</div>
+  <h2>Desktop Overview</h2>
+  <p>
+    The FoxFW desktop is the idle screen you see after booting. FoxFW uses a
+    fully custom <strong>Fox Theme</strong> with an all-orange UI — the stock
+    Dolphin idle animation is intentionally absent and is replaced by a clean
+    static screen. The status bar at the top shows the battery,
+    clock (if enabled), and connection indicators.
+  </p>
+
+  <h3 id="shortcuts">Button Shortcuts</h3>
+  <p>
+    Pressing directional buttons on the <strong>idle desktop</strong> triggers
+    shortcuts. Some shortcuts are fixed by the firmware; others are configurable
+    in Fox Settings → Favorite Apps.
+  </p>
+  <table>
+    <tr>
+      <th>Button</th>
+      <th>Action</th>
+      <th>Configurable?</th>
+    </tr>
+    <tr>
+      <td><strong>↑ Up (short)</strong></td>
+      <td class="fixed">Lock Menu — shows lock / power options</td>
+      <td>No — always fixed</td>
+    </tr>
+    <tr>
+      <td><strong>↑ Up (hold)</strong></td>
+      <td class="fixed">Lock Screen immediately</td>
+      <td>No — always fixed</td>
+    </tr>
+    <tr>
+      <td><strong>↓ Down (short)</strong></td>
+      <td class="fixed">Fox File Browser (FFB)</td>
+      <td>No — always FFB</td>
+    </tr>
+    <tr>
+      <td><strong>↓ Down (hold)</strong></td>
+      <td class="fixed">Toggle Clock Lock (freeze/unfreeze the clock display)</td>
+      <td>No — always fixed</td>
+    </tr>
+    <tr>
+      <td><strong>← Left (short)</strong></td>
+      <td class="cfg">Favorite App — default: Fox File Browser</td>
+      <td>Yes — Fox Settings → Favorite Left Short</td>
+    </tr>
+    <tr>
+      <td><strong>← Left (hold)</strong></td>
+      <td class="cfg">Favorite App — default: Fox File Browser</td>
+      <td>Yes — Fox Settings → Favorite Left Long</td>
+    </tr>
+    <tr>
+      <td><strong>→ Right (short)</strong></td>
+      <td class="cfg">Favorite App — default: Fox File Browser</td>
+      <td>Yes — Fox Settings → Favorite Right Short</td>
+    </tr>
+    <tr>
+      <td><strong>→ Right (hold)</strong></td>
+      <td class="cfg">Favorite App — default: Fox File Browser</td>
+      <td>Yes — Fox Settings → Favorite Right Long</td>
+    </tr>
+    <tr>
+      <td><strong>OK (hold)</strong></td>
+      <td class="cfg">Favorite App — default: Fox File Browser</td>
+      <td>Yes — Fox Settings → Favorite OK Long</td>
+    </tr>
+    <tr>
+      <td><strong>OK (short)</strong></td>
+      <td class="fixed">Open main App Menu</td>
+      <td>No</td>
+    </tr>
+  </table>
+
+  <h3 id="lock-menu">Lock Menu (Up short)</h3>
+  <p>
+    The Lock Menu appears when you short-press Up on the desktop. It offers:
+  </p>
+  <ul>
+    <li><strong>Lock</strong> — Lock the screen immediately.</li>
+    <li><strong>Power Off</strong> — Shut down the device.</li>
+    <li><strong>Reboot</strong> — Restart the device.</li>
+    <li><strong>Reboot to DFU</strong> — Restart into USB firmware-flash mode (for qFlipper updates).</li>
+  </ul>
+
+  <h3 id="lock-screen">Lock Screen</h3>
+  <p>
+    When locked, the screen shows a greeting with your Flipper's name and
+    the PIN entry grid (if a PIN is set). Enter your PIN to unlock.
+    If no PIN is set, any button press unlocks the device.
+  </p>
+  <div class="box info">
+    <strong>USB: No AutoLock</strong> — In Fox Settings → Security, the
+    <em>USB: No AutoLock</em> setting suppresses the auto-lock timer while
+    qFlipper is actively connected via USB. This prevents the device from
+    locking and dropping your qFlipper session mid-transfer. When USB is
+    disconnected, normal auto-lock timing resumes immediately.<br><br>
+    <strong>Auto-lock and PIN:</strong> If your PIN is removed — or after a
+    firmware update clears it — the auto-lock timer is automatically reset to
+    <em>Off</em> on the next boot. Auto-locking without a PIN has no security
+    value (the Back×3 bypass is trivially easy), so FoxFW enforces this reset
+    silently and saves the corrected settings.
+  </div>
+  <div class="box warn">
+    <strong>Wrong PIN attempts:</strong> If you enter the wrong PIN more times
+    than the configured MAX Attempts limit, the On Exceed action triggers
+    (see Fox Settings → Security &amp; Privacy). If you are permanently locked
+    out, email <a href="mailto:foxcustomfirmware@gmail.com">foxcustomfirmware@gmail.com</a>.
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 4 · FFB ══════════════════ -->
+<section class="section" id="ffb">
+  <div class="chapter-label">Chapter 4</div>
+  <h2>Fox File Browser <span class="badge">FoxFW Exclusive</span></h2>
+  <p>
+    The <strong>Fox File Browser (FFB)</strong> replaces the stock Archive app
+    as FoxFW's primary file management and launch tool. It is accessible from
+    the desktop (Down short press, or any configured Favorite shortcut) and
+    from within the firmware updater flow.
+  </p>
+  <p>
+    The home screen offers two options:
+  </p>
+  <ul>
+    <li><strong>Browse SD Card</strong> — Navigate the full SD card file system.</li>
+    <li><strong>Favorites</strong> — Jump directly to pinned files. <em>(Only shown if you have at least one Favorite saved.)</em></li>
+  </ul>
+  <div class="box tip">
+    <strong>If you have no Favorites saved</strong>, the home screen is skipped
+    entirely and FFB opens directly in Browse mode. The home screen only
+    appears once you have pinned at least one file.
+  </div>
+
+  <h3 id="ffb-browse">Browse SD Card</h3>
+  <p>
+    The file browser lists all files and folders on your SD card. Navigate
+    with Up / Down, open a folder with OK or Right, and go back with Left or Back.
+  </p>
+  <p>
+    The Left button on the home screen also directly opens the Favorites list
+    if one exists.
+  </p>
+
+  <h3 id="ffb-favorites">Favorites</h3>
+  <p>
+    The Favorites list shows pinned files as two-line rows:
+  </p>
+  <ul>
+    <li><strong>Line 1 (bold):</strong> The filename (e.g. <em>update.fuf</em>)</li>
+    <li><strong>Line 2:</strong> The directory path, formatted as <em>/ folder / subfolder /</em></li>
+  </ul>
+  <p>
+    If the path hint is too long to fit, it <strong>scrolls when selected</strong>
+    — bouncing left and right so you can read the full path. Unselected rows
+    show a <em>…suffix</em> — the most specific (rightmost) part of the path
+    that fits, preceded by <code>...</code>.
+  </p>
+  <p>
+    Favorites are stored in <code>/ext/apps_data/ffb/favorites.txt</code>. The
+    file is created automatically if it does not exist.
+  </p>
+
+  <h3 id="ffb-actions">File Actions</h3>
+  <p>Press OK on any file in Browse or Favorites to open the action menu:</p>
+  <table>
+    <tr><th>Action</th><th>File type</th><th>What it does</th></tr>
+    <tr>
+      <td><strong>Run in app</strong></td>
+      <td>NFC, Sub-GHz, Infrared, iButton, and other supported types</td>
+      <td>Opens the matching app pre-loaded with the selected file.</td>
+    </tr>
+    <tr>
+      <td><strong>Install</strong></td>
+      <td><code>.fuf</code> firmware update files</td>
+      <td>Launches the firmware updater to install the selected firmware. The device will restart automatically to begin the update process.</td>
+    </tr>
+    <tr>
+      <td><strong>Launch</strong></td>
+      <td><code>.fap</code> external apps</td>
+      <td>Runs the selected FAP application directly.</td>
+    </tr>
+    <tr>
+      <td><strong>Add to Favorites</strong></td>
+      <td>Any file</td>
+      <td>Adds the file to your Favorites list so it appears on the FFB home screen.</td>
+    </tr>
+    <tr>
+      <td><strong>Remove Favorite</strong></td>
+      <td>Files in your Favorites list</td>
+      <td>Removes the file from Favorites. If this was the last Favorite, the home screen is hidden until you add another.</td>
+    </tr>
+    <tr>
+      <td><strong>Rename</strong></td>
+      <td>Any file</td>
+      <td>Renames the file in place using the on-screen keyboard.</td>
+    </tr>
+    <tr>
+      <td><strong>Delete</strong></td>
+      <td>Any file</td>
+      <td>Permanently deletes the file. There is no undo.</td>
+    </tr>
+  </table>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 5 · FOX SETTINGS ══════════════════ -->
+<section class="section" id="fox-settings">
+  <div class="chapter-label">Chapter 5</div>
+  <h2>Fox Settings</h2>
+  <p>
+    Fox Settings is found in the main App Menu under Settings. It contains all
+    FoxFW-specific configuration. The menu remembers your scroll position while
+    you navigate into sub-menus and back — it only resets to the top when you
+    exit the app entirely.
+  </p>
+
+  <!-- ── SECURITY ── -->
+  <h3 id="security">Security &amp; Privacy</h3>
+  <p>
+    The Security &amp; Privacy screen is the heart of FoxFW's protection system.
+    It covers PIN management, attempt limiting, the On Exceed action, automatic
+    communication disconnect on lock, and auto-lock timers.
+  </p>
+
+  <p><strong>PIN Setup</strong></p>
+  <p>
+    The label changes based on current state: <em>Set PIN</em> (no PIN exists),
+    <em>Change PIN</em>, and <em>Remove PIN</em> (once one is set).
+  </p>
+  <p>
+    PIN entry uses the digit grid — Up/Down moves between rows, Left/Right moves
+    between columns, OK selects a digit, Back deletes the last digit. Confirm
+    by pressing OK in the bottom-right cell once your minimum digit count is
+    reached.
+  </p>
+  <p>The PIN is applied <strong>immediately</strong> without requiring a reboot.</p>
+
+  <div class="setting">
+    <div class="name">MAX Attempts</div>
+    <div class="desc">
+      How many wrong PINs are allowed before the On Exceed action fires. Set
+      to <strong>0</strong> to allow unlimited attempts (no lockout).
+    </div>
+    <div class="values">Range: <span>0 (unlimited) · 1 – 10</span></div>
+  </div>
+
+  <div class="setting">
+    <div class="name">On Exceed</div>
+    <div class="desc">
+      What happens when wrong PINs exceed MAX Attempts.<br><br>
+      <strong>Fake Wipe:</strong> The device immediately reboots
+      and on the next startup displays a convincing "All data wiped" screen,
+      then launches the Fox Setup Wizard as though freshly installed. Your
+      data and settings are completely safe — only the lock state is reset.
+      Anyone who finds your Flipper will believe it has been factory-wiped.
+      The legitimate owner recovers by completing the Fox Setup Wizard.
+    </div>
+  </div>
+
+  <div class="box info">
+    <strong>Recovery after On Exceed triggers:</strong> Complete the Fox Setup
+    Wizard (you may set a new PIN and name), and normal operation resumes.
+    Your files and saved signals are untouched.
+  </div>
+
+  <p><strong>Disconnect Services</strong></p>
+  <p>
+    Controls which interfaces are disconnected when the device locks.
+    All sub-options are disabled and shown as N/A while <em>On Lock</em> is OFF.
+  </p>
+
+  <div class="setting">
+    <div class="name">On Lock (master toggle)</div>
+    <div class="desc">Must be ON for any interface to disconnect on lock.</div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+
+  <div class="setting">
+    <div class="name">BLE</div>
+    <div class="desc">
+      Drops any active Bluetooth Low Energy connection when the screen locks.
+      The Flipper re-advertises automatically after unlocking.
+    </div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+
+  <div class="setting">
+    <div class="name">GPIO</div>
+    <div class="desc">
+      Acquires exclusive control of the hardware UART pins (USART &amp; LPUART)
+      on the GPIO header when locked, blocking external serial adapters and
+      debuggers. Pins are released on unlock.
+    </div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+
+  <div class="setting">
+    <div class="name">USB</div>
+    <div class="desc">
+      <strong>Minimal</strong> — USB stays connected, GUI is locked. qFlipper
+      buttons are inactive but the device stays visible. Fastest to unlock.<br><br>
+      <strong>CLI + RPC</strong> — Physical USB connection stays alive but the
+      active CLI/RPC session is closed. Reopen qFlipper after unlocking.<br><br>
+      <strong>Full Disconnect</strong> — The CDC interface is torn down. Windows
+      removes the COM port, qFlipper shows "Connect your Flipper." Maximum
+      isolation. Best for unattended or high-security storage.
+    </div>
+  </div>
+
+  <div class="box info">
+    <strong>Choosing USB mode:</strong><br>
+    At desk, actively working → <strong>Minimal</strong><br>
+    Stepping away but staying plugged in → <strong>CLI + RPC</strong><br>
+    Storing, transporting, or handing over → <strong>Full Disconnect</strong>
+  </div>
+
+  <div class="setting">
+    <div class="name">Auto Lock Timer</div>
+    <div class="desc">How long the device stays idle before locking automatically.</div>
+    <div class="values">Options: <span>OFF · 10s · 15s · 30s · 60s · 90s · 2min · 5min · 10min</span></div>
+  </div>
+
+  <div class="setting">
+    <div class="name">Auto Lock Disarm by USB</div>
+    <div class="desc">
+      When ON, the auto-lock timer is suppressed while the Flipper is connected
+      to USB — handy for desk sessions with qFlipper.
+    </div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+
+  <!-- ── WALLPAPER ── -->
+  <h3 id="wallpaper">Custom Wallpaper</h3>
+  <p>
+    Replaces the desktop background with a custom <strong>128 × 64 pixel</strong>
+    monochrome image stored at <code>/ext/wallpaper.xbm</code> on the SD card.
+  </p>
+  <p>
+    If the file is missing, FoxFW <strong>automatically generates a default
+    wallpaper</strong> from the firmware and writes it to that path. This means
+    a valid <code>wallpaper.xbm</code> is always present after the first boot.
+  </p>
+
+  <div class="setting">
+    <div class="name">Custom Wallpaper</div>
+    <div class="desc">
+      Toggles the wallpaper on or off. The dolphin animation is hidden when
+      a wallpaper is active — the desktop shows your artwork cleanly with the
+      status bar and any running app UI drawn on top.
+    </div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+
+  <p><strong>Creating your own wallpaper:</strong></p>
+  <ul>
+    <li>Your image must be exactly <strong>128 × 64 px</strong>, monochrome (1-bit black and white), in XBM format.</li>
+    <li>The status bar occupies roughly the top 13 pixels — keep important artwork below that.</li>
+    <li>
+      <strong>GIMP:</strong> Image → Scale Image → 128×64 → Image → Mode → Indexed (1-bit) → File → Export As → <code>wallpaper.xbm</code>
+    </li>
+    <li>
+      <strong>ImageMagick:</strong> <code>convert input.png -resize 128x64! -monochrome wallpaper.xbm</code>
+    </li>
+    <li>Copy the file to the root of your SD card so it lives at <code>/ext/wallpaper.xbm</code>.</li>
+    <li>Toggle Custom Wallpaper ON in Fox Settings to activate it.</li>
+  </ul>
+  <div class="box warn">
+    <strong>Validation:</strong> If Fox Settings reports "FOUND but invalid. Use 128×64 XBM format."
+    it means the file exists but the data is not a valid 128×64 XBM. Re-export using one
+    of the methods above and ensure the output dimensions are exactly 128×64 pixels.
+  </div>
+
+  <!-- ── NAME ── -->
+  <h3 id="name">Change Flipper Name</h3>
+  <p>
+    Changes the device's display name. The name appears on the lock screen
+    greeting and is broadcast as the Bluetooth device name.
+  </p>
+  <ul>
+    <li>Allowed characters: letters and numbers only (A–Z, a–z, 0–9).</li>
+    <li>Maximum length: 7 characters.</li>
+    <li>Leave the field empty and confirm to restore the hardware default name.</li>
+    <li>A device restart is required to apply the new name. The restart happens automatically.</li>
+  </ul>
+  <div class="box tip">
+    <strong>Tip:</strong> A unique name makes your Flipper easy to identify in
+    qFlipper and when nearby Flippers exchange information.
+  </div>
+
+  <!-- ── BATTERY ── -->
+  <h3 id="battery">Battery View</h3>
+  <p>
+    Controls the battery level indicator in the status bar. Changes take effect
+    <strong>immediately</strong> — no restart is required.
+  </p>
+  <div class="setting"><div class="name">Bar</div>
+    <div class="desc">Classic segmented bar — no numbers, clean look.</div></div>
+  <div class="setting"><div class="name">Percent</div>
+    <div class="desc">Plain percentage number (e.g. 87%).</div></div>
+  <div class="setting"><div class="name">Inverted Percent</div>
+    <div class="desc">Percentage in a filled (inverted) block.</div></div>
+  <div class="setting"><div class="name">Retro 3</div>
+    <div class="desc">3-segment retro-style bar.</div></div>
+  <div class="setting"><div class="name">Retro 5</div>
+    <div class="desc">5-segment retro-style bar — more granular than Retro 3.</div></div>
+  <div class="setting"><div class="name">Bar + Percent</div>
+    <div class="desc">Segmented bar combined with a percentage number.</div></div>
+
+  <!-- ── CLOCK ── -->
+  <h3 id="clock">Show Clock</h3>
+  <div class="setting">
+    <div class="name">Show Clock</div>
+    <div class="desc">
+      Displays the current time in the status bar. Follows the system 12h/24h
+      setting. Changes take effect <strong>immediately</strong> — return to
+      the desktop and the clock appears or disappears without a restart.
+    </div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+
+  <!-- ── MENU STYLE ── -->
+  <h3 id="menu-style">Menu Style</h3>
+  <div class="setting">
+    <div class="name">Menu Style</div>
+    <div class="desc">
+      Controls the visual theme of the main App Menu.<br><br>
+      <strong>Flipper</strong> — The standard Flipper grid menu.<br>
+      <strong>Fox</strong> — FoxFW's custom menu theme with the orange FoxFW aesthetic.
+    </div>
+    <div class="values">Options: <span>Flipper · Fox</span></div>
+  </div>
+
+  <!-- ── FAVORITES ── -->
+  <h3 id="fav-apps">Favorite Apps</h3>
+  <p>
+    Assigns apps to the five configurable desktop button shortcuts. Each slot
+    is triggered from the <strong>idle desktop screen</strong>.
+  </p>
+  <div class="setting">
+    <div class="name">Favorite — Left Short</div>
+    <div class="desc">Short press of Left on the desktop. Default: Fox File Browser.</div>
+  </div>
+  <div class="setting">
+    <div class="name">Favorite — Left Long</div>
+    <div class="desc">Hold Left on the desktop. Default: Fox File Browser.</div>
+  </div>
+  <div class="setting">
+    <div class="name">Favorite — Right Short</div>
+    <div class="desc">Short press of Right on the desktop. Default: Fox File Browser.</div>
+  </div>
+  <div class="setting">
+    <div class="name">Favorite — Right Long</div>
+    <div class="desc">Hold Right on the desktop. Default: Fox File Browser.</div>
+  </div>
+  <div class="setting">
+    <div class="name">Favorite — OK Long</div>
+    <div class="desc">Hold OK (centre) on the desktop. Default: Fox File Browser.</div>
+  </div>
+  <div class="box tip">
+    <strong>Tip:</strong> Any installed app (including external FAPs) can be
+    assigned to a Favorite slot. Select <em>None</em> to clear a slot and
+    restore its default behaviour.
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 6 · SUBGHZ ══════════════════ -->
+<section class="section" id="subghz">
+  <div class="chapter-label">Chapter 6</div>
+  <h2>Sub-GHz</h2>
+  <p>
+    The Sub-GHz app lets your Flipper interact with radio-frequency devices
+    between ~300 MHz and 928 MHz — garage doors, gate openers, weather
+    stations, tyre-pressure sensors, key fobs, alarm remotes, and many more.
+    FoxFW adds a Waterfall display, an in-app RAW editor, a Modulation Analyzer,
+    and per-protocol enable/disable toggles.
+  </p>
+  <div class="box warn">
+    <strong>Legal notice:</strong> Only transmit signals you are authorised to
+    send. Replaying remotes you own is generally fine; transmitting on licensed
+    frequencies without authorisation is not. Know your local regulations.
+  </div>
+
+  <!-- READ -->
+  <h3 id="read">Read</h3>
+  <p>
+    Listens on the configured frequency and tries to decode every received
+    signal against all enabled protocols. When a known signal is identified
+    it is displayed and can be saved.
+  </p>
+  <div class="keys">
+    <div class="key-row"><span class="key-badge">OK</span><span class="key-desc">Save the displayed signal to SD card</span></div>
+    <div class="key-row"><span class="key-badge">↑ ↓</span><span class="key-desc">Scroll through recently received signals</span></div>
+    <div class="key-row"><span class="key-badge">← (hold)</span><span class="key-desc">Open Radio Settings</span></div>
+    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Stop and return to menu</span></div>
+  </div>
+  <div class="box tip">
+    <strong>Tip:</strong> Open the Protocol List and disable all protocols you
+    don't need — the decoder runs faster and false positives are reduced.
+  </div>
+
+  <!-- READ RAW -->
+  <h3 id="read-raw">Read RAW <span class="badge">Enhanced</span></h3>
+  <p>
+    Records everything the radio receives as a timed sequence of high/low edges
+    without attempting to decode. Use this when the protocol is unknown, not yet
+    supported, or uses rolling codes.
+  </p>
+  <div class="keys">
+    <div class="key-row"><span class="key-badge">OK</span><span class="key-desc">Start / stop recording</span></div>
+    <div class="key-row"><span class="key-badge">Right</span><span class="key-desc">Save the current recording</span></div>
+    <div class="key-row"><span class="key-badge">Left</span><span class="key-desc">Send the recording immediately without saving</span></div>
+    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Discard and return</span></div>
+  </div>
+
+  <p><strong>FoxFW enhancements to Read RAW:</strong></p>
+  <ul>
+    <li>
+      <strong>Recording timer</strong> — A timer in the top-right corner of
+      the waveform display shows how long the current recording has been running.
+      The timer stays visible after recording stops so you always know the length
+      of the last capture.
+    </li>
+    <li>
+      <strong>Animated playback cursor</strong> — When you send a raw recording
+      without saving it (Left button), a vertical line in the waveform display
+      resets to the left edge and animates rightward in real time as the signal
+      plays back, giving you a live visual of playback progress.
+    </li>
+  </ul>
+  <div class="box warn">
+    <strong>Storage tip:</strong> RAW files can be large. A 60-second recording
+    at 433 MHz can exceed 1 MB. Keep recordings short and trim them in the
+    RAW editor afterwards.
+  </div>
+
+  <!-- SAVED FILES -->
+  <h3 id="saved">Saved Files &amp; RAW Editor <span class="badge">NEW</span></h3>
+  <p>
+    The Saved menu lists all <code>.sub</code> files under <code>/ext/subghz/</code>.
+    Tap a file and press OK or More for available actions.
+  </p>
+  <table>
+    <tr><th>Action</th><th>File type</th><th>Description</th></tr>
+    <tr><td>Emulate</td><td>All decoded</td><td>Continuously retransmit the saved signal.</td></tr>
+    <tr><td>Rename</td><td>All</td><td>Rename the file on SD card.</td></tr>
+    <tr><td><strong>Edit RAW</strong></td><td>RAW only</td><td>Open the built-in waveform editor to trim the capture.</td></tr>
+    <tr><td>Delete</td><td>All</td><td>Permanently delete the file.</td></tr>
+    <tr><td>Counter BruteForce</td><td>Counter-based</td><td>Try incrementing counter attacks.</td></tr>
+  </table>
+
+  <p><strong>RAW Editor controls:</strong></p>
+  <div class="keys">
+    <div class="key-row"><span class="key-badge">← →</span><span class="key-desc">Move the active marker (A or B) through the waveform</span></div>
+    <div class="key-row"><span class="key-badge">↑ ↓</span><span class="key-desc">Zoom in / out</span></div>
+    <div class="key-row"><span class="key-badge">OK (short)</span><span class="key-desc">Switch between marker A and marker B</span></div>
+    <div class="key-row"><span class="key-badge">OK (hold)</span><span class="key-desc">Open the Save / Cut / Undo menu</span></div>
+    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Return to file menu</span></div>
+  </div>
+
+  <div class="setting">
+    <div class="name">Save</div>
+    <div class="desc">Export the region between A and B as a new <code>.sub</code> file in the same folder.</div>
+  </div>
+  <div class="setting">
+    <div class="name">Cut</div>
+    <div class="desc">Remove everything outside the A–B region. Reversible with Undo.</div>
+  </div>
+  <div class="setting">
+    <div class="name">Undo</div>
+    <div class="desc">Revert the last Cut. One undo level is kept in RAM; rebooting clears it.</div>
+  </div>
+
+  <div class="box tip">
+    <strong>Trimming workflow:</strong> Record with Read RAW → open in editor →
+    place A just before the signal starts, B just after it ends →
+    OK hold → Cut → Save. Clean, trimmed capture with no leading or trailing noise.
+  </div>
+
+  <!-- VISUALIZER -->
+  <h3 id="visualizer">Signal Display — Classic &amp; Waterfall <span class="badge">NEW</span></h3>
+  <p>
+    Change between display styles in <strong>Radio Settings → Visualizer</strong>.
+    The setting persists across reboots.
+  </p>
+  <div class="setting">
+    <div class="name">Classic</div>
+    <div class="desc">Original RSSI bar / waveform display. Lightweight. Good for confirming the presence or absence of a carrier.</div>
+    <div class="values">Best for: <span>Quick detection, low-noise environments</span></div>
+  </div>
+  <div class="setting">
+    <div class="name">Waterfall</div>
+    <div class="desc">
+      Scrolling history display. The live waveform is at the top; a rolling
+      30-frame history scrolls downward below it. Signal intensity is shown
+      as a monochrome dither — denser = stronger.<br><br>
+      Intensity levels: Empty = noise floor · Sparse = weak · Checkerboard = medium · Solid = strong
+    </div>
+    <div class="values">Best for: <span>Spotting intermittent bursts, timing analysis, noisy RF environments</span></div>
+  </div>
+
+  <!-- FREQUENCY ANALYZER -->
+  <h3 id="freq-analyzer">Frequency Analyzer</h3>
+  <p>
+    Sweeps a wide frequency range looking for any signal above the noise floor.
+    When a carrier is detected its frequency is highlighted.
+  </p>
+  <div class="keys">
+    <div class="key-row"><span class="key-badge">OK (short)</span><span class="key-desc">Lock / unlock the highlighted frequency</span></div>
+    <div class="key-row"><span class="key-badge">OK (hold)</span><span class="key-desc">Accept locked frequency and open Receiver on it</span></div>
+    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Return to menu</span></div>
+  </div>
+  <div class="box info">
+    <strong>When to use it:</strong> You have an unknown remote and don't know
+    its frequency. Press a button on the remote while the analyzer runs — it
+    finds the transmission frequency automatically.
+  </div>
+
+  <!-- MODULATION ANALYZER -->
+  <h3 id="mod-analyzer">Modulation Analyzer <span class="badge">FoxFW Exclusive</span></h3>
+  <div class="box new">
+    <strong>New in FoxFW.</strong> The Modulation Analyzer does not exist in stock Flipper firmware.
+  </div>
+  <p>
+    The Modulation Analyzer solves the complementary problem to the Frequency
+    Analyzer: you <em>know</em> the frequency but you don't know the modulation.
+    It rapidly cycles through all enabled modulation presets at a fixed frequency,
+    recording any preset whose RSSI rises above a detection threshold as a "hit."
+    After scanning, select a hit and press OK to open the Receiver pre-configured
+    for that exact frequency and modulation.
+  </p>
+
+  <p><strong>Controls:</strong></p>
+  <div class="keys">
+    <div class="key-row"><span class="key-badge">↑ ↓</span><span class="key-desc">Select a hit in the results list</span></div>
+    <div class="key-row"><span class="key-badge">OK (short)</span><span class="key-desc">With hits: open Receiver on selected modulation. No hits: toggle Start/Stop</span></div>
+    <div class="key-row"><span class="key-badge">OK (hold)</span><span class="key-desc">Toggle scanning on / off</span></div>
+    <div class="key-row"><span class="key-badge">← Left</span><span class="key-desc">Open Config page (scanning pauses)</span></div>
+    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Stop scanning and return to menu</span></div>
+  </div>
+
+  <p><strong>Screen layout:</strong></p>
+  <table>
+    <tr><th>Area</th><th>Content</th></tr>
+    <tr><td>Header bar</td><td>Target frequency (left) · Current preset being tested or STOPPED (right)</td></tr>
+    <tr><td>Hit list</td><td>Detected modulations with RSSI in dBm and signal-strength bars (●●●○○)</td></tr>
+    <tr><td>Footer</td><td>Config · Stop/Start · OK=Tune (when hits exist)</td></tr>
+  </table>
+
+  <p><strong>Config page:</strong> Press Left to open. Scanning pauses automatically.</p>
+  <div class="setting">
+    <div class="name">Frequency</div>
+    <div class="desc">The target frequency (300–928 MHz). Pre-populated from Radio Settings, so running the Frequency Analyzer first means this is already set correctly.</div>
+  </div>
+  <div class="setting">
+    <div class="name">AM650 / AM270 / FM238 / FM476 / FM95 / FM15k / BLE / GFSK9.99</div>
+    <div class="desc">Toggle each modulation preset ON (include in scan) or OFF (skip). Disabling unlikely presets makes each cycle faster and reduces false positives.</div>
+  </div>
+
+  <p><strong>Modulation reference:</strong></p>
+  <div class="mod-grid">
+    <div class="mod-card">
+      <div class="mname">AM650</div>
+      <div class="mtype">OOK/ASK · 650 baud</div>
+      <div class="muse">Most common. Gate openers, garage doors, alarm remotes.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">AM270</div>
+      <div class="mtype">OOK/ASK · 270 baud</div>
+      <div class="muse">Slower OOK. Older remotes and simple sensors.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FM238</div>
+      <div class="mtype">2-FSK · 2.38 kbps</div>
+      <div class="muse">Narrow-band FSK. Weather stations, tyre-pressure sensors.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FM476</div>
+      <div class="mtype">2-FSK · 4.76 kbps</div>
+      <div class="muse">Wider FSK. Some security systems, sensor hubs.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FM95</div>
+      <div class="mtype">2-FSK · 9.5 kbps</div>
+      <div class="muse">Higher-rate FSK. Metering, industrial sensors.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FM15k</div>
+      <div class="mtype">2-FSK · 15 kbps</div>
+      <div class="muse">High-speed FSK. Some proprietary protocols.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">BLE</div>
+      <div class="mtype">GFSK · 1 Mbps</div>
+      <div class="muse">Bluetooth LE channels. Mainly useful at 2.4 GHz; rarely useful in Sub-GHz range.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">GFSK9.99</div>
+      <div class="mtype">GFSK · 9.99 kbps</div>
+      <div class="muse">Gaussian FSK. European devices, smart meters.</div>
+    </div>
+  </div>
+
+  <p><strong>Recommended workflow — unknown device:</strong></p>
+  <div class="flow">
+    <div class="flow-step"><span class="n">Step 1</span>Frequency Analyzer<br>Find frequency</div>
+    <div class="arrow">→</div>
+    <div class="flow-step"><span class="n">Step 2</span>OK on result<br>Saves to Radio Settings &amp; returns to Sub-GHz</div>
+    <div class="arrow">→</div>
+    <div class="flow-step"><span class="n">Step 3</span>Modulation Analyzer<br>Find modulation at saved freq</div>
+    <div class="arrow">→</div>
+    <div class="flow-step"><span class="n">Step 4</span>OK on hit<br>Opens Receiver pre-configured</div>
+    <div class="arrow">→</div>
+    <div class="flow-step"><span class="n">Step 5</span>Receiver<br>Capture &amp; save</div>
+  </div>
+  <div class="box tip">
+    <strong>Seamless transition:</strong> When the Frequency Analyzer locks onto
+    a signal and you press OK, the detected frequency is saved directly to the
+    Sub-GHz Radio Settings and you are returned to the Sub-GHz main screen — no
+    manual entry required. Similarly, pressing OK on a Modulation Analyzer hit
+    immediately opens the Receiver with both frequency and modulation already
+    configured. The entire workflow from unknown signal to captured .sub file
+    can be completed in under a minute without touching a settings menu.
+  </div>
+
+  <div class="box tip">
+    <strong>Dwell time:</strong> The analyzer spends ~80 ms on each preset before
+    moving to the next. With all 8 enabled, a full cycle takes under a second.
+    For very short transmissions, disable all presets except the most likely
+    candidates so each gets more dwell time.
+  </div>
+  <div class="box warn">
+    <strong>Limitation:</strong> The analyzer detects carrier energy (RSSI), not
+    successful decoding. A strong interference source will register on every
+    modulation. The hit with the highest RSSI is most likely the correct one.
+    Always confirm in the Receiver.
+  </div>
+
+  <!-- PROTOCOL LIST -->
+  <h3 id="protocol-list">Protocol List &amp; Filters <span class="badge">NEW</span></h3>
+  <p>
+    Every protocol the Sub-GHz app knows about is listed here. In FoxFW each
+    protocol has an <strong>ON / OFF toggle</strong>. Protocols set to OFF are
+    completely ignored during Read and Read RAW.
+  </p>
+  <p>The top of the list shows the active protocol count:</p>
+  <table>
+    <tr><th>Situation</th><th>Display</th></tr>
+    <tr><td>All enabled</td><td><code>Active Protocols: 62</code></td></tr>
+    <tr><td>Some disabled</td><td><code>Active Protocols: 58/62</code></td></tr>
+  </table>
+  <div class="keys">
+    <div class="key-row"><span class="key-badge">↑ ↓</span><span class="key-desc">Scroll the list</span></div>
+    <div class="key-row"><span class="key-badge">← → or OK</span><span class="key-desc">Toggle the highlighted protocol ON / OFF</span></div>
+    <div class="key-row"><span class="key-badge">Back (hold)</span><span class="key-desc">Reset all protocols to ON</span></div>
+    <div class="key-row"><span class="key-badge">Back (short)</span><span class="key-desc">Save and return</span></div>
+  </div>
+  <div class="box tip">
+    <strong>Persistence:</strong> Toggle states are saved to the SD card
+    (<code>/ext/subghz/protocol_filter.save</code>) and restored on every app launch.
+  </div>
+
+  <!-- GARAGE DOOR REMOTE -->
+  <h3 id="gdr">Garage Door Remote <span class="badge">FoxFW Exclusive</span></h3>
+  <p>
+    The Sub-GHz main menu includes a dedicated <strong>Garage Door Remote</strong>
+    button that launches a purpose-built FAP for rolling-code and fixed-code garage
+    door systems. It is accessible directly from the Sub-GHz start screen without
+    needing to navigate to the Apps menu.
+  </p>
+  <p>
+    The GDR app is a standalone external FAP (<code>garage_door_remote.fap</code>)
+    that communicates with the Sub-GHz radio using the same hardware path as the
+    main Sub-GHz app. When you exit GDR, you are returned cleanly to the Sub-GHz
+    app — the radio state is fully reset between the two apps to prevent conflicts.
+  </p>
+
+  <!-- RADIO SETTINGS -->
+  <h3 id="radio-settings">Radio Settings</h3>
+  <div class="setting">
+    <div class="name">Frequency</div>
+    <div class="desc">Receive / transmit centre frequency. FoxFW extends the allowable range beyond stock firmware limits.</div>
+    <div class="values">Common: <span>315 MHz · 433.92 MHz · 868.35 MHz · 915 MHz</span></div>
+  </div>
+  <div class="setting">
+    <div class="name">Modulation</div>
+    <div class="desc">CC1101 modulation preset. Must match the target device — wrong modulation means no decode even on the right frequency.</div>
+    <div class="values">Options: <span>AM270 · AM650 · FM238 · FM476 · FM95 · FM15k · BLE · GFSK9.99</span></div>
+  </div>
+  <div class="setting">
+    <div class="name">Visualizer</div>
+    <div class="desc">Live signal display style while the app is actively receiving.</div>
+    <div class="values">Options: <span>Classic (bar/waveform) · Waterfall (scrolling history)</span></div>
+  </div>
+  <div class="setting">
+    <div class="name">TX Power</div>
+    <div class="desc">Transmit power. Higher = more range, more battery drain. <em>Preset</em> uses whatever the loaded .sub file specifies.</div>
+    <div class="values">Options: <span>Preset · 10 dBm · 7 dBm · 5 dBm · 0 dBm · −10 dBm · −15 dBm · −20 dBm · −30 dBm</span></div>
+  </div>
+  <div class="setting">
+    <div class="name">Frequency Hopping</div>
+    <div class="desc">When ON, the Receiver cycles through multiple frequencies automatically instead of listening on one.</div>
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 7 · UX ══════════════════ -->
+<section class="section" id="ux">
+  <div class="chapter-label">Chapter 7</div>
+  <h2>System UX — Bounce Scroll &amp; Text Rendering <span class="badge">FoxFW Exclusive</span></h2>
+  <p>
+    FoxFW replaces the stock single-direction text scroll with a
+    <strong>bounce-scroll</strong> system applied throughout the entire firmware.
+    Any label that is too long to fit in its display area will:
+  </p>
+  <ol>
+    <li>Pause briefly showing the start of the text.</li>
+    <li>Smoothly slide left to reveal the end of the text.</li>
+    <li>Pause at the right end.</li>
+    <li>Slide back to the left — and repeat.</li>
+  </ol>
+  <p>
+    This affects the App Menu, all Settings menus, the Sub-GHz Protocol List,
+    the Fox File Browser Favorites list path hints, and every other scrollable
+    text element in the firmware.
+  </p>
+  <p>
+    In the Fox File Browser Favorites list specifically:
+  </p>
+  <ul>
+    <li><strong>Selected row:</strong> The path hint (line 2) bounce-scrolls so you can read the full path of both files even if they share the same filename.</li>
+    <li><strong>Unselected rows:</strong> Show <em>…suffix</em> — the most specific end of the path that fits, preceded by <code>...</code>, so you can always see which folder the file is in.</li>
+  </ul>
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 8 · FIRMWARE UPDATE ══════════════════ -->
+<section class="section" id="firmware-update">
+  <div class="chapter-label">Chapter 8</div>
+  <h2>Installing Firmware Updates</h2>
+  <p>There are two ways to install a FoxFW update:</p>
+
+  <h3>Method 1 — via qFlipper (recommended)</h3>
+  <ol>
+    <li>Connect your Flipper to your computer via USB.</li>
+    <li>Open qFlipper (v1.3.3 or later).</li>
+    <li>Click <strong>Install from file</strong> and select the FoxFW <code>.tgz</code> update package.</li>
+    <li>qFlipper will flash the firmware and copy resources automatically.</li>
+    <li>The Flipper will reboot. On first boot after the update the Fox Setup Wizard runs.</li>
+  </ol>
+
+  <h3>Method 2 — via Fox File Browser (wireless / SD-card update)</h3>
+  <ol>
+    <li>Copy the <code>.fuf</code> firmware update file to your SD card (any folder — Favorites or a dedicated folder is recommended).</li>
+    <li>Open <strong>Fox File Browser</strong> from the desktop.</li>
+    <li>Navigate to the <code>.fuf</code> file and press OK.</li>
+    <li>Select <strong>Install</strong> from the action menu.</li>
+    <li>The firmware updater launches and the device restarts to apply the update.</li>
+  </ol>
+  <div class="box tip">
+    <strong>Tip:</strong> Pin your <code>.fuf</code> file to FFB Favorites for one-tap
+    access — ideal if you regularly test new builds.
+  </div>
+  <div class="box info">
+    <strong>After an update:</strong> The Fox Setup Wizard runs on the first boot
+    after every firmware update. Your PIN, name, settings, and files are all preserved.
+    The wizard simply confirms your preferences for the new build.
+  </div>
+
+  <div class="box warn">
+    <strong>Slow verification at ~11%:</strong> During "Install from file" via
+    qFlipper, the progress bar may pause for an extended period (30 seconds or
+    more) while verifying <code>resources.ths</code>. This is normal — FoxFW
+    includes a larger resource bundle than stock firmware. qFlipper will
+    eventually continue. If qFlipper times out and reports an error, the most
+    reliable alternative is to copy the update <code>.tgz</code> directly to
+    your SD card using a card reader, then use the Fox File Browser to install
+    it from the device itself — this bypasses the USB verification step entirely.
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 9 · LOCKOUT ══════════════════ -->
+<section class="section" id="lockout">
+  <div class="chapter-label">Chapter 9</div>
+  <h2>Lockout &amp; Recovery</h2>
+
+  <h3>I forgot my PIN</h3>
+  <p>
+    If you remember your PIN but keep entering it wrong, stop — every failed
+    attempt counts toward the MAX Attempts limit. Once the limit is reached,
+    the On Exceed action activates and the device will reboot, appearing as
+    though it has been wiped. Your data and files are completely safe —
+    only the lock state is reset. Complete the Fox Setup Wizard that appears
+    to regain access and optionally set a new PIN.
+  </p>
+
+  <h3>I am completely locked out</h3>
+  <p>
+    If you cannot get back into the device on your own, you have two options:
+  </p>
+  <ol>
+    <li>
+      <strong>Reinstall the firmware via qFlipper.</strong> Connect your
+      Flipper via USB, open qFlipper, and use <em>Install from file</em>
+      to flash a FoxFW update package. This will restore normal access.
+      Your SD card files (saved signals, NFC cards, etc.) are not affected
+      by a firmware reinstall.
+    </li>
+    <li>
+      <strong>Contact support.</strong> Email us and we will provide
+      recovery instructions specific to your situation.
+    </li>
+  </ol>
+  <div class="box alert">
+    <strong>Contact support at:</strong><br><br>
+    📧 <a href="mailto:foxcustomfirmware@gmail.com" style="color:#ffa0a0;font-size:1.05rem;">foxcustomfirmware@gmail.com</a><br><br>
+    Please include a description of what happened and how you became locked
+    out — this helps us give you the fastest and most accurate recovery path.
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+</div><!-- /content -->
+
+<footer style="text-align:center;color:#555;font-size:0.85rem;padding:40px 24px 20px;">
+  FoxFW v2.0 &nbsp;·&nbsp; foxcustomfirmware@gmail.com &nbsp;·&nbsp; Guide version 1.0
+</footer>
+
+</body>
+</html>

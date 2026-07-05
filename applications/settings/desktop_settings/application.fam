@@ -1,0 +1,15 @@
+App(
+    appid="desktop_settings",
+    name="Fox Settings",
+    apptype=FlipperAppType.EXTSETTINGS,
+    entry_point="desktop_settings_app",
+    requires=[
+        "desktop",
+        "gui",
+    ],
+    stack_size=2 * 1024,
+    order=0,
+    fap_icon="fox_icon_10x10.png",
+    fap_category="Settings",
+    fap_icon_assets="images",
+     )

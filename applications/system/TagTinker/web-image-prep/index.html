@@ -1,0 +1,913 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08080b">
+<title>TagTinker · Image Prep</title>
+<style>
+  :root {
+    --bg: #08080b;
+    --bg-1: #0d0d12;
+    --bg-2: #131319;
+    --line: #1f1f29;
+    --line-2: #2a2a36;
+    --text: #ededf2;
+    --text-dim: #8a8a98;
+    --text-soft: #b8b8c4;
+    --pp: #a78bfa;
+    --pp-hi: #c4b5fd;
+    --pp-deep: #6d4dd4;
+    --good: #5fd28d;
+    --bad: #ff6478;
+    --r: 14px;
+    --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  body {
+    background:
+      radial-gradient(1100px 600px at 80% -200px, rgba(167,139,250,0.16), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, rgba(109,77,212,0.12), transparent 60%),
+      var(--bg);
+    min-height: 100dvh;
+  }
+  a { color: var(--pp-hi); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 22px 80px; }
+
+  /* ─── HERO ─────────────────────────────────────────────────────────── */
+  header.hero { padding: 32px 0 36px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 4px 10px; border-radius: 999px; font-size: 12px;
+    background: rgba(167,139,250,0.08); color: var(--pp-hi);
+    border: 1px solid rgba(167,139,250,0.18); font-family: var(--mono);
+  }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pp); box-shadow: 0 0 10px var(--pp); }
+  h1 {
+    font-size: clamp(44px, 9vw, 96px);
+    font-weight: 800; letter-spacing: -0.04em; line-height: 0.95;
+    margin: 14px 0 6px;
+    background: linear-gradient(180deg, #fff 0%, #b8b8c4 65%, #6f6f80 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  h1 .v {
+    background: linear-gradient(180deg, var(--pp-hi), var(--pp-deep));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-weight: 800; letter-spacing: -0.03em;
+  }
+  .sub { color: var(--text-soft); font-size: clamp(15px, 2vw, 17px); max-width: 640px; line-height: 1.55; }
+
+  /* ─── CARD ─────────────────────────────────────────────────────────── */
+  .card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 60%), var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 18px;
+    margin-top: 18px;
+  }
+  .card h2 {
+    margin: 0 0 14px; font-size: 13px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-dim);
+  }
+
+  /* ─── LAYOUT ───────────────────────────────────────────────────────── */
+  .grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+  @media (min-width: 900px) {
+    .grid { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 22px; }
+    /* Sticky scroll on desktop: column stretches to right-side height,
+     * the card aligns to the top of its column and sticks while scrolling. */
+    .grid > .col-preview { align-self: start; position: sticky; top: 18px; }
+  }
+
+  /* ─── PREVIEW ──────────────────────────────────────────────────────── */
+  .preview-card { padding: 16px; }
+  .preview-shell {
+    position: relative;
+    border-radius: 10px;
+    background:
+      linear-gradient(45deg, #15151c 25%, transparent 25%),
+      linear-gradient(-45deg, #15151c 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #15151c 75%),
+      linear-gradient(-45deg, transparent 75%, #15151c 75%);
+    background-size: 14px 14px;
+    background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+    background-color: #0a0a10;
+    padding: 18px;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 280px;
+    overflow: auto;
+    border: 1px solid var(--line);
+  }
+  canvas#out {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+    max-width: 100%;
+  }
+  .preview-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+    margin-top: 12px;
+  }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    padding: 4px 9px; border-radius: 999px; font-size: 11px;
+    background: var(--bg-2); color: var(--text-soft); border: 1px solid var(--line); font-family: var(--mono);
+  }
+  .badge.purple { background: rgba(167,139,250,0.10); color: var(--pp-hi); border-color: rgba(167,139,250,0.22); }
+  .badge.red    { background: rgba(255,100,120,0.10); color: #ff95a4; border-color: rgba(255,100,120,0.25); }
+  .badge.yellow { background: rgba(255,200,80,0.10);  color: #ffd87a; border-color: rgba(255,200,80,0.25); }
+
+  /* ─── DROPZONE ─────────────────────────────────────────────────────── */
+  .drop {
+    border: 1.5px dashed var(--line-2); border-radius: 10px;
+    padding: 22px; text-align: center; color: var(--text-dim);
+    cursor: pointer; transition: 140ms; font-size: 14px;
+  }
+  .drop b { color: var(--text); }
+  .drop:hover { border-color: var(--pp); color: var(--text); }
+  .drop.hot { border-color: var(--pp); color: var(--text); background: rgba(167,139,250,0.06); }
+
+  /* ─── FORM CONTROLS ────────────────────────────────────────────────── */
+  .row { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 10px; margin: 8px 0; }
+  .row label { font-size: 13px; color: var(--text-soft); }
+  .row .val { font-family: var(--mono); font-size: 11px; color: var(--text-dim); text-align: right; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 22px; background: transparent; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track { height: 3px; background: var(--line-2); border-radius: 999px; }
+  input[type=range]::-moz-range-track    { height: 3px; background: var(--line-2); border-radius: 999px; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--pp); border: none; margin-top: -5.5px;
+    box-shadow: 0 0 0 4px rgba(167,139,250,0.12);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%; background: var(--pp); border: none;
+  }
+  select, input[type=text], input[type=search], input[type=number] {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font: inherit; font-size: 14px;
+    width: 100%;
+    outline: none;
+    transition: 120ms;
+  }
+  select:focus, input:focus { border-color: var(--pp); box-shadow: 0 0 0 4px rgba(167,139,250,0.12); }
+  .seg {
+    display: inline-flex; gap: 0;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px; padding: 3px;
+  }
+  .seg button {
+    border: none; background: transparent; color: var(--text-dim);
+    padding: 7px 12px; border-radius: 7px; cursor: pointer; font-size: 13px;
+  }
+  .seg button.on { background: var(--bg-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-2); }
+
+  button.primary {
+    background: linear-gradient(180deg, var(--pp), var(--pp-deep));
+    color: white; font-weight: 600; font-size: 14px;
+    border: none; border-radius: 10px;
+    padding: 12px 18px; cursor: pointer;
+    box-shadow: 0 8px 24px rgba(109,77,212,0.35);
+    transition: 120ms;
+    width: 100%;
+  }
+  button.primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  button.primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+  button.ghost {
+    background: transparent; color: var(--text-soft);
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 14px; cursor: pointer; font-size: 13px;
+  }
+  button.ghost:hover { color: var(--text); border-color: var(--line-2); }
+
+  .actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+  .filename {
+    font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+    margin-top: 8px; word-break: break-all;
+  }
+  .stat { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px; color: var(--text-dim); padding: 3px 0; }
+
+  details {
+    border-top: 1px solid var(--line);
+    padding-top: 10px; margin-top: 10px;
+  }
+  details summary {
+    cursor: pointer; list-style: none; user-select: none;
+    color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: "+"; color: var(--pp); font-family: var(--mono); }
+  details[open] summary::after { content: "−"; }
+
+  /* ─── HELP ─────────────────────────────────────────────────────────── */
+  .help { margin-top: 18px; padding: 18px; }
+  .help h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pp-hi); }
+  .help ol { margin: 0 0 0 18px; padding: 0; line-height: 1.7; color: var(--text-soft); font-size: 14px; }
+  .help code { font-family: var(--mono); background: rgba(167,139,250,0.10); border: 1px solid rgba(167,139,250,0.18); padding: 1px 6px; border-radius: 5px; color: var(--pp-hi); font-size: 12px; }
+
+  footer { margin-top: 28px; color: var(--text-dim); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <span class="pill"><span class="dot"></span> Image Prep</span>
+    <h1>TagTinker <span class="v">V2.1</span></h1>
+    <p class="sub">Drop an image, pick the tag, ship the BMP. Photo-grade tone &amp; dither, every supported ESL profile, no install.</p>
+  </header>
+
+  <div class="grid">
+
+    <!-- LEFT · live preview (sticky on desktop, top on mobile) -->
+    <div class="col-preview">
+      <div class="card preview-card">
+        <div class="preview-shell">
+          <canvas id="out" width="296" height="128"></canvas>
+        </div>
+        <div class="preview-meta">
+          <div class="badges">
+            <span class="badge purple" id="b-mode">MONO</span>
+            <span class="badge" id="b-size">— × —</span>
+            <span class="badge" id="b-time">— ms</span>
+          </div>
+          <div id="b-zoom">×4</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT · controls -->
+    <div>
+
+      <div class="card">
+        <h2>1 · Source</h2>
+        <div class="drop" id="drop">
+          <div><b>Drop, paste, or pick</b> an image</div>
+          <div style="font-size:12px;margin-top:4px;color:var(--text-dim)">JPG · PNG · WebP · GIF</div>
+        </div>
+        <input id="file" type="file" accept="image/*" hidden>
+      </div>
+
+      <div class="card">
+        <h2>2 · Tag profile</h2>
+        <input id="filter" type="search" placeholder="Search profile by name, code, or color…" style="margin-bottom:10px">
+        <select id="profile" size="6"></select>
+        <div style="margin-top:10px">
+          <div class="stat"><span>Resolution</span><span id="pf-size">—</span></div>
+          <div class="stat"><span>Color mode</span><span id="pf-color">—</span></div>
+          <div class="stat"><span>Type code</span><span id="pf-type">—</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>3 · Tune</h2>
+        <div class="row">
+          <label>Frame</label>
+          <div class="seg" id="fit">
+            <button data-v="fit"     class="on">Fit</button>
+            <button data-v="fill">Fill</button>
+            <button data-v="stretch">Stretch</button>
+          </div>
+          <span></span>
+        </div>
+        <div class="row"><label>Brightness</label><input type="range" min="-50" max="50"  value="0"  id="r-br"><span class="val" id="v-br">0</span></div>
+        <div class="row"><label>Contrast</label>  <input type="range" min="-50" max="50"  value="10" id="r-co"><span class="val" id="v-co">10</span></div>
+        <div class="row"><label>Detail</label>    <input type="range" min="0"   max="100" value="85" id="r-dt"><span class="val" id="v-dt">85</span></div>
+        <div class="row"><label>Sharpen</label>   <input type="range" min="0"   max="100" value="50" id="r-sp"><span class="val" id="v-sp">50</span></div>
+        <div class="row" id="r-sat-row"><label>Saturation</label><input type="range" min="-50" max="100" value="20" id="r-sa"><span class="val" id="v-sa">20</span></div>
+
+        <details>
+          <summary>More</summary>
+          <div class="row"><label>Scale</label>      <input type="range" min="50"  max="250" value="100" id="r-sc"><span class="val" id="v-sc">100</span></div>
+          <div class="row"><label>Offset X</label>   <input type="range" min="-100" max="100" value="0" id="r-ox"><span class="val" id="v-ox">0</span></div>
+          <div class="row"><label>Offset Y</label>   <input type="range" min="-100" max="100" value="0" id="r-oy"><span class="val" id="v-oy">0</span></div>
+          <div class="row"><label>Rotate</label>     <input type="range" min="-180" max="180" value="0" id="r-rt"><span class="val" id="v-rt">0°</span></div>
+          <div class="row"><label>Dither</label>
+            <select id="dither" style="grid-column: span 2">
+              <option value="fs" selected>Floyd–Steinberg (recommended)</option>
+              <option value="atk">Atkinson (clean)</option>
+              <option value="bayer8">Bayer 8×8 (orderly)</option>
+              <option value="thr">Threshold (hard)</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:14px;margin-top:8px;font-size:13px;color:var(--text-soft)">
+            <label><input type="checkbox" id="c-invert"> Invert</label>
+            <label><input type="checkbox" id="c-flipH"> Flip H</label>
+            <label><input type="checkbox" id="c-flipV"> Flip V</label>
+          </div>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>4 · Export</h2>
+        <div class="row">
+          <label>Label <span style="color:var(--text-dim);font-size:11px">(optional)</span></label>
+          <input id="label" type="text" maxlength="20" placeholder="cat-photo" style="grid-column: span 2">
+        </div>
+        <p style="font-size:12px;color:var(--text-dim);margin:4px 0 6px;line-height:1.5">
+          Page, position and IR repeats are picked on the Flipper right before sending — one BMP, any page, any tag.
+        </p>
+        <div class="actions" style="margin-top:14px">
+          <button id="dl" class="primary" disabled>Download .bmp</button>
+          <button id="reset" class="ghost">Reset</button>
+        </div>
+        <div class="filename" id="filename">—</div>
+      </div>
+
+      <div class="card help">
+        <h3>Drop · Pick · Send</h3>
+        <ol>
+          <li>Pick a profile, tune, hit <b>Download .bmp</b>.</li>
+          <li>Copy the file to <code>SD/apps_data/tagtinker/dropped/</code> on your Flipper.</li>
+          <li>Open <b>TagTinker → Targeted Payloads → your tag → Set Image</b>.</li>
+          <li>The Flipper lists every BMP whose resolution matches that tag — pick a <b>page</b>, then send.</li>
+        </ol>
+        <p style="margin:10px 0 0;font-size:12px;color:var(--text-dim)">Filenames are resolution-shaped only, so one BMP can be sent to any matching tag, on any page.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>TagTinker · V2.1 · GPL-3.0</footer>
+</div>
+
+<script>
+/* ============================================================================
+ * Self-contained image preparer.
+ * Output BMP layout matches the FAP reader (1bpp mono / "2bpp" stacked planes
+ * for accent tags). Filename: <W>x<H>_p<page>[_<label>].bmp
+ * ========================================================================== */
+
+const PROFILES = [
+  { code:1275, w:320, h:192, color:"mono",   name:"DM110" },
+  { code:1276, w:320, h:140, color:"mono",   name:"DM90" },
+  { code:1300, w:172, h:72,  color:"mono",   name:"DM3370" },
+  { code:1314, w:400, h:300, color:"mono",   name:"SmartTag HD110" },
+  { code:1315, w:296, h:128, color:"mono",   name:"SmartTag HD L" },
+  { code:1317, w:152, h:152, color:"mono",   name:"SmartTag HD S" },
+  { code:1318, w:208, h:112, color:"mono",   name:"SmartTag HD M" },
+  { code:1319, w:800, h:480, color:"mono",   name:"SmartTag HD200" },
+  { code:1322, w:152, h:152, color:"mono",   name:"SmartTag HD S" },
+  { code:1324, w:208, h:112, color:"mono",   name:"SmartTag HD M FZ" },
+  { code:1327, w:208, h:112, color:"red",    name:"SmartTag HD M Red" },
+  { code:1328, w:296, h:128, color:"red",    name:"SmartTag HD L Red" },
+  { code:1336, w:400, h:300, color:"red",    name:"SmartTag HD110 Red" },
+  { code:1339, w:152, h:152, color:"red",    name:"SmartTag HD S Red" },
+  { code:1340, w:800, h:480, color:"red",    name:"SmartTag HD200 Red" },
+  { code:1344, w:296, h:128, color:"yellow", name:"SmartTag HD L Yellow" },
+  { code:1346, w:800, h:480, color:"yellow", name:"SmartTag HD200 Yellow" },
+  { code:1348, w:264, h:176, color:"red",    name:"SmartTag HD T Red" },
+  { code:1349, w:264, h:176, color:"yellow", name:"SmartTag HD T Yellow" },
+  { code:1351, w:648, h:480, color:"mono",   name:"SmartTag HD150" },
+  { code:1353, w:648, h:480, color:"red",    name:"SmartTag HD150 Red" },
+  { code:1354, w:648, h:480, color:"red",    name:"SmartTag HD150 Red" },
+  { code:1370, w:296, h:128, color:"red",    name:"SmartTag HD L Red (2021)" },
+  { code:1371, w:648, h:480, color:"red",    name:"SmartTag HD150 Red (2021)" },
+  { code:1627, w:296, h:128, color:"red",    name:"SmartTag HD L Red" },
+  { code:1628, w:296, h:128, color:"red",    name:"SmartTag HD L Red" },
+  { code:1639, w:152, h:152, color:"red",    name:"SmartTag HD S Red" },
+];
+const ACCENT_RGB = { red: [218, 45, 53], yellow: [226, 177, 32] };
+
+const $ = id => document.getElementById(id);
+const out = $("out"), ctx = out.getContext("2d", { willReadFrequently: true });
+const work = document.createElement("canvas");
+const wctx = work.getContext("2d", { willReadFrequently: true });
+
+const S = {
+  brightness: 0, contrast: 10, detail: 85, sharpen: 50, saturation: 20,
+  scale: 100, offsetX: 0, offsetY: 0, rotate: 0,
+  dither: "fs", invert: false, flipH: false, flipV: false,
+  fit: "fit",
+};
+let sourceBitmap = null;
+let lastQuant = null;
+let renderQ = false;
+
+/* ─── Profile picker ──────────────────────────────────────────────── */
+const profileSel = $("profile"), filter = $("filter");
+
+function rebuildProfileList() {
+  const q = filter.value.trim().toLowerCase();
+  profileSel.innerHTML = "";
+  PROFILES.forEach((p, i) => {
+    if (q && !(p.name.toLowerCase().includes(q) || p.color.includes(q) || String(p.code).includes(q))) return;
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = `${p.code} · ${p.w}×${p.h} · ${p.color.toUpperCase()} · ${p.name}`;
+    profileSel.appendChild(opt);
+  });
+  if (profileSel.options.length && !profileSel.value) profileSel.selectedIndex = 0;
+  applyProfile();
+}
+const currentProfile = () => PROFILES[parseInt(profileSel.value, 10)] ?? PROFILES[0];
+
+function applyProfile() {
+  const p = currentProfile();
+  $("pf-size").textContent  = `${p.w} × ${p.h}`;
+  $("pf-color").textContent = p.color.toUpperCase();
+  $("pf-type").textContent  = p.code;
+  $("b-size").textContent   = `${p.w} × ${p.h}`;
+  const m = $("b-mode");
+  m.textContent = p.color.toUpperCase();
+  m.className = "badge " + (p.color === "mono" ? "purple" : p.color);
+  $("r-sat-row").style.opacity = (p.color === "mono") ? 0.45 : 1;
+  scheduleRender();
+  updateFilename();
+}
+filter.addEventListener("input", rebuildProfileList);
+profileSel.addEventListener("change", applyProfile);
+
+/* ─── Bindings ────────────────────────────────────────────────────── */
+function bindRange(id, key, fmt = v => v) {
+  const el = $("r-" + id), out = $("v-" + id);
+  const pull = () => { S[key] = parseFloat(el.value); out.textContent = fmt(el.value); scheduleRender(); };
+  el.addEventListener("input", pull); pull();
+}
+function bindCheck(id, key) {
+  const el = $("c-" + id);
+  const pull = () => { S[key] = el.checked; scheduleRender(); };
+  el.addEventListener("change", pull); pull();
+}
+bindRange("br", "brightness"); bindRange("co", "contrast");
+bindRange("dt", "detail");      bindRange("sp", "sharpen");
+bindRange("sa", "saturation");
+bindRange("sc", "scale");       bindRange("ox", "offsetX");
+bindRange("oy", "offsetY");     bindRange("rt", "rotate", v => v + "°");
+bindCheck("invert", "invert");  bindCheck("flipH", "flipH"); bindCheck("flipV", "flipV");
+$("dither").addEventListener("change", () => { S.dither = $("dither").value; scheduleRender(); });
+
+$("fit").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  $("fit").querySelectorAll("button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on");
+  S.fit = b.dataset.v; scheduleRender();
+});
+
+$("reset").addEventListener("click", () => {
+  Object.assign(S, {
+    brightness: 0, contrast: 10, detail: 85, sharpen: 50, saturation: 20,
+    scale: 100, offsetX: 0, offsetY: 0, rotate: 0,
+    dither: "fs", invert: false, flipH: false, flipV: false, fit: "fit",
+  });
+  document.querySelectorAll("input[type=range]").forEach(r => {
+    const k = r.id.slice(2);
+    const map = { br:"brightness", co:"contrast", dt:"detail", sp:"sharpen",
+                  sa:"saturation", sc:"scale", ox:"offsetX", oy:"offsetY", rt:"rotate" };
+    if (map[k] !== undefined) {
+      r.value = S[map[k]];
+      r.dispatchEvent(new Event("input"));
+    }
+  });
+  document.querySelectorAll("input[type=checkbox]").forEach(c => { c.checked = false; });
+  $("dither").value = "fs";
+  $("fit").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === "fit"));
+  scheduleRender();
+});
+
+/* ─── File ingestion ──────────────────────────────────────────────── */
+const drop = $("drop"), fileInput = $("file");
+drop.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => fileInput.files[0] && loadFile(fileInput.files[0]));
+["dragenter", "dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("hot"); }));
+["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("hot"); }));
+drop.addEventListener("drop", ev => { const f = ev.dataTransfer?.files?.[0]; if (f) loadFile(f); });
+window.addEventListener("paste", ev => {
+  for (const it of ev.clipboardData?.items || []) {
+    if (it.type.startsWith("image/")) { loadFile(it.getAsFile()); break; }
+  }
+});
+
+async function loadFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = url;
+    await img.decode();
+    sourceBitmap = img;
+    drop.querySelector("div").innerHTML =
+      `<b>${file.name}</b><br><span style="color:var(--text-dim);font-size:12px">${img.width}×${img.height}</span>`;
+    $("dl").disabled = false;
+    scheduleRender();
+  } catch {
+    drop.querySelector("div").innerHTML = `<b style="color:var(--bad)">Could not decode</b>`;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/* ─── Pipeline ────────────────────────────────────────────────────── */
+function scheduleRender() {
+  if (renderQ) return;
+  renderQ = true;
+  requestAnimationFrame(() => { renderQ = false; render(); });
+}
+
+function render() {
+  const t0 = performance.now();
+  const p = currentProfile();
+  const W = p.w, H = p.h, ACC = p.color;
+  out.width = W; out.height = H;
+  const stage = out.parentElement.getBoundingClientRect();
+  const scale = Math.max(1, Math.min(8, Math.floor(Math.min((stage.width - 36) / W, (stage.height - 36) / H))));
+  out.style.width = (W * scale) + "px";
+  out.style.height = (H * scale) + "px";
+  $("b-zoom").textContent = "×" + scale;
+
+  /* Compose source. */
+  work.width = W; work.height = H;
+  wctx.fillStyle = "white"; wctx.fillRect(0, 0, W, H);
+  if (sourceBitmap) {
+    let dW, dH;
+    if (S.fit === "stretch") { dW = W; dH = H; }
+    else {
+      const f = (S.fit === "fill"
+        ? Math.max(W / sourceBitmap.width, H / sourceBitmap.height)
+        : Math.min(W / sourceBitmap.width, H / sourceBitmap.height)) * (S.scale / 100);
+      dW = Math.max(1, sourceBitmap.width * f);
+      dH = Math.max(1, sourceBitmap.height * f);
+    }
+    const cx = W/2 + (S.offsetX/100) * (W/2);
+    const cy = H/2 + (S.offsetY/100) * (H/2);
+    wctx.save();
+    wctx.translate(cx, cy);
+    wctx.rotate((S.rotate || 0) * Math.PI / 180);
+    wctx.scale(S.flipH ? -1 : 1, S.flipV ? -1 : 1);
+    wctx.imageSmoothingEnabled = true;
+    wctx.imageSmoothingQuality = "high";
+    wctx.drawImage(sourceBitmap, -dW/2, -dH/2, dW, dH);
+    wctx.restore();
+  } else {
+    wctx.fillStyle = "#9090a0"; wctx.font = "13px sans-serif"; wctx.textAlign = "center";
+    wctx.fillText("Drop or paste an image", W/2, H/2);
+  }
+
+  let img = wctx.getImageData(0, 0, W, H);
+  toneAndColor(img, ACC);
+  if (S.sharpen > 0) img = unsharp(img, 1, S.sharpen / 100);
+  const quant = quantize(img, ACC);
+
+  /* Draw quantized result. */
+  const vis = ctx.createImageData(W, H);
+  const accentRGB = ACC === "mono" ? [0,0,0] : ACCENT_RGB[ACC];
+  for (let i = 0; i < W * H; i++) {
+    const v = quant.idx[i];
+    const o = i * 4;
+    const c = v === 0 ? [255,255,255] : v === 1 ? [0,0,0] : accentRGB;
+    vis.data[o] = c[0]; vis.data[o+1] = c[1]; vis.data[o+2] = c[2]; vis.data[o+3] = 255;
+  }
+  ctx.putImageData(vis, 0, 0);
+  lastQuant = quant;
+  $("b-time").textContent = `${(performance.now() - t0).toFixed(1)} ms`;
+}
+
+/* ─── Tone & color (linear-light, photo-grade) ────────────────────── */
+const srgb2lin = c => { c /= 255; return c <= 0.04045 ? c/12.92 : Math.pow((c + 0.055)/1.055, 2.4); };
+const lin2srgb = c => { c = Math.max(0, Math.min(1, c)); return 255 * (c <= 0.0031308 ? c*12.92 : 1.055*Math.pow(c, 1/2.4) - 0.055); };
+const clamp01  = x => x < 0 ? 0 : x > 1 ? 1 : x;
+const clamp255 = x => x < 0 ? 0 : x > 255 ? 255 : x;
+
+function toneAndColor(img, ACC) {
+  const d = img.data;
+  const co = S.contrast / 100, br = S.brightness / 100;
+  const sat = ACC === "mono" ? 1 : 1 + S.saturation / 100;
+  /* Subtle filmic curve for accent profiles, identity for mono. */
+  const filmic = ACC === "mono" ? 0 : 0.35;
+  for (let i = 0; i < d.length; i += 4) {
+    let r = srgb2lin(d[i]), g = srgb2lin(d[i+1]), b = srgb2lin(d[i+2]);
+
+    /* Saturation in linear */
+    const l = 0.2126*r + 0.7152*g + 0.0722*b;
+    r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat;
+
+    /* ACES-lite filmic for photo-grade accent profiles */
+    if (filmic > 0) {
+      const a = 2.51, bb = 0.03, c = 2.43, dd = 0.59, e = 0.14;
+      const map = x => clamp01((x*(a*x+bb))/(x*(c*x+dd)+e));
+      r = r*(1-filmic) + map(r)*filmic;
+      g = g*(1-filmic) + map(g)*filmic;
+      b = b*(1-filmic) + map(b)*filmic;
+    }
+
+    let R = lin2srgb(r), G = lin2srgb(g), B = lin2srgb(b);
+    if (co !== 0) {
+      const f = (259 * (co*255 + 255)) / (255 * (259 - co*255));
+      R = f*(R-128)+128; G = f*(G-128)+128; B = f*(B-128)+128;
+    }
+    R += br*128; G += br*128; B += br*128;
+    d[i] = clamp255(R); d[i+1] = clamp255(G); d[i+2] = clamp255(B);
+  }
+  if (S.invert) for (let i = 0; i < d.length; i += 4) { d[i]=255-d[i]; d[i+1]=255-d[i+1]; d[i+2]=255-d[i+2]; }
+}
+
+function unsharp(img, radius, amount) {
+  const W = img.width, H = img.height, blur = boxBlur(img, radius);
+  const out = new ImageData(W, H);
+  for (let i = 0; i < img.data.length; i += 4) {
+    for (let k = 0; k < 3; k++) {
+      out.data[i+k] = clamp255(img.data[i+k] + (img.data[i+k] - blur.data[i+k]) * amount);
+    }
+    out.data[i+3] = 255;
+  }
+  return out;
+}
+function boxBlur(img, radius) {
+  const W = img.width, H = img.height, src = img.data;
+  const tmp = new Uint8ClampedArray(W*H*4);
+  const out = new ImageData(W, H), dst = out.data;
+  const size = 2*radius + 1;
+  for (let y = 0; y < H; y++) {
+    let rs=0, gs=0, bs=0;
+    for (let k = -radius; k <= radius; k++) {
+      const x = Math.min(W-1, Math.max(0, k)); const o = (y*W+x)*4;
+      rs += src[o]; gs += src[o+1]; bs += src[o+2];
+    }
+    for (let x = 0; x < W; x++) {
+      const o = (y*W+x)*4;
+      tmp[o] = rs/size; tmp[o+1] = gs/size; tmp[o+2] = bs/size; tmp[o+3] = 255;
+      const oa = (y*W + Math.max(0, x-radius))*4, ob = (y*W + Math.min(W-1, x+radius+1))*4;
+      rs += src[ob]-src[oa]; gs += src[ob+1]-src[oa+1]; bs += src[ob+2]-src[oa+2];
+    }
+  }
+  for (let x = 0; x < W; x++) {
+    let rs=0, gs=0, bs=0;
+    for (let k = -radius; k <= radius; k++) {
+      const y = Math.min(H-1, Math.max(0, k)); const o = (y*W+x)*4;
+      rs += tmp[o]; gs += tmp[o+1]; bs += tmp[o+2];
+    }
+    for (let y = 0; y < H; y++) {
+      const o = (y*W+x)*4;
+      dst[o] = rs/size; dst[o+1] = gs/size; dst[o+2] = bs/size; dst[o+3] = 255;
+      const oa = (Math.max(0, y-radius)*W + x)*4, ob = (Math.min(H-1, y+radius+1)*W + x)*4;
+      rs += tmp[ob]-tmp[oa]; gs += tmp[ob+1]-tmp[oa+1]; bs += tmp[ob+2]-tmp[oa+2];
+    }
+  }
+  return out;
+}
+
+/* ─── Quantize + dither ───────────────────────────────────────────── */
+const BAYER8 = (() => {
+  const m = [];
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    let v = 0, xc = x ^ y, yc = y;
+    for (let i = 0; i < 3; i++) {
+      v |= ((yc & 1) << (2*i + 1)); v |= ((xc & 1) << (2*i));
+      xc >>= 1; yc >>= 1;
+    }
+    m.push((v + 0.5) / 64 - 0.5);
+  }
+  return m;
+})();
+const KERNELS = {
+  fs:  [[1,0,7/16],[-1,1,3/16],[0,1,5/16],[1,1,1/16]],
+  atk: [[1,0,1/8],[2,0,1/8],[-1,1,1/8],[0,1,1/8],[1,1,1/8],[0,2,1/8]],
+};
+
+/* Linear-RGB → Oklab.
+ * Oklab is a perceptually uniform colour space, so Euclidean distance there
+ * matches "how different two colours look" much better than RGB. Doing the
+ * nearest-palette search in Oklab lets the dither algorithm naturally pick
+ * the W/B/Accent mix that a human eye would perceive as the closest blend
+ * of the original photo — which is exactly the "alive, photoreal" feel of
+ * a 3-colour halftone newspaper. */
+function rgb2oklab(r, g, b) {
+  /* Inputs in 0..1 linear-light. */
+  const l = 0.4122214708*r + 0.5363325363*g + 0.0514459929*b;
+  const m = 0.2119034982*r + 0.6806995451*g + 0.1073969566*b;
+  const s = 0.0883024619*r + 0.2817188376*g + 0.6299787005*b;
+  const l_ = Math.cbrt(l), m_ = Math.cbrt(m), s_ = Math.cbrt(s);
+  return [
+    0.2104542553*l_ + 0.7936177850*m_ - 0.0040720468*s_,
+    1.9779984951*l_ - 2.4285922050*m_ + 0.4505937099*s_,
+    0.0259040371*l_ + 0.7827717662*m_ - 0.8086757660*s_,
+  ];
+}
+
+function quantize(img, ACC) {
+  const W = img.width, H = img.height, src = img.data, N = W*H;
+  const idx = new Uint8Array(N);
+  const useColor = ACC !== "mono";
+  const detail = S.detail / 100;
+  /* Detail bias nudges the threshold for mono and tilts accent affinity for tri-colour. */
+  const tilt = (detail - 0.5) * 0.20;
+
+  /* Build palette in linear RGB (0..1) and Oklab. */
+  const paletteRGB = useColor
+    ? [[1,1,1], [0,0,0], ACCENT_RGB[ACC].map(v => srgb2lin(v))]
+    : [[1,1,1], [0,0,0]];
+  const paletteLab = paletteRGB.map(([r,g,b]) => rgb2oklab(r,g,b));
+
+  /* Working buffer in linear RGB so error diffusion sums physically. */
+  const buf = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    buf[i*3]   = srgb2lin(src[i*4]);
+    buf[i*3+1] = srgb2lin(src[i*4+1]);
+    buf[i*3+2] = srgb2lin(src[i*4+2]);
+  }
+
+  /* Modern e-paper tri-colour quantiser - the goal is the "newsprint
+   * illusion" where the eye fuses W/B halftone density into apparent
+   * grey shades and the single chromatic ink only appears as a faint
+   * accent over warm regions, NOT as a solid colour fill.
+   *
+   * Three knobs make this work, all tuned for the Oklab metric used
+   * below (typical photo chroma magnitude ~0.05..0.25, never anywhere
+   * near the accent's own ~0.20):
+   *
+   *   1. L_WEIGHT - lightness dominates the distance so shadows pick
+   *      black and highlights pick white before chroma is even a
+   *      tie-breaker. This is what keeps the tonal structure intact.
+   *
+   *   2. CHROMA_CAP - the source image's a/b axes are pre-scaled
+   *      toward grey BEFORE dithering. With only one chromatic ink
+   *      to spend, we don't want to "owe" the error diffuser more
+   *      red than the paper can deliver - that's the bug that made
+   *      everything red. Treating the source as low-saturation lets
+   *      FS spread the residual through black and white naturally.
+   *
+   *   3. accentPull - very small bonus for hue-aligned pixels, just
+   *      enough to break ties in favour of accent in the most-saturated
+   *      regions. The bonus uses the *signed projection* of the pixel's
+   *      chroma onto the accent direction so opposite-hue pixels (a
+   *      blue sky) never pick red.
+   */
+  const L_WEIGHT = 3.5;
+  /* Map source chroma 1.0 -> accent's chroma * 1.1 so even the most
+   * saturated source pixel never sits beyond what one ink can render. */
+  const accentLab = useColor ? paletteLab[2] : null;
+  const accentMag = accentLab ? Math.hypot(accentLab[1], accentLab[2]) || 1e-9 : 1;
+  const CHROMA_CAP = useColor ? Math.min(1, (accentMag * 1.1)) : 1;
+  /* Detail slider tilts attraction +/- ~30%. */
+  const accentPull = 0.06 * (1 + tilt * 0.5);
+
+  function nearest(L, a, bp) {
+    let best = 0, bd = Infinity;
+    for (let p = 0; p < paletteRGB.length; p++) {
+      const dl = L - paletteLab[p][0];
+      const da = a - paletteLab[p][1];
+      const db = bp - paletteLab[p][2];
+      let d = L_WEIGHT * dl*dl + da*da + db*db;
+      if (useColor && p === 2) {
+        const proj = (a * accentLab[1] + bp * accentLab[2]) / accentMag;
+        const align = Math.max(0, proj);
+        d -= align * align * accentPull;
+      }
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
+  }
+
+  /* Sample the (already-tone-mapped) linear-RGB working pixel into the
+   * Oklab the dither operates on, with chroma contracted toward grey
+   * so we don't ask for more colour than three inks can deliver. */
+  function sampleLab(r, g, b) {
+    const lab = rgb2oklab(r, g, b);
+    if (useColor) {
+      lab[1] *= CHROMA_CAP;
+      lab[2] *= CHROMA_CAP;
+    }
+    return lab;
+  }
+
+  if (S.dither === "thr" || S.dither === "bayer8") {
+    const m = S.dither === "bayer8" ? BAYER8 : null;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y*W + x;
+      let r = buf[i*3], g = buf[i*3+1], b = buf[i*3+2];
+      if (m) {
+        const t = m[(y&7)*8 + (x&7)] * 0.18;
+        r += t; g += t; b += t;
+      } else {
+        /* Threshold mode for mono — pure luma cut adjusted by detail slider. */
+        if (!useColor) {
+          const lum = 0.2126*r + 0.7152*g + 0.0722*b;
+          idx[i] = lum >= (0.5 - tilt) ? 0 : 1;
+          continue;
+        }
+      }
+      const lab = sampleLab(r, g, b);
+      idx[i] = nearest(lab[0], lab[1], lab[2]);
+    }
+  } else {
+    const k = KERNELS[S.dither] || KERNELS.fs;
+    /* Serpentine scan: even rows left-to-right, odd rows right-to-left.
+     * Mirroring the kernel on reverse rows breaks up the diagonal worm
+     * artefacts that plain Floyd-Steinberg leaves in smooth gradients,
+     * which is the single biggest visible difference between "looks
+     * like a screenshot of a Mac dither" and a clean photograph. */
+    for (let y = 0; y < H; y++) {
+      const rev = (y & 1) === 1;
+      const xStart = rev ? W - 1 : 0;
+      const xEnd   = rev ? -1    : W;
+      const xStep  = rev ? -1    : 1;
+      for (let x = xStart; x !== xEnd; x += xStep) {
+        const i = y*W + x;
+        const r = buf[i*3], g = buf[i*3+1], b = buf[i*3+2];
+        const lab = sampleLab(r, g, b);
+        const p = nearest(lab[0], lab[1], lab[2]);
+        idx[i] = p;
+        const er = r - paletteRGB[p][0];
+        const eg = g - paletteRGB[p][1];
+        const eb = b - paletteRGB[p][2];
+        for (const [dx, dy, w] of k) {
+          const nx = x + (rev ? -dx : dx), ny = y + dy;
+          if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+          const j = (ny*W + nx) * 3;
+          buf[j]   += er * w;
+          buf[j+1] += eg * w;
+          buf[j+2] += eb * w;
+        }
+      }
+    }
+  }
+  return { idx, W, H };
+}
+
+/* ─── BMP encoder · matches FAP reader ────────────────────────────── */
+function buildBmp(quant, ACC) {
+  const W = quant.W, H = quant.H, idx = quant.idx;
+  const accent = ACC !== "mono";
+  const rowStride = ((W + 31) >> 5) << 2;
+  const pixelBytes = (rowStride + (accent ? rowStride : 0)) * H;
+  const paletteBytes = accent ? 12 : 8;
+  const headerSize = 14 + 40 + paletteBytes;
+  const fileSize = headerSize + pixelBytes;
+  const out = new Uint8Array(fileSize);
+  const dv = new DataView(out.buffer);
+  out[0] = 0x42; out[1] = 0x4D;
+  dv.setUint32(2, fileSize, true);
+  dv.setUint32(10, headerSize, true);
+  dv.setUint32(14, 40, true);
+  dv.setInt32(18, W, true);
+  dv.setInt32(22, H, true);
+  dv.setUint16(26, 1, true);
+  dv.setUint16(28, accent ? 2 : 1, true);
+  dv.setUint32(34, pixelBytes, true);
+  let po = 54;
+  out[po+0]=255; out[po+1]=255; out[po+2]=255; po+=4;
+  out[po+0]=0;   out[po+1]=0;   out[po+2]=0;   po+=4;
+  if (accent) {
+    const [r, g, b] = ACCENT_RGB[ACC];
+    out[po+0]=b; out[po+1]=g; out[po+2]=r;
+  }
+  const monoOff = headerSize;
+  const accOff  = headerSize + rowStride * H;
+  for (let y = 0; y < H; y++) {
+    const fy = H - 1 - y;
+    for (let x = 0; x < W; x++) {
+      const v = idx[fy*W + x];
+      const bIdx = x >> 3, bit = 7 - (x & 7);
+      if (v === 1) out[monoOff + y*rowStride + bIdx] |= (1 << bit);
+      else if (accent && v === 2) out[accOff + y*rowStride + bIdx] |= (1 << bit);
+    }
+  }
+  return out;
+}
+
+/* ─── Filename + download ─────────────────────────────────────────── */
+function safeLabel() {
+  return ($("label").value || "").trim().replace(/[^a-zA-Z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 20);
+}
+function buildFilename() {
+  const p = currentProfile();
+  const lbl = safeLabel();
+  return `${p.w}x${p.h}${lbl ? "_" + lbl : ""}.bmp`;
+}
+function updateFilename() { $("filename").textContent = buildFilename(); }
+$("label").addEventListener("input", updateFilename);
+
+$("dl").addEventListener("click", () => {
+  if (!lastQuant) return;
+  const p = currentProfile();
+  const blob = new Blob([buildBmp(lastQuant, p.color)], { type: "image/bmp" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = buildFilename();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+});
+
+/* ─── Boot ────────────────────────────────────────────────────────── */
+rebuildProfileList();
+window.addEventListener("resize", scheduleRender);
+</script>
+
+</body>
+</html>

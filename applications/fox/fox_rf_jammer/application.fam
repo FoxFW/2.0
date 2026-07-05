@@ -1,0 +1,13 @@
+App(
+    appid="fox_rf_jammer",
+    name="Fox RF Jammer",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="fox_rf_jammer_app",
+    requires=["gui", "subghz", "furi"],
+    cdefines=["APP_FOX_RF_JAMMER"],
+    stack_size=2 * 1024,
+    fap_category="Sub-GHz",
+    fap_description="Fox RF Jammer — multi-mode RF jamming for Flipper Zero",
+    fap_icon="jammer_icon.png",
+    fap_icon_assets="images",
+)

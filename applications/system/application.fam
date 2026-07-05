@@ -1,0 +1,9 @@
+App(
+    appid="system_apps",
+    name="Applications not shown in menus",
+    apptype=FlipperAppType.METAPACKAGE,
+    provides=[
+        "updater_app",
+        # "archive",
+    ],
+)

@@ -1,0 +1,13 @@
+App(
+    appid="settings_apps",
+    name="Basic settings apps bundle",
+    apptype=FlipperAppType.METAPACKAGE,
+    provides=[
+        "desktop_settings",
+        "fox_setup",
+        "system_settings",
+        "clock_settings",
+        "input_settings",
+        "about",
+    ],
+)

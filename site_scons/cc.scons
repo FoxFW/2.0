@@ -1,0 +1,66 @@
+Import("ENV")
+
+ENV.AppendUnique(
+    CFLAGS=[
+        "-std=gnu2x",
+        "-Wstrict-prototypes",
+    ],
+    CXXFLAGS=[
+        "-std=c++20",
+        "-fno-rtti",
+        "-fno-use-cxa-atexit",
+        "-fno-exceptions",
+        "-fno-threadsafe-statics",
+        "-ftemplate-depth=4096",
+    ],
+    CCFLAGS=[
+        "-mcpu=cortex-m4",
+        "-mfloat-abi=hard",
+        "-mfpu=fpv4-sp-d16",
+        "-mthumb",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-error=deprecated-declarations",
+        "-Wno-address-of-packed-member",
+        "-Wredundant-decls",
+        "-Wdouble-promotion",
+        "-Wundef",
+        # CRITICAL SAFETY ELEMENT: Aggressively segment modules for stripping passes
+        "-ffunction-sections",
+        "-fdata-sections",
+        "-fsingle-precision-constant",
+        "-fno-math-errno",
+        # REMOVED "-g" (Stops compiling heavy debug line symbols into user space)
+        # REMOVED "-flto" and "-mlong-calls" (Bypasses the kernel panics entirely)
+    ],
+    CPPDEFINES=[
+        "_GNU_SOURCE",
+        *GetOption("extra_defines"),
+    ],
+    LINKFLAGS=[
+        "-mcpu=cortex-m4",
+        "-mfloat-abi=hard",
+        "-mfpu=fpv4-sp-d16",
+        "-mlittle-endian",
+        "-mthumb",
+        "-Wl,--no-warn-rwx-segment",
+        "-Wl,--undefined=Reset_Handler",
+        "-Os",                            # Compiles strictly for the smallest absolute code size
+        "-Wl,--gc-sections",              # Linker-garbage-collection: Drops all unreferenced code
+        "-Wl,-s",                         # STRIP PASS: Permanently discards the entire symbol layout table
+    ],
+)
+
+
+
+ENV.AppendUnique(
+    ARFLAGS=[
+        "--plugin",
+        "liblto_plugin.dll"
+    ]
+)
+
+ENV["AR"] = "arm-none-eabi-gcc-ar"
+ENV["RANLIB"] = "arm-none-eabi-gcc-ranlib"
+ENV["ARCOM"] = "$AR rcs $TARGET $SOURCES"

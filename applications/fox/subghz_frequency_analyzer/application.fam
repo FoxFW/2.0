@@ -1,0 +1,15 @@
+App(
+    appid="subghz_frequency_analyzer",
+    name="Frequency Analyzer",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="subghz_frequency_analyzer_app",
+    requires=[
+        "gui",
+    ],
+    stack_size=2 * 1024,
+    order=32,
+    fap_category="Sub-GHz",
+    fap_icon="icon.png",
+    fap_description="Scans your configured frequency list to identify an unknown remote's transmit frequency",
+    fap_version=(1, 0),
+)
