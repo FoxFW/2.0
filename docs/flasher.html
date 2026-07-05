@@ -122,13 +122,12 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 // ── CONFIG ──────────────────────────────────────────────────────
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
-const CHUNK    = 512;   // 512 bytes — proven safe, matches qFlipper
+const CHUNK    = 512;
 const DFU_BLK  = 2048;
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
 
 // ── FLIPPER PROTOBUF SCHEMA ──────────────────────────────────────
-// Defined inline — same field numbers as flipperzero-protobuf/flipper.proto
 const PROTO_JSON = {
   nested: {
     PB: {
@@ -181,17 +180,16 @@ function initProto() {
   Main = PBRoot.lookupType('PB.Main');
 }
 
-// Encode a PB.Main message and return length-delimited (varint-prefixed) bytes
 function encodeMain(obj) {
   const err = Main.verify(obj);
   if (err) throw new Error('Protobuf encode error: ' + err);
-  // encodeDelimited writes varint(length) + message bytes
   return Main.encodeDelimited(obj).finish();
 }
 
 // ── STATE ────────────────────────────────────────────────────────
 let method = 'tgz', cmdId = 1, busy = false, connected = false;
 let serialPort = null, serialWriter = null, serialReader = null;
+let rxBuffer = new Uint8Array(0); // Holds incoming data for Protobuf parsing
 
 // ── UI HELPERS ───────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -294,45 +292,45 @@ async function doDisconnect() {
   log('Disconnected','dm');
 }
 
-// ── WRITE HELPERS ────────────────────────────────────────────────
+// ── WRITE & RPC RESPONSE HANDLERS ────────────────────────────────
 async function wMsg(bytes) {
-  // If write() blocks for >30s, the Flipper has permanently stopped
-  // accepting data (deadlock or device error) — surface it immediately
   await Promise.race([
     serialWriter.write(bytes),
-    sleep(30000).then(() => { throw new Error('Flipper stopped accepting data — write timeout after 30s'); })
+    sleep(15000).then(() => { throw new Error('Write timeout - Flipper stopped accepting data'); })
   ]);
 }
 
-// ── BACKGROUND DRAIN ────────────────────────────────────────────
-// Runs concurrently throughout the upload. Reads & discards every
-// response/error byte the Flipper sends. If we don't drain, the
-// Flipper's USB IN buffer fills → its RPC task blocks → it can't
-// drain its OUT buffer → Chrome's write() deadlocks.
-let drainReader = null;
-async function bgDrain() {
-  try {
-    while (drainReader) {
-      const { value, done } = await drainReader.read();
-      if (done || !drainReader) break;
-      if (value && value.length > 0) {
-        // Log received bytes — helps diagnose Flipper error responses mid-upload
-        const hex = Array.from(value.slice(0,20)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
-        log(`[flipper→us ${value.length}B] ${hex}${value.length>20?'…':''}`, 'dm');
+async function readRpcResponse(expectedId) {
+  while (true) {
+    if (rxBuffer.length > 0) {
+      try {
+        const reader = protobuf.Reader.create(rxBuffer);
+        const msg = Main.decodeDelimited(reader);
+        rxBuffer = rxBuffer.slice(reader.pos); // advance buffer past the decoded message
+        
+        if (msg.commandId === expectedId) {
+          if (msg.commandStatus !== 0) {
+            throw new Error(`RPC Error Status: ${msg.commandStatus}`);
+          }
+          return msg;
+        }
+      } catch (e) {
+        // If it's a real error surfaced by our own check, throw it.
+        if (e.message.includes('RPC Error Status')) throw e;
+        // Otherwise, it's a partial buffer (decodeDelimited failed), so we just wait for more data.
       }
     }
-  } catch (e) {
-    log('[bgDrain stopped: '+e.message+']','dm');
+
+    // Read more data from stream
+    const { value, done } = await serialReader.read();
+    if (done) throw new Error('Serial stream closed by device');
+    if (value) {
+      const tmp = new Uint8Array(rxBuffer.length + value.length);
+      tmp.set(rxBuffer);
+      tmp.set(value, rxBuffer.length);
+      rxBuffer = tmp;
+    }
   }
-}
-function startDrain() {
-  // Release global reader to drain; get it back after upload
-  drainReader = serialReader;
-  serialReader = null;
-  bgDrain(); // fire and forget — runs concurrently
-}
-function stopDrain() {
-  drainReader = null;
 }
 
 // ── FLASH DISPATCHER ─────────────────────────────────────────────
@@ -361,8 +359,6 @@ async function doFlash() {
 
 // ── TGZ / RPC FLASH ──────────────────────────────────────────────
 async function doFlashTGZ() {
-  // 1. Download + decompress + parse FIRST (Flipper RPC has no timeout,
-  //    so the session remains valid during the download)
   pg(0.01,'Downloading firmware…'); log('Downloading '+TGZ_URL+'…','in');
   const tgz = await fetchXHR(TGZ_URL, p=>pg(0.01+p*0.28,`Downloading… ${Math.round(p*100)}%`));
   log(`Downloaded ${(tgz.length/1024/1024).toFixed(1)} MB`,'ok');
@@ -379,18 +375,15 @@ async function doFlashTGZ() {
   const manifestSD = `/ext/update/${manifest.name}`;
   log(`Update directory: ${sdBase}`,'in');
 
-  // 2. Start background drain and upload immediately — no re-send of
-  //    start_rpc_session (would break the already-active session)
   pg(0.30,'Creating directories…');
-  cmdId = 1; // reset command counter for clean upload session
-  startDrain();
+  cmdId = 1; 
+  rxBuffer = new Uint8Array(0); // clear any stale rx data from before session start
 
-  // 3. Create update directories
   log('Creating update directory on SD card…','in');
   await rpcMkdir('/ext/update');
   await rpcMkdir(sdBase);
 
-  // 4. Upload each file
+  // Upload each file synchronously
   for (let fi=0; fi<files.length; fi++) {
     const f = files[fi];
     const sdPath = `/ext/update/${f.name}`;
@@ -401,59 +394,61 @@ async function doFlashTGZ() {
     log(`✓ ${f.name}`,'ok');
   }
 
-  // 5. Trigger update
+  // Trigger update
   log('Triggering firmware update…','in'); pg(0.93,'Triggering update…');
+  const id = cmdId++;
   const updateBytes = encodeMain({
-    commandId:1,
+    commandId: id,
     systemUpdateRequest:{ updateManifest: manifestSD }
   });
   await wMsg(updateBytes);
-  stopDrain();
+  try { await readRpcResponse(id); } catch(e){} // Catch error in case it reboots before ACKing
   await sleep(1000);
+  
   log('Update triggered — Flipper is rebooting','ok');
   pg(1,'Done!');
   try { await doDisconnect(); } catch {}
 }
 
-// ── RPC FILE OPERATIONS (using protobufjs encoding) ──────────────
+// ── RPC FILE OPERATIONS ──────────────────────────────────────────
 async function rpcMkdir(path) {
-  const bytes = encodeMain({ commandId: cmdId++, storageMkdirRequest:{ path } });
+  const id = cmdId++;
+  const bytes = encodeMain({ commandId: id, storageMkdirRequest:{ path } });
   await wMsg(bytes);
-  await sleep(400); // let Flipper process mkdir; bgDrain reads the response
+  try {
+    await readRpcResponse(id);
+  } catch(e) {
+    // Ignore RPC errors for mkdir (e.g. status 9 usually means folder already exists)
+    log(`mkdir info: ${e.message}`, 'dm');
+  }
 }
 
 async function rpcWriteFile(path, data, onProgress) {
   const chunks = Math.ceil(data.length / CHUNK);
-  const id     = cmdId++;
-
+  
   for (let i=0; i<chunks; i++) {
     const chunk  = data.slice(i*CHUNK, (i+1)*CHUNK);
     const isLast = i === chunks-1;
+    const id = cmdId++;
 
-    await wMsg(encodeMain({
+    const reqObj = {
       commandId: id,
-      hasNext:   !isLast,
+      hasNext: !isLast,
       storageWriteRequest: {
-        path: path, // send on EVERY chunk — Flipper validates ASCII on all chunks
         file: { data: chunk }
       }
-    }));
+    };
+    
+    // Fix: Only send the file path on the FIRST chunk of a transfer.
+    if (i === 0) {
+      reqObj.storageWriteRequest.path = path;
+    }
 
-    // NO artificial delay — USB NACK flow control naturally paces us to
-    // exactly match the Flipper's SD write speed. Artificial delays
-    // disrupt the timing and cause stream buffer overflow → decode error
-    // → RPC session crash → Flipper freeze.
-    // Just yield the event loop so bgDrain can run between chunks.
-    await sleep(1);
+    await wMsg(encodeMain(reqObj));
+    await readRpcResponse(id); // Flow Control: Wait for Flipper to acknowledge chunk
 
     if (onProgress) onProgress((i+1)/chunks);
-    log(`  ${Math.round((i+1)/chunks*100)}%`);
-
-    if (isLast) {
-      const waitMs = Math.min(30000, Math.max(5000, Math.ceil(data.length/50000)*1000));
-      log(`  Waiting ${(waitMs/1000).toFixed(0)}s for SD write to complete…`);
-      await sleep(waitMs);
-    }
+    if (i % 10 === 0 || isLast) log(`  ${Math.round((i+1)/chunks*100)}%`);
   }
 }
 
@@ -548,7 +543,6 @@ function fetchXHR(url,onProg){
     n.classList.add('show'); n.style.display='';
     $('bcon').disabled=true; $('bflash').disabled=true;
   }
-  // protobufjs loaded from CDN — init when ready
   if(typeof protobuf!=='undefined') initProto();
   else setTimeout(()=>{if(typeof protobuf!=='undefined')initProto();},500);
   selMethod('tgz');
