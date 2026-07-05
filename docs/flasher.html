@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v6]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v7]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -78,7 +78,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test">TEST v6</div>
+  <div class="badge test">TEST v7</div>
   <a href="index.html">← User Guide</a>
 </header>
 
@@ -149,7 +149,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 // Files served from same directory as flasher.html (GitHub Pages)
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
-const CHUNK    = 512;
+const CHUNK    = 8192;
 const DFU_BLK  = 2048;
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
@@ -436,36 +436,42 @@ async function rdResponse(){
 
 async function wMsg(msg){ await serialWriter.write(frame(msg)); }
 
-// Mkdir — fire and hope (ignore errors, dir may already exist)
+// Mkdir — fire and forget. Dir may already exist; ignore any error.
+// Do NOT read responses here — an abandoned Promise.race leaves a dangling
+// serialReader.read() that will silently consume the next real response.
 async function rpcMkdir(path){
   await wMsg(mkdirMsg(path));
-  try{ await Promise.race([rdResponse(),sleep(3000)]); } catch{}
+  await sleep(300); // give Flipper time to process without reading response
 }
 
-// Write a file in chunks, all with the SAME command_id
+// Write file in chunks. Same command_id across all chunks (required by RPC).
+// No response reads between chunks. After the last chunk we simply wait long
+// enough for the Flipper to finish the SD write, then move on.
+// Trying to read a response via Promise.race() leaves dangling reads that
+// consume the NEXT file's response — this was the root cause of the stall.
 async function rpcWriteFile(path, data, onProgress){
   const chunks=Math.ceil(data.length/CHUNK);
-  const id=cmdId++;  // same id for ALL chunks of this file
+  const id=cmdId++;
   for(let i=0;i<chunks;i++){
     const chunk=data.slice(i*CHUNK,(i+1)*CHUNK);
     const isLast=i===chunks-1;
     await wMsg(writeMsg(id,!isLast,i===0?path:null,chunk));
-    if(i>0&&i%80===0) await sleep(15); // throttle
+    // Rate-limit: 30ms per 8KB chunk = ~270KB/s — lets Flipper keep up with SD writes
+    await sleep(30);
     if(onProgress) onProgress((i+1)/chunks);
-    // Log every 20%
-    const p=Math.round(((i+1)/chunks)*10);
-    if(p!==Math.round((i/chunks)*10)&&i>0) log(`  ${p*10}%`);
     if(isLast){
-      try{ await Promise.race([rdResponse(),sleep(20000)]); } catch{}
+      // Wait for SD write to flush. 841KB at ~270KB/s ≈ 3s; we give 8s margin.
+      log('  Waiting for SD write to complete…');
+      await sleep(8000);
     }
   }
 }
 
-// Trigger update
+// Trigger update — fire and disconnect. Flipper reboots into updater.
 async function rpcUpdate(manifest){
   await wMsg(updateMsg(manifest));
-  await sleep(500);
-  try{ await Promise.race([rdResponse(),sleep(3000)]); } catch{}
+  await sleep(1000);
+  // Flipper is rebooting — don't try to read a response
 }
 
 // ── TAR PARSER ───────────────────────────────────────────────────
