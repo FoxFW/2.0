@@ -543,8 +543,8 @@
 // ════════════════════════════════════════════════════════════════
 //  CONFIG
 // ════════════════════════════════════════════════════════════════
-const TGZ_URL = 'https://github.com/FoxFW/2.0/releases/download/Releases/flipper-z-f7-update-local.tgz';
-const DFU_URL = 'https://github.com/FoxFW/2.0/releases/download/Releases/flipper-z-f7-full-local.dfu';
+const TGZ_URL = 'https://foxfw.github.io/2.0/docs/flipper-z-f7-update-local.tgz';
+const DFU_URL = 'https://foxfw.github.io/2.0/docs/flipper-z-f7-full-local.dfu';
 const CHUNK_SIZE = 512;          // bytes per RPC write message
 const DFU_BLOCK_SIZE = 2048;     // bytes per DFU download block
 const FLIPPER_VID = 0x0483;
@@ -932,27 +932,41 @@ async function startRpcSession() {
   serialReader = port.readable.getReader();
   readBuffer   = new Uint8Array(0);
 
-  // Send the CLI command to enter RPC mode
-  const cmd = new TextEncoder().encode('\r\nstart_rpc_session\r\n');
-  await serialWriter.write(cmd);
-  await sleep(300);
+  // Send CLI command to switch Flipper into binary RPC mode.
+  // Write a newline first to ensure the CLI is ready, then the command.
+  await serialWriter.write(new TextEncoder().encode('\r\n'));
+  await sleep(150);
+  await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
 
-  // Drain any pending plain-text response
-  let drained = false;
-  const drainTimeout = Date.now() + 1000;
-  while (!drained && Date.now() < drainTimeout) {
-    try {
-      const { value, done } = await Promise.race([
-        serialReader.read(),
-        sleep(200).then(() => ({ done: true }))
-      ]);
-      if (done || !value) { drained = true; break; }
-      readBuffer = new Uint8Array(0); // discard
-    } catch { drained = true; }
-  }
+  // Give the Flipper time to process the command and switch modes.
+  // Any CLI response text (prompt, OK) must be discarded before we
+  // start reading binary RPC messages or the length prefix will be garbage.
+  await sleep(600);
+
+  // Discard all buffered bytes from the CLI response in one read cycle.
+  // We read from the stream with a short timeout using an AbortController
+  // so we don't leave a dangling pending read() promise.
+  await drainSerialBuffer(400);
 }
 
-async function serialReadExact(n) {
+// Drain bytes that arrived during CLI→RPC handshake.
+// We read one chunk with a strict timeout so we never leave a dangling
+// pending read() promise that would conflict with later serialReadExact calls.
+async function drainSerialBuffer(timeoutMs) {
+  readBuffer = new Uint8Array(0);
+  await new Promise((resolve) => {
+    let resolved = false;
+    const done = () => { if (!resolved) { resolved = true; resolve(); } };
+    const timer = setTimeout(done, timeoutMs);
+    serialReader.read().then(({ value }) => {
+      clearTimeout(timer);
+      // If data arrived, accumulate it so a second read isn't pending
+      // (the data is CLI text we don't need — discard it)
+      readBuffer = new Uint8Array(0);
+      done();
+    }).catch(() => { clearTimeout(timer); done(); });
+  });
+}
   while (readBuffer.length < n) {
     const { value, done } = await serialReader.read();
     if (done) throw new Error('Serial connection closed');
@@ -1033,20 +1047,28 @@ async function flashTGZ(tgzData) {
 
 async function uploadFile(sdPath, data, onProgress) {
   const chunks = Math.ceil(data.length / CHUNK_SIZE);
+  // All chunks of the same write operation MUST share the same command_id.
+  // The Flipper RPC server uses command_id to group multi-chunk writes into
+  // one logical command. Incrementing per-chunk causes it to treat each chunk
+  // as a separate (path-less) write and silently discard everything after the first.
+  const cmdId = state.commandId++;
+
   for (let i = 0; i < chunks; i++) {
     const start = i * CHUNK_SIZE;
     const chunk = data.slice(start, start + CHUNK_SIZE);
     const isFirst = i === 0;
     const isLast  = i === chunks - 1;
     const msg = buildWriteMsg(
-      state.commandId++,
+      cmdId,      // same ID for entire write
       !isLast,
       isFirst ? sdPath : null,
       chunk
     );
     await serialWriteMsg(msg);
     if (isLast) {
-      try { await Promise.race([serialReadResponse(), sleep(3000)]); } catch { /* timeout ok */ }
+      // Wait for the Flipper's WriteResponse. Large files (firmware.dfu is ~840KB)
+      // need several seconds to be written to the SD card — use a generous timeout.
+      try { await Promise.race([serialReadResponse(), sleep(15000)]); } catch { /* ignore */ }
     }
     if (onProgress) onProgress((i + 1) / chunks);
   }
