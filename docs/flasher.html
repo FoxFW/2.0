@@ -417,12 +417,14 @@ async function doFlashTGZ() {
   pg(0.30,'Creating directories…');
   
 // Clear buffer one last time before starting binary RPC[cite: 2]
-  await syncSerial(); 
+ await syncSerial(); 
   cmdId = 1; 
   rxBuffer = new Uint8Array(0);
 
   log('Creating update directory…','in');
-  await rpcMkdir('/ext/update');
+
+ await rpcMkdir('/ext/update');
+  await sleep(1000); // Give the filesystem a moment to commit
   await rpcMkdir(sdBase);
 
   // Upload each file synchronously
@@ -476,23 +478,25 @@ async function rpcPing() {
 }
 
 async function rpcMkdir(path) {
-  // 1. Verify session is alive
-  await rpcPing();
-  
   const id = cmdId++;
   log(`Sending mkdir: ${path}...`, 'in');
   
   const bytes = encodeMain({ commandId: id, storageMkdirRequest:{ path } });
+  
+  // Send and await response with a very generous timeout
   await wMsg(bytes);
   
   try {
-    const res = await readRpcResponse(id);
+    // Wait for response, if the Flipper is just slow, this will eventually catch it
+    const res = await Promise.race([
+        readRpcResponse(id),
+        sleep(5000).then(() => { throw new Error('Mkdir timed out'); })
+    ]);
     log(`Mkdir success: ${path}`, 'ok');
     return res;
   } catch (e) {
-    // If the error code is 9, the directory exists - we should treat this as a success
     if (e.message.includes('Status 9')) {
-      log(`Directory already exists (Status 9): ${path}`, 'dm');
+      log(`Directory exists: ${path}`, 'dm');
       return; 
     }
     throw e;
