@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v7]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v8]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -78,7 +78,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test">TEST v7</div>
+  <div class="badge test">TEST v8</div>
   <a href="index.html">← User Guide</a>
 </header>
 
@@ -323,6 +323,10 @@ async function doFlashTGZ() {
 
   // 4. Create directories on SD card
   log('Creating update directory on SD card…', 'in');
+  // Start background drain NOW — prevents the bidirectional deadlock where
+  // unread Flipper responses fill its USB send buffer, stalling its receive
+  // handler, which then blocks our serialWriter.write() calls.
+  startDrain();
   await rpcMkdir('/ext/update');
   await rpcMkdir(sdBase);
 
@@ -341,7 +345,7 @@ async function doFlashTGZ() {
   log('Triggering firmware update…', 'in');
   pg(0.94, 'Triggering update…');
   await rpcUpdate(manifestSD);
-
+  stopDrain();
   log('Update triggered — Flipper is rebooting to install firmware', 'ok');
   pg(1, 'Done!');
   try { await doDisconnect(); } catch {}
@@ -436,7 +440,27 @@ async function rdResponse(){
 
 async function wMsg(msg){ await serialWriter.write(frame(msg)); }
 
-// Mkdir — fire and forget. Dir may already exist; ignore any error.
+// ── BACKGROUND DRAIN ─────────────────────────────────────────────
+// Continuously reads and discards bytes from the Flipper while we're
+// uploading. Without this, the Flipper's USB send buffer fills with
+// unread mkdir/write responses, its CDC task blocks trying to flush,
+// and that blocks its receive handler → our serialWriter.write() deadlocks.
+let drainActive = false;
+async function bgDrain() {
+  drainActive = true;
+  const dr = serialReader;
+  serialReader = null; // transfer ownership to the drainer
+  try {
+    while (drainActive) {
+      const { value, done } = await dr.read();
+      if (done) break;
+      // just discard — we don't need RPC responses during upload
+    }
+  } catch { /* port closed or cancelled — expected */ }
+  finally { drainActive = false; }
+}
+function startDrain() { bgDrain(); /* fire and forget */ }
+function stopDrain()  { drainActive = false; /* drain will stop after next read */ }
 // Do NOT read responses here — an abandoned Promise.race leaves a dangling
 // serialReader.read() that will silently consume the next real response.
 async function rpcMkdir(path){
