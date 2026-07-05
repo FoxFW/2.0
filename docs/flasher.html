@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Flasher </title>
+<title>FoxFW v2.0 — Web Flasher 2 </title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -446,10 +446,29 @@ async function doFlashTGZ() {
 // ── RPC FILE OPERATIONS ──────────────────────────────────────────
 async function rpcMkdir(path) {
   const id = cmdId++;
+  log(`Requesting mkdir: ${path}...`, 'in');
+  
+  // Construct the request
   const bytes = encodeMain({ commandId: id, storageMkdirRequest:{ path } });
-  await wMsg(bytes);
-  await sleep(500); // Wait for SD card to process
-  return readRpcResponse(id);
+  
+  try {
+    // Send the command
+    await wMsg(bytes);
+    
+    // Explicitly wait for the RPC response with a longer timeout
+    // If the directory exists, the Flipper returns status 0 (Success) or 9 (Already Exists)
+    const response = await readRpcResponse(id);
+    log(`Mkdir success: ${path}`, 'ok');
+    return response;
+  } catch (e) {
+    // If it fails because the directory already exists (Status 9), we treat it as success
+    if (e.message.includes('Status 9')) {
+      log(`Directory already exists: ${path}`, 'dm');
+      return; 
+    }
+    // Otherwise, re-throw to stop the flasher
+    throw new Error(`Failed to create ${path}: ${e.message}`);
+  }
 }
 
 async function rpcWriteFile(path, data, onProgress) {
