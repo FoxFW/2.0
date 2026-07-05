@@ -36,6 +36,110 @@ and a polished system-wide experience. It is designed around three goals:
 
 ---
 
+
+---
+
+## 🚗 Automotive & RF Research
+
+FoxFW is widely used for **automotive security research**, including key fob
+analysis, signal capture, tyre-pressure sensor monitoring, and remote-access
+system investigation. The Sub-GHz app ships with protocol decoders and encoders
+for the following manufacturers and systems — all within the 315 MHz, 433 MHz,
+and 868 MHz bands commonly used in automotive applications.
+
+> **Legal notice:** This functionality is intended for research on systems you
+> own or have explicit authorisation to test. Always comply with your local
+> radio and telecommunications regulations.
+
+### 🚙 Automotive Protocols
+
+| Manufacturer | Protocol | Frequency | Mod | Encoder | Decoder | CRC |
+|---|---|---|---|:---:|:---:|:---:|
+| VAG (VW / Audi / Skoda / Seat) | VAG GROUP | 433 MHz | AM | ✓ | ✓ | — |
+| Porsche | Porsche AG | 433 / 868 MHz | AM | ✓ | ✓ | — |
+| PSA (Peugeot / Citroën / DS) | PSA GROUP | 433 MHz | AM/FM | ✓ | ✓ | ✓ |
+| Ford | Ford V0 | 315 / 433 MHz | AM | ✓ | ✓ | ✓ |
+| Ford | Ford V1 | 315 / 433 MHz | FM | ✓ | ✓ | ✓ |
+| Fiat | Fiat SpA | 433 MHz | AM | ✓ | ✓ | ✓ |
+| Fiat | Marelli / Delphi | 433 MHz | AM | — | ✓ | ✓ |
+| Renault (older models) | Marelli | 433 MHz | AM | — | ✓ | — |
+| Mazda | Siemens 5WK49365D | 315 / 433 MHz | AM/FM | ✓ | ✓ | ✓ |
+| Kia / Hyundai | KIA/HYU V0 | 433 MHz | FM | ✓ | ✓ | ✓ |
+| Kia / Hyundai | KIA/HYU V1 | 315 / 433 MHz | AM | ✓ | ✓ | ✓ |
+| Kia / Hyundai | KIA/HYU V2 | 315 / 433 MHz | AM/FM | ✓ | ✓ | ✓ |
+| Kia / Hyundai | KIA/HYU V3 / V4 | 315 / 433 MHz | AM/FM | ✓ | ✓ | ✓ |
+| Kia / Hyundai | KIA/HYU V5 | 433 MHz | FM | ✓ | ✓ | ✓ |
+| Kia / Hyundai | KIA/HYU V6 | 433 MHz | FM | ✓ | ✓ | ✓ |
+| Kia / Hyundai | KIA V7 | 433 MHz | FM | ✓ | ✓ | ✓ |
+| Subaru | Subaru | 433 MHz | AM | ✓ | ✓ | — |
+| Suzuki | Suzuki | 433 MHz | FM | ✓ | ✓ | ✓ |
+| Mitsubishi | Mitsubishi V0 | 868 MHz | FM | ✓ | ✓ | — |
+| Honda | Honda Type A / B | 433 MHz | FM (custom) | ✓ | ✓ | — |
+| Honda | Honda Static | 433 MHz | AM | ✓ | ✓ | — |
+| Chrysler / Dodge / Jeep | FOBIK GQ43VT | 315 / 433 MHz | AM | ✓ | ✓ | — |
+| Starline | Star Line | 433 MHz | AM | ✓ | ✓ | — |
+| Scher-Khan | Scher-Khan | 433 MHz | FM | ✓ | ✓ | — |
+| Scher-Khan | Magic Code PRO1 / PRO2 | 433 MHz | FM | ✓ | ✓ | ✓ |
+| Sheriff | Sheriff CFM ZX750 / ZX930 | 433 MHz | AM | ✓ | ✓ | — |
+
+### 🏠 Gate & Access Control Protocols
+
+| Protocol | Frequency | Mod | Encoder | Decoder | CRC |
+|---|---|---|:---:|:---:|:---:|
+| Keeloq | 315 / 433 / 868 MHz | AM | ✓ | ✓ | — |
+| Nice FLO | 433 MHz | AM | ✓ | ✓ | — |
+| Nice FloR-S | 433 MHz | AM | ✓ | ✓ | ✓ |
+| CAME | 315 / 433 MHz | AM | ✓ | ✓ | — |
+| CAME TWEE | 433 MHz | AM | ✓ | ✓ | — |
+| CAME Atomo | 433 MHz | AM | ✓ | ✓ | — |
+| Faac SLH | 433 / 868 MHz | AM | ✓ | ✓ | — |
+| Holtek | 433 MHz | AM | ✓ | ✓ | — |
+| Holtek HT12x | 433 MHz | AM | ✓ | ✓ | — |
+| Somfy Telis | 433 MHz | AM | ✓ | ✓ | ✓ |
+| Somfy Keytis | 433 MHz | AM | ✓ | ✓ | ✓ |
+| Alutech AT-4N | 433 MHz | AM | ✓ | ✓ | ✓ |
+| Keyfinder | 433 MHz | AM | ✓ | ✓ | — |
+| KingGates Stylo4k | 433 MHz | AM | ✓ | ✓ | — |
+| Beninca ARC | 433 MHz | AM | ✓ | ✓ | — |
+| Hormann HSM | 433 / 868 MHz | AM | ✓ | ✓ | — |
+| Marantec | 433 MHz | AM | ✓ | ✓ | ✓ |
+| Marantec24 | 433 MHz | AM | ✓ | ✓ | ✓ |
+
+### 📡 General RF Protocols
+
+| Protocol | Frequency | Mod | Encoder | Decoder | CRC |
+|---|---|---|:---:|:---:|:---:|
+| Princeton | 315 / 433 MHz | AM | ✓ | ✓ | — |
+| Linear | 315 MHz | AM | ✓ | ✓ | — |
+| LinearDelta3 | 315 MHz | AM | ✓ | ✓ | — |
+| GateTX | 433 MHz | AM | ✓ | ✓ | — |
+| Security+ 1.0 | 315 MHz | AM | ✓ | ✓ | — |
+| Security+ 2.0 | 315 MHz | AM | ✓ | ✓ | — |
+| Chamberlain Code | 315 MHz | AM | ✓ | ✓ | — |
+| MegaCode | 315 MHz | AM | ✓ | ✓ | — |
+| Mastercode | 433 MHz | AM | ✓ | ✓ | — |
+| Dickert MAHS | 433 MHz | AM | ✓ | ✓ | — |
+| SMC5326 | 433 MHz | AM | ✓ | ✓ | — |
+| Phoenix V2 | 433 MHz | AM | ✓ | ✓ | — |
+| Doitrand | 433 MHz | AM | ✓ | ✓ | — |
+| Hay21 | 433 MHz | AM | ✓ | ✓ | — |
+| Revers RB2 | 433 MHz | AM | ✓ | ✓ | — |
+| Roger | 433 MHz | AM | ✓ | ✓ | — |
+
+<details>
+<summary>Column guide</summary>
+
+| Column | Meaning |
+|---|---|
+| **Mod** | Radio modulation — AM = OOK/ASK, FM = FSK |
+| **Encoder** | FoxFW can transmit / replay signals in this protocol |
+| **Decoder** | FoxFW can receive and decode signals in this protocol |
+| **CRC** | Protocol includes a checksum — decoded frames are validated |
+
+</details>
+
+---
+
 ## 📖 Full User Guide
 
 The complete guide covers every feature in detail — first-boot setup, all Fox
@@ -94,7 +198,7 @@ If you have exhausted your PIN attempts and cannot access the device, email us:
 
 **📧 foxcustomfirmware@gmail.com**
 
-Include your device serial number and a description of how you became locked out.
+Include a description of what happened and how you became locked out.
 
 ---
 

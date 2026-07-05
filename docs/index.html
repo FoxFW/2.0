@@ -317,6 +317,7 @@
           <li><a href="#mod-analyzer">Modulation Analyzer</a></li>
           <li><a href="#protocol-list">Protocol List</a></li>
           <li><a href="#gdr">Garage Door Remote</a></li>
+          <li><a href="#supported-systems">Supported Systems</a></li>
           <li><a href="#radio-settings">Radio Settings</a></li>
         </ul>
       </li>
@@ -674,19 +675,20 @@
     <div class="name">On Exceed</div>
     <div class="desc">
       What happens when wrong PINs exceed MAX Attempts.<br><br>
-      <strong>Fake Wipe:</strong> The device immediately reboots
-      and on the next startup displays a convincing "All data wiped" screen,
-      then launches the Fox Setup Wizard as though freshly installed. Your
-      data and settings are completely safe — only the lock state is reset.
-      Anyone who finds your Flipper will believe it has been factory-wiped.
-      The legitimate owner recovers by completing the Fox Setup Wizard.
+      <strong>Device is Locked:</strong> The device immediately reboots and
+      on the next startup displays a <em>"Locked!"</em> screen, advising
+      you to reinstall the firmware. The locked screen itself does not delete
+      anything — any actual data loss depends on the On Exceed settings you
+      configured beforehand.
     </div>
   </div>
 
-  <div class="box info">
-    <strong>Recovery after On Exceed triggers:</strong> Complete the Fox Setup
-    Wizard (you may set a new PIN and name), and normal operation resumes.
-    Your files and saved signals are untouched.
+  <div class="box warn">
+    <strong>Recovery after On Exceed triggers:</strong> The device is locked,
+    which also blocks qFlipper access. The fastest path back is a
+    <strong>DFU firmware reinstall</strong> — your SD card files are
+    unaffected. Alternatively, see the <a href="#lockout" style="color:inherit;">Lockout &amp; Recovery</a>
+    section below for a step-by-step guide (you will need a computer and your SD card).
   </div>
 
   <p><strong>Disconnect Services</strong></p>
@@ -1203,6 +1205,104 @@
     app — the radio state is fully reset between the two apps to prevent conflicts.
   </p>
 
+
+  <!-- SUPPORTED SYSTEMS -->
+  <h3 id="supported-systems">Supported Systems <span class="badge">Reference</span></h3>
+  <p>
+    FoxFW includes protocol decoders and encoders across three categories:
+    automotive key fobs, gate &amp; access control systems, and general RF
+    protocols. All operate within the 315 MHz, 433 MHz, and 868 MHz Sub-GHz
+    bands.
+  </p>
+  <div class="box warn">
+    <strong>Legal notice:</strong> Only capture, replay, or transmit signals on
+    systems you own or have explicit authorisation to test. Comply with your
+    local radio regulations.
+  </div>
+
+  <h3>Automotive Key Fob Protocols</h3>
+  <table>
+    <tr><th>Manufacturer</th><th>Protocol</th><th>Frequency</th><th>Mod</th><th>Encode</th><th>Decode</th><th>CRC</th></tr>
+    <tr><td>VAG (VW / Audi / Skoda / Seat)</td><td>VAG GROUP</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Porsche</td><td>Porsche AG</td><td>433 / 868 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>PSA (Peugeot / Citroën / DS)</td><td>PSA GROUP</td><td>433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Ford</td><td>Ford V0</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Ford</td><td>Ford V1</td><td>315 / 433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Fiat</td><td>Fiat SpA</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Fiat</td><td>Marelli / Delphi</td><td>433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Renault (older models)</td><td>Marelli</td><td>433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>—</td></tr>
+    <tr><td>Mazda</td><td>Siemens 5WK49365D</td><td>315 / 433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Kia / Hyundai</td><td>KIA/HYU V0</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Kia / Hyundai</td><td>KIA/HYU V1</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Kia / Hyundai</td><td>KIA/HYU V2</td><td>315 / 433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Kia / Hyundai</td><td>KIA/HYU V3 / V4</td><td>315 / 433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Kia / Hyundai</td><td>KIA/HYU V5</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Kia / Hyundai</td><td>KIA/HYU V6</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Kia / Hyundai</td><td>KIA V7</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Subaru</td><td>Subaru</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Suzuki</td><td>Suzuki</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Mitsubishi</td><td>Mitsubishi V0</td><td>868 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Honda</td><td>Honda Type A / B</td><td>433 MHz</td><td>FM (custom)</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Honda</td><td>Honda Static</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Chrysler / Dodge / Jeep</td><td>FOBIK GQ43VT</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Starline</td><td>Star Line</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Scher-Khan</td><td>Scher-Khan</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Scher-Khan</td><td>Magic Code PRO1 / PRO2</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Sheriff</td><td>Sheriff CFM ZX750 / ZX930</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+  </table>
+
+  <h3>Gate &amp; Access Control Protocols</h3>
+  <table>
+    <tr><th>Protocol</th><th>Frequency</th><th>Mod</th><th>Encode</th><th>Decode</th><th>CRC</th></tr>
+    <tr><td>Keeloq</td><td>315 / 433 / 868 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Nice FLO</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Nice FloR-S</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>CAME</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>CAME TWEE</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>CAME Atomo</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Faac SLH</td><td>433 / 868 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Holtek</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Holtek HT12x</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Somfy Telis</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Somfy Keytis</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Alutech AT-4N</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Keyfinder</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>KingGates Stylo4k</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Beninca ARC</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Hormann HSM</td><td>433 / 868 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Marantec</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Marantec24</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+  </table>
+
+  <h3>General RF Protocols</h3>
+  <table>
+    <tr><th>Protocol</th><th>Frequency</th><th>Mod</th><th>Encode</th><th>Decode</th><th>CRC</th></tr>
+    <tr><td>Princeton</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Linear</td><td>315 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>LinearDelta3</td><td>315 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>GateTX</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Security+ 1.0</td><td>315 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Security+ 2.0</td><td>315 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Chamberlain Code</td><td>315 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>MegaCode</td><td>315 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Mastercode</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Dickert MAHS</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>SMC5326</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Phoenix V2</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Doitrand</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Hay21</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Revers RB2</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Roger</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+  </table>
+
+  <div class="box info">
+    <strong>Column guide:</strong><br>
+    <strong>Mod</strong> — Modulation: AM = OOK/ASK · FM = FSK<br>
+    <strong>Encode</strong> — FoxFW can transmit / replay signals in this protocol<br>
+    <strong>Decode</strong> — FoxFW can receive and identify signals in this protocol<br>
+    <strong>CRC</strong> — Protocol includes a checksum; decoded frames are validated (✓) or not (—)
+  </div>
+
   <!-- RADIO SETTINGS -->
   <h3 id="radio-settings">Radio Settings</h3>
   <div class="setting">
@@ -1322,10 +1422,9 @@
   <p>
     If you remember your PIN but keep entering it wrong, stop — every failed
     attempt counts toward the MAX Attempts limit. Once the limit is reached,
-    the On Exceed action activates and the device will reboot, appearing as
-    though it has been wiped. Your data and files are completely safe —
-    only the lock state is reset. Complete the Fox Setup Wizard that appears
-    to regain access and optionally set a new PIN.
+    the On Exceed action fires and the device reboots to a <strong>"Locked!"</strong>
+    screen. At that point normal access via the device or qFlipper is blocked.
+    See below for recovery options.
   </p>
 
   <h3>I am completely locked out</h3>
@@ -1334,11 +1433,13 @@
   </p>
   <ol>
     <li>
-      <strong>Reinstall the firmware via qFlipper.</strong> Connect your
-      Flipper via USB, open qFlipper, and use <em>Install from file</em>
-      to flash a FoxFW update package. This will restore normal access.
-      Your SD card files (saved signals, NFC cards, etc.) are not affected
-      by a firmware reinstall.
+      <strong>Reinstall the firmware via qFlipper DFU Mode.</strong> Boot your
+      Flipper into DFU mode (there are several methods for this that should be
+      common knowledge to you by now). In DFU Mode, connect your Flipper via
+      USB, open qFlipper, and use <em>Install from file</em> to flash
+      <code>flipper-z-f7-full-local.dfu</code>. This will restore normal
+      access. Your SD card files (saved signals, NFC cards, etc.) are not
+      affected by a firmware reinstall.
     </li>
     <li>
       <strong>Contact support.</strong> Email us and we will provide
