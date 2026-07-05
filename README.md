@@ -36,11 +36,13 @@ and a polished system-wide experience. It is designed around three goals:
 | 🧙 **First-Boot Wizard** | Guided setup for device name and PIN on every fresh install |
 
 ---
-
 <div align="center">
-  <video src="docs/FoxFW2.0.mp4" width="100%" controls style="max-width:100%;aspect-ratio:auto;">
-    <a href="docs/FoxFW2.0.mp4">▶ Watch the FoxFW 2.0 overview video</a>
-  </video>
+
+  
+[<img src="https://img.youtube.com/vi/u-cc7IC2_9I/hqdefault.jpg" width="100%" height="500"/>](https://www.youtube.com/embed/u-cc7IC2_9I)
+  
+<a href="https://www.youtube.com/embed/u-cc7IC2_9I">Watch our video!</a>
+
 </div>
 
 ---
