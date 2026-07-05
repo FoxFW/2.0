@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v9 · 2026-07-05 10:30 UTC]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v10 · 2026-07-05 10:39 UTC]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -78,7 +78,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 10:30 UTC" style="cursor:default;">TEST v9 · 2026-07-05 10:30 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 10:30 UTC" style="cursor:default;">TEST v10 · 2026-07-05 10:39 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 
@@ -300,12 +300,14 @@ async function doFlash() {
 
 // ── TGZ / RPC FLASH ──────────────────────────────────────────────
 async function doFlashTGZ() {
-  // 1. Download
+  // ── Step 1: Download + parse while serial sits idle ───────────────
+  // Do ALL the slow work (8MB download, decompress, parse) BEFORE
+  // we do anything time-sensitive with the serial port. The Flipper's
+  // RPC session can time out if we leave it idle for several seconds.
   pg(0.01, 'Downloading firmware…'); log('Downloading ' + TGZ_URL + '…', 'in');
   const tgz = await fetchXHR(TGZ_URL, p => pg(0.01 + p * 0.30, `Downloading… ${Math.round(p*100)}%`));
   log(`Downloaded ${(tgz.length/1024/1024).toFixed(1)} MB`, 'ok');
 
-  // 2. Decompress + parse
   pg(0.31, 'Decompressing…'); log('Decompressing…');
   const tar = pako.inflate(tgz);
   const files = parseTar(tar);
@@ -316,21 +318,31 @@ async function doFlashTGZ() {
   const sdBase = `/ext/update/${topDir}`;
   log(`Update directory: ${sdBase}`, 'in');
 
-  // 3. Find manifest
   const manifest = files.find(f => f.name.endsWith('update.fuf'));
   if (!manifest) throw new Error('update.fuf manifest not found in TGZ package');
   const manifestSD = `/ext/update/${manifest.name}`;
 
-  // 4. Create directories on SD card
-  log('Creating update directory on SD card…', 'in');
-  // Start background drain NOW — prevents the bidirectional deadlock where
-  // unread Flipper responses fill its USB send buffer, stalling its receive
-  // handler, which then blocks our serialWriter.write() calls.
+  // ── Step 2: Re-establish RPC session immediately before upload ────
+  // We re-send start_rpc_session right now so the Flipper is in a
+  // known-fresh RPC state with zero idle time before our first write.
+  log('Re-establishing RPC session…', 'in');
+  pg(0.32, 'Starting RPC session…');
+  readBuf = new Uint8Array(0); cmdId = 1;
+  await serialWriter.write(new TextEncoder().encode('\r\nstart_rpc_session\r\n'));
+  await sleep(600); // let the Flipper switch modes
+  readBuf = new Uint8Array(0); // discard any CLI response text
+  log('RPC session ready — beginning upload', 'ok');
+
+  // ── Step 3: Start drain + upload immediately ──────────────────────
+  // bgDrain runs concurrently to prevent the Flipper's USB send buffer
+  // filling with unread responses and deadlocking the write path.
   startDrain();
+
+  log('Creating update directory on SD card…', 'in');
+  pg(0.33, 'Creating directories…');
   await rpcMkdir('/ext/update');
   await rpcMkdir(sdBase);
 
-  // 5. Upload each file
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
     const sdPath = `/ext/update/${f.name}`;
@@ -341,12 +353,12 @@ async function doFlashTGZ() {
     log(`✓ ${f.name}`, 'ok');
   }
 
-  // 6. Trigger update
+  // ── Step 4: Trigger update ────────────────────────────────────────
   log('Triggering firmware update…', 'in');
   pg(0.94, 'Triggering update…');
   await rpcUpdate(manifestSD);
   stopDrain();
-  log('Update triggered — Flipper is rebooting to install firmware', 'ok');
+  log('Update triggered — Flipper is rebooting to install', 'ok');
   pg(1, 'Done!');
   try { await doDisconnect(); } catch {}
 }
@@ -525,6 +537,7 @@ async function doFlashDFU(){
   log(`Downloaded ${(dfuData.length/1024/1024).toFixed(1)} MB`,'ok');
   pg(0.32,'Flashing via DFU…');
   const dev=window._dfuDev;
+  if(!dev) throw new Error('No DFU device connected. Enter DFU mode first (hold Left + Back while powering on), reconnect, then try again.');
   await dev.open();
   let ifn=0;
   for(const c of dev.configurations) for(const i of c.interfaces) for(const a of i.alternates)
