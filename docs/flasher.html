@@ -967,6 +967,8 @@ async function drainSerialBuffer(timeoutMs) {
     }).catch(() => { clearTimeout(timer); done(); });
   });
 }
+
+async function serialReadExact(n) {
   while (readBuffer.length < n) {
     const { value, done } = await serialReader.read();
     if (done) throw new Error('Serial connection closed');
