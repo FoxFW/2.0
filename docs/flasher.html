@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v40]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v41]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-06 06:48 UTC" style="cursor:default">TEST v40 · 2026-07-06 07:15 UTC</div>
+  <div class="badge test" title="Built: 2026-07-06 07:15 UTC" style="cursor:default">TEST v41 · 2026-07-06 10:35 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -416,6 +416,19 @@ async function doFlashTGZ() {
   log('Creating directories on SD card…','in');
   await rpcMkdir('/ext/update');
   await rpcMkdir(sdBase);
+
+  // 3b. Preflight: write a tiny test file BEFORE the real 8MB transfer.
+  // Isolates whether ANY data-bearing Storage.WriteRequest crashes the
+  // firmware (a handler-level bug unrelated to size/throughput) versus
+  // only larger/longer transfers. Cheap to run, saves re-downloading and
+  // re-decompressing the whole package just to hit the same crash again.
+  log('Preflight: testing a tiny write before the real upload…','in');
+  try {
+    await rpcWriteFile(`${sdBase}/.foxfw_preflight`, new Uint8Array([0xDE,0xAD,0xBE,0xEF]), null);
+    log('Preflight write OK — proceeding with real upload','ok');
+  } catch (e) {
+    throw new Error('Preflight tiny write failed — this points to a firmware-side RPC storage bug, not a data-size/throughput issue. Original error: ' + e.message);
+  }
 
   // 4. Upload each file
   for (let fi=0; fi<files.length; fi++) {
