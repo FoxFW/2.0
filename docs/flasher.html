@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v54]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v55]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -68,7 +68,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-07 00:20 UTC" style="cursor:default">TEST v54 · 2026-07-07 00:35 UTC</div>
+  <div class="badge test" title="Built: 2026-07-07 00:35 UTC" style="cursor:default">TEST v55 · 2026-07-07 00:50 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="wrap">
@@ -122,7 +122,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
 const CHUNK    = 512;   // matches lab.flipper.net (Momentum/Unleashed's shared base) exactly
-let DFU_BLK    = 64; // conservative default — 2048 caused transfer errors on real data blocks while tiny (5-byte) commands always worked; 64B is the full-speed USB control transfer max packet size and should be safe on virtually any device
+let DFU_BLK    = 256; // moderate size — 2048 failed almost immediately, 64 got much further (hundreds of blocks) before an isolated transfer error; now paired with retry logic, so we don't need to go as small purely to minimize risk per-transfer
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
 
@@ -806,9 +806,35 @@ function parseDFU(buf){
   }
   return ts;
 }
-async function dfuDnload(d,i,n,data){const r=await d.controlTransferOut({requestType:'class',recipient:'interface',request:1,value:n,index:i},data);if(r.status!=='ok')throw new Error('DFU_DNLOAD: '+r.status);}
-async function dfuGetSt(d,i){const r=await d.controlTransferIn({requestType:'class',recipient:'interface',request:3,value:0,index:i},6),v=r.data;return{bStatus:v.getUint8(0),bwPollTimeout:v.getUint8(1)|(v.getUint8(2)<<8)|(v.getUint8(3)<<16),bState:v.getUint8(4)};}
-async function dfuClrSt(d,i){await d.controlTransferOut({requestType:'class',recipient:'interface',request:4,value:0,index:i});}
+// Both dnload and getStatus can hit an isolated, transient "transfer
+// error" on real hardware even when the overall sequence is correct —
+// this got much further (hundreds of blocks) before failing than any
+// previous attempt, and failed on an ordinary status *read*, which looks
+// more like a one-off USB/driver hiccup than a protocol mismatch. Retry
+// a couple of times with a short backoff before giving up for good.
+async function withRetry(fn, attempts=3, delayMs=30) {
+  let lastErr;
+  for (let i=0; i<attempts; i++) {
+    try { return await fn(); }
+    catch (e) { lastErr = e; if (i < attempts-1) await sleep(delayMs * (i+1)); }
+  }
+  throw lastErr;
+}
+async function dfuDnload(d,i,n,data){
+  await withRetry(async () => {
+    const r = await d.controlTransferOut({requestType:'class',recipient:'interface',request:1,value:n,index:i},data);
+    if (r.status!=='ok') throw new Error('DFU_DNLOAD: '+r.status);
+  });
+}
+async function dfuGetSt(d,i){
+  return withRetry(async () => {
+    const r=await d.controlTransferIn({requestType:'class',recipient:'interface',request:3,value:0,index:i},6),v=r.data;
+    return{bStatus:v.getUint8(0),bwPollTimeout:v.getUint8(1)|(v.getUint8(2)<<8)|(v.getUint8(3)<<16),bState:v.getUint8(4)};
+  });
+}
+async function dfuClrSt(d,i){
+  await withRetry(async () => { await d.controlTransferOut({requestType:'class',recipient:'interface',request:4,value:0,index:i}); });
+}
 async function dfuPoll(d,i){for(let n=0;n<200;n++){const s=await dfuGetSt(d,i);if(s.bState===10){await dfuClrSt(d,i);throw new Error(`DFU error bStatus=${s.bStatus}`);}if(s.bState!==4)return s;await sleep(Math.max(s.bwPollTimeout,10));}throw new Error('DFU poll timeout');}
 
 // ── TAR PARSER ───────────────────────────────────────────────────
