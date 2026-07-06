@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v46]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v47]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-06 21:55 UTC" style="cursor:default">TEST v46 · 2026-07-06 22:10 UTC</div>
+  <div class="badge test" title="Built: 2026-07-06 22:10 UTC" style="cursor:default">TEST v47 · 2026-07-06 22:20 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -420,7 +420,7 @@ async function doFlashTGZ() {
   // 3b. Preflight #1: a single-message write (hasNext:false immediately).
   // Isolates whether ANY data-bearing Storage.WriteRequest crashes the
   // firmware, independent of size/throughput.
-  log('Preflight 1/5: single-chunk write…','in');
+  log('Preflight 1/3: single-chunk write…','in');
   try {
     await rpcWriteFile(`${sdBase}/.foxfw_preflight1`, new Uint8Array([0xDE,0xAD,0xBE,0xEF]), null);
     log('Preflight 1 OK (single-chunk write)','ok');
@@ -434,7 +434,7 @@ async function doFlashTGZ() {
   // KB) but exercises the exact code path (continuation handling) that
   // the real upload crashes on almost immediately — narrows the bug to
   // "any multi-chunk write" vs. "something specific to this large file."
-  log('Preflight 2/5: multi-chunk write (tests hasNext continuation)…','in');
+  log('Preflight 2/3: multi-chunk write (tests hasNext continuation)…','in');
   try {
     const twoChunkData = new Uint8Array(CHUNK + 16).fill(0x42);
     await rpcWriteFile(`${sdBase}/.foxfw_preflight2`, twoChunkData, null);
@@ -443,49 +443,23 @@ async function doFlashTGZ() {
     throw new Error('Preflight 2 (multi-chunk / hasNext continuation write) failed — the firmware crashes specifically on chunked writes (hasNext:true), not on data writes in general. Look at your RPC storage handler\'s continuation-message code path. Original error: ' + e.message);
   }
 
-  // 3d. Preflight 3/4/5: an isolating battery. Preflight 3 (1536 bytes,
-  // CHUNK=512, so 2 full continuation chunks + a full 512-byte final
-  // chunk) crashed — but that test tangles THREE variables together:
-  // (a) total length is an exact multiple of 512, (b) the final message
-  // is a full CHUNK_SIZE, (c) there were 2 consecutive hasNext:true
-  // chunks before it. These three tests each change ONE of those while
-  // holding the others as close to constant as possible, so the next
-  // log tells us which one actually matters instead of guessing again.
-  log('Preflight 3/5: length=1537 (NOT a multiple of 512), same chunk shape…','in');
+  // 3d. Preflight 3: bisect on NUMBER of continuation (hasNext:true)
+  // chunks per command, since that's the variable that actually lines up
+  // with our results so far — not length, not alignment, not framing:
+  //   Preflight 2 (1 continuation chunk, then 1 final)      → OK
+  //   length=1536, CHUNK=512 (2 continuations, then 1 final) → CRASHED
+  //   length=1537, CHUNK=512 (3 continuations, then 1 final) → CRASHED
+  // We've never actually tested exactly 2 continuation chunks in
+  // isolation — this does, to find out if the failure threshold is
+  // between 1 and 2, or somewhere higher.
+  log('Preflight 3: exactly 2 continuation chunks (3 messages total)…','in');
   try {
-    // 512(T), 512(T), 512(T), 1(F) — same chunk count/pattern as the
-    // crash case, but total length shifted by 1 byte so it's no longer
-    // a multiple of 512. Tests whether total-length-alignment matters.
-    const d = new Uint8Array(1537).fill(0x11);
-    await rpcWriteFile(`${sdBase}/.foxfw_pf3`, d, null);
-    log('Preflight 3 OK (non-multiple length, 3 continuations)','ok');
+    // 512(T), 512(T), 1(F) — 3 messages total for one commandId.
+    const d = new Uint8Array(1025).fill(0x33);
+    await rpcWriteFile(`${sdBase}/.foxfw_pf3b`, d, null);
+    log('Preflight 3 OK (2 continuations / 3 messages total)','ok');
   } catch (e) {
-    throw new Error('Preflight 3 (length=1537) failed — crashes even when total length is NOT a multiple of 512, with the same chunk pattern otherwise. Points away from a length-alignment theory. Original error: ' + e.message);
-  }
-
-  log('Preflight 4/5: length=1536 but CHUNK=500 (different framing, same total)…','in');
-  try {
-    // 500(T), 500(T), 500(T), 36(F) — same total length (1536, still a
-    // multiple of 512) as the crash case, but chunk boundaries land at
-    // completely different byte offsets and the final chunk is short.
-    // Tests whether it's about total file length vs. message framing.
-    const d = new Uint8Array(1536).fill(0x22);
-    await rpcWriteFile(`${sdBase}/.foxfw_pf4`, d, null, 500);
-    log('Preflight 4 OK (same total length, different chunk framing)','ok');
-  } catch (e) {
-    throw new Error('Preflight 4 (length=1536, CHUNK=500) failed — crashes even with different chunk framing at the same total length. Points toward a total-file-length/FS-layer issue rather than RPC message framing. Original error: ' + e.message);
-  }
-
-  log('Preflight 5/5: repeat original crash case (length=1536, CHUNK=512)…','in');
-  try {
-    // Exact repeat of the test that crashed before, as a control —
-    // confirms it still crashes under identical conditions (ruling out
-    // a fluke) now that we have Preflight 3 and 4 for comparison.
-    const d = new Uint8Array(1536).fill(0x99);
-    await rpcWriteFile(`${sdBase}/.foxfw_pf5`, d, null);
-    log('Preflight 5 OK — proceeding with real upload','ok');
-  } catch (e) {
-    throw new Error('Preflight 5 (length=1536, CHUNK=512 — the original crash case) failed again, as expected/control. Compare against Preflight 3 and 4 results above to see which variable actually matters. Original error: ' + e.message);
+    throw new Error('Preflight 3 (exactly 2 continuation chunks, 3 messages total for one commandId) failed — the firmware breaks after the SECOND continuation message reusing the same commandId. This points at a fixed-size buffer/array in the RPC storage handler sized for only ~1 continuation. Original error: ' + e.message);
   }
 
   // 4. Upload each file
