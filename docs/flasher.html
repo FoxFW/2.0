@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v55]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v56]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -68,7 +68,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-07 00:35 UTC" style="cursor:default">TEST v55 · 2026-07-07 00:50 UTC</div>
+  <div class="badge test" title="Built: 2026-07-07 00:50 UTC" style="cursor:default">TEST v56 · 2026-07-07 01:10 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="wrap">
@@ -122,7 +122,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
 const CHUNK    = 512;   // matches lab.flipper.net (Momentum/Unleashed's shared base) exactly
-let DFU_BLK    = 256; // moderate size — 2048 failed almost immediately, 64 got much further (hundreds of blocks) before an isolated transfer error; now paired with retry logic, so we don't need to go as small purely to minimize risk per-transfer
+let DFU_BLK    = 1024; // matches XFER in the proven Fantasi reference implementation exactly
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
 
@@ -743,8 +743,7 @@ async function doFlashDFU() {
     if(a.interfaceClass===0xFE&&a.interfaceSubclass===0x01) ifn=i.interfaceNumber;
   await dev.selectConfiguration(1); await dev.claimInterface(ifn);
   log(`DFU iface ${ifn} claimed`,'ok');
-  const st=await dfuGetSt(dev,ifn);
-  if(st.bStatus!==0||st.bState===10){await dfuClrSt(dev,ifn);}
+  await dfuPrepare(dev,ifn);
   const targets=parseDFU(dfuData);
   let tot=0,done=0;
   for(const t of targets) for(const e of t.elements) tot+=Math.ceil(e.data.length/DFU_BLK);
@@ -768,6 +767,7 @@ async function doFlashDFU() {
       const endAddr    = el.address + el.data.length;
       let pagesErased = 0;
       for (let pageAddr = startPage; pageAddr < endAddr; pageAddr += PAGE) {
+        await dfuPrepare(dev,ifn); // verify/recover idle state before EVERY erase — not just once at the start
         const erCmd = new Uint8Array([0x41, pageAddr&0xFF, (pageAddr>>8)&0xFF, (pageAddr>>16)&0xFF, (pageAddr>>24)&0xFF]);
         await dfuDnload(dev,ifn,0,erCmd);
         await dfuPoll(dev,ifn);
@@ -775,6 +775,7 @@ async function doFlashDFU() {
       }
       log(`  Erased ${pagesErased} flash page(s)`,'dm');
 
+      await dfuPrepare(dev,ifn); // verify/recover idle state before setAddr, same as the reference
       const ac=new Uint8Array([0x21,el.address&0xFF,(el.address>>8)&0xFF,(el.address>>16)&0xFF,(el.address>>24)&0xFF]);
       await dfuDnload(dev,ifn,0,ac); await dfuPoll(dev,ifn);
       const nb=Math.ceil(el.data.length/DFU_BLK);
@@ -834,6 +835,28 @@ async function dfuGetSt(d,i){
 }
 async function dfuClrSt(d,i){
   await withRetry(async () => { await d.controlTransferOut({requestType:'class',recipient:'interface',request:4,value:0,index:i}); });
+}
+async function dfuAbort(d,i){
+  await withRetry(async () => { await d.controlTransferOut({requestType:'class',recipient:'interface',request:6,value:0,index:i}); });
+}
+// Ported from a working reference implementation (Fantasi firmware's web
+// flasher). Actively verifies the device is in dfuIDLE (state 2) before a
+// critical operation, and recovers via CLRSTATUS (if bStatus indicates an
+// error) or ABORT (if it's just mid-operation) rather than assuming the
+// device is already in a good state. Our version only ever checked this
+// ONCE at the very start of the whole flash — this checks before every
+// erase and before setAddr, which is very plausibly why our failures got
+// progressively further before an eventual disconnect: state drift
+// accumulating across hundreds of transfers with nothing to correct it.
+async function dfuPrepare(d,i){
+  for (let n=0; n<6; n++) {
+    let st;
+    try { st = await dfuGetSt(d,i); } catch(e) { await dfuClrSt(d,i); continue; }
+    if (st.bState === 2) return true; // dfuIDLE
+    if (st.bStatus !== 0) await dfuClrSt(d,i);
+    else await dfuAbort(d,i);
+  }
+  try { return (await dfuGetSt(d,i)).bState === 2; } catch(e) { return false; }
 }
 async function dfuPoll(d,i){for(let n=0;n<200;n++){const s=await dfuGetSt(d,i);if(s.bState===10){await dfuClrSt(d,i);throw new Error(`DFU error bStatus=${s.bStatus}`);}if(s.bState!==4)return s;await sleep(Math.max(s.bwPollTimeout,10));}throw new Error('DFU poll timeout');}
 
