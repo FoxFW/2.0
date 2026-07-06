@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v37]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v38]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v37 · 2026-07-06 06:38 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v38 · 2026-07-06 06:45 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -376,19 +376,49 @@ async function connectSerial() {
   cmdId = 1;
   log('Port opened — starting RPC session immediately…','ok');
 
-  // Send commands immediately (before banner finishes — full-duplex: CLI
-  // processes input while simultaneously sending the banner output)
-  await serialWriter.write(new TextEncoder().encode('\r\n'));
+  // DIAGNOSTIC v38: log writes explicitly, print ALL received bytes as ASCII
+  const wLog = async (lbl, data) => {
+    try { await serialWriter.write(data); log('[write OK] '+lbl,'dm'); }
+    catch(e) { log('[write FAIL] '+lbl+': '+e.message,'er'); throw e; }
+  };
+  await wLog('CR LF', new TextEncoder().encode('\r\n'));
   await sleep(80);
-  await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
-  await sleep(120);
+  await wLog('start_rpc_session', new TextEncoder().encode('start_rpc_session\r\n'));
+  await sleep(200);
   const pingCmdId = cmdId++;
-  await serialWriter.write(encodeMain({ commandId:pingCmdId, systemPingRequest:{} }));
-  log(`Ping sent (cmdId=${pingCmdId}) — reading banner + response…`,'dm');
+  await wLog('ping cmdId='+pingCmdId, encodeMain({ commandId:pingCmdId, systemPingRequest:{} }));
+  log('Reading ALL bytes for 6s…','dm');
 
-  const pingResp = await readRespDirect(8000, pingCmdId);
-  if (!pingResp) throw new Error('RPC session failed — no ping response. Flipper must be on the desktop.');
-  log(`RPC session active ✓ (cmdId=${pingResp.commandId} status=${pingResp.commandStatus})`,'ok');
+  const allRx = [];
+  const end6 = Date.now() + 6000;
+  while (Date.now() < end6) {
+    let r;
+    try { r = await Promise.race([serialReader.read(), sleep(400).then(()=>null)]); }
+    catch { break; }
+    serialReader.releaseLock(); serialReader = serialPort.readable.getReader();
+    if (!r) continue; if (r.done) break;
+    if (r.value) {
+      for (const b of r.value) allRx.push(b);
+      const txt = Array.from(r.value).map(b=>b>=32&&b<127?String.fromCharCode(b):(b===13||b===10?'↵':'.')).join('');
+      log('[rx '+r.value.length+'B] '+txt.slice(0,100),'dm');
+    }
+  }
+  log('Total rx: '+allRx.length+'B','dm');
+
+  // Search all received bytes for ping response
+  let found = null;
+  for (let i = 0; i < allRx.length; i++) {
+    let p=0, ml=0, sh=0; const sl = allRx.slice(i);
+    while(p<Math.min(sl.length,5)){const b=sl[p++];ml|=(b&0x7F)<<sh;sh+=7;if(!(b&0x80))break;}
+    if(p>0&&ml>0&&ml<1000&&sl.length>=p+ml){
+      try{const m=Main.decode(new Uint8Array(sl.slice(p,p+ml)));
+        log('[decoded +'+i+'] cmdId='+m.commandId+' status='+m.commandStatus,'dm');
+        if(m.commandId===pingCmdId){found=m;break;}
+      }catch{}
+    }
+  }
+  if (!found) throw new Error('RPC failed — ping not in '+allRx.length+'B. See log for what Flipper sent.');
+  log('RPC session active ✓ (cmdId='+found.commandId+' status='+found.commandStatus+')','ok');
 
   // Start bgDrain + keepalive so pipe_receive stays alive during the firmware download
   startDrain();
