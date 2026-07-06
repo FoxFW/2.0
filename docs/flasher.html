@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v26]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v27]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v26 · 2026-07-06 04:57 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v27 · 2026-07-06 05:00 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -274,24 +274,13 @@ async function connectSerial() {
   await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
   await sleep(800); // wait for Flipper to process CLI command and switch modes
 
-  // 2. Drain ALL CLI text using release/re-acquire on each attempt.
-  //    Loop until 400ms of silence (all CLI echoes have arrived and been consumed).
-  //    This handles: ANSI banner + prompt + start_rpc_session echo.
-  log('Draining CLI output…','dm');
-  while (true) {
-    serialReader.releaseLock();            // cancel any pending reads
-    serialReader = serialPort.readable.getReader();
-    let got = false;
-    await Promise.race([
-      serialReader.read().then(({value}) => {
-        if(value){ got=true; log('CLI: '+new TextDecoder().decode(value).trim(),'dm'); }
-      }),
-      sleep(400)
-    ]);
-    serialReader.releaseLock();            // cancel dangling read if sleep won
-    serialReader = serialPort.readable.getReader();
-    if (!got) break;                       // 400ms silence = all CLI text drained
-  }
+  // 2. Fixed 1200ms sleep — lets CLI text arrive without triggering pipe_receive
+  //    timeout in rpc_cli.c (the 400ms-silence drain loop was closing the session).
+  //    readRespDirect will slide through any buffered CLI text automatically.
+  await sleep(1200);
+  serialReader.releaseLock();
+  serialReader = serialPort.readable.getReader();
+  log('RPC session started — sending ping…','dm');
 
   // 3. Verify RPC mode with a ping
   log('Verifying RPC session…','in');
@@ -331,7 +320,9 @@ async function readRespDirect(timeoutMs) {
     serialReader.releaseLock();
     serialReader = serialPort.readable.getReader();
 
-    if (!result || result.done) { log(`  [rrd] breaking: result=${JSON.stringify(result)}`, 'dm'); break; }
+    // sleep won = no data yet → continue. done=true = stream closed → break.
+    if (result === null) continue;
+    if (!result || result.done) { log(`  [rrd] stream closed or null: ${JSON.stringify(result)}`, 'dm'); break; }
     if (result.value) {
       const hex = Array.from(result.value.slice(0,16)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
       log(`[rx ${result.value.length}B] ${hex}${result.value.length>16?'…':''}`, 'dm');
