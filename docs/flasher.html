@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v51]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v52]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -68,7 +68,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-06 23:15 UTC" style="cursor:default">TEST v51 · 2026-07-06 23:45 UTC</div>
+  <div class="badge test" title="Built: 2026-07-06 23:45 UTC" style="cursor:default">TEST v52 · 2026-07-07 00:05 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="wrap">
@@ -79,12 +79,12 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
     <div class="mc sel" id="mc-tgz" onclick="selMethod('tgz')">
       <div class="mh"><span class="mi">📲</span><span class="mt">Standard Update</span><span class="tag tag-r">RECOMMENDED</span></div>
       <div class="md">Flipper is on and at the desktop. Uploads firmware to SD card via USB RPC and triggers install. Files preserved.</div>
-      <button class="bsm pri mc-connect" id="bcon-tgz" onclick="event.stopPropagation(); doConnect('tgz')">Connect Flipper</button>
+      <button class="bsm pri mc-connect" id="bcon-tgz" onclick="event.stopPropagation(); doConnect('tgz')">Connect</button>
     </div>
     <div class="mc" id="mc-dfu" onclick="selMethod('dfu')">
       <div class="mh"><span class="mi">🛠️</span><span class="mt">DFU Recovery</span><span class="tag tag-d">RECOVERY</span></div>
       <div class="md">Flipper unresponsive. Hold <strong>Left + Back</strong> while powering on. Writes firmware directly via WebUSB.</div>
-      <button class="bsm pri mc-connect" id="bcon-dfu" onclick="event.stopPropagation(); doConnect('dfu')">Connect Flipper</button>
+      <button class="bsm pri mc-connect" id="bcon-dfu" onclick="event.stopPropagation(); doConnect('dfu')">Connect DFU</button>
     </div>
   </div>
   <div class="fwcard">
@@ -748,9 +748,33 @@ async function doFlashDFU() {
   const targets=parseDFU(dfuData);
   let tot=0,done=0;
   for(const t of targets) for(const e of t.elements) tot+=Math.ceil(e.data.length/DFU_BLK);
+  // Internal flash is always alt-setting 0 for ST's DfuSe bootloaders —
+  // select it explicitly rather than relying on whatever the OS left
+  // active, in case a prior session/negotiation left a different
+  // alt-setting (e.g. Option Bytes) selected.
+  try { await dev.selectAlternateInterface(ifn, 0); } catch(e) { log('selectAlternateInterface skipped: '+e.message,'dm'); }
   for(const target of targets){
     for(const el of target.elements){
       log(`Flash @ 0x${el.address.toString(16).toUpperCase()} (${(el.data.length/1024).toFixed(0)} KB)…`);
+
+      // DfuSe bootloaders do NOT auto-erase flash before writing — the
+      // host must explicitly erase each page first (command 0x41 + page
+      // address), or writes can fail/corrupt. This was missing entirely,
+      // which very plausibly explains the raw USB transfer error partway
+      // through the write (not a DFU-status error, a lower-level one —
+      // consistent with writing to an unerased page).
+      const PAGE = 4096; // STM32WB55 internal flash page size
+      const startPage = Math.floor(el.address / PAGE) * PAGE;
+      const endAddr    = el.address + el.data.length;
+      let pagesErased = 0;
+      for (let pageAddr = startPage; pageAddr < endAddr; pageAddr += PAGE) {
+        const erCmd = new Uint8Array([0x41, pageAddr&0xFF, (pageAddr>>8)&0xFF, (pageAddr>>16)&0xFF, (pageAddr>>24)&0xFF]);
+        await dfuDnload(dev,ifn,0,erCmd);
+        await dfuPoll(dev,ifn);
+        pagesErased++;
+      }
+      log(`  Erased ${pagesErased} flash page(s)`,'dm');
+
       const ac=new Uint8Array([0x21,el.address&0xFF,(el.address>>8)&0xFF,(el.address>>16)&0xFF,(el.address>>24)&0xFF]);
       await dfuDnload(dev,ifn,0,ac); await dfuPoll(dev,ifn);
       const nb=Math.ceil(el.data.length/DFU_BLK);
