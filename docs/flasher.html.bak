@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v51]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v50]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -13,12 +13,14 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 .badge{background:rgba(232,117,10,.13);border:1px solid var(--orange);color:var(--accent);font-size:.66rem;padding:2px 8px;border-radius:20px;letter-spacing:1px;font-weight:700}
 .badge.test{background:rgba(196,122,255,.13);border-color:#c47aff;color:#c47aff}
 .topbar a{margin-left:auto;color:#555;font-size:.82rem;text-decoration:none}.topbar a:hover{color:var(--accent)}
+.connbar{background:var(--mid);border-bottom:1px solid var(--border);padding:11px 22px;display:flex;align-items:center;gap:12px;flex-shrink:0}
 .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;transition:background .3s}
 .dot.off{background:#c0392b;box-shadow:0 0 5px #c0392b80}
 .dot.on{background:var(--green);box-shadow:0 0 7px var(--green);animation:blk 1.6s steps(2) infinite}
 .dot.busy{background:var(--accent);box-shadow:0 0 7px var(--accent);animation:blk .5s steps(2) infinite}
 @keyframes blk{50%{opacity:.15}}
-.conn-label{font-size:.88rem;font-weight:600;color:#ddd}.conn-sub{font-size:.74rem;color:#555;margin-top:1px}
+.conn-text{flex:1}.conn-label{font-size:.88rem;font-weight:600;color:#ddd}.conn-sub{font-size:.74rem;color:#555;margin-top:1px}
+.conn-btns{display:flex;gap:8px}
 .bsm{border:1px solid var(--border);background:transparent;color:#777;font-size:.8rem;padding:5px 13px;border-radius:4px;cursor:pointer;transition:all .15s}
 .bsm:hover{color:var(--light);border-color:#555}
 .bsm.pri{background:var(--orange);border-color:var(--orange);color:#fff;box-shadow:0 0 10px var(--glow)}
@@ -27,16 +29,14 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 .wrap{flex:1;max-width:860px;width:100%;margin:0 auto;padding:24px 22px}
 .mrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
 @media(max-width:520px){.mrow{grid-template-columns:1fr}}
-.mc{background:var(--card);border:2px solid var(--border);border-radius:7px;padding:14px 16px;cursor:pointer;transition:border-color .15s,box-shadow .15s;display:flex;flex-direction:column}
+.mc{background:var(--card);border:2px solid var(--border);border-radius:7px;padding:14px 16px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .mc:hover{border-color:#444}.mc.sel{border-color:var(--accent);box-shadow:0 0 14px var(--glow)}
 .mc .mh{display:flex;align-items:center;gap:8px;margin-bottom:5px}
 .mc .mi{font-size:1.3rem}.mc .mt{font-size:.9rem;font-weight:700;color:#fff}
 .mc .tag{margin-left:auto;font-size:.6rem;padding:2px 7px;border-radius:10px;font-weight:700}
 .tag-r{background:rgba(61,186,106,.15);color:var(--green);border:1px solid var(--green)}
 .tag-d{background:rgba(232,117,10,.15);color:var(--accent);border:1px solid var(--orange)}
-.mc .md{font-size:.79rem;color:#777;line-height:1.55;flex:1}
-.mc-connect{margin-top:12px;width:100%;padding:8px 0;font-size:.82rem;font-weight:600}
-.mc-connect:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
+.mc .md{font-size:.79rem;color:#777;line-height:1.55}
 .fwcard{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 20px;margin-bottom:18px}
 .fwf .k{font-size:.62rem;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:2px}
 .fwf .v{font-size:.88rem;color:var(--accent);font-weight:600}.fwf .v.d{color:#777;font-weight:400}
@@ -48,17 +48,15 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 .bflash{background:var(--orange);color:#fff;border:none;font-size:.98rem;font-weight:700;padding:12px 30px;border-radius:7px;cursor:pointer;box-shadow:0 0 16px var(--glow);transition:all .15s}
 .bflash:hover:not(:disabled){background:var(--accent);box-shadow:0 0 24px rgba(255,154,60,.42);transform:translateY(-1px)}
 .bflash:disabled{opacity:.3;cursor:not-allowed;transform:none;box-shadow:none}
-.dnote{font-size:.8rem;color:#666}
-.pgwrap2{margin-bottom:22px;display:none}
-.pgwrap2.show{display:block}
-.pgtrack2{position:relative;height:30px;background:#111;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:10px}
-.pgfill2{position:absolute;left:0;top:0;height:100%;width:0%;border-radius:6px;background:linear-gradient(90deg,var(--orange),var(--accent));box-shadow:0 0 5px var(--glow);transition:width .25s ease}
-.pgfill2.pulse{animation:pgp 1.3s ease-in-out infinite}
+.dnote{font-size:.8rem;color:#666}.dnote strong{color:var(--accent)}
+.pgwrap{margin-bottom:22px;display:none;background:rgba(232,117,10,.05);border:1px solid rgba(232,117,10,.2);border-radius:8px;padding:14px 16px}
+.pgrow{display:flex;justify-content:space-between;font-size:.88rem;color:#aaa;font-weight:600;margin-bottom:8px}
+.pgtrack{height:8px;background:#111;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.pgfill{height:100%;width:0%;border-radius:4px;background:linear-gradient(90deg,var(--orange),var(--accent));box-shadow:0 0 5px var(--glow);transition:width .25s ease}
+.pgfill.pulse{animation:pgp 1.3s ease-in-out infinite}
 @keyframes pgp{0%,100%{box-shadow:0 0 5px var(--glow)}50%{box-shadow:0 0 16px rgba(255,154,60,.5)}}
-.pgtext2{position:relative;z-index:1;height:100%;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7);padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .log{background:#050505;border:1px solid #2a2a2a;border-radius:6px;padding:12px 15px;font-family:'Consolas','Courier New',monospace;font-size:.78rem;color:#aaa;max-height:280px;overflow-y:auto;line-height:1.7}
 .log .ok{color:#5cd47a}.log .er{color:#f06060}.log .in{color:#ffb060}.log .dm{color:#555}
-.footstatus{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}
 .sbox{display:none;background:#0a1a0d;border:1px solid var(--green);border-radius:7px;padding:18px 22px;margin-bottom:18px;text-align:center}
 .sbox.show{display:block}.sbox h3{color:var(--green);font-size:1.2rem;margin:8px 0 6px}
 .sbox p{color:#888;font-size:.85rem;line-height:1.65}
@@ -68,9 +66,20 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-06 23:15 UTC" style="cursor:default">TEST v51 · 2026-07-06 23:45 UTC</div>
+  <div class="badge test" title="Built: 2026-07-06 23:00 UTC" style="cursor:default">TEST v50 · 2026-07-06 23:15 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
+<div class="connbar">
+  <div class="dot off" id="dot"></div>
+  <div class="conn-text">
+    <div class="conn-label" id="clabel">Not connected</div>
+    <div class="conn-sub"  id="csub">Connect your Flipper Zero via USB to begin</div>
+  </div>
+  <div class="conn-btns">
+    <button class="bsm" id="bdis" style="display:none" onclick="doDisconnect()">Disconnect</button>
+    <button class="bsm pri" id="bcon" onclick="doConnect()">Connect Flipper</button>
+  </div>
+</div>
 <div class="wrap">
   <div class="notice warn" id="n-compat"></div>
   <div class="notice warn" id="n-qflipper" style="display:none"><strong>⚠ Close qFlipper first!</strong> qFlipper locks the Flipper's COM port.</div>
@@ -79,12 +88,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
     <div class="mc sel" id="mc-tgz" onclick="selMethod('tgz')">
       <div class="mh"><span class="mi">📲</span><span class="mt">Standard Update</span><span class="tag tag-r">RECOMMENDED</span></div>
       <div class="md">Flipper is on and at the desktop. Uploads firmware to SD card via USB RPC and triggers install. Files preserved.</div>
-      <button class="bsm pri mc-connect" id="bcon-tgz" onclick="event.stopPropagation(); doConnect('tgz')">Connect Flipper</button>
     </div>
     <div class="mc" id="mc-dfu" onclick="selMethod('dfu')">
       <div class="mh"><span class="mi">🛠️</span><span class="mt">DFU Recovery</span><span class="tag tag-d">RECOVERY</span></div>
       <div class="md">Flipper unresponsive. Hold <strong>Left + Back</strong> while powering on. Writes firmware directly via WebUSB.</div>
-      <button class="bsm pri mc-connect" id="bcon-dfu" onclick="event.stopPropagation(); doConnect('dfu')">Connect Flipper</button>
     </div>
   </div>
   <div class="fwcard">
@@ -96,19 +103,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
   <div class="sbox" id="sbox"><div style="font-size:2.2rem">✅</div><h3>FoxFW Installed!</h3><p id="smsg"></p></div>
   <div class="arow">
     <button class="bflash" id="bflash" disabled onclick="doFlash()">⚡ Install Firmware</button>
-    <div class="dnote" id="dnote" style="display:none">⚠ Do not unplug until the install completes.</div>
+    <div class="dnote" id="dnote" style="display:none"><strong>⚠ Do not unplug</strong> until the install completes.</div>
   </div>
-  <div class="pgwrap2" id="pgwrap2">
-    <div class="pgtrack2"><div class="pgfill2" id="pgfill-file"></div><span class="pgtext2" id="pgtext-file">Preparing…</span></div>
-    <div class="pgtrack2"><div class="pgfill2" id="pgfill-total"></div><span class="pgtext2" id="pgtext-total">0%</span></div>
+  <div class="pgwrap" id="pgwrap">
+    <div class="pgrow"><span id="pglabel">Preparing…</span><span id="pgpct">0%</span></div>
+    <div class="pgtrack"><div class="pgfill pulse" id="pgfill"></div></div>
   </div>
   <div class="log" id="log"></div>
-  <div class="footstatus" id="footstatus">
-    <div class="dot off" id="dot"></div>
-    <div class="conn-label" id="clabel">Not connected</div>
-    <div class="conn-sub"  id="csub">Connect your Flipper Zero via USB to begin</div>
-    <button class="bsm" id="bdis" style="display:none" onclick="doDisconnect()">Disconnect</button>
-  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
@@ -315,42 +316,19 @@ async function readResp(timeoutMs, expectCmdId = -1) {
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-let lastProgressEl = null;
 function log(msg, cls) {
   const el = document.createElement('div');
   if (cls) el.className = cls;
   el.textContent = '> ' + msg;
   $('log').appendChild(el);
   $('log').scrollTop = 9e9;
-  lastProgressEl = null; // any normal log line ends the current in-place-update run
 }
-// Like log(), but repeated calls update the SAME line instead of adding a
-// new one each time — used for rapid, evolving status like upload %.
-// The moment a normal log() call happens, the next logProgress() starts a
-// fresh line rather than overwriting an unrelated entry.
-function logProgress(msg, cls) {
-  if (lastProgressEl) {
-    lastProgressEl.textContent = '> ' + msg;
-  } else {
-    const el = document.createElement('div');
-    if (cls) el.className = cls;
-    el.textContent = '> ' + msg;
-    $('log').appendChild(el);
-    lastProgressEl = el;
-  }
-  $('log').scrollTop = 9e9;
-}
-function pgTotal(pct) {
+function pg(pct, label) {
   const p = Math.min(100, Math.round(pct * 100));
-  $('pgfill-total').style.width = p + '%';
-  if (p >= 100) $('pgfill-total').classList.remove('pulse');
-  $('pgtext-total').textContent = p + '%';
-}
-function pgFile(pct, label) {
-  const p = Math.min(100, Math.round(pct * 100));
-  $('pgfill-file').style.width = p + '%';
-  if (p >= 100) $('pgfill-file').classList.remove('pulse');
-  if (label !== undefined) $('pgtext-file').textContent = label;
+  $('pgfill').style.width = p + '%';
+  if (p >= 100) $('pgfill').classList.remove('pulse');
+  if (label) $('pglabel').textContent = label;
+  $('pgpct').textContent = p + '%';
 }
 function connUI(s, l, sub) {
   $('dot').className = 'dot ' + s;
@@ -373,26 +351,18 @@ function selMethod(m) {
   $('fw-file').textContent   = m==='tgz' ? 'flipper-z-f7-update-local.tgz' : 'flipper-z-f7-full-local.dfu';
 }
 
-function setConnectButtons(state) {
-  // state: 'idle' (nothing connected, both enabled), 'busy' (connecting, both disabled),
-  // 'connected' (one method active, both disabled — must disconnect first)
-  const tgz = $('bcon-tgz'), dfu = $('bcon-dfu');
-  tgz.disabled = state !== 'idle';
-  dfu.disabled = state !== 'idle';
-}
-
 // ── FLASH DISPATCHER ─────────────────────────────────────────────
 async function doFlash() {
   log('Install clicked — busy='+busy+' connected='+connected,'in');
   if (busy || !connected) return;
-  busy=true; $('bflash').disabled=true; setConnectButtons('connected'); $('bdis').style.display='none';
+  busy=true; $('bflash').disabled=true; $('bcon').disabled=true; $('bdis').style.display='none';
   clearNotices(); $('sbox').classList.remove('show');
-  $('pgwrap2').classList.add('show'); pgTotal(0); pgFile(0,'Preparing…');
-  $('pgfill-total').classList.add('pulse'); $('pgfill-file').classList.add('pulse');
+  $('pgwrap').style.display=''; pg(0,'Starting…');
+  $('pgfill').classList.add('pulse');
   try {
     if (method==='dfu') await doFlashDFU();
     else                await doFlashTGZ();
-    pgTotal(1); pgFile(1,'Done'); $('pgfill-total').classList.remove('pulse'); $('pgfill-file').classList.remove('pulse');
+    pg(1,'Complete!'); $('pgfill').classList.remove('pulse');
     $('sbox').classList.add('show');
     $('smsg').textContent = method==='dfu'
       ? 'DFU flash complete. Unplug your Flipper, then hold power to boot.'
@@ -400,19 +370,17 @@ async function doFlash() {
     connUI('on','FoxFW Installed ✓','Flash complete');
   } catch (err) {
     showErr(err.message); log('FAILED: '+err.message,'er');
-    pgTotal(0); $('pgfill-total').classList.remove('pulse'); $('pgfill-file').classList.remove('pulse');
+    pg(0,'Failed'); $('pgfill').classList.remove('pulse');
     connUI('off','Failed',err.message.slice(0,60));
   }
-  busy=false; $('bflash').disabled=false;
-  setConnectButtons(connected ? 'connected' : 'idle');
+  busy=false; $('bflash').disabled=false; $('bcon').disabled=false;
 }
 
 async function doDisconnect() {
   stopKeepAlive();
   connected = false; busy = false;
   $('bflash').disabled=true; $('dnote').style.display='none'; $('bdis').style.display='none';
-  $('pgwrap2').classList.remove('show'); $('sbox').classList.remove('show');
-  setConnectButtons('idle');
+  $('pgwrap').style.display='none'; $('sbox').classList.remove('show');
   try { await stopPump(); } catch {}
   try { if (serialReader) { serialReader.releaseLock(); } } catch {}
   try { if (serialWriter) { serialWriter.releaseLock(); } } catch {}
@@ -441,10 +409,10 @@ async function wMsg(bytes) {
 // ── TGZ / RPC FLASH ──────────────────────────────────────────────
 async function doFlashTGZ() {
   // 1. Download + decompress + parse FIRST (before starting RPC session)
-  pgTotal(0.01); pgFile(0.01,'Downloading firmware…'); log('Downloading '+TGZ_URL+'…','in');
-  const tgz = await fetchXHR(TGZ_URL, p=>{ pgTotal(0.01+p*0.28); pgFile(p,'Downloading firmware…'); });
+  pg(0.01,'Downloading firmware…'); log('Downloading '+TGZ_URL+'…','in');
+  const tgz = await fetchXHR(TGZ_URL, p=>pg(0.01+p*0.28,`Downloading… ${Math.round(p*100)}%`));
   log(`Downloaded ${(tgz.length/1024/1024).toFixed(1)} MB`,'ok');
-  pgTotal(0.29); pgFile(1,'Decompressing…'); log('Decompressing…');
+  pg(0.29,'Decompressing…'); log('Decompressing…');
   const tar   = pako.inflate(tgz);
   const files = parseTar(tar);
   log(`Found ${files.length} files in package`,'ok');
@@ -458,7 +426,7 @@ async function doFlashTGZ() {
   log(`Update directory: ${sdBase}`,'in');
 
   // 2. Start RPC session NOW (right before upload — avoids pipe_receive timeout)
-  pgTotal(0.30); pgFile(0,'Starting RPC session…');
+  pg(0.30,'Starting RPC session…');
   await startRpcSession();
 
   // 3. Create update directories
@@ -517,8 +485,7 @@ async function doFlashTGZ() {
     const sdPath = `/ext/update/${f.name}`;
     log(`Uploading ${f.name} (${(f.data.length/1024).toFixed(0)} KB)…`);
     await rpcWriteFile(sdPath, f.data, p => {
-      pgTotal(0.32 + ((fi+p)/files.length)*0.60);
-      pgFile(p, f.name);
+      pg(0.32 + ((fi+p)/files.length)*0.60, `Uploading ${f.name}… ${Math.round(p*100)}%`);
     });
     log(`✓ ${f.name}`,'ok');
   }
@@ -530,7 +497,7 @@ async function doFlashTGZ() {
   // happens after a SEPARATE systemRebootRequest with mode:UPDATE (2).
   // We were only sending the first half, which is why everything
   // reported success but the Flipper never actually restarted.
-  log('Validating update manifest…','in'); pgTotal(0.90); pgFile(1,'Validating manifest…');
+  log('Validating update manifest…','in'); pg(0.90,'Validating manifest…');
   const updateCmdId = cmdId++;
   const updateBytes = encodeMain({
     commandId: updateCmdId,
@@ -545,7 +512,7 @@ async function doFlashTGZ() {
     log('  systemUpdate response: timeout (proceeding anyway)','dm');
   }
 
-  log('Triggering reboot into update mode…','in'); pgTotal(0.95); pgFile(1,'Rebooting into update…');
+  log('Triggering reboot into update mode…','in'); pg(0.95,'Rebooting into update…');
   const rebootBytes = encodeMain({
     commandId:cmdId++,
     systemRebootRequest:{ mode: 2 } // 2 = UPDATE (see System.RebootRequest.RebootMode)
@@ -553,16 +520,15 @@ async function doFlashTGZ() {
   await serialWriter.write(rebootBytes);
   await sleep(1000);
   log('Update triggered — Flipper is rebooting','ok');
-  pgTotal(1); pgFile(1,'Done');
+  pg(1,'Done!');
   try { await doDisconnect(); } catch {}
 }
 
 // ── CONNECT ──────────────────────────────────────────────────────
-async function doConnect(m) {
+async function doConnect() {
   if (busy) return;
-  if (m) selMethod(m); // clicking a card's own Connect button also selects that method
   clearNotices();
-  busy = true; setConnectButtons('busy');
+  busy = true; $('bcon').disabled = true;
   connUI('busy','Connecting…','Select your Flipper from the browser dialog');
   try {
     if (method === 'dfu') await connectDFU();
@@ -579,8 +545,7 @@ async function doConnect(m) {
     showErr(msg); log('Connect failed: ' + msg, 'er');
     connUI('off','Connection failed','See error above');
   }
-  busy = false;
-  setConnectButtons(connected ? 'connected' : 'idle');
+  busy = false; $('bcon').disabled = false;
 }
 
 let keepAliveTimer = null;
@@ -711,7 +676,7 @@ async function rpcWriteFile(path, data, onProgress, chunkSizeOverride) {
     if (onProgress) onProgress(Math.min(i + CHUNK_SIZE, data.length) / data.length);
     const pct = Math.round(Math.min(i + CHUNK_SIZE, data.length) / data.length * 100);
     const prevPct = Math.round(i / data.length * 100);
-    if (pct !== prevPct) logProgress(`Uploading: ${pct}%`);
+    if (pct !== prevPct) log(`  ${pct}%`);
 
     if (!hasNext) {
       const waitMs = Math.min(30000, Math.max(5000, Math.ceil(data.length/50000)*1000));
@@ -731,10 +696,10 @@ async function rpcWriteFile(path, data, onProgress, chunkSizeOverride) {
 
 // ── DFU FLASH ────────────────────────────────────────────────────
 async function doFlashDFU() {
-  log('Downloading DFU firmware…','in'); pgTotal(0.02); pgFile(0,'Downloading firmware…');
-  const dfuData=await fetchXHR(DFU_URL,p=>{ pgTotal(0.02+p*0.30); pgFile(p,'Downloading firmware…'); });
+  log('Downloading DFU firmware…','in'); pg(0.02,'Downloading…');
+  const dfuData=await fetchXHR(DFU_URL,p=>pg(0.02+p*0.30,`Downloading… ${Math.round(p*100)}%`));
   log(`Downloaded ${(dfuData.length/1024/1024).toFixed(1)} MB`,'ok');
-  pgTotal(0.32); pgFile(0,DFU_URL);
+  pg(0.32,'Flashing via DFU…');
   const dev=window._dfuDev;
   if(!dev) throw new Error('No DFU device connected. Boot Flipper into DFU mode first.');
   await dev.open();
@@ -757,8 +722,8 @@ async function doFlashDFU() {
       for(let b=0;b<nb;b++){
         await dfuDnload(dev,ifn,b+2,el.data.slice(b*DFU_BLK,(b+1)*DFU_BLK));
         await dfuPoll(dev,ifn); done++;
-        pgTotal(0.32+(done/tot)*0.66); pgFile(b/nb, DFU_URL);
-        if(b%15===0) logProgress(`Uploading: ${Math.round(b/nb*100)}%`);
+        pg(0.32+(done/tot)*0.66,`Flashing… ${done}/${tot}`);
+        if(b%15===0) log(`  ${Math.round(b/nb*100)}%`);
       }
       log('✓ element done','ok');
     }
@@ -818,7 +783,7 @@ function fetchXHR(url,onProg){
     const n=$('n-compat');
     n.innerHTML='<strong>⚠ Browser not supported.</strong> Use Chrome or Edge on desktop.';
     n.classList.add('show'); n.style.display='';
-    $('bcon-tgz').disabled=true; $('bcon-dfu').disabled=true; $('bflash').disabled=true;
+    $('bcon').disabled=true; $('bflash').disabled=true;
   }
   // protobufjs loaded from CDN — init when ready
   if(typeof protobuf!=='undefined') initProto();
