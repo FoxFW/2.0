@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v30]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v31]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v30 · 2026-07-06 05:31 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v31 · 2026-07-06 05:38 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -376,22 +376,32 @@ async function connectSerial() {
 }
 
 async function startRpcSession() {
-  // Called right before upload (after download) so there's no idle timeout
   log('Starting RPC session…','in');
+  // 1. Wake CLI with newline, then send start command
   await serialWriter.write(new TextEncoder().encode('\r\n'));
-  await sleep(200);
+  await sleep(150);
   await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
-  await sleep(1200);
-  // Fresh reader — discard CLI text buffered during sleep
+
+  // 2. Send ping IMMEDIATELY — no long sleep that would let pipe_receive time out.
+  //    The ping bytes arrive in the pipe right after start_rpc_session\r\n.
+  //    The CLI processes the command, RPC starts, and immediately reads our ping.
+  await sleep(50); // tiny gap: CLI needs ~50ms to switch modes
+  const pingCmdId = cmdId++;
+  const pingBytes = encodeMain({ commandId: pingCmdId, systemPingRequest:{} });
+  await serialWriter.write(pingBytes);
+
+  // 3. Read the response — sliding window handles any remaining CLI text
   serialReader.releaseLock();
   serialReader = serialPort.readable.getReader();
-  // Ping to verify
-  const pingBytes = encodeMain({ commandId:cmdId++, systemPingRequest:{} });
-  await serialWriter.write(pingBytes);
-  const pingResp = await readRespDirect(6000);
-  if (!pingResp) throw new Error(
-    'RPC session verification failed — make sure Flipper is on the desktop');
-  log(`RPC session active ✓ (status=${pingResp.commandStatus})`,'ok');
+  const pingResp = await readRespDirect(8000);
+
+  // 4. Validate commandId — reject false positives from banner bytes
+  if (!pingResp || pingResp.commandId !== pingCmdId) {
+    const got = pingResp ? `cmdId=${pingResp.commandId} (expected ${pingCmdId})` : 'null';
+    throw new Error(
+      `RPC session failed — ping response invalid (${got}). Flipper must be on the desktop.`);
+  }
+  log(`RPC session active ✓ (cmdId=${pingResp.commandId} status=${pingResp.commandStatus})`,'ok');
 }
 
 // ── RESPONSE READER ──────────────────────────────────────────────
