@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v41] </title>
+<title>FoxFW v2.0 — Web Installer [TEST v42]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-06 07:15 UTC" style="cursor:default">TEST v41 · 2026-07-06 10:35 UTC</div>
+  <div class="badge test" title="Built: 2026-07-06 10:35 UTC" style="cursor:default">TEST v42 · 2026-07-06 10:55 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -417,17 +417,30 @@ async function doFlashTGZ() {
   await rpcMkdir('/ext/update');
   await rpcMkdir(sdBase);
 
-  // 3b. Preflight: write a tiny test file BEFORE the real 8MB transfer.
+  // 3b. Preflight #1: a single-message write (hasNext:false immediately).
   // Isolates whether ANY data-bearing Storage.WriteRequest crashes the
-  // firmware (a handler-level bug unrelated to size/throughput) versus
-  // only larger/longer transfers. Cheap to run, saves re-downloading and
-  // re-decompressing the whole package just to hit the same crash again.
-  log('Preflight: testing a tiny write before the real upload…','in');
+  // firmware, independent of size/throughput.
+  log('Preflight 1/2: single-chunk write…','in');
   try {
-    await rpcWriteFile(`${sdBase}/.foxfw_preflight`, new Uint8Array([0xDE,0xAD,0xBE,0xEF]), null);
-    log('Preflight write OK — proceeding with real upload','ok');
+    await rpcWriteFile(`${sdBase}/.foxfw_preflight1`, new Uint8Array([0xDE,0xAD,0xBE,0xEF]), null);
+    log('Preflight 1 OK (single-chunk write)','ok');
   } catch (e) {
-    throw new Error('Preflight tiny write failed — this points to a firmware-side RPC storage bug, not a data-size/throughput issue. Original error: ' + e.message);
+    throw new Error('Preflight 1 (single-chunk write) failed — this points to a firmware-side RPC storage bug on ANY data write, not a size/throughput issue. Original error: ' + e.message);
+  }
+
+  // 3c. Preflight #2: a write spanning exactly 2 chunks, so the FIRST
+  // message has hasNext:true (a real continuation) instead of jumping
+  // straight to the false-positive-prone 841KB transfer. Cheap (a couple
+  // KB) but exercises the exact code path (continuation handling) that
+  // the real upload crashes on almost immediately — narrows the bug to
+  // "any multi-chunk write" vs. "something specific to this large file."
+  log('Preflight 2/2: multi-chunk write (tests hasNext continuation)…','in');
+  try {
+    const twoChunkData = new Uint8Array(CHUNK + 16).fill(0x42);
+    await rpcWriteFile(`${sdBase}/.foxfw_preflight2`, twoChunkData, null);
+    log('Preflight 2 OK (multi-chunk write) — proceeding with real upload','ok');
+  } catch (e) {
+    throw new Error('Preflight 2 (multi-chunk / hasNext continuation write) failed — the firmware crashes specifically on chunked writes (hasNext:true), not on data writes in general. Look at your RPC storage handler\'s continuation-message code path. Original error: ' + e.message);
   }
 
   // 4. Upload each file
