@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v47]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v48]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-06 22:10 UTC" style="cursor:default">TEST v47 · 2026-07-06 22:20 UTC</div>
+  <div class="badge test" title="Built: 2026-07-06 22:20 UTC" style="cursor:default">TEST v48 · 2026-07-06 22:45 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -128,7 +128,20 @@ const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
 
 // ── FLIPPER PROTOBUF SCHEMA ──────────────────────────────────────
-// Defined inline — same field numbers as flipperzero-protobuf/flipper.proto
+// CORRECTED against the real flipperzero-protobuf source (flipper.proto,
+// storage.proto, system.proto). The previous version of this schema had
+// WRONG field numbers for nearly everything below — hasNext and
+// commandStatus were swapped (2↔3 instead of 3/2), every oneof field in
+// Main was off (e.g. storageWriteRequest was tagged 24, but real field
+// 24 is actually storage_stat_request — a completely different command),
+// and Storage.File.data was tagged field 1 instead of the real field 4.
+// Since protobuf fields are just numbered tags on the wire, this meant:
+// hasNext was NEVER actually being set on the real has_next field (3) —
+// every message looked like a complete, non-continuing write to the
+// device — while our storageWriteRequest was being decoded by the real
+// firmware as an entirely different message type. This — not a firmware
+// bug — is almost certainly what caused every "device has been lost"
+// crash whenever a write needed more than one message.
 const PROTO_JSON = {
   nested: {
     PB: {
@@ -140,13 +153,13 @@ const PROTO_JSON = {
           ]}},
           fields: {
             commandId:            { type:'uint32', id:1 },
-            hasNext:              { type:'bool',   id:2 },
-            commandStatus:        { type:'uint32', id:3 },
-            systemPingRequest:    { type:'PB.System.PingRequest',    id:6  },
-            systemPingResponse:   { type:'PB.System.PingResponse',   id:7  },
-            storageWriteRequest:  { type:'PB.Storage.WriteRequest',  id:24 },
-            storageMkdirRequest:  { type:'PB.Storage.MkdirRequest',  id:28 },
-            systemUpdateRequest:  { type:'PB.System.UpdateRequest',  id:34 }
+            commandStatus:        { type:'uint32', id:2 },
+            hasNext:              { type:'bool',   id:3 },
+            systemPingRequest:    { type:'PB.System.PingRequest',    id:5  },
+            systemPingResponse:   { type:'PB.System.PingResponse',   id:6  },
+            storageWriteRequest:  { type:'PB.Storage.WriteRequest',  id:11 },
+            storageMkdirRequest:  { type:'PB.Storage.MkdirRequest',  id:13 },
+            systemUpdateRequest:  { type:'PB.System.UpdateRequest',  id:41 }
           }
         },
         Storage: {
@@ -158,7 +171,7 @@ const PROTO_JSON = {
               }
             },
             File: {
-              fields: { data: { type:'bytes', id:1 } }
+              fields: { data: { type:'bytes', id:4 } }
             },
             MkdirRequest: {
               fields: { path: { type:'string', id:1 } }
@@ -167,8 +180,8 @@ const PROTO_JSON = {
         },
         System: {
           nested: {
-            PingRequest:   { fields: {} },
-                PingResponse:  { fields: {} },
+            PingRequest:   { fields: { data: { type:'bytes', id:1 } } },
+            PingResponse:  { fields: { data: { type:'bytes', id:1 } } },
             UpdateRequest: { fields: { updateManifest: { type:'string', id:1 } } }
           }
         }
