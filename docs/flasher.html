@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v42]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v43]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-06 10:35 UTC" style="cursor:default">TEST v42 · 2026-07-06 10:55 UTC</div>
+  <div class="badge test" title="Built: 2026-07-06 10:55 UTC" style="cursor:default">TEST v43 · 2026-07-06 11:20 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -122,7 +122,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 // ── CONFIG ──────────────────────────────────────────────────────
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
-const CHUNK    = 512;   // 512 bytes — proven safe, matches qFlipper
+const CHUNK    = 128;   // lowered from 512 after repeated crashes on large chunked writes — smaller frames + rest breaks below (see rpcWriteFile)
 const DFU_BLK  = 2048;
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
@@ -497,7 +497,17 @@ async function connectSerial() {
   if (!('serial' in navigator)) throw new Error('Web Serial not supported — use Chrome or Edge');
   log('Requesting serial port…','in');
   serialPort = await navigator.serial.requestPort({ filters:[{ usbVendorId:VID }] });
-  await serialPort.open({ baudRate:115200 });
+  // Try hardware flow control (RTS/CTS) first. If the Flipper's CDC driver
+  // honors it, the OS/browser will pause transmission whenever the device
+  // signals its buffer is full, instead of us guessing a safe send rate in
+  // JS. Not all adapters support this option, so fall back cleanly.
+  try {
+    await serialPort.open({ baudRate:115200, flowControl:'hardware' });
+    log('Port opened with hardware flow control (RTS/CTS)','ok');
+  } catch (e) {
+    log('Hardware flow control unsupported, falling back ('+e.message+')','dm');
+    await serialPort.open({ baudRate:115200 });
+  }
   // Assert DTR (Data Terminal Ready) and RTS — the Flipper's USB CDC driver
   // only processes incoming data when DTR is asserted. Without this, the
   // Flipper sends the banner unconditionally but ignores all our writes.
@@ -582,7 +592,9 @@ async function rpcWriteFile(path, data, onProgress) {
   const chunks = Math.ceil(data.length / CHUNK);
   const id     = cmdId++;
 
-  const TARGET_BPS = 150 * 1024; // conservative cap so we don't outrun the Flipper's UART rx buffer + SD write pipeline
+  const TARGET_BPS   = 40 * 1024; // much more conservative than before — 150KB/s still crashed
+  const REST_EVERY    = 16;        // every N chunks, pause longer than steady pacing requires
+  const REST_MS        = 150;      // so the device's SD-write task can fully catch up, not just less-far-behind
   const t0 = Date.now();
 
   for (let i=0; i<chunks; i++) {
@@ -602,13 +614,15 @@ async function rpcWriteFile(path, data, onProgress) {
     // Flipper only acks the FINAL chunk (confirmed by the protobuf spec's
     // ERROR_CONTINUOUS_COMMAND_INTERRUPTED: "Not received has_next == 0").
     // So there's no per-chunk ack to use as backpressure. Instead we
-    // self-throttle to a conservative rate so we don't outrun its UART
-    // buffer and SD write pipeline (which is likely what crashed the
-    // device's USB stack — surfacing here as "device has been lost").
+    // self-throttle to a conservative rate, PLUS take a real rest every
+    // few chunks (not just even spacing) so the device's UART buffer and
+    // SD write pipeline can fully drain periodically rather than staying
+    // continuously loaded, which is likely what crashed its USB stack.
     const bytesSent  = (i+1) * CHUNK;
     const expectedMs = (bytesSent / TARGET_BPS) * 1000;
     const elapsedMs  = Date.now() - t0;
     if (expectedMs > elapsedMs) await sleep(expectedMs - elapsedMs);
+    if (!isLast && (i+1) % REST_EVERY === 0) await sleep(REST_MS);
 
     if (onProgress) onProgress((i+1)/chunks);
     const pct = Math.round((i+1)/chunks*100);
