@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v27]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v28]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v27 · 2026-07-06 05:00 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v28 · 2026-07-06 05:07 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -266,36 +266,27 @@ async function connectSerial() {
   serialWriter = serialPort.writable.getWriter();
   serialReader = serialPort.readable.getReader();
   cmdId = 1;
-  log('Port opened — starting RPC session…','ok');
+  log('Port opened ✓ — RPC session will start after firmware download','ok');
+  connUI('on','Flipper Zero — Connected','Port open · Ready to install');
+}
 
-  // 1. Wake CLI and send start command
+async function startRpcSession() {
+  // Called right before upload (after download) so there's no idle timeout
+  log('Starting RPC session…','in');
   await serialWriter.write(new TextEncoder().encode('\r\n'));
   await sleep(200);
   await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
-  await sleep(800); // wait for Flipper to process CLI command and switch modes
-
-  // 2. Fixed 1200ms sleep — lets CLI text arrive without triggering pipe_receive
-  //    timeout in rpc_cli.c (the 400ms-silence drain loop was closing the session).
-  //    readRespDirect will slide through any buffered CLI text automatically.
   await sleep(1200);
+  // Fresh reader — discard CLI text buffered during sleep
   serialReader.releaseLock();
   serialReader = serialPort.readable.getReader();
-  log('RPC session started — sending ping…','dm');
-
-  // 3. Verify RPC mode with a ping
-  log('Verifying RPC session…','in');
+  // Ping to verify
   const pingBytes = encodeMain({ commandId:cmdId++, systemPingRequest:{} });
-  const phex = Array.from(pingBytes).map(b=>b.toString(16).padStart(2,'0')).join(' ');
-  log(`[ping tx ${pingBytes.length}B] ${phex}`, 'dm');
   await serialWriter.write(pingBytes);
-  log('Waiting for ping response (5s timeout)…', 'dm');
-  const pingResp = await readRespDirect(5000);
-  log(`readRespDirect returned: ${pingResp ? 'got response' : 'NULL - timed out'}`, 'dm');
-
+  const pingResp = await readRespDirect(6000);
   if (!pingResp) throw new Error(
-    'RPC session verification failed. Make sure your Flipper is on the desktop (not in an app) and try again.');
-  log('RPC session verified ✓  (cmd_status='+pingResp.commandStatus+')','ok');
-  connUI('on','Flipper Zero — Connected','USB serial · Standard Update (RPC)');
+    'RPC session verification failed — make sure Flipper is on the desktop');
+  log(`RPC session active ✓ (status=${pingResp.commandStatus})`,'ok');
 }
 
 // ── RESPONSE READER ──────────────────────────────────────────────
@@ -320,9 +311,8 @@ async function readRespDirect(timeoutMs) {
     serialReader.releaseLock();
     serialReader = serialPort.readable.getReader();
 
-    // sleep won = no data yet → continue. done=true = stream closed → break.
     if (result === null) continue;
-    if (!result || result.done) { log(`  [rrd] stream closed or null: ${JSON.stringify(result)}`, 'dm'); break; }
+    if (!result || result.done) break;
     if (result.value) {
       const hex = Array.from(result.value.slice(0,16)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
       log(`[rx ${result.value.length}B] ${hex}${result.value.length>16?'…':''}`, 'dm');
@@ -340,12 +330,8 @@ async function readRespDirect(timeoutMs) {
       }
       if (pos > 0 && msgLen > 65535) { buf = buf.slice(1); continue; } // clearly not protobuf
       if (pos > 0 && msgLen > 0 && buf.length >= pos + msgLen) {
-        try {
-          const msg = Main.decode(new Uint8Array(buf.slice(pos, pos + msgLen)));
-          log(`[decoded] cmdId=${msg.commandId} status=${msg.commandStatus} content=${Object.keys(msg).filter(k=>!['commandId','commandStatus','hasNext'].includes(k)).join(',')}`, 'dm');
-          return msg;
-        }
-        catch(e) { log(`[decode fail pos=${pos} len=${msgLen}] ${e.message}`, 'dm'); buf = buf.slice(1); continue; }
+        try { return Main.decode(new Uint8Array(buf.slice(pos, pos + msgLen))); }
+        catch { buf = buf.slice(1); continue; }
       }
       break; // not enough data — need more from outer read loop
     }
