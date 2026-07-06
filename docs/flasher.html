@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v25]  </title>
+<title>FoxFW v2.0 — Web Installer [TEST v26]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v25 · 2026-07-06 04:48 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v26 · 2026-07-06 04:57 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -296,8 +296,12 @@ async function connectSerial() {
   // 3. Verify RPC mode with a ping
   log('Verifying RPC session…','in');
   const pingBytes = encodeMain({ commandId:cmdId++, systemPingRequest:{} });
+  const phex = Array.from(pingBytes).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+  log(`[ping tx ${pingBytes.length}B] ${phex}`, 'dm');
   await serialWriter.write(pingBytes);
+  log('Waiting for ping response (5s timeout)…', 'dm');
   const pingResp = await readRespDirect(5000);
+  log(`readRespDirect returned: ${pingResp ? 'got response' : 'NULL - timed out'}`, 'dm');
 
   if (!pingResp) throw new Error(
     'RPC session verification failed. Make sure your Flipper is on the desktop (not in an app) and try again.');
@@ -316,17 +320,18 @@ async function readRespDirect(timeoutMs) {
 
   while (Date.now() < deadline) {
     let result;
+    log(`  [rrd] waiting (${Math.round(deadline-Date.now())}ms left)…`, 'dm');
     try {
       result = await Promise.race([
-        serialReader.read(),
-        sleep(Math.min(deadline - Date.now(), 2000)).then(()=>null)
+        serialReader.read().then(r => { log(`  [rrd] read() resolved: done=${r.done} bytes=${r.value?.length||0}`, 'dm'); return r; }),
+        sleep(Math.min(deadline - Date.now(), 2000)).then(()=>{ log('  [rrd] sleep() won — no data', 'dm'); return null; })
       ]);
-    } catch { break; }
+    } catch(e) { log(`  [rrd] read threw: ${e.message}`, 'er'); break; }
     // Always release after read attempt so no dangling reads persist
     serialReader.releaseLock();
     serialReader = serialPort.readable.getReader();
 
-    if (!result || result.done) break;
+    if (!result || result.done) { log(`  [rrd] breaking: result=${JSON.stringify(result)}`, 'dm'); break; }
     if (result.value) {
       const hex = Array.from(result.value.slice(0,16)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
       log(`[rx ${result.value.length}B] ${hex}${result.value.length>16?'…':''}`, 'dm');
