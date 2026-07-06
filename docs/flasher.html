@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v34] </title>
+<title>FoxFW v2.0 — Web Installer [TEST v35]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v34 · 2026-07-06 06:07 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v35 · 2026-07-06 06:13 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -382,13 +382,15 @@ async function startRpcSession() {
   serialReader = serialPort.readable.getReader();
   cmdId = 1;
 
-  // Send \r\n + start_rpc_session + ping in one burst.
-  // The welcome banner arrives after port open, but readRespDirect
-  // slides through it to find the actual ping response by commandId.
+  // 300ms warmup — the USB CDC receive path on the Flipper needs a brief
+  // settling period after port.open() before it will reliably accept writes.
+  // Sending too quickly causes commands to be silently dropped.
+  await sleep(300);
+
   await serialWriter.write(new TextEncoder().encode('\r\n'));
-  await sleep(100);
+  await sleep(150);
   await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
-  await sleep(150); // let CLI switch modes
+  await sleep(300); // let CLI process and switch to RPC mode
 
   const pingCmdId = cmdId++;
   const pingBytes = encodeMain({ commandId: pingCmdId, systemPingRequest:{} });
