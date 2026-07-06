@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v24] </title>
+<title>FoxFW v2.0 — Web Installer [TEST v25]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v24 · 2026-07-05 23:35 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v25 · 2026-07-06 04:48 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -136,13 +136,14 @@ const PROTO_JSON = {
         Main: {
           oneofs: { content: { oneof: [
             'storageWriteRequest','storageMkdirRequest',
-            'systemUpdateRequest','systemPingRequest'
+            'systemUpdateRequest','systemPingRequest','systemPingResponse'
           ]}},
           fields: {
             commandId:            { type:'uint32', id:1 },
             hasNext:              { type:'bool',   id:2 },
             commandStatus:        { type:'uint32', id:3 },
             systemPingRequest:    { type:'PB.System.PingRequest',    id:6  },
+            systemPingResponse:   { type:'PB.System.PingResponse',   id:7  },
             storageWriteRequest:  { type:'PB.Storage.WriteRequest',  id:24 },
             storageMkdirRequest:  { type:'PB.Storage.MkdirRequest',  id:28 },
             systemUpdateRequest:  { type:'PB.System.UpdateRequest',  id:34 }
@@ -167,6 +168,7 @@ const PROTO_JSON = {
         System: {
           nested: {
             PingRequest:   { fields: {} },
+                PingResponse:  { fields: {} },
             UpdateRequest: { fields: { updateManifest: { type:'string', id:1 } } }
           }
         }
@@ -325,7 +327,11 @@ async function readRespDirect(timeoutMs) {
     serialReader = serialPort.readable.getReader();
 
     if (!result || result.done) break;
-    if (result.value) for (const b of result.value) buf.push(b);
+    if (result.value) {
+      const hex = Array.from(result.value.slice(0,16)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+      log(`[rx ${result.value.length}B] ${hex}${result.value.length>16?'…':''}`, 'dm');
+      for (const b of result.value) buf.push(b);
+    }
 
     // INNER sliding loop — process the entire buffer before reading more
     while (buf.length > 0) {
@@ -338,8 +344,12 @@ async function readRespDirect(timeoutMs) {
       }
       if (pos > 0 && msgLen > 65535) { buf = buf.slice(1); continue; } // clearly not protobuf
       if (pos > 0 && msgLen > 0 && buf.length >= pos + msgLen) {
-        try { return Main.decode(new Uint8Array(buf.slice(pos, pos + msgLen))); }
-        catch { buf = buf.slice(1); continue; }
+        try {
+          const msg = Main.decode(new Uint8Array(buf.slice(pos, pos + msgLen)));
+          log(`[decoded] cmdId=${msg.commandId} status=${msg.commandStatus} content=${Object.keys(msg).filter(k=>!['commandId','commandStatus','hasNext'].includes(k)).join(',')}`, 'dm');
+          return msg;
+        }
+        catch(e) { log(`[decode fail pos=${pos} len=${msgLen}] ${e.message}`, 'dm'); buf = buf.slice(1); continue; }
       }
       break; // not enough data — need more from outer read loop
     }
