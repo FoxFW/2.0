@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v36]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v37]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v36 · 2026-07-06 06:23 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v37 · 2026-07-06 06:38 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -260,6 +260,7 @@ async function doFlash() {
 }
 
 async function doDisconnect() {
+  stopKeepAlive(); stopDrain();
   connected = false; busy = false;
   $('bflash').disabled=true; $('dnote').style.display='none'; $('bdis').style.display='none';
   $('pgwrap').style.display='none'; $('sbox').classList.remove('show');
@@ -363,49 +364,83 @@ async function doConnect() {
   busy = false; $('bcon').disabled = false;
 }
 
+let keepAliveTimer = null;
+
 async function connectSerial() {
   if (!('serial' in navigator)) throw new Error('Web Serial not supported — use Chrome or Edge');
   log('Requesting serial port…','in');
-  // Just select the port — open it right before the upload so the RPC
-  // session starts immediately with no idle gap that could close pipe_receive
   serialPort = await navigator.serial.requestPort({ filters:[{ usbVendorId:VID }] });
-  log('Port selected ✓ — will open when Install is clicked','ok');
-  connUI('on','Flipper Zero — Ready','Port selected · Click Install to begin');
-}
-
-async function startRpcSession() {
-  log('Opening port and starting RPC session…','in');
-
-  // Open the port NOW (right before first use) — no idle gap for pipe_receive to close
   await serialPort.open({ baudRate:115200 });
   serialWriter = serialPort.writable.getWriter();
   serialReader = serialPort.readable.getReader();
   cmdId = 1;
+  log('Port opened — starting RPC session immediately…','ok');
 
-  // Send commands IMMEDIATELY after port.open() — no warmup delay.
-  // In v27 tests, sending immediately worked (CLI echo received).
-  // A long delay causes the banner to finish, Flipper goes idle,
-  // and subsequent writes are silently dropped (timing race).
-  // Sending while the banner is still being transmitted (full-duplex)
-  // is what works — CLI processes input while sending banner output.
+  // Send commands immediately (before banner finishes — full-duplex: CLI
+  // processes input while simultaneously sending the banner output)
   await serialWriter.write(new TextEncoder().encode('\r\n'));
-  await sleep(100);
+  await sleep(80);
   await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
-  await sleep(200); // let CLI switch to RPC mode
-
+  await sleep(120);
   const pingCmdId = cmdId++;
-  const pingBytes = encodeMain({ commandId: pingCmdId, systemPingRequest:{} });
-  await serialWriter.write(pingBytes);
-  log(`Ping sent (cmdId=${pingCmdId}) — waiting for RPC response…`,'dm');
+  await serialWriter.write(encodeMain({ commandId:pingCmdId, systemPingRequest:{} }));
+  log(`Ping sent (cmdId=${pingCmdId}) — reading banner + response…`,'dm');
 
-  // readRespDirect slides through any banner bytes and finds the real response
   const pingResp = await readRespDirect(8000, pingCmdId);
-
-  if (!pingResp || pingResp.commandId !== pingCmdId) {
-    const got = pingResp ? `cmdId=${pingResp.commandId} expected=${pingCmdId}` : 'null';
-    throw new Error(`RPC session failed — ping mismatch (${got}). Flipper must be on the desktop.`);
-  }
+  if (!pingResp) throw new Error('RPC session failed — no ping response. Flipper must be on the desktop.');
   log(`RPC session active ✓ (cmdId=${pingResp.commandId} status=${pingResp.commandStatus})`,'ok');
+
+  // Start bgDrain + keepalive so pipe_receive stays alive during the firmware download
+  startDrain();
+  startKeepAlive();
+  connUI('on','Flipper Zero — Connected','RPC session active · Click Install to flash');
+}
+
+function startKeepAlive() {
+  stopKeepAlive();
+  keepAliveTimer = setInterval(async () => {
+    try {
+      // Ping the Flipper every 1.5s to prevent pipe_receive from timing out
+      await serialWriter.write(encodeMain({ commandId:cmdId++, systemPingRequest:{} }));
+    } catch {}
+  }, 1500);
+  log('Keepalive started (1.5s pings)','dm');
+}
+
+function stopKeepAlive() {
+  if (keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
+}
+
+// bgDrain: reads & discards Flipper responses (keepalive pongs) concurrently
+let drainReader = null;
+async function bgDrain() {
+  try {
+    while (drainReader) {
+      const { value, done } = await drainReader.read();
+      if (done || !drainReader) break;
+    }
+  } catch {}
+}
+function startDrain() {
+  stopDrain();
+  drainReader = serialReader;
+  serialReader = null;
+  bgDrain();
+}
+function stopDrain() {
+  drainReader = null;
+}
+
+async function startRpcSession() {
+  // RPC session was started in connectSerial() and kept alive via keepalive pings.
+  // Now we're about to upload — stop keepalive and bgDrain, get a clean reader.
+  log('Stopping keepalive, preparing for upload…','dm');
+  stopKeepAlive();
+  stopDrain();
+  // Re-acquire reader (bgDrain released it) with fresh state
+  serialReader = serialPort.readable.getReader();
+  cmdId = Math.max(cmdId, 10); // ensure cmdId is ahead of keepalive pings
+  log('Ready for upload','ok');
 }
 
 // ── RESPONSE READER ──────────────────────────────────────────────
