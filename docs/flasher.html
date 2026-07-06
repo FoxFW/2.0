@@ -247,6 +247,19 @@ async function waitForQuiet(idleMs, maxMs) {
   if (rxQueue.length) { log('  (drained '+rxQueue.length+'B of banner/prompt noise)','dm'); rxQueue.length = 0; }
 }
 
+// Wait until a specific byte value shows up anywhere in the queue (used to
+// detect the single \n the Flipper sends to confirm start_rpc_session was
+// accepted). Consumes everything up to and including that byte.
+async function waitForByte(byteVal, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const idx = rxQueue.indexOf(byteVal);
+    if (idx !== -1) { rxQueue.splice(0, idx + 1); return true; }
+    await sleep(50);
+  }
+  return false;
+}
+
 // Scan the shared queue for a complete varint-length-delimited protobuf
 // frame, consuming bytes off the front as it goes. If expectCmdId is
 // given, frames with a different commandId are discarded (treated as
@@ -482,8 +495,16 @@ async function connectSerial() {
   await waitForQuiet(300, 5000); // let the boot banner finish printing
   await wLog('CR LF', new TextEncoder().encode('\r\n'));
   await waitForQuiet(200, 2000); // let the CLI print its fresh prompt
-  await wLog('start_rpc_session', new TextEncoder().encode('start_rpc_session\r\n'));
-  await sleep(300); // give the CLI a moment to switch into binary RPC mode
+
+  // IMPORTANT: this command must be terminated with a bare \r, NOT \r\n —
+  // sending \r\n here causes the CLI to not process it at all (silently
+  // ignored, no error). On success the Flipper sends back a single \n to
+  // confirm it accepted the command and has switched into binary RPC mode.
+  await wLog('start_rpc_session', new TextEncoder().encode('start_rpc_session\r'));
+  const gotAck = await waitForByte(0x0A, 3000); // wait for the \n acceptance byte
+  if (!gotAck) throw new Error('start_rpc_session not acknowledged — Flipper never sent the \\n confirmation byte');
+  log('start_rpc_session acknowledged ✓','ok');
+
   const pingCmdId = cmdId++;
   await wLog('ping cmdId='+pingCmdId, encodeMain({ commandId:pingCmdId, systemPingRequest:{} }));
   log('Reading for ping response (up to 6s)…','dm');
