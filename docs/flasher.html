@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v33] </title>
+<title>FoxFW v2.0 — Web Installer [TEST v34]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v33 · 2026-07-06 05:53 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v34 · 2026-07-06 06:07 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -396,7 +396,7 @@ async function startRpcSession() {
   log(`Ping sent (cmdId=${pingCmdId}) — waiting for RPC response…`,'dm');
 
   // readRespDirect slides through any banner bytes and finds the real response
-  const pingResp = await readRespDirect(8000);
+  const pingResp = await readRespDirect(8000, pingCmdId);
 
   if (!pingResp || pingResp.commandId !== pingCmdId) {
     const got = pingResp ? `cmdId=${pingResp.commandId} expected=${pingCmdId}` : 'null';
@@ -407,10 +407,8 @@ async function startRpcSession() {
 
 // ── RESPONSE READER ──────────────────────────────────────────────
 // Reads bytes until a complete varint-delimited protobuf message is received.
-// NO dangling reads — it accumulates into a local buffer and returns when done.
-async function readRespDirect(timeoutMs) {
-  // Accumulate bytes and slide through any CLI text to find the protobuf response.
-  // Uses release/re-acquire after each read() to prevent dangling read buildup.
+// expectCmdId: skip messages whose commandId doesn't match (avoids banner false-positives)
+async function readRespDirect(timeoutMs, expectCmdId = -1) {
   const deadline = Date.now() + timeoutMs;
   let buf = [];
 
@@ -420,10 +418,9 @@ async function readRespDirect(timeoutMs) {
     try {
       result = await Promise.race([
         serialReader.read().then(r => { log(`  [rrd] read() resolved: done=${r.done} bytes=${r.value?.length||0}`, 'dm'); return r; }),
-        sleep(Math.min(deadline - Date.now(), 2000)).then(()=>{ log('  [rrd] sleep() won — no data', 'dm'); return null; })
+        sleep(Math.min(deadline - Date.now(), 2000)).then(()=>null)
       ]);
     } catch(e) { log(`  [rrd] read threw: ${e.message}`, 'er'); break; }
-    // Always release after read attempt so no dangling reads persist
     serialReader.releaseLock();
     serialReader = serialPort.readable.getReader();
 
@@ -435,7 +432,7 @@ async function readRespDirect(timeoutMs) {
       for (const b of result.value) buf.push(b);
     }
 
-    // INNER sliding loop — process the entire buffer before reading more
+    // INNER sliding loop — process entire buffer before reading more
     while (buf.length > 0) {
       let pos=0, msgLen=0, shift=0;
       while (pos < buf.length && pos < 5) {
@@ -444,12 +441,21 @@ async function readRespDirect(timeoutMs) {
         shift += 7;
         if ((b & 0x80) === 0) break;
       }
-      if (pos > 0 && msgLen > 65535) { buf = buf.slice(1); continue; } // clearly not protobuf
+      if (pos > 0 && msgLen > 65535) { buf = buf.slice(1); continue; }
       if (pos > 0 && msgLen > 0 && buf.length >= pos + msgLen) {
-        try { return Main.decode(new Uint8Array(buf.slice(pos, pos + msgLen))); }
+        try {
+          const msg = Main.decode(new Uint8Array(buf.slice(pos, pos + msgLen)));
+          // Skip if commandId doesn't match — banner bytes often decode as cmdId=0
+          if (expectCmdId >= 0 && msg.commandId !== expectCmdId) {
+            log(`  [rrd] skip cmdId=${msg.commandId} (want ${expectCmdId})`, 'dm');
+            buf = buf.slice(pos + msgLen); // advance past this false-positive
+            continue;
+          }
+          return msg;
+        }
         catch { buf = buf.slice(1); continue; }
       }
-      break; // not enough data — need more from outer read loop
+      break;
     }
   }
   return null;
@@ -462,7 +468,7 @@ async function rpcMkdir(path) {
   // Release + re-acquire for clean response read (no dangling reads)
   serialReader.releaseLock();
   serialReader = serialPort.readable.getReader();
-  const resp = await readRespDirect(5000);
+  const resp = await readRespDirect(5000, cmdId - 1);
   if (resp) log(`  mkdir ${path}: status=${resp.commandStatus}`,'dm');
   else       log(`  mkdir ${path}: timeout`,'dm');
 }
