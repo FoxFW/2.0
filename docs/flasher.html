@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v31]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v32]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v31 · 2026-07-06 05:38 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v32 · 2026-07-06 05:44 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -377,29 +377,59 @@ async function connectSerial() {
 
 async function startRpcSession() {
   log('Starting RPC session…','in');
-  // 1. Wake CLI with newline, then send start command
+
+  // STEP 1: Drain the accumulated welcome banner from the 8-10s download period.
+  // Chrome's USB receive buffer fills during the download (Flipper sends ~500 bytes
+  // of ANSI banner immediately on connection). If the buffer is full when we try
+  // to receive the ping response, Chrome NAKs the USB and the Flipper can't send.
+  // Drain FIRST so there is room for the ping response.
+  let drainedBytes = 0;
+  while (true) {
+    serialReader.releaseLock();
+    serialReader = serialPort.readable.getReader();
+    const r = await Promise.race([
+      serialReader.read(),
+      sleep(350).then(() => null)
+    ]);
+    serialReader.releaseLock();
+    serialReader = serialPort.readable.getReader();
+    if (!r || r.done || !r.value) break; // 350ms silence = buffer empty
+    drainedBytes += r.value.length;
+    log(`  drained ${r.value.length}B (total ${drainedBytes}B)`,'dm');
+  }
+  log(`Buffer drained (${drainedBytes}B total)`,'dm');
+
+  // STEP 2: Send start_rpc_session command
   await serialWriter.write(new TextEncoder().encode('\r\n'));
   await sleep(150);
   await serialWriter.write(new TextEncoder().encode('start_rpc_session\r\n'));
+  await sleep(300); // give CLI time to switch modes
 
-  // 2. Send ping IMMEDIATELY — no long sleep that would let pipe_receive time out.
-  //    The ping bytes arrive in the pipe right after start_rpc_session\r\n.
-  //    The CLI processes the command, RPC starts, and immediately reads our ping.
-  await sleep(50); // tiny gap: CLI needs ~50ms to switch modes
+  // STEP 3: Quick drain of CLI echo from step 2 (few dozen bytes max)
+  while (true) {
+    serialReader.releaseLock();
+    serialReader = serialPort.readable.getReader();
+    const r = await Promise.race([
+      serialReader.read(),
+      sleep(250).then(() => null)
+    ]);
+    serialReader.releaseLock();
+    serialReader = serialPort.readable.getReader();
+    if (!r || r.done || !r.value) break;
+    log(`  echo ${r.value.length}B: ${new TextDecoder().decode(r.value).trim().slice(0,50)}`,'dm');
+  }
+
+  // STEP 4: Send ping — buffer is now clear, response can be delivered
   const pingCmdId = cmdId++;
   const pingBytes = encodeMain({ commandId: pingCmdId, systemPingRequest:{} });
   await serialWriter.write(pingBytes);
+  log(`Ping sent (cmdId=${pingCmdId})…`,'dm');
 
-  // 3. Read the response — sliding window handles any remaining CLI text
-  serialReader.releaseLock();
-  serialReader = serialPort.readable.getReader();
   const pingResp = await readRespDirect(8000);
 
-  // 4. Validate commandId — reject false positives from banner bytes
   if (!pingResp || pingResp.commandId !== pingCmdId) {
-    const got = pingResp ? `cmdId=${pingResp.commandId} (expected ${pingCmdId})` : 'null';
-    throw new Error(
-      `RPC session failed — ping response invalid (${got}). Flipper must be on the desktop.`);
+    const got = pingResp ? `cmdId=${pingResp.commandId} expected=${pingCmdId}` : 'null';
+    throw new Error(`RPC session failed — ping mismatch (${got}). Flipper must be on the desktop.`);
   }
   log(`RPC session active ✓ (cmdId=${pingResp.commandId} status=${pingResp.commandStatus})`,'ok');
 }
