@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v43]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v44]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-06 10:55 UTC" style="cursor:default">TEST v43 · 2026-07-06 11:20 UTC</div>
+  <div class="badge test" title="Built: 2026-07-06 11:20 UTC" style="cursor:default">TEST v44 · 2026-07-06 21:40 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -122,7 +122,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 // ── CONFIG ──────────────────────────────────────────────────────
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
-const CHUNK    = 128;   // lowered from 512 after repeated crashes on large chunked writes — smaller frames + rest breaks below (see rpcWriteFile)
+const CHUNK    = 512;   // matches lab.flipper.net (Momentum/Unleashed's shared base) exactly
 const DFU_BLK  = 2048;
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
@@ -420,7 +420,7 @@ async function doFlashTGZ() {
   // 3b. Preflight #1: a single-message write (hasNext:false immediately).
   // Isolates whether ANY data-bearing Storage.WriteRequest crashes the
   // firmware, independent of size/throughput.
-  log('Preflight 1/2: single-chunk write…','in');
+  log('Preflight 1/3: single-chunk write…','in');
   try {
     await rpcWriteFile(`${sdBase}/.foxfw_preflight1`, new Uint8Array([0xDE,0xAD,0xBE,0xEF]), null);
     log('Preflight 1 OK (single-chunk write)','ok');
@@ -434,13 +434,28 @@ async function doFlashTGZ() {
   // KB) but exercises the exact code path (continuation handling) that
   // the real upload crashes on almost immediately — narrows the bug to
   // "any multi-chunk write" vs. "something specific to this large file."
-  log('Preflight 2/2: multi-chunk write (tests hasNext continuation)…','in');
+  log('Preflight 2/3: multi-chunk write (tests hasNext continuation)…','in');
   try {
     const twoChunkData = new Uint8Array(CHUNK + 16).fill(0x42);
     await rpcWriteFile(`${sdBase}/.foxfw_preflight2`, twoChunkData, null);
     log('Preflight 2 OK (multi-chunk write) — proceeding with real upload','ok');
   } catch (e) {
     throw new Error('Preflight 2 (multi-chunk / hasNext continuation write) failed — the firmware crashes specifically on chunked writes (hasNext:true), not on data writes in general. Look at your RPC storage handler\'s continuation-message code path. Original error: ' + e.message);
+  }
+
+  // 3d. Preflight #3: a write whose length is an EXACT multiple of CHUNK
+  // (unlike preflight 2, which was deliberately NOT a multiple). This is
+  // the specific edge case our chunking loop now handles differently
+  // from before — and firmware.dfu (861,184 bytes) happens to be exactly
+  // 1682 * 512, landing precisely on this boundary. Cheap, targeted test
+  // of the actual suspected root cause before committing to the real file.
+  log('Preflight 3/3: exact-chunk-multiple write (tests the firmware.dfu edge case)…','in');
+  try {
+    const exactMultipleData = new Uint8Array(CHUNK * 3).fill(0x99); // 1536 bytes, exactly 3 chunks
+    await rpcWriteFile(`${sdBase}/.foxfw_preflight3`, exactMultipleData, null);
+    log('Preflight 3 OK (exact-multiple write) — proceeding with real upload','ok');
+  } catch (e) {
+    throw new Error('Preflight 3 (exact chunk-multiple write) failed — this confirms the boundary-condition theory: files whose size is an exact multiple of the chunk size crash the write. Original error: ' + e.message);
   }
 
   // 4. Upload each file
@@ -589,46 +604,44 @@ async function rpcMkdir(path) {
 }
 
 async function rpcWriteFile(path, data, onProgress) {
-  const chunks = Math.ceil(data.length / CHUNK);
-  const id     = cmdId++;
+  const id = cmdId++;
+  const CHUNK_GAP_MS = 7; // matches lab.flipper.net exactly: flat, unconditional gap per chunk
 
-  const TARGET_BPS   = 40 * 1024; // much more conservative than before — 150KB/s still crashed
-  const REST_EVERY    = 16;        // every N chunks, pause longer than steady pacing requires
-  const REST_MS        = 150;      // so the device's SD-write task can fully catch up, not just less-far-behind
-  const t0 = Date.now();
-
-  for (let i=0; i<chunks; i++) {
-    const chunk  = data.slice(i*CHUNK, (i+1)*CHUNK);
-    const isLast = i === chunks-1;
+  // IMPORTANT: mirrors lab.flipper.net's exact loop boundary — note `<=`,
+  // not `<`. When data.length is an exact multiple of CHUNK (as our
+  // 861,184-byte firmware.dfu is: exactly 1682 * 512), this deliberately
+  // sends one extra EMPTY final chunk with hasNext:false as its own
+  // message, rather than attaching hasNext:false to the last real data
+  // chunk. Our previous loop always attached hasNext:false to the last
+  // real chunk, which diverges from the proven implementation precisely
+  // on files whose size lands exactly on a chunk boundary — exactly the
+  // case that was crashing.
+  for (let i = 0; i <= data.length; i += CHUNK) {
+    const chunk   = data.slice(i, i + CHUNK);
+    const hasNext = (i + CHUNK) <= data.length;
 
     await wMsg(encodeMain({
       commandId: id,
-      hasNext:   !isLast,
+      hasNext,
       storageWriteRequest: {
         path: i === 0 ? path : undefined, // path on first chunk only (protocol spec)
         file: { data: chunk }
       }
     }));
 
-    // A hasNext-chunked write is one continuous logical command — the
-    // Flipper only acks the FINAL chunk (confirmed by the protobuf spec's
-    // ERROR_CONTINUOUS_COMMAND_INTERRUPTED: "Not received has_next == 0").
-    // So there's no per-chunk ack to use as backpressure. Instead we
-    // self-throttle to a conservative rate, PLUS take a real rest every
-    // few chunks (not just even spacing) so the device's UART buffer and
-    // SD write pipeline can fully drain periodically rather than staying
-    // continuously loaded, which is likely what crashed its USB stack.
-    const bytesSent  = (i+1) * CHUNK;
-    const expectedMs = (bytesSent / TARGET_BPS) * 1000;
-    const elapsedMs  = Date.now() - t0;
-    if (expectedMs > elapsedMs) await sleep(expectedMs - elapsedMs);
-    if (!isLast && (i+1) % REST_EVERY === 0) await sleep(REST_MS);
+    // Flat, unconditional gap between every chunk — no average-rate
+    // catch-up logic. Our previous "target bytes/sec" pacing could let
+    // several chunks fire back-to-back with zero gap after any slow
+    // write, to catch up to the average — this guarantees every chunk
+    // gets the same minimum spacing no matter what happened before it.
+    await sleep(CHUNK_GAP_MS);
 
-    if (onProgress) onProgress((i+1)/chunks);
-    const pct = Math.round((i+1)/chunks*100);
-    if (pct !== Math.round(i/chunks*100)) log(`  ${pct}%`);
+    if (onProgress) onProgress(Math.min(i + CHUNK, data.length) / data.length);
+    const pct = Math.round(Math.min(i + CHUNK, data.length) / data.length * 100);
+    const prevPct = Math.round(i / data.length * 100);
+    if (pct !== prevPct) log(`  ${pct}%`);
 
-    if (isLast) {
+    if (!hasNext) {
       const waitMs = Math.min(30000, Math.max(5000, Math.ceil(data.length/50000)*1000));
       log(`  Waiting ${(waitMs/1000).toFixed(0)}s for SD write…`);
       const resp = await readResp(waitMs, id);
@@ -639,6 +652,7 @@ async function rpcWriteFile(path, data, onProgress) {
       } else {
         log(`  Write response timeout (file may still be OK)`,'dm');
       }
+      break;
     }
   }
 }
