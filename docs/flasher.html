@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v29] </title>
+<title>FoxFW v2.0 — Web Installer [TEST v30]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v29 · 2026-07-06 05:16 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v30 · 2026-07-06 05:31 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -257,6 +257,86 @@ async function doFlash() {
     connUI('off','Failed',err.message.slice(0,60));
   }
   busy=false; $('bflash').disabled=false; $('bcon').disabled=false;
+}
+
+async function doDisconnect() {
+  connected = false; busy = false;
+  $('bflash').disabled=true; $('dnote').style.display='none'; $('bdis').style.display='none';
+  $('pgwrap').style.display='none'; $('sbox').classList.remove('show');
+  try { if (serialReader) { await serialReader.cancel(); serialReader.releaseLock(); }} catch {}
+  try { if (serialWriter) { serialWriter.releaseLock(); }} catch {}
+  try { if (serialPort)   { await serialPort.close(); }} catch {}
+  serialPort=serialWriter=serialReader=null;
+  connUI('off','Not connected','Connect your Flipper via USB to begin');
+  log('Disconnected','dm');
+}
+
+async function connectDFU() {
+  if (!('usb' in navigator)) throw new Error('WebUSB not supported — use Chrome or Edge');
+  log('Requesting DFU device…','in');
+  const granted = (await navigator.usb.getDevices()).find(d=>d.vendorId===VID&&d.productId===PID_DFU);
+  window._dfuDev = granted || await navigator.usb.requestDevice({ filters:[{vendorId:VID,productId:PID_DFU}] });
+  log('DFU device: '+(window._dfuDev.productName||'STM32'),'ok');
+  connUI('on','Flipper Zero — DFU Mode','WebUSB · DFU Recovery');
+}
+
+async function wMsg(bytes) {
+  await Promise.race([
+    serialWriter.write(bytes),
+    sleep(30000).then(() => { throw new Error('Write timeout — Flipper stopped accepting data after 30s'); })
+  ]);
+}
+
+// ── TGZ / RPC FLASH ──────────────────────────────────────────────
+async function doFlashTGZ() {
+  // 1. Download + decompress + parse FIRST (before starting RPC session)
+  pg(0.01,'Downloading firmware…'); log('Downloading '+TGZ_URL+'…','in');
+  const tgz = await fetchXHR(TGZ_URL, p=>pg(0.01+p*0.28,`Downloading… ${Math.round(p*100)}%`));
+  log(`Downloaded ${(tgz.length/1024/1024).toFixed(1)} MB`,'ok');
+  pg(0.29,'Decompressing…'); log('Decompressing…');
+  const tar   = pako.inflate(tgz);
+  const files = parseTar(tar);
+  log(`Found ${files.length} files in package`,'ok');
+  if (!files.length) throw new Error('No files in firmware package');
+
+  const topDir     = files[0].name.split('/')[0];
+  const sdBase     = `/ext/update/${topDir}`;
+  const manifest   = files.find(f=>f.name.endsWith('update.fuf'));
+  if (!manifest) throw new Error('update.fuf manifest not found in TGZ');
+  const manifestSD = `/ext/update/${manifest.name}`;
+  log(`Update directory: ${sdBase}`,'in');
+
+  // 2. Start RPC session NOW (right before upload — avoids pipe_receive timeout)
+  pg(0.30,'Starting RPC session…');
+  await startRpcSession();
+
+  // 3. Create update directories
+  log('Creating directories on SD card…','in');
+  await rpcMkdir('/ext/update');
+  await rpcMkdir(sdBase);
+
+  // 4. Upload each file
+  for (let fi=0; fi<files.length; fi++) {
+    const f = files[fi];
+    const sdPath = `/ext/update/${f.name}`;
+    log(`Uploading ${f.name} (${(f.data.length/1024).toFixed(0)} KB)…`);
+    await rpcWriteFile(sdPath, f.data, p => {
+      pg(0.32 + ((fi+p)/files.length)*0.60, `Uploading ${f.name}… ${Math.round(p*100)}%`);
+    });
+    log(`✓ ${f.name}`,'ok');
+  }
+
+  // 5. Trigger update
+  log('Triggering firmware update…','in'); pg(0.93,'Triggering update…');
+  const updateBytes = encodeMain({
+    commandId:cmdId++,
+    systemUpdateRequest:{ updateManifest: manifestSD }
+  });
+  await serialWriter.write(updateBytes);
+  await sleep(1000);
+  log('Update triggered — Flipper is rebooting','ok');
+  pg(1,'Done!');
+  try { await doDisconnect(); } catch {}
 }
 
 // ── CONNECT ──────────────────────────────────────────────────────
