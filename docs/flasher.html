@@ -195,6 +195,93 @@ function encodeMain(obj) {
 let method = 'tgz', cmdId = 1, busy = false, connected = false;
 let serialPort = null, serialWriter = null, serialReader = null;
 
+// Single continuous background reader ("pump"). Only ONE thing may ever
+// call serialReader.read() for the life of the connection — every other
+// part of the code (banner detection, ping search, RPC response parsing)
+// consumes from this shared byte queue instead. Repeatedly releasing and
+// re-acquiring the reader lock (the old approach) can abandon a read()
+// call that's still in flight; if bytes arrive in that gap they're
+// delivered to a dangling promise nobody is listening to anymore, and
+// silently vanish. This is why we saw 0 bytes after switching to a
+// faster polling loop — it made that race far more likely to hit.
+let rxQueue = [];
+let pumpActive = false;
+let pumpTask = null;
+
+function startPump() {
+  rxQueue = [];
+  pumpActive = true;
+  pumpTask = (async () => {
+    try {
+      while (pumpActive) {
+        const { value, done } = await serialReader.read();
+        if (done) break;
+        if (value && value.length) {
+          for (const b of value) rxQueue.push(b);
+          if (rxQueue.length > 200000) rxQueue.splice(0, rxQueue.length - 200000);
+          const txt = Array.from(value).map(b=>b>=32&&b<127?String.fromCharCode(b):(b===13||b===10?'↵':'.')).join('');
+          log('[rx '+value.length+'B] '+txt.slice(0,100),'dm');
+        }
+      }
+    } catch (e) { /* reader cancelled on disconnect — expected */ }
+  })();
+}
+
+async function stopPump() {
+  pumpActive = false;
+  try { await serialReader.cancel(); } catch {}
+  try { await pumpTask; } catch {}
+}
+
+// Wait until the shared queue has been quiet (no new bytes) for idleMs,
+// then drop whatever accumulated (banner text, stray prompts, etc).
+async function waitForQuiet(idleMs, maxMs) {
+  const deadline = Date.now() + maxMs;
+  let lastLen = rxQueue.length;
+  let lastChange = Date.now();
+  while (Date.now() < deadline) {
+    await sleep(50);
+    if (rxQueue.length !== lastLen) { lastLen = rxQueue.length; lastChange = Date.now(); }
+    if (Date.now() - lastChange >= idleMs) break;
+  }
+  if (rxQueue.length) { log('  (drained '+rxQueue.length+'B of banner/prompt noise)','dm'); rxQueue.length = 0; }
+}
+
+// Scan the shared queue for a complete varint-length-delimited protobuf
+// frame, consuming bytes off the front as it goes. If expectCmdId is
+// given, frames with a different commandId are discarded (treated as
+// banner/keepalive noise) instead of being returned.
+async function readResp(timeoutMs, expectCmdId = -1) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    while (rxQueue.length > 0) {
+      let pos = 0, msgLen = 0, shift = 0;
+      while (pos < rxQueue.length && pos < 5) {
+        const b = rxQueue[pos++];
+        msgLen |= (b & 0x7F) << shift;
+        shift += 7;
+        if ((b & 0x80) === 0) break;
+      }
+      if (pos === 0) break; // not even a full length-prefix yet
+      if (msgLen === 0 || msgLen > 65535) { rxQueue.shift(); continue; } // bogus, resync by 1 byte
+      if (rxQueue.length < pos + msgLen) break; // wait for more bytes
+      const payload = rxQueue.slice(pos, pos + msgLen);
+      try {
+        const msg = Main.decode(new Uint8Array(payload));
+        rxQueue.splice(0, pos + msgLen); // consume the whole frame
+        log('  [decoded] cmdId='+msg.commandId+' status='+msg.commandStatus,'dm');
+        if (expectCmdId >= 0 && msg.commandId !== expectCmdId) continue; // not ours — keep scanning
+        return msg;
+      } catch {
+        rxQueue.shift(); // resync by one byte and retry
+        continue;
+      }
+    }
+    await sleep(50);
+  }
+  return null;
+}
+
 // ── UI HELPERS ───────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -260,13 +347,14 @@ async function doFlash() {
 }
 
 async function doDisconnect() {
-  stopKeepAlive(); stopDrain();
+  stopKeepAlive();
   connected = false; busy = false;
   $('bflash').disabled=true; $('dnote').style.display='none'; $('bdis').style.display='none';
   $('pgwrap').style.display='none'; $('sbox').classList.remove('show');
-  try { if (serialReader) { await serialReader.cancel(); serialReader.releaseLock(); }} catch {}
-  try { if (serialWriter) { serialWriter.releaseLock(); }} catch {}
-  try { if (serialPort)   { await serialPort.close(); }} catch {}
+  try { await stopPump(); } catch {}
+  try { if (serialReader) { serialReader.releaseLock(); } } catch {}
+  try { if (serialWriter) { serialWriter.releaseLock(); } } catch {}
+  try { if (serialPort)   { await serialPort.close(); } } catch {}
   serialPort=serialWriter=serialReader=null;
   connUI('off','Not connected','Connect your Flipper via USB to begin');
   log('Disconnected','dm');
@@ -379,35 +467,18 @@ async function connectSerial() {
   serialWriter = serialPort.writable.getWriter();
   serialReader = serialPort.readable.getReader();
   cmdId = 1;
+  startPump(); // single continuous reader for the life of this connection
   log('Port opened + DTR asserted — waiting for boot banner to finish…','ok');
 
-  // DIAGNOSTIC v38: log writes explicitly, print ALL received bytes as ASCII
   const wLog = async (lbl, data) => {
     try { await serialWriter.write(data); log('[write OK] '+lbl,'dm'); }
     catch(e) { log('[write FAIL] '+lbl+': '+e.message,'er'); throw e; }
   };
 
   // The Flipper CLI prints its ASCII logo + help banner with a deliberate
-  // typewriter-style delay — it can take well over a second to fully arrive.
-  // Sending commands before it finishes means the CLI is still busy
-  // rendering text and never processes start_rpc_session. Instead of racing
-  // it with fixed sleeps, wait until the line goes quiet (no bytes for
-  // idleMs) — that reliably means the Flipper is idle at its prompt.
-  async function waitForQuiet(idleMs, maxMs) {
-    const deadline = Date.now() + maxMs;
-    let lastRx = Date.now();
-    let total = 0;
-    while (Date.now() < deadline) {
-      let r;
-      try { r = await Promise.race([serialReader.read(), sleep(50).then(()=>null)]); }
-      catch { break; }
-      serialReader.releaseLock(); serialReader = serialPort.readable.getReader();
-      if (r && r.value && r.value.length) { lastRx = Date.now(); total += r.value.length; }
-      if (Date.now() - lastRx >= idleMs) break;
-    }
-    if (total) log('  (drained '+total+'B of banner/prompt noise)','dm');
-  }
-
+  // typewriter-style delay. Sending commands before it finishes means the
+  // CLI is still busy rendering text and never processes start_rpc_session.
+  // Wait until the line goes quiet instead of racing it with fixed sleeps.
   await waitForQuiet(300, 5000); // let the boot banner finish printing
   await wLog('CR LF', new TextEncoder().encode('\r\n'));
   await waitForQuiet(200, 2000); // let the CLI print its fresh prompt
@@ -417,39 +488,10 @@ async function connectSerial() {
   await wLog('ping cmdId='+pingCmdId, encodeMain({ commandId:pingCmdId, systemPingRequest:{} }));
   log('Reading for ping response (up to 6s)…','dm');
 
-  const allRx = [];
-  const end6 = Date.now() + 6000;
-  while (Date.now() < end6) {
-    let r;
-    try { r = await Promise.race([serialReader.read(), sleep(400).then(()=>null)]); }
-    catch { break; }
-    serialReader.releaseLock(); serialReader = serialPort.readable.getReader();
-    if (!r) continue; if (r.done) break;
-    if (r.value) {
-      for (const b of r.value) allRx.push(b);
-      const txt = Array.from(r.value).map(b=>b>=32&&b<127?String.fromCharCode(b):(b===13||b===10?'↵':'.')).join('');
-      log('[rx '+r.value.length+'B] '+txt.slice(0,100),'dm');
-    }
-  }
-  log('Total rx: '+allRx.length+'B','dm');
-
-  // Search all received bytes for ping response
-  let found = null;
-  for (let i = 0; i < allRx.length; i++) {
-    let p=0, ml=0, sh=0; const sl = allRx.slice(i);
-    while(p<Math.min(sl.length,5)){const b=sl[p++];ml|=(b&0x7F)<<sh;sh+=7;if(!(b&0x80))break;}
-    if(p>0&&ml>0&&ml<1000&&sl.length>=p+ml){
-      try{const m=Main.decode(new Uint8Array(sl.slice(p,p+ml)));
-        log('[decoded +'+i+'] cmdId='+m.commandId+' status='+m.commandStatus,'dm');
-        if(m.commandId===pingCmdId){found=m;break;}
-      }catch{}
-    }
-  }
-  if (!found) throw new Error('RPC failed — ping not in '+allRx.length+'B. See log for what Flipper sent.');
+  const found = await readResp(6000, pingCmdId);
+  if (!found) throw new Error('RPC failed — no matching ping response arrived. See log for what Flipper sent.');
   log('RPC session active ✓ (cmdId='+found.commandId+' status='+found.commandStatus+')','ok');
 
-  // Start bgDrain + keepalive so pipe_receive stays alive during the firmware download
-  startDrain();
   startKeepAlive();
   connUI('on','Flipper Zero — Connected','RPC session active · Click Install to flash');
 }
@@ -469,102 +511,22 @@ function stopKeepAlive() {
   if (keepAliveTimer) { clearInterval(keepAliveTimer); keepAliveTimer = null; }
 }
 
-// bgDrain: reads & discards Flipper responses (keepalive pongs) concurrently
-let drainReader = null;
-async function bgDrain() {
-  try {
-    while (drainReader) {
-      const { value, done } = await drainReader.read();
-      if (done || !drainReader) break;
-    }
-  } catch {}
-}
-function startDrain() {
-  stopDrain();
-  drainReader = serialReader;
-  serialReader = null;
-  bgDrain();
-}
-function stopDrain() {
-  drainReader = null;
-}
-
 async function startRpcSession() {
-  // RPC session was started in connectSerial() and kept alive via keepalive pings.
-  // Now we're about to upload — stop keepalive and bgDrain, get a clean reader.
+  // The RPC session (and its pump) has been running since connectSerial().
+  // Just stop the keepalive timer before we start writing real commands,
+  // so its pings don't interleave with our write-response matching.
   log('Stopping keepalive, preparing for upload…','dm');
   stopKeepAlive();
-  stopDrain();
-  // Re-acquire reader (bgDrain released it) with fresh state
-  serialReader = serialPort.readable.getReader();
   cmdId = Math.max(cmdId, 10); // ensure cmdId is ahead of keepalive pings
   log('Ready for upload','ok');
 }
 
-// ── RESPONSE READER ──────────────────────────────────────────────
-// Reads bytes until a complete varint-delimited protobuf message is received.
-// expectCmdId: skip messages whose commandId doesn't match (avoids banner false-positives)
-async function readRespDirect(timeoutMs, expectCmdId = -1) {
-  const deadline = Date.now() + timeoutMs;
-  let buf = [];
-
-  while (Date.now() < deadline) {
-    let result;
-    log(`  [rrd] waiting (${Math.round(deadline-Date.now())}ms left)…`, 'dm');
-    try {
-      result = await Promise.race([
-        serialReader.read().then(r => { log(`  [rrd] read() resolved: done=${r.done} bytes=${r.value?.length||0}`, 'dm'); return r; }),
-        sleep(Math.min(deadline - Date.now(), 2000)).then(()=>null)
-      ]);
-    } catch(e) { log(`  [rrd] read threw: ${e.message}`, 'er'); break; }
-    serialReader.releaseLock();
-    serialReader = serialPort.readable.getReader();
-
-    if (result === null) continue;
-    if (!result || result.done) break;
-    if (result.value) {
-      const hex = Array.from(result.value.slice(0,16)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
-      log(`[rx ${result.value.length}B] ${hex}${result.value.length>16?'…':''}`, 'dm');
-      for (const b of result.value) buf.push(b);
-    }
-
-    // INNER sliding loop — process entire buffer before reading more
-    while (buf.length > 0) {
-      let pos=0, msgLen=0, shift=0;
-      while (pos < buf.length && pos < 5) {
-        const b = buf[pos++];
-        msgLen |= (b & 0x7F) << shift;
-        shift += 7;
-        if ((b & 0x80) === 0) break;
-      }
-      if (pos > 0 && msgLen > 65535) { buf = buf.slice(1); continue; }
-      if (pos > 0 && msgLen > 0 && buf.length >= pos + msgLen) {
-        try {
-          const msg = Main.decode(new Uint8Array(buf.slice(pos, pos + msgLen)));
-          // Skip if commandId doesn't match — banner bytes often decode as cmdId=0
-          if (expectCmdId >= 0 && msg.commandId !== expectCmdId) {
-            log(`  [rrd] skip cmdId=${msg.commandId} (want ${expectCmdId})`, 'dm');
-            buf = buf.slice(pos + msgLen); // advance past this false-positive
-            continue;
-          }
-          return msg;
-        }
-        catch { buf = buf.slice(1); continue; }
-      }
-      break;
-    }
-  }
-  return null;
-}
-
 // ── RPC HELPERS ──────────────────────────────────────────────────
 async function rpcMkdir(path) {
-  const bytes = encodeMain({ commandId:cmdId++, storageMkdirRequest:{ path } });
+  const id = cmdId++;
+  const bytes = encodeMain({ commandId:id, storageMkdirRequest:{ path } });
   await serialWriter.write(bytes);
-  // Release + re-acquire for clean response read (no dangling reads)
-  serialReader.releaseLock();
-  serialReader = serialPort.readable.getReader();
-  const resp = await readRespDirect(5000, cmdId - 1);
+  const resp = await readResp(5000, id);
   if (resp) log(`  mkdir ${path}: status=${resp.commandStatus}`,'dm');
   else       log(`  mkdir ${path}: timeout`,'dm');
 }
@@ -594,10 +556,7 @@ async function rpcWriteFile(path, data, onProgress) {
     if (isLast) {
       const waitMs = Math.min(30000, Math.max(5000, Math.ceil(data.length/50000)*1000));
       log(`  Waiting ${(waitMs/1000).toFixed(0)}s for SD write…`);
-      // Release + re-acquire for clean last-chunk response read
-      serialReader.releaseLock();
-      serialReader = serialPort.readable.getReader();
-      const resp = await readRespDirect(waitMs);
+      const resp = await readResp(waitMs, id);
       if (resp) {
         if (resp.commandStatus && resp.commandStatus !== 0)
           throw new Error(`Write failed for ${path}: error code ${resp.commandStatus}`);
