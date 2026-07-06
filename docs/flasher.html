@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v52]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v53]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -68,7 +68,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-06 23:45 UTC" style="cursor:default">TEST v52 · 2026-07-07 00:05 UTC</div>
+  <div class="badge test" title="Built: 2026-07-07 00:05 UTC" style="cursor:default">TEST v53 · 2026-07-07 00:20 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="wrap">
@@ -122,7 +122,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 const TGZ_URL  = 'flipper-z-f7-update-local.tgz';
 const DFU_URL  = 'flipper-z-f7-full-local.dfu';
 const CHUNK    = 512;   // matches lab.flipper.net (Momentum/Unleashed's shared base) exactly
-const DFU_BLK  = 2048;
+let DFU_BLK    = 2048; // default fallback — overridden by the device's real advertised wTransferSize (see getDfuTransferSize)
 const VID      = 0x0483;
 const PID_DFU  = 0xDF11;
 
@@ -743,6 +743,13 @@ async function doFlashDFU() {
     if(a.interfaceClass===0xFE&&a.interfaceSubclass===0x01) ifn=i.interfaceNumber;
   await dev.selectConfiguration(1); await dev.claimInterface(ifn);
   log(`DFU iface ${ifn} claimed`,'ok');
+  const realTransferSize = await getDfuTransferSize(dev);
+  if (realTransferSize) {
+    log(`Device reports wTransferSize=${realTransferSize}B (was using ${DFU_BLK}B)`,'in');
+    DFU_BLK = realTransferSize;
+  } else {
+    log(`Could not read wTransferSize — keeping default ${DFU_BLK}B`,'dm');
+  }
   const st=await dfuGetSt(dev,ifn);
   if(st.bStatus!==0||st.bState===10){await dfuClrSt(dev,ifn);}
   const targets=parseDFU(dfuData);
@@ -810,6 +817,30 @@ async function dfuDnload(d,i,n,data){const r=await d.controlTransferOut({request
 async function dfuGetSt(d,i){const r=await d.controlTransferIn({requestType:'class',recipient:'interface',request:3,value:0,index:i},6),v=r.data;return{bStatus:v.getUint8(0),bwPollTimeout:v.getUint8(1)|(v.getUint8(2)<<8)|(v.getUint8(3)<<16),bState:v.getUint8(4)};}
 async function dfuClrSt(d,i){await d.controlTransferOut({requestType:'class',recipient:'interface',request:4,value:0,index:i});}
 async function dfuPoll(d,i){for(let n=0;n<200;n++){const s=await dfuGetSt(d,i);if(s.bState===10){await dfuClrSt(d,i);throw new Error(`DFU error bStatus=${s.bStatus}`);}if(s.bState!==4)return s;await sleep(Math.max(s.bwPollTimeout,10));}throw new Error('DFU poll timeout');}
+
+// Reads the device's actual advertised DFU wTransferSize (max block size
+// it will accept per DNLOAD) from the DFU functional descriptor embedded
+// in the configuration descriptor. We were hardcoding 2048 bytes, which
+// may exceed what the device actually supports — writing a block larger
+// than its real wTransferSize can cause exactly the kind of raw
+// USB-level transfer error (not a DFU status error) we were seeing,
+// since tiny control commands (erase, set-address) always succeeded but
+// full-size data blocks did not.
+async function getDfuTransferSize(dev) {
+  try {
+    const head = await dev.controlTransferIn({requestType:'standard',recipient:'device',request:6,value:(2<<8)|0,index:0}, 9);
+    const totalLen = head.data.getUint16(2, true);
+    const full = await dev.controlTransferIn({requestType:'standard',recipient:'device',request:6,value:(2<<8)|0,index:0}, totalLen);
+    const buf = new Uint8Array(full.data.buffer, full.data.byteOffset, full.data.byteLength);
+    for (let i=0; i<buf.length-1; i++) {
+      if (buf[i]===9 && buf[i+1]===0x21) { // bLength=9, bDescriptorType=DFU_FUNCTIONAL(0x21)
+        const dv = new DataView(buf.buffer, buf.byteOffset+i, 9);
+        return dv.getUint16(4, true); // wTransferSize, offset 4, little-endian
+      }
+    }
+  } catch (e) { /* fall through to default */ }
+  return null;
+}
 
 // ── TAR PARSER ───────────────────────────────────────────────────
 function parseTar(buf){
