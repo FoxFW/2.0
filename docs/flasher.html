@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v39]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v40]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v39 · 2026-07-06 06:48 UTC</div>
+  <div class="badge test" title="Built: 2026-07-06 06:48 UTC" style="cursor:default">TEST v40 · 2026-07-06 07:15 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -556,6 +556,9 @@ async function rpcWriteFile(path, data, onProgress) {
   const chunks = Math.ceil(data.length / CHUNK);
   const id     = cmdId++;
 
+  const TARGET_BPS = 150 * 1024; // conservative cap so we don't outrun the Flipper's UART rx buffer + SD write pipeline
+  const t0 = Date.now();
+
   for (let i=0; i<chunks; i++) {
     const chunk  = data.slice(i*CHUNK, (i+1)*CHUNK);
     const isLast = i === chunks-1;
@@ -569,7 +572,18 @@ async function rpcWriteFile(path, data, onProgress) {
       }
     }));
 
-    await sleep(1); // yield for event loop
+    // A hasNext-chunked write is one continuous logical command — the
+    // Flipper only acks the FINAL chunk (confirmed by the protobuf spec's
+    // ERROR_CONTINUOUS_COMMAND_INTERRUPTED: "Not received has_next == 0").
+    // So there's no per-chunk ack to use as backpressure. Instead we
+    // self-throttle to a conservative rate so we don't outrun its UART
+    // buffer and SD write pipeline (which is likely what crashed the
+    // device's USB stack — surfacing here as "device has been lost").
+    const bytesSent  = (i+1) * CHUNK;
+    const expectedMs = (bytesSent / TARGET_BPS) * 1000;
+    const elapsedMs  = Date.now() - t0;
+    if (expectedMs > elapsedMs) await sleep(expectedMs - elapsedMs);
+
     if (onProgress) onProgress((i+1)/chunks);
     const pct = Math.round((i+1)/chunks*100);
     if (pct !== Math.round(i/chunks*100)) log(`  ${pct}%`);
