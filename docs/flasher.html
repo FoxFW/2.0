@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v28]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v29]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v28 · 2026-07-06 05:07 UTC</div>
+  <div class="badge test" title="Built: 2026-07-05 11:45 UTC" style="cursor:default">TEST v29 · 2026-07-06 05:16 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -232,6 +232,31 @@ function selMethod(m) {
   $('mc-dfu').classList.toggle('sel', m==='dfu');
   $('fw-method').textContent = m==='tgz' ? 'RPC over USB Serial → SD card' : 'WebUSB DFU → internal flash';
   $('fw-file').textContent   = m==='tgz' ? 'flipper-z-f7-update-local.tgz' : 'flipper-z-f7-full-local.dfu';
+}
+
+// ── FLASH DISPATCHER ─────────────────────────────────────────────
+async function doFlash() {
+  log('Install clicked — busy='+busy+' connected='+connected,'in');
+  if (busy || !connected) return;
+  busy=true; $('bflash').disabled=true; $('bcon').disabled=true; $('bdis').style.display='none';
+  clearNotices(); $('sbox').classList.remove('show');
+  $('pgwrap').style.display=''; pg(0,'Starting…');
+  $('pgfill').classList.add('pulse');
+  try {
+    if (method==='dfu') await doFlashDFU();
+    else                await doFlashTGZ();
+    pg(1,'Complete!'); $('pgfill').classList.remove('pulse');
+    $('sbox').classList.add('show');
+    $('smsg').textContent = method==='dfu'
+      ? 'DFU flash complete. Unplug your Flipper, then hold power to boot.'
+      : 'Firmware uploaded. Your Flipper is rebooting — the progress bar on its screen shows the install.';
+    connUI('on','FoxFW Installed ✓','Flash complete');
+  } catch (err) {
+    showErr(err.message); log('FAILED: '+err.message,'er');
+    pg(0,'Failed'); $('pgfill').classList.remove('pulse');
+    connUI('off','Failed',err.message.slice(0,60));
+  }
+  busy=false; $('bflash').disabled=false; $('bcon').disabled=false;
 }
 
 // ── CONNECT ──────────────────────────────────────────────────────
