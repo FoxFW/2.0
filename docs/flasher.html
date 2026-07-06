@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>FoxFW v2.0 — Web Installer [TEST v49]</title>
+<title>FoxFW v2.0 — Web Installer [TEST v50]</title>
 <style>
 :root{--orange:#e8750a;--dark:#0d0d0d;--mid:#161616;--card:#1e1e1e;--border:#2a2a2a;--light:#f0ebe5;--accent:#ff9a3c;--green:#3dba6a;--red:#e04040;--glow:rgba(232,117,10,.22)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
@@ -66,7 +66,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 <header class="topbar">
   <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
   <div class="badge">WEB INSTALLER</div>
-  <div class="badge test" title="Built: 2026-07-06 22:45 UTC" style="cursor:default">TEST v49 · 2026-07-06 23:00 UTC</div>
+  <div class="badge test" title="Built: 2026-07-06 23:00 UTC" style="cursor:default">TEST v50 · 2026-07-06 23:15 UTC</div>
   <a href="index.html">← User Guide</a>
 </header>
 <div class="connbar">
@@ -149,7 +149,7 @@ const PROTO_JSON = {
         Main: {
           oneofs: { content: { oneof: [
             'storageWriteRequest','storageMkdirRequest',
-            'systemUpdateRequest','systemPingRequest','systemPingResponse'
+            'systemUpdateRequest','systemUpdateResponse','systemRebootRequest','systemPingRequest','systemPingResponse'
           ]}},
           fields: {
             commandId:            { type:'uint32', id:1 },
@@ -159,7 +159,9 @@ const PROTO_JSON = {
             systemPingResponse:   { type:'PB.System.PingResponse',   id:6  },
             storageWriteRequest:  { type:'PB.Storage.WriteRequest',  id:11 },
             storageMkdirRequest:  { type:'PB.Storage.MkdirRequest',  id:13 },
-            systemUpdateRequest:  { type:'PB.System.UpdateRequest',  id:41 }
+            systemUpdateRequest:  { type:'PB.System.UpdateRequest',  id:41 },
+            systemUpdateResponse: { type:'PB.System.UpdateResponse', id:46 },
+            systemRebootRequest:  { type:'PB.System.RebootRequest',  id:31 }
           }
         },
         Storage: {
@@ -182,7 +184,9 @@ const PROTO_JSON = {
           nested: {
             PingRequest:   { fields: { data: { type:'bytes', id:1 } } },
             PingResponse:  { fields: { data: { type:'bytes', id:1 } } },
-            UpdateRequest: { fields: { updateManifest: { type:'string', id:1 } } }
+            UpdateRequest: { fields: { updateManifest: { type:'string', id:1 } } },
+            UpdateResponse: { fields: { code: { type:'uint32', id:1 } } },
+            RebootRequest: { fields: { mode: { type:'uint32', id:1 } } }
           }
         }
       }
@@ -486,13 +490,34 @@ async function doFlashTGZ() {
     log(`✓ ${f.name}`,'ok');
   }
 
-  // 5. Trigger update
-  log('Triggering firmware update…','in'); pg(0.93,'Triggering update…');
+  // 5. Trigger update — this is a TWO-step sequence per the reference
+  // implementation (Update.vue): systemUpdateRequest only validates the
+  // manifest path and returns a result code; it does NOT reboot the
+  // device by itself. The actual physical reboot-into-update only
+  // happens after a SEPARATE systemRebootRequest with mode:UPDATE (2).
+  // We were only sending the first half, which is why everything
+  // reported success but the Flipper never actually restarted.
+  log('Validating update manifest…','in'); pg(0.90,'Validating manifest…');
+  const updateCmdId = cmdId++;
   const updateBytes = encodeMain({
-    commandId:cmdId++,
+    commandId: updateCmdId,
     systemUpdateRequest:{ updateManifest: manifestSD }
   });
   await serialWriter.write(updateBytes);
+  const updateResp = await readResp(5000, updateCmdId);
+  if (updateResp) {
+    const code = updateResp.systemUpdateResponse ? updateResp.systemUpdateResponse.code : undefined;
+    log(`  systemUpdate response: envelope status=${updateResp.commandStatus}${code!==undefined ? `, result code=${code} (0=OK)` : ''}`,'dm');
+  } else {
+    log('  systemUpdate response: timeout (proceeding anyway)','dm');
+  }
+
+  log('Triggering reboot into update mode…','in'); pg(0.95,'Rebooting into update…');
+  const rebootBytes = encodeMain({
+    commandId:cmdId++,
+    systemRebootRequest:{ mode: 2 } // 2 = UPDATE (see System.RebootRequest.RebootMode)
+  });
+  await serialWriter.write(rebootBytes);
   await sleep(1000);
   log('Update triggered — Flipper is rebooting','ok');
   pg(1,'Done!');
