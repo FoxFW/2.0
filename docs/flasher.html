@@ -379,20 +379,43 @@ async function connectSerial() {
   serialWriter = serialPort.writable.getWriter();
   serialReader = serialPort.readable.getReader();
   cmdId = 1;
-  log('Port opened + DTR asserted — starting RPC session…','ok');
+  log('Port opened + DTR asserted — waiting for boot banner to finish…','ok');
 
   // DIAGNOSTIC v38: log writes explicitly, print ALL received bytes as ASCII
   const wLog = async (lbl, data) => {
     try { await serialWriter.write(data); log('[write OK] '+lbl,'dm'); }
     catch(e) { log('[write FAIL] '+lbl+': '+e.message,'er'); throw e; }
   };
+
+  // The Flipper CLI prints its ASCII logo + help banner with a deliberate
+  // typewriter-style delay — it can take well over a second to fully arrive.
+  // Sending commands before it finishes means the CLI is still busy
+  // rendering text and never processes start_rpc_session. Instead of racing
+  // it with fixed sleeps, wait until the line goes quiet (no bytes for
+  // idleMs) — that reliably means the Flipper is idle at its prompt.
+  async function waitForQuiet(idleMs, maxMs) {
+    const deadline = Date.now() + maxMs;
+    let lastRx = Date.now();
+    let total = 0;
+    while (Date.now() < deadline) {
+      let r;
+      try { r = await Promise.race([serialReader.read(), sleep(50).then(()=>null)]); }
+      catch { break; }
+      serialReader.releaseLock(); serialReader = serialPort.readable.getReader();
+      if (r && r.value && r.value.length) { lastRx = Date.now(); total += r.value.length; }
+      if (Date.now() - lastRx >= idleMs) break;
+    }
+    if (total) log('  (drained '+total+'B of banner/prompt noise)','dm');
+  }
+
+  await waitForQuiet(300, 5000); // let the boot banner finish printing
   await wLog('CR LF', new TextEncoder().encode('\r\n'));
-  await sleep(80);
+  await waitForQuiet(200, 2000); // let the CLI print its fresh prompt
   await wLog('start_rpc_session', new TextEncoder().encode('start_rpc_session\r\n'));
-  await sleep(200);
+  await sleep(300); // give the CLI a moment to switch into binary RPC mode
   const pingCmdId = cmdId++;
   await wLog('ping cmdId='+pingCmdId, encodeMain({ commandId:pingCmdId, systemPingRequest:{} }));
-  log('Reading ALL bytes for 6s…','dm');
+  log('Reading for ping response (up to 6s)…','dm');
 
   const allRx = [];
   const end6 = Date.now() + 6000;
