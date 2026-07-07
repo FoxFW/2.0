@@ -450,7 +450,7 @@ function setConnectButtons(state) {
 async function doFlash() {
   log('Install clicked — busy='+busy+' connected='+connected,'in');
   if (busy || !connected) return;
-  busy=true; $('bflash').disabled=true; $('bfile').disabled=true; setConnectButtons('connected'); setDisconnectVisible(false);
+  busy=true; flashing=true; $('bflash').disabled=true; $('bfile').disabled=true; setConnectButtons('connected'); setDisconnectVisible(false);
   clearNotices(); $('sbox').classList.remove('show');
   $('pgwrap2').classList.add('show'); pgTotal(0); pgFile(0,'Preparing…');
   $('pgfill-total').classList.add('pulse'); $('pgfill-file').classList.add('pulse');
@@ -475,7 +475,7 @@ async function doFlash() {
     pgTotal(0); $('pgfill-total').classList.remove('pulse'); $('pgfill-file').classList.remove('pulse');
     connUI('off','Failed',err.message.slice(0,60));
   }
-  busy=false; $('bflash').disabled=false;
+  busy=false; flashing=false; $('bflash').disabled=false;
   stopTitleFlash();
   updateFileButtonState();
   setConnectButtons(connected ? 'connected' : 'idle');
@@ -690,7 +690,8 @@ function startTitleFlash() {
 function stopTitleFlash() {
   clearInterval(titleFlashTimer); titleFlashTimer = null; document.title = pageTitle;
 }
-window.addEventListener('blur', () => { if (busy) { startTitleFlash(); showFocusToast(); } });
+let flashing = false;
+window.addEventListener('blur', () => { if (flashing) { startTitleFlash(); showFocusToast(); } });
 window.addEventListener('focus', stopTitleFlash);
 
 async function connectSerial() {
