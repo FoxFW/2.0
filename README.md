@@ -167,7 +167,7 @@ this repository as `FoxFW_Help.html` and open it locally in any browser.)*
 
 Install FoxFW directly from your browser — no software required.
 
-**[→ Open the FoxFW Web Installer](https://foxfw.github.io/2.0/docs/flasher.html)** `Recommended`
+**[→ Open the FoxFW Web Installer](https://foxfw.github.io/2.0/flasher.html)** `Recommended`
 
 1. Open the link above in **Chrome** or **Edge** on desktop.
 2. Connect your Flipper Zero via USB.
@@ -175,7 +175,7 @@ Install FoxFW directly from your browser — no software required.
 4. Click **Install Now** — the installer downloads and transfers the firmware automatically.
 5. Your Flipper reboots and runs the Fox Setup Wizard.
 
-> Supports **Standard Update** (Flipper on, normal mode) and **DFU Recovery** (Flipper unresponsive / screen off).
+> Supports **Standard Update** (Flipper on, normal mode) AND **DFU Recovery** (Flipper unresponsive / screen off).
 
 ---
 
@@ -189,7 +189,7 @@ Install FoxFW directly from your browser — no software required.
 
 ### Via SD card (Fox File Browser)
 
-1. Copy the `.fuf` firmware update file to your SD card.
+1. Copy the firmware update files (the folder with `update.fuf`) to your SD card.
 2. Open **Fox File Browser** from the desktop (Down button or any configured shortcut).
 3. Navigate to the `.fuf` file, press OK, and select **Install**.
 4. The updater launches and the device restarts to apply the update.
