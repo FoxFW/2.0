@@ -59,7 +59,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 .bflash{background:var(--orange);color:#fff;border:none;font-size:.98rem;font-weight:700;padding:12px 30px;border-radius:7px;cursor:pointer;box-shadow:0 0 16px var(--glow);transition:all .15s}
 .bflash:hover:not(:disabled){background:var(--accent);box-shadow:0 0 24px rgba(255,154,60,.42);transform:translateY(-1px)}
 .bflash:disabled{opacity:.3;cursor:not-allowed;transform:none;box-shadow:none}
-.dnote{font-size:.8rem;color:var(--accent);font-weight:700;text-align:center;margin-bottom:16px}
+.dnote{font-size:.8rem;color:var(--red);font-weight:700;text-align:center;margin-bottom:4px}
+.dnote:last-of-type{margin-bottom:16px}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-10px);background:#1f0a0a;border:1px solid var(--red);color:#ff9a9a;padding:12px 20px;border-radius:7px;font-size:.85rem;font-weight:700;box-shadow:0 4px 20px rgba(0,0,0,.5);z-index:9999;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .pgwrap2{margin-bottom:22px;display:none}
 .pgwrap2.show{display:flex;flex-direction:column}
 .pgtrack2{position:relative;height:30px;background:#111;border:1px solid var(--border);overflow:hidden;margin-bottom:0}
@@ -82,6 +85,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 </style>
 </head>
 <body>
+<div class="toast" id="focus-toast">⚠️ Keep this window in focus during the update!</div>
 <header class="topbar">
   <div class="tb-left">
     <div class="logo">🦊 <span>FoxFW</span> v2.0</div>
@@ -132,6 +136,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
     </div>
   </div>
   <div class="sbox" id="sbox"><div style="font-size:2.2rem">✅</div><h3>FoxFW Installed!</h3><p id="smsg"></p></div>
+  <div class="dnote" id="dfocus" style="display:none">⚠ KEEP THIS WINDOW ACTIVE AND IN FOCUS!</div>
   <div class="dnote" id="dnote" style="display:none">⚠ Do not unplug until the install completes.</div>
   <div class="pgwrap2" id="pgwrap2">
     <div class="pgtrack2"><div class="pgfill2" id="pgfill-file"></div><span class="pgtext2" id="pgtext-file">Preparing…</span></div>
@@ -452,6 +457,7 @@ async function doFlash() {
   $('log').style.display = '';
   $('log').classList.add('sel');
   $('log').scrollIntoView({ behavior:'smooth', block:'end' });
+  showFocusToast();
   try {
     if (method==='dfu') await doFlashDFU();
     else                await doFlashTGZ();
@@ -470,6 +476,7 @@ async function doFlash() {
     connUI('off','Failed',err.message.slice(0,60));
   }
   busy=false; $('bflash').disabled=false;
+  stopTitleFlash();
   updateFileButtonState();
   setConnectButtons(connected ? 'connected' : 'idle');
 }
@@ -477,7 +484,7 @@ async function doFlash() {
 async function doDisconnect() {
   stopKeepAlive();
   connected = false; busy = false;
-  $('bflash').disabled=true; $('dnote').style.display='none'; setDisconnectVisible(false);
+  $('bflash').disabled=true; $('dnote').style.display='none'; $('dfocus').style.display='none'; setDisconnectVisible(false);
   $('pgwrap2').classList.remove('show'); $('sbox').classList.remove('show');
   setConnectButtons('idle'); updateFileButtonState(); clearCustomFile();
   $('fwcard').classList.remove('sel'); $('log').classList.remove('sel');
@@ -645,6 +652,7 @@ async function doConnect(m) {
     connected = true;
     $('bflash').disabled = false;
     $('dnote').style.display = '';
+    $('dfocus').style.display = '';
     setDisconnectVisible(true);
     updateFileButtonState();
     $('mc-tgz').classList.remove('sel');
@@ -664,6 +672,26 @@ async function doConnect(m) {
 }
 
 let keepAliveTimer = null;
+
+// Warn the user if the tab loses focus mid-upload (Windows pauses WebUSB/Serial in background)
+const pageTitle = document.title;
+let titleFlashTimer = null, toastTimer = null;
+function showFocusToast() {
+  const t = $('focus-toast');
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+function startTitleFlash() {
+  if (titleFlashTimer) return;
+  let on = false;
+  titleFlashTimer = setInterval(() => { document.title = on ? pageTitle : '⚠️ FOCUS THIS WINDOW!'; on = !on; }, 800);
+}
+function stopTitleFlash() {
+  clearInterval(titleFlashTimer); titleFlashTimer = null; document.title = pageTitle;
+}
+window.addEventListener('blur', () => { if (busy) { startTitleFlash(); showFocusToast(); } });
+window.addEventListener('focus', stopTitleFlash);
 
 async function connectSerial() {
   if (!('serial' in navigator)) throw new Error('Web Serial not supported — use Chrome or Edge');
