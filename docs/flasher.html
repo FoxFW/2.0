@@ -15,13 +15,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 .logo{font-size:1.05rem;font-weight:700;color:var(--accent)}.logo span{color:#fff}
 .badge{background:rgba(232,117,10,.13);border:1px solid var(--orange);color:var(--accent);font-size:.66rem;padding:2px 8px;border-radius:20px;letter-spacing:1px;font-weight:700}
 .badge.test{background:rgba(196,122,255,.13);border-color:#c47aff;color:#c47aff}
-.topbar a{justify-self:end;color:#555;font-size:.82rem;text-decoration:none}.topbar a:hover{color:var(--accent)}
+.topbar a{justify-self:end;color:#999;font-size:.82rem;text-decoration:none}.topbar a:hover{color:var(--accent)}
 .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;transition:background .3s}
 .dot.off{background:#c0392b;box-shadow:0 0 5px #c0392b80}
 .dot.on{background:var(--green);box-shadow:0 0 7px var(--green);animation:blk 1.6s steps(2) infinite}
 .dot.busy{background:var(--accent);box-shadow:0 0 7px var(--accent);animation:blk .5s steps(2) infinite}
 @keyframes blk{50%{opacity:.15}}
-.conn-label{font-size:.88rem;font-weight:600;color:#ddd}.conn-sub{font-size:.74rem;color:#555;margin-top:1px}
+.conn-label{font-size:.88rem;font-weight:600;color:#ddd}.conn-sub{font-size:.74rem;color:#999;margin-top:1px}
 .bsm{border:1px solid var(--border);background:transparent;color:#777;font-size:.8rem;padding:5px 13px;border-radius:4px;cursor:pointer;transition:all .15s}
 .bsm:hover{color:var(--light);border-color:#555}
 .bsm.pri{background:var(--orange);border-color:var(--orange);color:#fff;box-shadow:0 0 10px var(--glow)}
@@ -41,6 +41,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 .mc-connect{margin-top:12px;width:100%;padding:8px 0;font-size:.82rem;font-weight:600}
 .mc-connect:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
 .fwcard{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 20px;margin-bottom:18px}
+.fw-file-row{display:flex;align-items:center;gap:6px}
+.v.custom-file{font-family:'Courier New',monospace;font-style:italic;color:var(--accent)}
+.file-x{background:transparent;border:1px solid #555;color:#999;width:16px;height:16px;border-radius:50%;font-size:.65rem;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center;padding:0;flex-shrink:0}
+.file-x:hover{border-color:var(--accent);color:var(--accent)}
+.fwf-full{grid-column:1/-1}
 .fwf .k{font-size:.62rem;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:2px}
 .fwf .v{font-size:.88rem;color:var(--accent);font-weight:600}.fwf .v.d{color:#777;font-weight:400}
 .notice{border-radius:6px;padding:12px 16px;margin-bottom:16px;font-size:.84rem;line-height:1.6;display:none}
@@ -51,7 +56,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 .bflash{background:var(--orange);color:#fff;border:none;font-size:.98rem;font-weight:700;padding:12px 30px;border-radius:7px;cursor:pointer;box-shadow:0 0 16px var(--glow);transition:all .15s}
 .bflash:hover:not(:disabled){background:var(--accent);box-shadow:0 0 24px rgba(255,154,60,.42);transform:translateY(-1px)}
 .bflash:disabled{opacity:.3;cursor:not-allowed;transform:none;box-shadow:none}
-.dnote{font-size:.8rem;color:#666}
+.dnote{font-size:.8rem;color:var(--accent);font-weight:700}
 .pgwrap2{margin-bottom:22px;display:none}
 .pgwrap2.show{display:flex;flex-direction:column}
 .pgtrack2{position:relative;height:30px;background:#111;border:1px solid var(--border);overflow:hidden;margin-bottom:0}
@@ -108,7 +113,17 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
     <div class="fwf"><div class="k">Firmware</div><div class="v">FoxFW v2.0</div></div>
     <div class="fwf"><div class="k">Target</div><div class="v d">Flipper Zero · STM32WB55</div></div>
     <div class="fwf"><div class="k">Method</div><div class="v d" id="fw-method">RPC over USB Serial → SD card</div></div>
-    <div class="fwf"><div class="k">File</div><div class="v d" id="fw-file">flipper-z-f7-update-local.tgz</div></div>
+    <div class="fwf">
+      <div class="k">File</div>
+      <div class="fw-file-row">
+        <div class="v d" id="fw-file">flipper-z-f7-update-local.tgz</div>
+        <button class="file-x" id="fw-file-x" onclick="clearCustomFile()" title="Use online file instead">×</button>
+      </div>
+    </div>
+    <div class="fwf fwf-full">
+      <input type="file" id="file-input" style="display:none" onchange="onFileSelected(event)">
+      <button class="bsm pri mc-connect" id="bfile" disabled title="First Connect Flipper Zero" onclick="triggerFileSelect()">Install from File</button>
+    </div>
   </div>
   <div class="sbox" id="sbox"><div style="font-size:2.2rem">✅</div><h3>FoxFW Installed!</h3><p id="smsg"></p></div>
   <div class="arow">
@@ -220,6 +235,7 @@ function encodeMain(obj) {
 
 // ── STATE ────────────────────────────────────────────────────────
 let method = 'tgz', cmdId = 1, busy = false, connected = false;
+let customFile = null; // user-picked file overriding the online download
 let serialPort = null, serialWriter = null, serialReader = null;
 
 // Single continuous background reader ("pump"). Only ONE thing may ever
@@ -383,7 +399,33 @@ function selMethod(m) {
   $('mc-tgz').classList.toggle('sel', m==='tgz');
   $('mc-dfu').classList.toggle('sel', m==='dfu');
   $('fw-method').textContent = m==='tgz' ? 'RPC over USB Serial → SD card' : 'WebUSB DFU → internal flash';
-  $('fw-file').textContent   = m==='tgz' ? 'flipper-z-f7-update-local.tgz' : 'flipper-z-f7-full-local.dfu';
+  clearCustomFile(); // switching method invalidates any previously picked file
+}
+
+function updateFileButtonState() {
+  const btn = $('bfile');
+  btn.disabled = !connected;
+  btn.title = connected ? 'Choose a local firmware file' : 'First Connect Flipper Zero';
+}
+function triggerFileSelect() {
+  const input = $('file-input');
+  input.accept = method === 'dfu' ? '.dfu' : '.tgz';
+  input.click();
+}
+function onFileSelected(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  customFile = f;
+  $('fw-file').textContent = f.name;
+  $('fw-file').classList.add('custom-file');
+  $('fw-file-x').style.display = 'flex';
+}
+function clearCustomFile() {
+  customFile = null;
+  $('file-input').value = '';
+  $('fw-file').classList.remove('custom-file');
+  $('fw-file').textContent = method==='tgz' ? 'flipper-z-f7-update-local.tgz' : 'flipper-z-f7-full-local.dfu';
+  $('fw-file-x').style.display = 'none';
 }
 
 function setConnectButtons(state) {
@@ -425,7 +467,7 @@ async function doDisconnect() {
   connected = false; busy = false;
   $('bflash').disabled=true; $('dnote').style.display='none'; setDisconnectVisible(false);
   $('pgwrap2').classList.remove('show'); $('sbox').classList.remove('show');
-  setConnectButtons('idle');
+  setConnectButtons('idle'); updateFileButtonState(); clearCustomFile();
   try { await stopPump(); } catch {}
   try { if (serialReader) { serialReader.releaseLock(); } } catch {}
   try { if (serialWriter) { serialWriter.releaseLock(); } } catch {}
@@ -454,9 +496,15 @@ async function wMsg(bytes) {
 // ── TGZ / RPC FLASH ──────────────────────────────────────────────
 async function doFlashTGZ() {
   // 1. Download + decompress + parse FIRST (before starting RPC session)
-  pgTotal(0.01); pgFile(0.01,'Downloading firmware…'); log('Downloading '+TGZ_URL+'…','in');
-  const tgz = await fetchXHR(TGZ_URL, p=>{ pgTotal(0.01+p*0.28); pgFile(p,'Downloading firmware…'); });
-  log(`Downloaded ${(tgz.length/1024/1024).toFixed(1)} MB`,'ok');
+  let tgz;
+  if (customFile) {
+    log('Using local file: '+customFile.name,'in'); pgFile(0.5,'Reading local file…');
+    tgz = new Uint8Array(await customFile.arrayBuffer());
+  } else {
+    pgTotal(0.01); pgFile(0.01,'Downloading firmware…'); log('Downloading '+TGZ_URL+'…','in');
+    tgz = await fetchXHR(TGZ_URL, p=>{ pgTotal(0.01+p*0.28); pgFile(p,'Downloading firmware…'); });
+  }
+  log(`Loaded ${(tgz.length/1024/1024).toFixed(1)} MB`,'ok');
   pgTotal(0.29); pgFile(1,'Decompressing…'); log('Decompressing…');
   const tar   = pako.inflate(tgz);
   const files = parseTar(tar);
@@ -584,6 +632,7 @@ async function doConnect(m) {
     $('bflash').disabled = false;
     $('dnote').style.display = '';
     setDisconnectVisible(true);
+    updateFileButtonState();
   } catch (err) {
     let msg = err.message || String(err);
     if (msg.includes('Failed to open') || msg.includes('already open') || msg.includes('Access is denied')) {
@@ -744,9 +793,15 @@ async function rpcWriteFile(path, data, onProgress, chunkSizeOverride) {
 
 // ── DFU FLASH ────────────────────────────────────────────────────
 async function doFlashDFU() {
-  log('Downloading DFU firmware…','in'); pgTotal(0.02); pgFile(0,'Downloading firmware…');
-  const dfuData=await fetchXHR(DFU_URL,p=>{ pgTotal(0.02+p*0.30); pgFile(p,'Downloading firmware…'); });
-  log(`Downloaded ${(dfuData.length/1024/1024).toFixed(1)} MB`,'ok');
+  let dfuData;
+  if (customFile) {
+    log('Using local file: '+customFile.name,'in'); pgFile(0.5,'Reading local file…');
+    dfuData = new Uint8Array(await customFile.arrayBuffer());
+  } else {
+    log('Downloading DFU firmware…','in'); pgTotal(0.02); pgFile(0,'Downloading firmware…');
+    dfuData = await fetchXHR(DFU_URL,p=>{ pgTotal(0.02+p*0.30); pgFile(p,'Downloading firmware…'); });
+  }
+  log(`Loaded ${(dfuData.length/1024/1024).toFixed(1)} MB`,'ok');
   pgTotal(0.32); pgFile(0,DFU_URL);
   const dev=window._dfuDev;
   if(!dev) throw new Error('No DFU device connected. Boot Flipper into DFU mode first.');
@@ -910,6 +965,7 @@ function fetchXHR(url,onProg){
   if(typeof protobuf!=='undefined') initProto();
   else setTimeout(()=>{if(typeof protobuf!=='undefined')initProto();},500);
   selMethod('tgz');
+  updateFileButtonState();
 })();
 </script>
 </body>
