@@ -246,8 +246,6 @@ function startPump() {
         if (value && value.length) {
           for (const b of value) rxQueue.push(b);
           if (rxQueue.length > 200000) rxQueue.splice(0, rxQueue.length - 200000);
-          const txt = Array.from(value).map(b=>b>=32&&b<127?String.fromCharCode(b):(b===13||b===10?'↵':'.')).join('');
-          log('[rx '+value.length+'B] '+txt.slice(0,100),'dm');
         }
       }
     } catch (e) { /* reader cancelled on disconnect — expected */ }
@@ -271,7 +269,7 @@ async function waitForQuiet(idleMs, maxMs) {
     if (rxQueue.length !== lastLen) { lastLen = rxQueue.length; lastChange = Date.now(); }
     if (Date.now() - lastChange >= idleMs) break;
   }
-  if (rxQueue.length) { log('  (drained '+rxQueue.length+'B of banner/prompt noise)','dm'); rxQueue.length = 0; }
+  if (rxQueue.length) { rxQueue.length = 0; }
 }
 
 // Wait until a specific byte value shows up anywhere in the queue (used to
@@ -368,6 +366,10 @@ function connUI(s, l, sub) {
   $('clabel').textContent = l;
   $('csub').textContent   = sub;
 }
+function setDisconnectVisible(show) {
+  $('bdis').style.display = show ? '' : 'none';
+  $('csub').style.display = show ? 'none' : '';
+}
 function showErr(msg) {
   const n = $('n-error');
   n.innerHTML = '<strong>❌</strong> ' + msg;
@@ -396,7 +398,7 @@ function setConnectButtons(state) {
 async function doFlash() {
   log('Install clicked — busy='+busy+' connected='+connected,'in');
   if (busy || !connected) return;
-  busy=true; $('bflash').disabled=true; setConnectButtons('connected'); $('bdis').style.display='none';
+  busy=true; $('bflash').disabled=true; setConnectButtons('connected'); setDisconnectVisible(false);
   clearNotices(); $('sbox').classList.remove('show');
   $('pgwrap2').classList.add('show'); pgTotal(0); pgFile(0,'Preparing…');
   $('pgfill-total').classList.add('pulse'); $('pgfill-file').classList.add('pulse');
@@ -421,7 +423,7 @@ async function doFlash() {
 async function doDisconnect() {
   stopKeepAlive();
   connected = false; busy = false;
-  $('bflash').disabled=true; $('dnote').style.display='none'; $('bdis').style.display='none';
+  $('bflash').disabled=true; $('dnote').style.display='none'; setDisconnectVisible(false);
   $('pgwrap2').classList.remove('show'); $('sbox').classList.remove('show');
   setConnectButtons('idle');
   try { await stopPump(); } catch {}
@@ -581,7 +583,7 @@ async function doConnect(m) {
     connected = true;
     $('bflash').disabled = false;
     $('dnote').style.display = '';
-    $('bdis').style.display  = '';
+    setDisconnectVisible(true);
   } catch (err) {
     let msg = err.message || String(err);
     if (msg.includes('Failed to open') || msg.includes('already open') || msg.includes('Access is denied')) {
@@ -623,7 +625,7 @@ async function connectSerial() {
   log('Port opened + DTR asserted — waiting for boot banner to finish…','ok');
 
   const wLog = async (lbl, data) => {
-    try { await serialWriter.write(data); log('[write OK] '+lbl,'dm'); }
+    try { await serialWriter.write(data); if (lbl !== 'CR LF') log('[write OK] '+lbl,'dm'); }
     catch(e) { log('[write FAIL] '+lbl+': '+e.message,'er'); throw e; }
   };
 
