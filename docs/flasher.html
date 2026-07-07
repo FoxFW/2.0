@@ -37,26 +37,29 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 .mc .tag{margin-left:auto;font-size:.6rem;padding:2px 7px;border-radius:10px;font-weight:700}
 .tag-r{background:rgba(61,186,106,.15);color:var(--green);border:1px solid var(--green)}
 .tag-d{background:rgba(232,117,10,.15);color:var(--accent);border:1px solid var(--orange)}
-.mc .md{font-size:.79rem;color:#777;line-height:1.55;flex:1}
+.mc .md{font-size:.79rem;color:#999;line-height:1.55;flex:1}
 .mc-connect{margin-top:12px;width:100%;padding:8px 0;font-size:.82rem;font-weight:600}
 .mc-connect:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
 .fwcard{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 20px;margin-bottom:18px}
 .fw-file-row{display:flex;align-items:center;gap:6px}
+#bfile{margin-top:8px;padding:6px 0;font-size:.72rem}
 .v.custom-file{font-family:'Courier New',monospace;font-style:italic;color:var(--accent)}
 .file-x{background:transparent;border:1px solid #555;color:#999;width:16px;height:16px;border-radius:50%;font-size:.65rem;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center;padding:0;flex-shrink:0}
 .file-x:hover{border-color:var(--accent);color:var(--accent)}
-.fwf-full{grid-column:1/-1}
-.fwf .k{font-size:.62rem;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:2px}
-.fwf .v{font-size:.88rem;color:var(--accent);font-weight:600}.fwf .v.d{color:#777;font-weight:400}
+.fwf .k{font-size:.62rem;text-transform:uppercase;letter-spacing:1px;color:#777;margin-bottom:2px}
+.fwf .v{font-size:.88rem;color:var(--accent);font-weight:600}.fwf .v.d{color:#999;font-weight:400}
+.fwcard.sel{border-color:var(--accent);box-shadow:0 0 14px var(--glow)}
+.fwcard.sel .fwf .k{color:#999}
+.fwcard.sel .fwf .v.d{color:#ccc}
+.fw-install-row{grid-column:1/-1;display:flex;justify-content:center;padding-top:10px;margin-top:2px;border-top:1px solid var(--border)}
 .notice{border-radius:6px;padding:12px 16px;margin-bottom:16px;font-size:.84rem;line-height:1.6;display:none}
 .notice.show{display:block}
 .notice.warn{background:#1f0a0a;border:1px solid var(--red);color:#e08080}
 .notice.tip{background:#0d1a0f;border:1px solid #2a5a35;color:#80c890}
-.arow{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;margin-bottom:18px}
 .bflash{background:var(--orange);color:#fff;border:none;font-size:.98rem;font-weight:700;padding:12px 30px;border-radius:7px;cursor:pointer;box-shadow:0 0 16px var(--glow);transition:all .15s}
 .bflash:hover:not(:disabled){background:var(--accent);box-shadow:0 0 24px rgba(255,154,60,.42);transform:translateY(-1px)}
 .bflash:disabled{opacity:.3;cursor:not-allowed;transform:none;box-shadow:none}
-.dnote{font-size:.8rem;color:var(--accent);font-weight:700}
+.dnote{font-size:.8rem;color:var(--accent);font-weight:700;text-align:center;margin-bottom:16px}
 .pgwrap2{margin-bottom:22px;display:none}
 .pgwrap2.show{display:flex;flex-direction:column}
 .pgtrack2{position:relative;height:30px;background:#111;border:1px solid var(--border);overflow:hidden;margin-bottom:0}
@@ -66,13 +69,15 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
 .pgfill2.pulse{animation:pgp 1.3s ease-in-out infinite}
 @keyframes pgp{0%,100%{box-shadow:0 0 5px var(--glow)}50%{box-shadow:0 0 16px rgba(255,154,60,.5)}}
 .pgtext2{position:relative;z-index:1;height:100%;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7);padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.log{background:#050505;border:1px solid #2a2a2a;border-radius:6px;padding:12px 15px;font-family:'Consolas','Courier New',monospace;font-size:.78rem;color:#aaa;max-height:280px;overflow-y:auto;line-height:1.7}
+.log{background:#050505;border:1px solid #2a2a2a;border-radius:6px;padding:12px 15px;font-family:'Consolas','Courier New',monospace;font-size:.78rem;color:#aaa;max-height:280px;overflow-y:auto;line-height:1.7;transition:border-color .2s,box-shadow .2s}
+.log.sel{border-color:var(--accent);box-shadow:0 0 14px var(--glow)}
 .log .ok{color:#5cd47a}.log .er{color:#f06060}.log .in{color:#ffb060}.log .dm{color:#555}
 .subbar{background:#0a0a0a;border-bottom:1px solid var(--border);padding:8px 22px;display:flex;align-items:center;justify-content:center;gap:14px;flex-shrink:0;text-align:center}
 .bdis{background:rgba(224,64,64,.14);border:1px solid var(--red);color:#ff9a9a;font-weight:600}
 .bdis:hover{background:rgba(224,64,64,.26);border-color:#ff6b6b;color:#fff}
 .sbox{display:none;background:#0a1a0d;border:1px solid var(--green);border-radius:7px;padding:18px 22px;margin-bottom:18px;text-align:center}
 .sbox.show{display:block}.sbox h3{color:var(--green);font-size:1.2rem;margin:8px 0 6px}
+.sbox.sel{border-color:var(--accent);box-shadow:0 0 14px var(--glow)}
 .sbox p{color:#888;font-size:.85rem;line-height:1.65}
 </style>
 </head>
@@ -109,7 +114,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
       <button class="bsm pri mc-connect" id="bcon-dfu" onclick="event.stopPropagation(); doConnect('dfu')">Connect DFU</button>
     </div>
   </div>
-  <div class="fwcard">
+  <div class="fwcard" id="fwcard">
     <div class="fwf"><div class="k">Firmware</div><div class="v">FoxFW v2.0</div></div>
     <div class="fwf"><div class="k">Target</div><div class="v d">Flipper Zero · STM32WB55</div></div>
     <div class="fwf"><div class="k">Method</div><div class="v d" id="fw-method">RPC over USB Serial → SD card</div></div>
@@ -119,22 +124,20 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--dark);color:va
         <div class="v d" id="fw-file">flipper-z-f7-update-local.tgz</div>
         <button class="file-x" id="fw-file-x" onclick="clearCustomFile()" title="Use online file instead">×</button>
       </div>
-    </div>
-    <div class="fwf fwf-full">
       <input type="file" id="file-input" style="display:none" onchange="onFileSelected(event)">
       <button class="bsm pri mc-connect" id="bfile" disabled title="First Connect Flipper Zero" onclick="triggerFileSelect()">Install from File</button>
     </div>
+    <div class="fw-install-row">
+      <button class="bflash" id="bflash" disabled onclick="doFlash()">⚡ Install Firmware</button>
+    </div>
   </div>
   <div class="sbox" id="sbox"><div style="font-size:2.2rem">✅</div><h3>FoxFW Installed!</h3><p id="smsg"></p></div>
-  <div class="arow">
-    <button class="bflash" id="bflash" disabled onclick="doFlash()">⚡ Install Firmware</button>
-    <div class="dnote" id="dnote" style="display:none">⚠ Do not unplug until the install completes.</div>
-  </div>
+  <div class="dnote" id="dnote" style="display:none">⚠ Do not unplug until the install completes.</div>
   <div class="pgwrap2" id="pgwrap2">
     <div class="pgtrack2"><div class="pgfill2" id="pgfill-file"></div><span class="pgtext2" id="pgtext-file">Preparing…</span></div>
     <div class="pgtrack2"><div class="pgfill2" id="pgfill-total"></div><span class="pgtext2" id="pgtext-total">0%</span></div>
   </div>
-  <div class="log" id="log"></div>
+  <div class="log" id="log" style="display:none"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
@@ -396,8 +399,10 @@ function clearNotices() {
 }
 function selMethod(m) {
   method = m;
-  $('mc-tgz').classList.toggle('sel', m==='tgz');
-  $('mc-dfu').classList.toggle('sel', m==='dfu');
+  if (!connected) {
+    $('mc-tgz').classList.toggle('sel', m==='tgz');
+    $('mc-dfu').classList.toggle('sel', m==='dfu');
+  }
   $('fw-method').textContent = m==='tgz' ? 'RPC over USB Serial → SD card' : 'WebUSB DFU → internal flash';
   clearCustomFile(); // switching method invalidates any previously picked file
 }
@@ -444,11 +449,17 @@ async function doFlash() {
   clearNotices(); $('sbox').classList.remove('show');
   $('pgwrap2').classList.add('show'); pgTotal(0); pgFile(0,'Preparing…');
   $('pgfill-total').classList.add('pulse'); $('pgfill-file').classList.add('pulse');
+  $('log').style.display = '';
+  $('log').classList.add('sel');
+  $('log').scrollIntoView({ behavior:'smooth', block:'end' });
   try {
     if (method==='dfu') await doFlashDFU();
     else                await doFlashTGZ();
     pgTotal(1); pgFile(1,'Done'); $('pgfill-total').classList.remove('pulse'); $('pgfill-file').classList.remove('pulse');
-    $('sbox').classList.add('show');
+    $('sbox').classList.add('show','sel');
+    $('log').classList.remove('sel');
+    $('fwcard').classList.remove('sel');
+    $(method==='dfu' ? 'mc-dfu' : 'mc-tgz').classList.add('sel');
     $('smsg').textContent = method==='dfu'
       ? 'DFU flash complete. Unplug your Flipper, then hold power to boot.'
       : 'Firmware uploaded. Your Flipper is rebooting — the progress bar on its screen shows the install.';
@@ -468,6 +479,8 @@ async function doDisconnect() {
   $('bflash').disabled=true; $('dnote').style.display='none'; setDisconnectVisible(false);
   $('pgwrap2').classList.remove('show'); $('sbox').classList.remove('show');
   setConnectButtons('idle'); updateFileButtonState(); clearCustomFile();
+  $('fwcard').classList.remove('sel'); $('log').classList.remove('sel');
+  selMethod(method);
   try { await stopPump(); } catch {}
   try { if (serialReader) { serialReader.releaseLock(); } } catch {}
   try { if (serialWriter) { serialWriter.releaseLock(); } } catch {}
@@ -633,6 +646,10 @@ async function doConnect(m) {
     $('dnote').style.display = '';
     setDisconnectVisible(true);
     updateFileButtonState();
+    $('mc-tgz').classList.remove('sel');
+    $('mc-dfu').classList.remove('sel');
+    $('fwcard').classList.add('sel');
+    $('fwcard').scrollIntoView({ behavior:'smooth', block:'start' });
   } catch (err) {
     let msg = err.message || String(err);
     if (msg.includes('Failed to open') || msg.includes('already open') || msg.includes('Access is denied')) {
