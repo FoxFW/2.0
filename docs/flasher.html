@@ -445,7 +445,7 @@ function setConnectButtons(state) {
 async function doFlash() {
   log('Install clicked — busy='+busy+' connected='+connected,'in');
   if (busy || !connected) return;
-  busy=true; $('bflash').disabled=true; setConnectButtons('connected'); setDisconnectVisible(false);
+  busy=true; $('bflash').disabled=true; $('bfile').disabled=true; setConnectButtons('connected'); setDisconnectVisible(false);
   clearNotices(); $('sbox').classList.remove('show');
   $('pgwrap2').classList.add('show'); pgTotal(0); pgFile(0,'Preparing…');
   $('pgfill-total').classList.add('pulse'); $('pgfill-file').classList.add('pulse');
@@ -470,6 +470,7 @@ async function doFlash() {
     connUI('off','Failed',err.message.slice(0,60));
   }
   busy=false; $('bflash').disabled=false;
+  updateFileButtonState();
   setConnectButtons(connected ? 'connected' : 'idle');
 }
 
