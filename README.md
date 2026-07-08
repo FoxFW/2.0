@@ -5,6 +5,8 @@
     <a href="https://foxfw.github.io/2.0/">📖 Full User Guide</a>
     &nbsp;·&nbsp;
     <a href="mailto:foxcustomfirmware@gmail.com">📧 Support</a>
+    &nbsp;·&nbsp;
+    <a href="https://www.github.com/SamMichaelINC/FoxFW">📁 Where it began - v1.0</a>
   </p>
 </div>
 
@@ -49,7 +51,7 @@ and a polished system-wide experience. It is designed around three goals:
 
 ## 🚗 Automotive & RF Research
 
-FoxFW is widely used for **automotive security research**, including key fob
+FoxFW is primarily intended for **automotive security research**, including key fob
 analysis, signal capture, tyre-pressure sensor monitoring, and remote-access
 system investigation. The Sub-GHz app ships with protocol decoders and encoders
 for the following manufacturers and systems — all within the 315 MHz, 433 MHz,
