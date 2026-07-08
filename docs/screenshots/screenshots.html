@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FoxFW Screenshots</title>
+<style>
+  :root {
+    --orange: #e8750a;
+    --dark:   #1a1a1a;
+    --mid:    #2d2d2d;
+    --light:  #f5f0eb;
+    --border: #3a3a3a;
+    --accent: #ff9a3c;
+    --new:    #c47aff;
+    --green:  #3dba6a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--dark);
+    color: var(--light);
+    line-height: 1.75;
+    padding: 0 0 80px;
+  }
+
+  /* ── Hero header ─────────────────────────────────────────────────────── */
+  .hero {
+    background: linear-gradient(135deg, #b85500 0%, var(--orange) 60%, #ff9a3c 100%);
+    color: #fff;
+    padding: 56px 40px 48px;
+    border-bottom: 3px solid #a04800;
+  }
+  .hero-inner { max-width: 860px; margin: 0 auto; }
+  .hero h1 { font-size: 2.6rem; letter-spacing: 1px; margin-bottom: 10px; }
+  .hero p  { opacity: 0.92; font-size: 1.05rem; max-width: 600px; line-height: 1.6; }
+  .hero .version {
+    display: inline-block;
+    background: rgba(0,0,0,0.25);
+    border-radius: 20px;
+    padding: 3px 14px;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+  }
+
+  /* ── Layout ──────────────────────────────────────────────────────────── */
+  .content { max-width: 860px; margin: 0 auto; padding: 48px 24px 0; }
+
+  /* ── Chapter labels ──────────────────────────────────────────────────── */
+  .chapter-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+
+  /* ── Section ─────────────────────────────────────────────────────────── */
+  .section { margin-bottom: 64px; }
+  .section h2 {
+    font-size: 1.5rem;
+    color: var(--accent);
+    border-bottom: 2px solid var(--orange);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+  .section p  { margin-bottom: 13px; color: #ccc; }
+
+  /* ── Badge ───────────────────────────────────────────────────────────── */
+  .badge {
+    display: inline-block;
+    background: var(--new);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+
+  /* ── Divider ─────────────────────────────────────────────────────────── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+  /* ── Back to top ─────────────────────────────────────────────────────── */
+  .back-top { text-align: right; margin-top: 32px; }
+  .back-top a {
+    color: var(--orange);
+    font-size: 0.85rem;
+    text-decoration: none;
+    border: 1px solid var(--orange);
+    border-radius: 20px;
+    padding: 4px 14px;
+  }
+  .back-top a:hover { background: var(--orange); color: #fff; }
+
+  /* ── Featured (full-size) screenshot ────────────────────────────────── */
+  .shot-featured {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px 0 8px;
+  }
+  .shot-featured .shot-card { width: 823px; max-width: 100%; }
+  .shot-featured img { width: 100%; height: auto; display: block; }
+
+  /* ── Screenshot grid ─────────────────────────────────────────────────── */
+  .shot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+    margin: 18px 0;
+  }
+  .shot-card {
+    background: var(--mid);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .shot-card img,
+  .shot-card video {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 825 / 500;
+    object-fit: cover;
+    background: #000;
+  }
+  .shot-caption {
+    padding: 9px 14px;
+    font-size: 0.82rem;
+    color: #999;
+    border-top: 1px solid var(--border);
+    text-align: center;
+  }
+
+  /* ── Video card play affordance ─────────────────────────────────────── */
+  .shot-card video { object-fit: contain; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ HERO ══════════════════ -->
+<header class="hero" id="top">
+  <div class="hero-inner" style="text-align:center;">
+    <div class="version" style="display:inline-block;">🦊 FoxFW v2.0</div>
+    <h1>FoxFW Screenshots</h1>
+    <p style="margin:0 auto;">
+      A visual tour of FoxFW — from installing an update through to the
+      Sub-GHz tooling, security settings, and custom wallpaper system.
+    </p>
+  </div>
+</header>
+
+<div class="content">
+
+<!-- ══════════════════ 1 · QFLIPPER AFTER UPDATE ══════════════════ -->
+<section class="section" id="qflipper-update">
+  <div class="chapter-label">Section 1</div>
+  <h2>qFlipper After Update</h2>
+  <p>
+    Once FoxFW has been installed, qFlipper reflects the new firmware details —
+    build date, database status, and radio firmware version.
+  </p>
+  <div class="shot-featured">
+    <div class="shot-card">
+      <img src="0001.png" alt="qFlipper showing FoxFW installed and connected">
+    </div>
+  </div>
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+<!-- ══════════════════ 2 · LOGO AND APPS MENU ══════════════════ -->
+<section class="section" id="logo-apps-menu">
+  <div class="chapter-label">Section 2</div>
+  <h2>Logo &amp; Apps Menu</h2>
+  <p>
+    The FoxFW splash and the main Apps menu, where SubGHz, NFC, RFID, and
+    other core apps live.
+  </p>
+  <div class="shot-grid">
+    <div class="shot-card">
+      <img src="1.png" alt="FoxFW Apps menu">
+      <div class="shot-caption">Apps Menu</div>
+    </div>
+    <div class="shot-card">
+      <img src="2.png" alt="SubGHz Read and Saved menu">
+      <div class="shot-caption">SubGHz Menu</div>
+    </div>
+  </div>
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+<!-- ══════════════════ 3 · SUBGHZ APP - NEW ══════════════════ -->
+<section class="section" id="subghz-new">
+  <div class="chapter-label">Section 3</div>
+  <h2>SubGHz App <span class="badge">New</span></h2>
+  <p>
+    FoxFW's expanded Sub-GHz tooling — protocol selection, the modulation
+    list, RF Jammer, Garage Remote, and the Modulation Analyzer in action.
+  </p>
+  <div class="shot-grid">
+    <div class="shot-card">
+      <img src="3.png" alt="Protocol list with GateTX enabled">
+      <div class="shot-caption">Protocol List</div>
+    </div>
+    <div class="shot-card">
+      <img src="4.png" alt="Modulation Analyzer and Protocols menu">
+      <div class="shot-caption">Modulation Analyzer &amp; Protocols</div>
+    </div>
+    <div class="shot-card">
+      <img src="5.png" alt="Modulations list with AM270 enabled">
+      <div class="shot-caption">Modulations List</div>
+    </div>
+    <div class="shot-card">
+      <img src="6.png" alt="RF Jammer and Garage Remote menu">
+      <div class="shot-caption">RF Jammer &amp; Garage Remote</div>
+    </div>
+    <div class="shot-card">
+      <video src="7.mp4" controls playsinline></video>
+      <div class="shot-caption">Modulation Analyzer — Live Scan</div>
+    </div>
+  </div>
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+<!-- ══════════════════ 4 · FOX SETTINGS & SECURITY ══════════════════ -->
+<section class="section" id="fox-settings-security">
+  <div class="chapter-label">Section 4</div>
+  <h2>Fox Settings &amp; Security</h2>
+  <p>
+    The Settings hub alongside the PIN, Security &amp; Privacy, and Advanced
+    Security screens.
+  </p>
+  <div class="shot-grid">
+    <div class="shot-card">
+      <img src="8.png" alt="Settings menu with iButton, GPIO, RollJam, and Fox">
+      <div class="shot-caption">Settings Menu</div>
+    </div>
+    <div class="shot-card">
+      <img src="9.png" alt="Security and Privacy menu with Custom Wallpaper and Menu Style">
+      <div class="shot-caption">Security &amp; Privacy</div>
+    </div>
+    <div class="shot-card">
+      <img src="10.png" alt="Set PIN menu with Max Attempts and On Exceed">
+      <div class="shot-caption">Set PIN</div>
+    </div>
+    <div class="shot-card">
+      <img src="11.png" alt="Enter PIN keypad">
+      <div class="shot-caption">Enter PIN</div>
+    </div>
+    <div class="shot-card">
+      <img src="12.png" alt="Advanced Security menu with Auto Lock and USB No Auto">
+      <div class="shot-caption">Advanced Security</div>
+    </div>
+  </div>
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+<!-- ══════════════════ 5 · CUSTOM WALLPAPER ══════════════════ -->
+<section class="section" id="custom-wallpaper-screens">
+  <div class="chapter-label">Section 5</div>
+  <h2>Custom Wallpaper</h2>
+  <p>
+    Custom Wallpaper toggled on with a valid <code style="background:#111;border:1px solid #444;border-radius:3px;padding:1px 6px;font-size:0.87rem;color:#ffa040;">wallpaper.xbm</code> detected,
+    the default logo placeholder, and back to the Apps menu.
+  </p>
+  <div class="shot-grid">
+    <div class="shot-card">
+      <img src="13.png" alt="Custom Wallpaper settings with wallpaper.xb READY and toggle ON">
+      <div class="shot-caption">Custom Wallpaper — Enabled</div>
+    </div>
+    <div class="shot-card">
+      <img src="14.png" alt="Default logo placeholder wallpaper">
+      <div class="shot-caption">Default Logo Wallpaper</div>
+    </div>
+    <div class="shot-card">
+      <img src="1.png" alt="FoxFW Apps menu">
+      <div class="shot-caption">Apps Menu</div>
+    </div>
+  </div>
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+</div><!-- /content -->
+
+<footer style="text-align:center;color:#555;font-size:0.85rem;padding:40px 24px 20px;">
+  FoxFW v2.0 &nbsp;·&nbsp; foxcustomfirmware@gmail.com &nbsp;·&nbsp; Guide version 1.0
+</footer>
+
+</body>
+</html>
