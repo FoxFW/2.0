@@ -4,9 +4,11 @@
   <p>
     <a href="https://foxfw.github.io/2.0/">📖 Full User Guide</a>
     &nbsp;·&nbsp;
+    <a href="https://foxfw.github.io/2.0/screenshots/screenshots.html">⚡ SCREENSHOTS!</a>
+    &nbsp;·&nbsp;
     <a href="mailto:foxcustomfirmware@gmail.com">📧 Support</a>
     &nbsp;·&nbsp;
-    <a href="https://www.github.com/SamMichaelINC/FoxFW">📁 Where it began - v1.0</a>
+    <a href="https://www.github.com/SamMichaelINC/FoxFW">📁 View Legacy v1.0</a>
   </p>
 </div>
 
@@ -17,7 +19,7 @@
 FoxFW is a fully custom Flipper Zero firmware that extends the official release
 with deeper security tools, a smarter file browser, enhanced Sub-GHz analysis,
 and a polished system-wide experience. It is designed around three goals:
-**security**, **usability**, and **deeper RF tooling**.
+**security**, **usability**, and **deeper RF tooling**. I've used a fresh push for this version because you dont need to know that it took me 126 tries (and 56 versions) to get the Web Flasher to work. 
 
 ---
 
