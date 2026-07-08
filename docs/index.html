@@ -418,9 +418,10 @@
     <strong>Standard Update</strong> uploads the firmware as a <code>.tgz</code> package to
     your SD card via the Flipper's USB connection, then triggers the install on reboot.
     Your files and settings are preserved.<br><br>
-    <strong>DFU Recovery</strong> writes the firmware directly to the Flipper's internal flash
+    <strong>DFU Recovery</strong> writes the firmware only directly to the Flipper's internal flash
     via WebUSB — use this if your Flipper will not boot normally.
-    SD card contents are not affected.
+    SD card contents are not affected. After a DFU Recovery, it is <strong>HIGHLY RECOMMENDED</strong>
+    to complete a Standard Install - this will ensure that the core FoxFW apps are all returned to the device.
   </div>
 
   <div class="back-top"><a href="#top">↑ Back to top</a></div>
@@ -575,8 +576,8 @@
 
   <h3 id="lock-screen">Lock Screen</h3>
   <p>
-    When locked, the screen shows a greeting with your Flipper's name and
-    the PIN entry grid (if a PIN is set). Enter your PIN to unlock.
+    When locked, the screen shows a padlock and the PIN entry grid will
+    display when you press any key (if a PIN is set). Enter your PIN to unlock.
     If no PIN is set, any button press unlocks the device.
   </p>
   <div class="box info">
@@ -830,13 +831,29 @@
   <h3 id="wallpaper">Custom Wallpaper</h3>
   <p>
     Replaces the desktop background with a custom <strong>128 × 64 pixel</strong>
-    monochrome image stored at <code>/ext/wallpaper.xbm</code> on the SD card.
+    monochrome image stored in the <strong>ROOT of the SD Card</strong>
+    (path: <code>/ext/wallpaper.xbm</code>). If you connect your SD Card to
+    your computer and open it, you should already see a <code>wallpaper.xbm</code>
+    file in the base directory!
   </p>
   <p>
     If the file is missing, FoxFW <strong>automatically generates a default
     wallpaper</strong> from the firmware and writes it to that path. This means
     a valid <code>wallpaper.xbm</code> is always present after the first boot.
   </p>
+  <div class="box new">
+    <strong>FoxFW Wallpaper Converter <span class="badge">New</span></strong><br><br>
+    Editing a raw <code>.xbm</code> file by hand isn't fun, so we built a
+    dedicated converter tool. It turns your <code>wallpaper.xbm</code> into a
+    <code>wallpaper.bmp</code> that you can edit in MS Paint (or any similar image
+    editor), then converts it back to <code>.xbm</code> when you're ready to put
+    it back on your SD card.<br><br>
+    To use it: copy your current <code>wallpaper.xbm</code> into the same folder
+    as the Wallpaper Converter and run it from there.<br><br>
+    <a href="https://github.com/FoxFW/FoxFW-Wallpaper-Converter" style="color:#d4a8ff;font-weight:600;">
+      github.com/FoxFW/FoxFW-Wallpaper-Converter →
+    </a>
+  </div>
 
   <div class="setting">
     <div class="name">Custom Wallpaper</div>
@@ -1155,6 +1172,14 @@
     <div class="name">AM650 / AM270 / FM238 / FM476 / FM95 / FM15k / BLE / GFSK9.99</div>
     <div class="desc">Toggle each modulation preset ON (include in scan) or OFF (skip). Disabling unlikely presets makes each cycle faster and reduces false positives.</div>
   </div>
+  <div class="setting">
+    <div class="name">OOK_LR / OOK_U / AM_1 / FSK_1 / FreqFast / FreqUnlckd / Pagers <span class="badge">New</span></div>
+    <div class="desc">Additional general-purpose presets. Toggle ON (include in scan) or OFF (skip) the same as the original presets above.</div>
+  </div>
+  <div class="setting">
+    <div class="name">AUDIv1 / AUDIv2 / AUDIv3 / FORDv1 / FORDv2 / FORDv3 / FORDv3-Orig / FORDv4 / FORDv5 / FORDv6 / Honda1 / Honda2 <span class="badge">New</span></div>
+    <div class="desc">Vehicle-specific presets tuned for Audi, Ford, and Honda key fobs. Toggle ON (include in scan) or OFF (skip) the same as the other presets.</div>
+  </div>
 
   <p><strong>Modulation reference:</strong></p>
   <div class="mod-grid">
@@ -1197,6 +1222,101 @@
       <div class="mname">GFSK9.99</div>
       <div class="mtype">GFSK · 9.99 kbps</div>
       <div class="muse">Gaussian FSK. European devices, smart meters.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">OOK_LR <span class="badge">New</span></div>
+      <div class="mtype">OOK/ASK · Long Range</div>
+      <div class="muse">Extended-range OOK preset for weak or distant signals.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">OOK_U <span class="badge">New</span></div>
+      <div class="mtype">OOK/ASK · Universal</div>
+      <div class="muse">General-purpose OOK preset covering a wide range of ASK devices.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">AM_1 <span class="badge">New</span></div>
+      <div class="mtype">AM/OOK</div>
+      <div class="muse">Alternate amplitude-modulation preset for AM-based remotes.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FSK_1 <span class="badge">New</span></div>
+      <div class="mtype">2-FSK</div>
+      <div class="muse">Alternate frequency-shift keying preset for FSK-based devices.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FreqFast <span class="badge">New</span></div>
+      <div class="mtype">FSK · fast timing</div>
+      <div class="muse">Fast-timing frequency preset for high-speed transmissions.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FreqUnlckd <span class="badge">New</span></div>
+      <div class="mtype">FSK · extended range</div>
+      <div class="muse">Unlocked/extended frequency preset for a wider tuning range.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">Pagers <span class="badge">New</span></div>
+      <div class="mtype">FSK</div>
+      <div class="muse">Tuned for pager-network transmissions.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">AUDIv1 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Audi key fob preset (variant 1).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">AUDIv2 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Audi key fob preset (variant 2).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">AUDIv3 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Audi key fob preset (variant 3).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FORDv1 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Ford key fob preset (variant 1).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FORDv2 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Ford key fob preset (variant 2).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FORDv3 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Ford key fob preset (variant 3).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FORDv3-Orig <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Original Ford key fob preset (variant 3).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FORDv4 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Ford key fob preset (variant 4).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FORDv5 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Ford key fob preset (variant 5).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">FORDv6 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Ford key fob preset (variant 6).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">Honda1 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Honda key fob preset (variant 1).</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">Honda2 <span class="badge">New</span></div>
+      <div class="mtype">FSK · vehicle preset</div>
+      <div class="muse">Honda key fob preset (variant 2).</div>
     </div>
   </div>
 
@@ -1260,7 +1380,7 @@
   </div>
 
   <!-- GARAGE DOOR REMOTE -->
-  <h3 id="gdr">Garage Door Remote <span class="badge">FoxFW Exclusive</span></h3>
+  <h3 id="gdr">Garage Door Remote <span class="badge">New</span></h3>
   <p>
     The Sub-GHz main menu includes a dedicated <strong>Garage Door Remote</strong>
     button that launches a purpose-built FAP for rolling-code and fixed-code garage
@@ -1382,7 +1502,7 @@
   <div class="setting">
     <div class="name">Modulation</div>
     <div class="desc">CC1101 modulation preset. Must match the target device — wrong modulation means no decode even on the right frequency.</div>
-    <div class="values">Options: <span>AM270 · AM650 · FM238 · FM476 · FM95 · FM15k · BLE · GFSK9.99</span></div>
+    <div class="values">Options: <span>AM270 · AM650 · FM238 · FM476 · FM95 · FM15k · BLE · GFSK9.99 · OOK_LR · OOK_U · AM_1 · FSK_1 · FreqFast · FreqUnlckd · Pagers · AUDIv1 · AUDIv2 · AUDIv3 · FORDv1 · FORDv2 · FORDv3 · FORDv3-Orig · FORDv4 · FORDv5 · FORDv6 · Honda1 · Honda2</span></div>
   </div>
   <div class="setting">
     <div class="name">Visualizer</div>
@@ -1438,9 +1558,22 @@
 <section class="section" id="firmware-update">
   <div class="chapter-label">Chapter 8</div>
   <h2>Installing Firmware Updates</h2>
-  <p>There are two ways to install a FoxFW update:</p>
+  <p>There are three ways to install a FoxFW update:</p>
 
-  <h3>Method 1 — via qFlipper (recommended)</h3>
+  <h3>Method 1 — via Web Installer <span class="badge">New</span> (recommended)</h3>
+  <ol>
+    <li>Connect your Flipper to your computer via USB.</li>
+    <li>Open the <a href="https://foxfw.github.io/2.0/flasher.html" style="color:var(--accent);">FoxFW Web Installer</a> in Chrome or Edge on desktop.</li>
+    <li>Choose <strong>Standard Update</strong> and click <strong>Connect Flipper</strong>, selecting your device from the browser dialog.</li>
+    <li>Click <strong>Install Now</strong> — the installer downloads the firmware and transfers it automatically, no software install required.</li>
+    <li>The Flipper will reboot. On first boot after the update the Fox Setup Wizard runs.</li>
+  </ol>
+  <div class="box tip">
+    <strong>Tip:</strong> No qFlipper install needed — everything runs in the
+    browser. See <a href="#web-flasher" style="color:#80c890;">Chapter 1b</a> for full details on the Web Installer.
+  </div>
+
+  <h3>Method 2 — via qFlipper</h3>
   <ol>
     <li>Connect your Flipper to your computer via USB.</li>
     <li>Open qFlipper (v1.3.3 or later).</li>
@@ -1449,7 +1582,7 @@
     <li>The Flipper will reboot. On first boot after the update the Fox Setup Wizard runs.</li>
   </ol>
 
-  <h3>Method 2 — via Fox File Browser (wireless / SD-card update)</h3>
+  <h3>Method 3 — via Fox File Browser (wireless / SD-card update)</h3>
   <ol>
     <li>Copy the <code>.fuf</code> firmware update file to your SD card (any folder — Favorites or a dedicated folder is recommended).</li>
     <li>Open <strong>Fox File Browser</strong> from the desktop.</li>
