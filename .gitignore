@@ -91,3 +91,4 @@ lib/subghz/protocols/honda_rolling.h
 lib/subghz/protocols/honda_pandora.c
 lib/subghz/protocols/honda_pandora.h
 applications/system/picopass-main/videos/NR-MAC.mkv
+*.zip

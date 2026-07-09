@@ -1,8 +1,8 @@
 /**
  * FFV — Fox File Viewer
  *
- * Home screen → Left = Favourites, Right/OK = Browse SD Card.
- * Back from either tab returns to the home screen; Back from home exits.
+ * Home screen: Browse SD Card / Search SD Card / Favorites (Favorites only
+ * shown when non-empty). Up/Down + OK to navigate; Back exits.
  *
  * "Run in app" stops FFV immediately after launching so the target app
  * can own the screen (same behaviour as the Archive app).
@@ -12,6 +12,7 @@
 
 #include <furi.h>
 #include <furi_hal.h>
+#include <ctype.h>
 #include <gui/gui.h>
 #include <gui/view_dispatcher.h>
 #include <gui/modules/file_browser.h>
@@ -28,13 +29,22 @@
 typedef enum {
     ViewStart      = 0,   /* home screen — opened first                     */
     ViewBrowser    = 1,   /* SD card file browser                           */
-    ViewFavourites = 2,   /* pinned-files list                              */
+    ViewFavourites = 2,   /* pinned-files list — also doubles as search results */
     ViewMenu       = 3,   /* file options context menu                      */
-    ViewRename     = 4,   /* text input for rename                          */
+    ViewTextInput  = 4,   /* text input — used for both rename and search   */
 } FFVViewId;
 
 /* ── Context-menu actions ────────────────────────────────────────────────── */
 typedef enum { MenuRun=0, MenuPin=1, MenuRename=2, MenuDelete=3 } FFVMenuAction;
+
+/* ── Home screen menu items (dynamic — Favorites only shown if non-empty) ── */
+typedef enum { StartItemBrowse=0, StartItemSearch=1, StartItemFavs=2 } FFVStartItem;
+
+/* ── What's currently populating fav_list: saved favorites or search hits ── */
+typedef enum { ListSrcFavorites=0, ListSrcSearch=1 } FFVListSource;
+
+/* ── Which buffer/callback the shared text input view is bound to ────────── */
+typedef enum { TextInputRename=0, TextInputSearch=1 } FFVTextInputMode;
 
 /* ── File types ──────────────────────────────────────────────────────────── */
 typedef enum {
@@ -53,6 +63,10 @@ typedef enum {
 #define FAV_ROW_VIS       2   /* rows visible at once    */
 #define FAV_SCROLL_MS  50   /* timer period for scroll animation (50 ms) */
 
+/* Search */
+#define SEARCH_MAX_RESULTS 200
+#define SEARCH_NAME_MAX    128
+
 /* ── App context ─────────────────────────────────────────────────────────── */
 typedef struct {
     Gui*            gui;
@@ -62,10 +76,12 @@ typedef struct {
     View*           fav_view;
     View*           menu_view;
     TextInput*      text_input;
+    FFVTextInputMode text_input_mode;
 
     FuriString*     selected_path;
     FuriString*     current_dir;
     char            rename_buf[128];
+    char            search_query[SEARCH_NAME_MAX];
 
     Storage*        storage;
     Loader*         loader;
@@ -73,7 +89,9 @@ typedef struct {
     FFVViewId       current_view;
 
     /* home screen */
-    uint8_t         start_selected;   /* 0=Browse, 1=Favourites            */
+    FFVStartItem    start_items[3];
+    uint8_t         start_count;
+    uint8_t         start_selected;   /* index into start_items            */
     bool            browser_started;  /* file_browser_start has been called */
 
     /* context menu */
@@ -83,7 +101,9 @@ typedef struct {
     uint8_t         menu_selected;
     bool            menu_from_favs;
 
-    /* favorites */
+    /* favorites / search results (shared list view) */
+    FFVListSource   list_source;
+    bool            searching;        /* search scan currently running     */
     FuriTimer*      fav_scroll_timer; /* drives path-hint scroll animation */
     FoxScrollText   fav_text_anim;    /* bounce-scroll state for selected row text */
     FuriString**    fav_list;
@@ -106,6 +126,10 @@ static void ffv_build_menu(FFVApp* app);
 static void ffv_do_action(FFVApp* app, FFVMenuAction action);
 static void ffv_favs_load(FFVApp* app);
 static void ffv_favs_free(FFVApp* app);
+static void ffv_go_search_input(FFVApp* app);
+static void ffv_start_build_items(FFVApp* app);
+static bool ffv_favorites_non_empty(FFVApp* app);
+static void ffv_search_done(void* ctx);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  FILE-TYPE + ICON HELPERS
@@ -271,70 +295,82 @@ static void ffv_draw_scroll(Canvas* canvas, size_t total, size_t vis, size_t scr
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  HOME SCREEN VIEW
- *  Left → Favourites  |  Right / OK on Browse → file browser
- *  OK on Favourites   → favourites list
- *  Back               → exit app
+ *  Up/Down select, OK opens the selected item, Back exits.
  * ═════════════════════════════════════════════════════════════════════════ */
+
+static const char* ffv_start_label(FFVStartItem item){
+    switch(item){
+    case StartItemBrowse: return "Browse SD Card";
+    case StartItemSearch: return "Search SD Card";
+    case StartItemFavs:   return "Favorites";
+    }
+    return "";
+}
+
+/* Recompute which items are on the home menu (Favorites only if non-empty)
+ * and clamp the current selection to the new count.                       */
+static void ffv_start_build_items(FFVApp* app){
+    app->start_count = 0;
+    app->start_items[app->start_count++] = StartItemBrowse;
+    app->start_items[app->start_count++] = StartItemSearch;
+    if(ffv_favorites_non_empty(app)) app->start_items[app->start_count++] = StartItemFavs;
+    if(app->start_selected >= app->start_count) app->start_selected = 0;
+}
+
+/* Layout for N home-menu items within Y=13..63 (51 px), small gap between boxes */
+static void ffv_start_item_rect(uint8_t idx, uint8_t count, int* y, int* h){
+    if(count <= 2){
+        static const int ys[2] = {18, 41};
+        *h = 18; *y = ys[idx];
+    } else {
+        static const int ys[3] = {14, 31, 48};
+        *h = 14; *y = ys[idx];
+    }
+}
 
 static void ffv_start_draw_cb(Canvas* canvas, void* model){
     UNUSED(model);
     FFVApp* app=s_ffv_ctx; if(!app) return;
     canvas_clear(canvas);
 
-    /* Title — no divider line underneath */
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 6, AlignCenter, AlignCenter, "File Browser");
 
-    /* Two buttons, centred in the space below the title (Y=13..63 = 51 px).
-     * Each button is 18 px tall with a 5 px gap between them and equal
-     * 5 px margins at the top and bottom of the pair.
-     *
-     *   Y=13-17  top margin  (5 px)
-     *   Y=18-35  Button 1    (18 px)
-     *   Y=36-40  gap         (5 px)
-     *   Y=41-58  Button 2    (18 px)
-     *   Y=59-63  bottom margin (5 px)                                    */
     const int BX = 3, BW = 122, BR = 4;
-
-    /* Browse SD Card */
-    if(app->start_selected == 0){
-        canvas_draw_rbox(canvas, BX, 18, BW, 18, BR);
-        canvas_set_color(canvas, ColorWhite);
-    } else {
-        canvas_draw_rframe(canvas, BX, 18, BW, 18, BR);
+    for(uint8_t i = 0; i < app->start_count; i++){
+        int y, h;
+        ffv_start_item_rect(i, app->start_count, &y, &h);
+        bool sel = (i == app->start_selected);
+        if(sel){
+            canvas_draw_rbox(canvas, BX, y, BW, h, BR);
+            canvas_set_color(canvas, ColorWhite);
+        } else {
+            canvas_draw_rframe(canvas, BX, y, BW, h, BR);
+        }
+        canvas_set_font(canvas, FontPrimary);
+        canvas_draw_str_aligned(canvas, 64, y + h/2, AlignCenter, AlignCenter,
+                                ffv_start_label(app->start_items[i]));
+        canvas_set_color(canvas, ColorBlack);
     }
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str_aligned(canvas, 64, 27, AlignCenter, AlignCenter, "Browse SD Card");
-    canvas_set_color(canvas, ColorBlack);
-
-    /* Favorites */
-    if(app->start_selected == 1){
-        canvas_draw_rbox(canvas, BX, 41, BW, 18, BR);
-        canvas_set_color(canvas, ColorWhite);
-    } else {
-        canvas_draw_rframe(canvas, BX, 41, BW, 18, BR);
-    }
-    canvas_draw_str_aligned(canvas, 64, 50, AlignCenter, AlignCenter, "Favorites");
-    canvas_set_color(canvas, ColorBlack);
 }
 static bool ffv_start_input_cb(InputEvent* ev, void* ctx){
     FFVApp* app=(FFVApp*)ctx;
     if(ev->type!=InputTypeShort && ev->type!=InputTypeRepeat) return false;
     switch(ev->key){
-    case InputKeyUp: case InputKeyDown:
-        app->start_selected = (app->start_selected==0)?1:0;
+    case InputKeyUp:
+        app->start_selected = (app->start_selected==0) ? app->start_count-1 : app->start_selected-1;
         with_view_model(app->start_view,uint8_t* _m,{UNUSED(_m);},true);
         return true;
-    case InputKeyLeft:
-        ffv_go_favs(app);
+    case InputKeyDown:
+        app->start_selected = (app->start_selected+1)%app->start_count;
+        with_view_model(app->start_view,uint8_t* _m,{UNUSED(_m);},true);
         return true;
-    case InputKeyRight:
-        /* Right always goes to Browse regardless of selection */
-        ffv_go_browse(app);
-        return true;
-    case InputKeyOk:
-        if(app->start_selected==0) ffv_go_browse(app);
-        else                        ffv_go_favs(app);
+    case InputKeyOk: case InputKeyRight:
+        switch(app->start_items[app->start_selected]){
+        case StartItemBrowse: ffv_go_browse(app); break;
+        case StartItemSearch: ffv_go_search_input(app); break;
+        case StartItemFavs:   ffv_go_favs(app); break;
+        }
         return true;
     case InputKeyBack:
         return false;   /* ViewDispatcher stops → app exits */
@@ -415,13 +451,125 @@ static void ffv_build_path_hint(const char* full_path, char* buf, size_t buf_siz
     buf[out<buf_size?out:buf_size-1]='\0';
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  SD CARD SEARCH
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+static bool ffv_stristr_pos(const char* hay, const char* needle, size_t* pos){
+    size_t nlen = strlen(needle);
+    if(!nlen) return false;
+    for(const char* p = hay; *p; p++){
+        size_t i = 0;
+        while(i < nlen && p[i] && tolower((unsigned char)p[i]) == tolower((unsigned char)needle[i])) i++;
+        if(i == nlen){ *pos = (size_t)(p - hay); return true; }
+    }
+    return false;
+}
+static bool ffv_stristr(const char* hay, const char* needle){
+    size_t pos;
+    return ffv_stristr_pos(hay, needle, &pos);
+}
+
+static char* ffv_strdup(const char* s){
+    size_t n = strlen(s) + 1;
+    char* d = malloc(n);
+    if(d) memcpy(d, s, n);
+    return d;
+}
+/* Join dir + name into out, tolerating a trailing slash on dir */
+static void ffv_join_path(char* out, size_t out_size, const char* dir, const char* name){
+    size_t dlen = strlen(dir);
+    if(dlen && dir[dlen-1] == '/') dlen--;
+    snprintf(out, out_size, "%.*s/%s", (int)dlen, dir, name);
+}
+
+/* Iterative (non-recursive) directory walk — avoids deep call-stack use on
+ * the app's small thread stack. Pending directories live on a heap stack. */
+static void ffv_do_search(FFVApp* app, const char* needle){
+    ffv_favs_free(app);
+    if(!needle || !needle[0]) return;
+
+    char** dstack = NULL; size_t dcount = 0, dcap = 0;
+    dcap = 8; dstack = malloc(dcap * sizeof(char*));
+    dstack[dcount++] = ffv_strdup(EXT_PATH(""));
+
+    size_t list_cap = 0;
+    File* dir = storage_file_alloc(app->storage);
+    FileInfo info;
+    char name[SEARCH_NAME_MAX];
+
+    while(dcount > 0 && app->fav_count < SEARCH_MAX_RESULTS){
+        char* cur = dstack[--dcount];
+        if(storage_dir_open(dir, cur)){
+            while(app->fav_count < SEARCH_MAX_RESULTS &&
+                  storage_dir_read(dir, &info, name, sizeof(name))){
+                char full[300];
+                ffv_join_path(full, sizeof(full), cur, name);
+                if(info.flags & FSF_DIRECTORY){
+                    if(dcount == dcap){ dcap *= 2; dstack = realloc(dstack, dcap * sizeof(char*)); }
+                    dstack[dcount++] = ffv_strdup(full);
+                } else if(ffv_stristr(name, needle)){
+                    if(app->fav_count == list_cap){
+                        list_cap = list_cap ? list_cap * 2 : 16;
+                        app->fav_list = realloc(app->fav_list, list_cap * sizeof(FuriString*));
+                    }
+                    app->fav_list[app->fav_count++] = furi_string_alloc_set_str(full);
+                }
+            }
+        }
+        storage_dir_close(dir);
+        free(cur);
+    }
+    storage_file_free(dir);
+
+    while(dcount > 0) free(dstack[--dcount]);
+    free(dstack);
+}
+
+/* Draw a filename, underlining the portion matching `query`
+ * when do_underline is set. Falls back to a plain centred draw otherwise. */
+static void ffv_draw_name_row(Canvas* canvas, int cy, const char* name, const char* query, bool do_underline){
+    canvas_set_font(canvas, FontPrimary);
+    size_t pos;
+    if(!do_underline || !ffv_stristr_pos(name, query, &pos)){
+        canvas_draw_str_aligned(canvas, 64, cy, AlignCenter, AlignCenter, name);
+        return;
+    }
+    size_t nlen = strlen(name), qlen = strlen(query);
+    size_t mid_len = (pos + qlen > nlen) ? nlen - pos : qlen;
+
+    char pre[SEARCH_NAME_MAX], mid[SEARCH_NAME_MAX], post[SEARCH_NAME_MAX];
+    size_t pre_len = pos < sizeof(pre)-1 ? pos : sizeof(pre)-1;
+    memcpy(pre, name, pre_len); pre[pre_len] = '\0';
+    size_t m_len = mid_len < sizeof(mid)-1 ? mid_len : sizeof(mid)-1;
+    memcpy(mid, name + pos, m_len); mid[m_len] = '\0';
+    strlcpy(post, name + pos + mid_len, sizeof(post));
+
+    int w_total = (int)canvas_string_width(canvas, name);
+    int x = 64 - w_total/2;
+    canvas_draw_str_aligned(canvas, x, cy, AlignLeft, AlignCenter, pre);
+    x += (int)canvas_string_width(canvas, pre);
+    int mid_x = x;
+    int mid_w = (int)canvas_string_width(canvas, mid);
+    canvas_draw_str_aligned(canvas, mid_x, cy, AlignLeft, AlignCenter, mid);
+    canvas_draw_line(canvas, mid_x, cy+6, mid_x+mid_w-1, cy+6); /* underline the match */
+    x += mid_w;
+    canvas_draw_str_aligned(canvas, x, cy, AlignLeft, AlignCenter, post);
+}
+
 static void ffv_fav_draw_cb(Canvas* canvas, void* model){
     UNUSED(model);
     FFVApp* app=s_ffv_ctx; if(!app) return;
     canvas_clear(canvas);
     canvas_set_font(canvas,FontPrimary);
-    canvas_draw_str_aligned(canvas,64,2,AlignCenter,AlignTop,"Favorites");
-    if(app->fav_count==0) return;  /* empty state unreachable — safety only */
+    bool is_search = (app->list_source == ListSrcSearch);
+    canvas_draw_str_aligned(canvas,64,2,AlignCenter,AlignTop,is_search?"Search Results":"Favorites");
+    if(app->fav_count==0){
+        canvas_set_font(canvas,FontSecondary);
+        const char* msg = app->searching ? "Searching..." : (is_search ? "No matches found" : "");
+        canvas_draw_str_aligned(canvas,64,34,AlignCenter,AlignCenter,msg);
+        return;
+    }
     /* 2-line rows: filename (FontPrimary) + path hint (FontSecondary).
      * FAV_ROW_H = 22, box_h = 20.  Each row from ROW_HEADER_H + row*FAV_ROW_H. */
     for(size_t i=app->fav_scroll;
@@ -435,9 +583,8 @@ static void ffv_fav_draw_cb(Canvas* canvas, void* model){
         bool sel=(i==app->fav_selected);
         if(sel){ canvas_draw_rbox(canvas,2,by,124,bh,3); canvas_set_color(canvas,ColorWhite); }
         else     canvas_draw_rframe(canvas,2,by,124,bh,3);
-        /* Line 1: filename in FontPrimary, centred in upper half */
-        canvas_set_font(canvas,FontPrimary);
-        canvas_draw_str_aligned(canvas,64,by+5,AlignCenter,AlignCenter,name);
+        /* Line 1: filename, bolded match portion when this is a search list */
+        ffv_draw_name_row(canvas, by+5, name, app->search_query, is_search);
         /* Line 2: path hint in FontSecondary, centred in lower half.
          * When the row is selected and the hint is too wide to fit, the text
          * scrolls: PAUSE → slide left → PAUSE → repeat.                    */
@@ -554,21 +701,21 @@ static bool ffv_nav_callback(void* ctx){
     FFVApp* app=(FFVApp*)ctx;
     switch(app->current_view){
     case ViewMenu:
-    case ViewRename:
         ffv_return_from_menu(app);
         return true;
+    case ViewTextInput:
+        if(app->text_input_mode == TextInputSearch) ffv_go_start(app);
+        else                                          ffv_return_from_menu(app);
+        return true;
     case ViewBrowser:
-        /* Back at browser root: go to home screen only if there are favourites.
-         * If the list is empty the home screen is invisible — just exit.   */
-        if(ffv_favorites_non_empty(app)){
-            ffv_go_start(app);
-            return true;
-        }
-        return false;   /* exit app */
-    case ViewFavourites:
-        /* Back in Favourites → home screen (favs are non-empty if we got here) */
-        ffv_fav_scroll_stop(app);
+        /* Home screen is always reachable now */
         ffv_go_start(app);
+        return true;
+    case ViewFavourites:
+        /* Back in Favourites → home; back from Search results → search input */
+        ffv_fav_scroll_stop(app);
+        if(app->list_source == ListSrcSearch) ffv_go_search_input(app);
+        else                                   ffv_go_start(app);
         return true;
     case ViewStart:
         /* Back at home → exit */
@@ -582,6 +729,7 @@ static bool ffv_nav_callback(void* ctx){
  * ═════════════════════════════════════════════════════════════════════════ */
 
 static void ffv_go_start(FFVApp* app){
+    ffv_start_build_items(app);
     app->current_view=ViewStart;
     view_dispatcher_switch_to_view(app->view_dispatcher,ViewStart);
 }
@@ -593,6 +741,7 @@ static void ffv_go_browse(FFVApp* app){
 }
 static void ffv_go_favs(FFVApp* app){
     ffv_favs_load(app);
+    app->list_source = ListSrcFavorites;
     if(app->fav_count==0){
         /* Nothing to show — go to Browse instead */
         ffv_favs_free(app);
@@ -603,6 +752,15 @@ static void ffv_go_favs(FFVApp* app){
     ffv_fav_scroll_start(app);
     app->current_view=ViewFavourites;
     view_dispatcher_switch_to_view(app->view_dispatcher,ViewFavourites);
+}
+static void ffv_go_search_input(FFVApp* app){
+    text_input_reset(app->text_input);
+    text_input_set_result_callback(app->text_input, ffv_search_done, app,
+                                   app->search_query, sizeof(app->search_query), true);
+    text_input_set_header_text(app->text_input, "Search SD Card:");
+    app->text_input_mode = TextInputSearch;
+    app->current_view = ViewTextInput;
+    view_dispatcher_switch_to_view(app->view_dispatcher, ViewTextInput);
 }
 
 static void ffv_refresh_browser(FFVApp* app){
@@ -617,7 +775,15 @@ static void ffv_refresh_browser(FFVApp* app){
     view_dispatcher_switch_to_view(app->view_dispatcher,ViewBrowser);
 }
 static void ffv_return_from_menu(FFVApp* app){
-    if(app->menu_from_favs){
+    if(app->menu_from_favs && app->list_source == ListSrcSearch){
+        /* Re-run the last search so the list reflects rename/delete/etc. */
+        ffv_do_search(app, app->search_query);
+        if(app->fav_selected>=app->fav_count) app->fav_selected = app->fav_count ? app->fav_count-1 : 0;
+        if(app->fav_scroll>app->fav_selected) app->fav_scroll = app->fav_selected;
+        ffv_fav_scroll_start(app);
+        app->current_view=ViewFavourites;
+        view_dispatcher_switch_to_view(app->view_dispatcher,ViewFavourites);
+    } else if(app->menu_from_favs){
         ffv_favs_load(app);
         if(app->fav_count==0){
             /* Last favourite removed: skip favs+home, go straight to Browse */
@@ -683,6 +849,25 @@ static void ffv_rename_done(void* ctx){
     ffv_return_from_menu(app);
 }
 
+/* ── Search ─────────────────────────────────────────────────────────────── */
+static void ffv_search_done(void* ctx){
+    FFVApp* app=ctx;
+    if(!strlen(app->search_query)){ ffv_go_start(app); return; }
+
+    ffv_favs_free(app);
+    app->list_source = ListSrcSearch;
+    app->fav_selected = app->fav_scroll = 0;
+    app->searching = true;
+    app->current_view = ViewFavourites;
+    view_dispatcher_switch_to_view(app->view_dispatcher, ViewFavourites);
+
+    ffv_do_search(app, app->search_query);
+
+    app->searching = false;
+    ffv_fav_scroll_start(app);
+    with_view_model(app->fav_view, uint8_t* _m, { UNUSED(_m); }, true);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  *  ACTION HANDLER
  * ═════════════════════════════════════════════════════════════════════════ */
@@ -738,7 +923,7 @@ static void ffv_do_action(FFVApp* app, FFVMenuAction action){
         if(was) ffv_unpin(app->storage, path);
         else    ffv_pin(app->storage, path);
 
-        if(app->menu_from_favs) {
+        if(app->menu_from_favs && app->list_source == ListSrcFavorites) {
             /* Opened from Favourites → "Remove Favorite" was clicked.
              * Close the menu and return to the list; the next item
              * is selected automatically (ffv_return_from_menu clamps). */
@@ -762,9 +947,12 @@ static void ffv_do_action(FFVApp* app, FFVMenuAction action){
         const char* sl=strrchr(path,'/');
         strlcpy(app->rename_buf,sl?sl+1:path,sizeof(app->rename_buf));
         text_input_reset(app->text_input);
+        text_input_set_result_callback(app->text_input, ffv_rename_done, app,
+                                       app->rename_buf, sizeof(app->rename_buf), true);
         text_input_set_header_text(app->text_input,"Rename:");
-        app->current_view=ViewRename;
-        view_dispatcher_switch_to_view(app->view_dispatcher,ViewRename);
+        app->text_input_mode=TextInputRename;
+        app->current_view=ViewTextInput;
+        view_dispatcher_switch_to_view(app->view_dispatcher,ViewTextInput);
         break;
     }
 
@@ -842,7 +1030,7 @@ static FFVApp* ffv_alloc(void){
 
     /* Rename */
     app->text_input=text_input_alloc();
-    view_dispatcher_add_view(app->view_dispatcher,ViewRename,text_input_get_view(app->text_input));
+    view_dispatcher_add_view(app->view_dispatcher,ViewTextInput,text_input_get_view(app->text_input));
 
     return app;
 }
@@ -857,7 +1045,7 @@ static void ffv_free(FFVApp* app){
     view_dispatcher_remove_view(app->view_dispatcher,ViewBrowser);
     view_dispatcher_remove_view(app->view_dispatcher,ViewFavourites);
     view_dispatcher_remove_view(app->view_dispatcher,ViewMenu);
-    view_dispatcher_remove_view(app->view_dispatcher,ViewRename);
+    view_dispatcher_remove_view(app->view_dispatcher,ViewTextInput);
     view_free(app->start_view);
     file_browser_free(app->browser);
     furi_timer_stop(app->fav_scroll_timer);
@@ -878,21 +1066,12 @@ static void ffv_free(FFVApp* app){
 int32_t ffb_app(void* p){
     UNUSED(p);
     FFVApp* app=ffv_alloc();
-    text_input_set_result_callback(app->text_input,ffv_rename_done,app,
-                                   app->rename_buf,sizeof(app->rename_buf),true);
 
     /* Create a blank favorites.txt if it does not yet exist */
     ffv_ensure_favorites_file(app);
 
-    /* If there are no favourites: skip the home screen entirely and go
-     * straight to Browse.  Back from Browse will exit without ever showing
-     * the home screen (since there is nothing on the Favourites side).
-     * Once the user adds a favourite the home screen becomes reachable.  */
-    if(ffv_favorites_non_empty(app)){
-        view_dispatcher_switch_to_view(app->view_dispatcher,ViewStart);
-    } else {
-        ffv_go_browse(app);
-    }
+    /* Home screen is always shown now (Favorites entry hidden when empty) */
+    ffv_go_start(app);
     view_dispatcher_run(app->view_dispatcher);
     /* loader_enqueue_launch() was called inside the event loop before
      * view_dispatcher_stop().  When this thread exits (return 0 below),
