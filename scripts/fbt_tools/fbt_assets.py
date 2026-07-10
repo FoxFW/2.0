@@ -1,24 +1,24 @@
 import os
 import subprocess
-
+ 
 from ansi.color import fg
 from SCons.Action import Action
 from SCons.Builder import Builder
 from SCons.Errors import StopError
 from SCons.Node.FS import File
-
-
+ 
+ 
 def _icons_emitter(target, source, env):
     icons_src = env.GlobRecursive("*.png", env["ICON_SRC_DIR"])
     icons_src += env.GlobRecursive("**/frame_rate", env["ICON_SRC_DIR"])
-
+ 
     target = [
         target[0].File(env.subst("${ICON_FILE_NAME}.c")),
         target[0].File(env.subst("${ICON_FILE_NAME}.h")),
     ]
     return target, icons_src
-
-
+ 
+ 
 def _proto_emitter(target, source, env):
     target = []
     for src in source:
@@ -26,17 +26,17 @@ def _proto_emitter(target, source, env):
         target.append(env.File(f"compiled/{basename}.pb.c"))
         target.append(env.File(f"compiled/{basename}.pb.h"))
     return target, source
-
-
+ 
+ 
 def _dolphin_emitter(target, source, env):
     res_root_dir = source[0].Dir(env["DOLPHIN_RES_TYPE"])
     source = list()
     source.extend(env.GlobRecursive("*.*", res_root_dir.srcnode()))
-
+ 
     target_base_dir = target[0]
     env.Replace(_DOLPHIN_OUT_DIR=target[0])
     env.Replace(_DOLPHIN_SRC_DIR=res_root_dir)
-
+ 
     if env["DOLPHIN_RES_TYPE"] == "external":
         target = [target_base_dir.File("manifest.txt")]
         ## A detailed list of files to be generated
@@ -56,7 +56,7 @@ def _dolphin_emitter(target, source, env):
             target_base_dir.File(asset_basename + ".c"),
             target_base_dir.File(asset_basename + ".h"),
         ]
-
+ 
     ## Debug output
     # print(
     #     f"Dolphin res type: {env['DOLPHIN_RES_TYPE']},\ntarget files:",
@@ -65,70 +65,39 @@ def _dolphin_emitter(target, source, env):
     #     list(f.path for f in source),
     # )
     return target, source
-
-
-def __invoke_git(args, source_dir):
-    cmd = ["git"]
-    cmd.extend(args)
-    return (
-        subprocess.check_output(cmd, cwd=source_dir, stderr=subprocess.STDOUT)
-        .strip()
-        .decode()
-    )
-
-
+ 
+ 
+# Protobuf API version reported to companion apps (mobile app, qFlipper, etc.)
+# over RPC (see applications/services/rpc/rpc_system.c).
+#
+# This used to be derived by running `git describe --tags --abbrev=0` inside
+# the assets/protobuf submodule at build time. That is fragile: if the
+# submodule is checked out without its tag history reachable (shallow clone,
+# source built from a zip/tarball, some CI checkouts, etc.) `git describe`
+# fails and this silently fell back to "0.0", which the official mobile app
+# reports as an "Outdated firmware version" / unsupported firmware.
+#
+# Hardcoded instead, so a build's reported protobuf version no longer depends
+# on git tag metadata being present at all. When assets/protobuf is updated,
+# bump these two numbers to match the newest entry at the top of
+# assets/protobuf/Changelog.
+PROTOBUF_MAJOR_VERSION = 0
+PROTOBUF_MINOR_VERSION = 25
+ 
+ 
 def _proto_ver_generator(target, source, env):
     target_file = target[0]
-    src_dir = source[0].dir.abspath
-
-    def fetch(unshallow=False):
-        git_args = ["fetch", "--tags"]
-        if unshallow:
-            git_args.append("--unshallow")
-
-        try:
-            __invoke_git(git_args, source_dir=src_dir)
-        except (subprocess.CalledProcessError, EnvironmentError):
-            # Not great, not terrible
-            print(fg.boldred("Git: fetch failed"))
-
-    def describe():
-        try:
-            return __invoke_git(
-                ["describe", "--tags", "--abbrev=0"],
-                source_dir=src_dir,
-            )
-        except (subprocess.CalledProcessError, EnvironmentError):
-            return None
-
-    fetch()
-    git_describe = describe()
-    if not git_describe:
-        fetch(unshallow=True)
-        git_describe = describe()
-
-    if not git_describe:
-        git_describe = "0.0"
-
-    # Strip leading non-numeric characters (e.g. "v" prefix)
-    import re
-
-    version_match = re.match(r"v?(\d+)(?:\.(\d+))?", git_describe)
-    if version_match:
-        git_major = version_match.group(1)
-        git_minor = version_match.group(2) or "0"
-    else:
-        git_major, git_minor = "0", "0"
+ 
     version_file_data = (
         "#pragma once",
-        f"#define PROTOBUF_MAJOR_VERSION {git_major}",
-        f"#define PROTOBUF_MINOR_VERSION {git_minor}",
+        f"#define PROTOBUF_MAJOR_VERSION {PROTOBUF_MAJOR_VERSION}",
+        f"#define PROTOBUF_MINOR_VERSION {PROTOBUF_MINOR_VERSION}",
         "",
     )
     with open(str(target_file), "wt") as file:
         file.write("\n".join(version_file_data))
-
-
+ 
+ 
 def CompileIcons(env, target_dir, source_dir, *, icon_bundle_name="assets_icons"):
     return env.IconBuilder(
         target_dir,
@@ -136,15 +105,15 @@ def CompileIcons(env, target_dir, source_dir, *, icon_bundle_name="assets_icons"
         ICON_SRC_DIR=source_dir,
         ICON_FILE_NAME=icon_bundle_name,
     )
-
-
+ 
+ 
 def generate(env):
     env.SetDefault(
         ASSETS_COMPILER="${FBT_SCRIPT_DIR}/assets.py",
         NANOPB_COMPILER="${ROOT_DIR}/lib/nanopb/generator/nanopb_generator.py",
     )
     env.AddMethod(CompileIcons)
-
+ 
     if not env["VERBOSE"]:
         env.SetDefault(
             ICONSCOMSTR="\tICONS\t${TARGET}",
@@ -152,7 +121,7 @@ def generate(env):
             DOLPHINCOMSTR="\tDOLPHIN\t${DOLPHIN_RES_TYPE}",
             PBVERCOMSTR="\tPBVER\t${TARGET}",
         )
-
+ 
     env.Append(
         BUILDERS={
             "IconBuilder": Builder(
@@ -230,7 +199,8 @@ def generate(env):
             ),
         }
     )
-
-
+ 
+ 
 def exists(env):
     return True
+ 
