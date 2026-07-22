@@ -66,6 +66,13 @@ static int32_t uart_rx_worker(void* context) {
 }
 
 void flasher_uart_open(FlasherApp* app) {
+    /* Disable the expansion port service before acquiring USART — without this
+     * the serial control service has to negotiate a handoff with the expansion
+     * service, which can stall for several seconds and trigger the OS "App is
+     * Still Loading" timeout.  Same pattern used by fox_chat/esp_at.c. */
+    app->expansion = furi_record_open(RECORD_EXPANSION);
+    expansion_disable(app->expansion);
+
     app->uart_rx_stream = furi_stream_buffer_alloc(RX_BUF_SIZE, 1);
 
     app->uart_rx_thread = furi_thread_alloc_ex("FlasherUartRx", 1024, uart_rx_worker, app);
@@ -92,6 +99,10 @@ void flasher_uart_close(FlasherApp* app) {
 
     furi_stream_buffer_free(app->uart_rx_stream);
     app->uart_rx_stream = NULL;
+
+    expansion_enable(app->expansion);
+    furi_record_close(RECORD_EXPANSION);
+    app->expansion = NULL;
 }
 
 void flasher_uart_tx(FlasherApp* app, const uint8_t* data, size_t len) {
@@ -101,29 +112,40 @@ void flasher_uart_tx(FlasherApp* app, const uint8_t* data, size_t len) {
 }
 
 #define PROBE_CMD     "AT\r\n"
-#define PROBE_EXPECT  "Fox ESP32"
+#define PROBE_EXPECT  "OK"
 #define PROBE_TIMEOUT 3000U   /* ms */
 
 bool flasher_uart_probe(FlasherApp* app) {
-    furi_stream_buffer_reset(app->uart_rx_stream);
+    /* Route incoming bytes into a private stream so we don't race with
+     * uart_rx_worker, which is also reading from uart_rx_stream.
+     * The irq callback already checks flash_rx_stream first, so setting
+     * it here is all that's needed to redirect traffic. */
+    FuriStreamBuffer* probe_stream = furi_stream_buffer_alloc(256, 1);
+    app->flash_rx_stream = probe_stream;
+
     flasher_uart_tx(app, (const uint8_t*)PROBE_CMD, strlen(PROBE_CMD));
 
     uint32_t deadline = furi_get_tick() + furi_ms_to_ticks(PROBE_TIMEOUT);
     char rx_buf[128];
     size_t rx_len = 0;
+    bool found = false;
 
     while(furi_get_tick() < deadline) {
         uint8_t byte;
-        size_t got = furi_stream_buffer_receive(app->uart_rx_stream, &byte, 1, 50);
+        size_t got = furi_stream_buffer_receive(probe_stream, &byte, 1, 50);
         if(got) {
             if(rx_len < sizeof(rx_buf) - 1) {
                 rx_buf[rx_len++] = (char)byte;
                 rx_buf[rx_len] = '\0';
             }
             if(strstr(rx_buf, PROBE_EXPECT)) {
-                return true;
+                found = true;
+                break;
             }
         }
     }
-    return false;
+
+    app->flash_rx_stream = NULL;
+    furi_stream_buffer_free(probe_stream);
+    return found;
 }

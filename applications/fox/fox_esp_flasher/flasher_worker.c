@@ -5,7 +5,6 @@
 #endif
 
 #define SERIAL_FLASHER_RESET_HOLD_TIME_MS 100
-#define SERIAL_FLASHER_BOOT_HOLD_TIME_MS  50
 
 #include "esp_loader_io.h"
 #include "esp_loader.h"
@@ -17,7 +16,8 @@
 #define TAG "FlasherWorker"
 
 const FlasherBoard k_flasher_boards[FLASHER_BOARD_COUNT] = {
-    {"ESP32 / WROOM", "esp32",   0x1000},
+    {"ESP32 Classic",  "esp32",   0x1000},
+    {"ESP32-WROOM",   "esp32",   0x1000},
     {"ESP32-WROVER",  "esp32",   0x1000},
     {"ESP32-CAM",     "esp32",   0x1000},
     {"ESP32-S2",      "esp32s2", 0x1000},
@@ -96,20 +96,10 @@ uint32_t loader_port_remaining_time(void) {
 }
 
 void loader_port_enter_bootloader(void) {
-    furi_hal_gpio_init_simple(&gpio_swclk, GpioModeOutputPushPull);
-    furi_hal_gpio_write(&gpio_swclk, false);
-    if(furi_hal_power_is_otg_enabled()) furi_hal_power_disable_otg();
-    loader_port_delay_ms(1000);
-    if(!furi_hal_power_is_otg_enabled()) furi_hal_power_enable_otg();
-    furi_hal_gpio_init_simple(&gpio_swclk, GpioModeAnalog);
-    loader_port_delay_ms(1000);
-
-    _setDTR(true);
-    loader_port_delay_ms(SERIAL_FLASHER_RESET_HOLD_TIME_MS);
-    _setRTS(true);
-    _setDTR(false);
-    loader_port_delay_ms(SERIAL_FLASHER_BOOT_HOLD_TIME_MS);
-    _setRTS(false);
+    /* ESP32 bootloader entry is handled manually by the user on the Prepare
+     * screen (hold BOOT, tap RST, release BOOT) before pressing OK.
+     * Nothing to do here — short delay for UART to settle before sync. */
+    loader_port_delay_ms(100);
 }
 
 void loader_port_reset_target(void) {

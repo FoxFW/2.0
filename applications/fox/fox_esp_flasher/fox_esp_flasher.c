@@ -17,9 +17,10 @@ static void start_probe(FlasherApp* app) {
     if(app->probe_thread) {
         furi_thread_join(app->probe_thread);
         furi_thread_free(app->probe_thread);
+        app->probe_thread = NULL;
     }
     view_detect_set_probing(app->detect_view, true);
-    app->probe_thread = furi_thread_alloc_ex("FlasherProbe", 1024, probe_thread_fn, app);
+    app->probe_thread = furi_thread_alloc_ex("FlasherProbe", 2048, probe_thread_fn, app);
     furi_thread_start(app->probe_thread);
 }
 
@@ -50,6 +51,9 @@ static bool navigation_cb(void* context) {
         return true;
     case FlasherViewFiles:
         switch_view(app, FlasherViewBoard);
+        return true;
+    case FlasherViewPrepare:
+        switch_view(app, app->board_custom ? FlasherViewFiles : FlasherViewBoard);
         return true;
     case FlasherViewResult:
         switch_view(app, FlasherViewMenu);
@@ -102,14 +106,15 @@ static bool custom_event_cb(void* context, uint32_t event) {
             view_files_refresh(app->files_view);
             switch_view(app, FlasherViewFiles);
         } else {
-            view_progress_refresh(app->progress_view);
-            app->flashing_active = true;
-            switch_view(app, FlasherViewProgress);
-            flasher_worker_start(app);
+            switch_view(app, FlasherViewPrepare);
         }
         return true;
 
     case FlasherEventFilesGo:
+        switch_view(app, FlasherViewPrepare);
+        return true;
+
+    case FlasherEventPrepareGo:
         view_progress_refresh(app->progress_view);
         app->flashing_active = true;
         switch_view(app, FlasherViewProgress);
@@ -179,6 +184,7 @@ static FlasherApp* app_alloc(void) {
     app->menu_view     = view_menu_alloc(app);
     app->board_view    = view_board_alloc(app);
     app->files_view    = view_files_alloc(app);
+    app->prepare_view  = view_prepare_alloc(app);
     app->progress_view = view_progress_alloc(app);
     app->terminal_view = view_terminal_alloc(app);
     app->result_view   = view_result_alloc(app);
@@ -189,6 +195,7 @@ static FlasherApp* app_alloc(void) {
     view_dispatcher_add_view(app->view_dispatcher, FlasherViewMenu,     app->menu_view);
     view_dispatcher_add_view(app->view_dispatcher, FlasherViewBoard,    app->board_view);
     view_dispatcher_add_view(app->view_dispatcher, FlasherViewFiles,    app->files_view);
+    view_dispatcher_add_view(app->view_dispatcher, FlasherViewPrepare,  app->prepare_view);
     view_dispatcher_add_view(app->view_dispatcher, FlasherViewProgress, app->progress_view);
     view_dispatcher_add_view(app->view_dispatcher, FlasherViewTerminal, app->terminal_view);
     view_dispatcher_add_view(app->view_dispatcher, FlasherViewResult,   app->result_view);
@@ -213,6 +220,7 @@ static void app_free(FlasherApp* app) {
     view_dispatcher_remove_view(app->view_dispatcher, FlasherViewMenu);
     view_dispatcher_remove_view(app->view_dispatcher, FlasherViewBoard);
     view_dispatcher_remove_view(app->view_dispatcher, FlasherViewFiles);
+    view_dispatcher_remove_view(app->view_dispatcher, FlasherViewPrepare);
     view_dispatcher_remove_view(app->view_dispatcher, FlasherViewProgress);
     view_dispatcher_remove_view(app->view_dispatcher, FlasherViewTerminal);
     view_dispatcher_remove_view(app->view_dispatcher, FlasherViewResult);
@@ -223,6 +231,7 @@ static void app_free(FlasherApp* app) {
     view_menu_free(app->menu_view);
     view_board_free(app->board_view);
     view_files_free(app->files_view);
+    view_prepare_free(app->prepare_view);
     view_progress_free(app->progress_view);
     view_terminal_free(app->terminal_view);
     view_result_free(app->result_view);

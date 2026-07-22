@@ -1,39 +1,39 @@
 #include "fox_esp_flasher.h"
 
-static FlasherApp* s_app = NULL;
-
 typedef struct {
-    uint8_t selected; /* 0, 1, 2 */
+    uint8_t selected; /* 0-2 */
+    uint8_t offset;   /* 0 = show items 0,1  |  1 = show items 1,2 */
 } MenuModel;
 
-#define BOX_X 4
-#define BOX_W 120
-#define BOX_H 18
-#define BOX_R 4
+#define ITEM_COUNT 3
+#define BOX_X  4
+#define BOX_W  120
+#define BOX_H  28
+#define BOX_R  4
 
-static const uint8_t k_box_y[3] = {11, 31, 51};
+static const uint8_t k_slot_y[2] = {2, 34};  /* 2 + 28 + 4gap + 28 = 62, fits in 64px */
 
-static const char* k_line1[3] = {
-    "Install Fox ESP32 Firmware",
-    "Install Custom .bin Files",
+static const char* k_line1[ITEM_COUNT] = {
+    "Install",
+    "Custom Install",
     "Terminal",
 };
-static const char* k_line2[3] = {
-    NULL,
-    "(Select files manually)",
-    "Send commands & view output",
+static const char* k_line2[ITEM_COUNT] = {
+    "Fox ESP32 Firmware",
+    "Select .bin files manually",
+    "Post command to Terminal",
 };
 
 static void menu_draw(Canvas* canvas, void* model_ptr) {
     MenuModel* m = model_ptr;
     canvas_clear(canvas);
 
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str_aligned(canvas, 64, 2, AlignCenter, AlignTop, "Fox ESP Flasher");
+    for(uint8_t slot = 0; slot < 2; slot++) {
+        uint8_t idx = m->offset + slot;
+        if(idx >= ITEM_COUNT) break;
 
-    for(uint8_t i = 0; i < 3; i++) {
-        bool sel = (m->selected == i);
-        uint8_t y = k_box_y[i];
+        bool sel = (idx == m->selected);
+        uint8_t y = k_slot_y[slot];
 
         canvas_set_color(canvas, ColorBlack);
         if(sel) {
@@ -41,17 +41,12 @@ static void menu_draw(Canvas* canvas, void* model_ptr) {
             canvas_set_color(canvas, ColorWhite);
         } else {
             canvas_draw_rframe(canvas, BOX_X, y, BOX_W, BOX_H, BOX_R);
-            canvas_draw_rframe(canvas, BOX_X + 2, y + 2, BOX_W - 4, BOX_H - 4, BOX_R - 2);
         }
 
+        canvas_set_font(canvas, FontPrimary);
+        canvas_draw_str_aligned(canvas, 64, y + 9, AlignCenter, AlignCenter, k_line1[idx]);
         canvas_set_font(canvas, FontSecondary);
-        uint8_t text_y = y + BOX_H / 2;
-        if(k_line2[i]) {
-            canvas_draw_str_aligned(canvas, 64, text_y - 3, AlignCenter, AlignCenter, k_line1[i]);
-            canvas_draw_str_aligned(canvas, 64, text_y + 5, AlignCenter, AlignCenter, k_line2[i]);
-        } else {
-            canvas_draw_str_aligned(canvas, 64, text_y, AlignCenter, AlignCenter, k_line1[i]);
-        }
+        canvas_draw_str_aligned(canvas, 64, y + 20, AlignCenter, AlignCenter, k_line2[idx]);
         canvas_set_color(canvas, ColorBlack);
     }
 }
@@ -63,12 +58,18 @@ static bool menu_input(InputEvent* event, void* context) {
     switch(event->key) {
     case InputKeyUp:
         with_view_model(app->menu_view, MenuModel* m, {
-            m->selected = (m->selected == 0) ? 2 : m->selected - 1;
+            if(m->selected > 0) {
+                m->selected--;
+                if(m->selected < m->offset) m->offset--;
+            }
         }, true);
         return true;
     case InputKeyDown:
         with_view_model(app->menu_view, MenuModel* m, {
-            m->selected = (m->selected + 1) % 3;
+            if(m->selected < ITEM_COUNT - 1) {
+                m->selected++;
+                if(m->selected > m->offset + 1) m->offset++;
+            }
         }, true);
         return true;
     case InputKeyOk: {
@@ -88,17 +89,15 @@ static bool menu_input(InputEvent* event, void* context) {
 }
 
 View* view_menu_alloc(FlasherApp* app) {
-    s_app = app;
     View* v = view_alloc();
     view_set_draw_callback(v, menu_draw);
     view_set_input_callback(v, menu_input);
     view_set_context(v, app);
     view_allocate_model(v, ViewModelTypeLocking, sizeof(MenuModel));
-    with_view_model(v, MenuModel* m, { m->selected = 0; }, false);
+    with_view_model(v, MenuModel* m, { m->selected = 0; m->offset = 0; }, false);
     return v;
 }
 
 void view_menu_free(View* v) {
-    s_app = NULL;
     view_free(v);
 }

@@ -9,7 +9,7 @@ App(
         "gui",
     ],
     stack_size=4 * 1024,
-    order=0,
+    order=1,
     fap_icon="icon.png",
     fap_icon_assets="images",
     fap_category="Fox",

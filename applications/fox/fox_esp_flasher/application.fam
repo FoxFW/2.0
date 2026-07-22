@@ -9,6 +9,7 @@ App(
     order=10,
     fap_icon="images/icon_10x10.png",
     fap_icon_assets="images",
+    fap_file_assets="fwdata",
     fap_category="Fox",
     fap_private_libs=[
         Lib(

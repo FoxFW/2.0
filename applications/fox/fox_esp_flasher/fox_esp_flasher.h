@@ -9,6 +9,7 @@
 #include <storage/storage.h>
 #include <dialogs/dialogs.h>
 #include <notification/notification_messages.h>
+#include <expansion/expansion.h>
 
 typedef enum {
     FlasherViewDetect,    /* "Detecting..." / "ESP32 not found" + Settings/Retry */
@@ -16,6 +17,7 @@ typedef enum {
     FlasherViewMenu,      /* Main menu — 3 big Fox-style buttons */
     FlasherViewBoard,     /* Board selector + Install / Select Files action button */
     FlasherViewFiles,     /* Custom install: 3 file-path rows + Install button */
+    FlasherViewPrepare,   /* "Hold BOOT, tap RST, release BOOT, press OK" gate */
     FlasherViewProgress,  /* Flash progress bar + "DO NOT DISCONNECT" + View Terminal */
     FlasherViewTerminal,  /* Terminal — 2 output lines + Send Command button */
     FlasherViewInput,     /* TextInput reused for Send Command */
@@ -30,15 +32,16 @@ typedef enum {
     FlasherEventMenuTerminal   = 4,
     FlasherEventBoardGo        = 5,
     FlasherEventFilesGo        = 6,
-    FlasherEventFlashProgress  = 7,
-    FlasherEventFlashDone      = 8,
-    FlasherEventFlashFail      = 9,
-    FlasherEventTerminalCmd    = 10,
-    FlasherEventCmdSent        = 11,
-    FlasherEventTerminalUpdate = 12,
+    FlasherEventPrepareGo      = 7,  /* user confirmed bootloader mode — start flash */
+    FlasherEventFlashProgress  = 8,
+    FlasherEventFlashDone      = 9,
+    FlasherEventFlashFail      = 10,
+    FlasherEventTerminalCmd    = 11,
+    FlasherEventCmdSent        = 12,
+    FlasherEventTerminalUpdate = 13,
 } FlasherEvent;
 
-#define FLASHER_BOARD_COUNT 8
+#define FLASHER_BOARD_COUNT 9
 
 typedef struct {
     const char*  label;           /* shown on board selector screen */
@@ -72,6 +75,9 @@ struct FlasherApp {
     Storage*         storage;
     DialogsApp*      dialogs;
     NotificationApp* notifications;
+
+    /* Expansion port — disabled for the lifetime of the app so we own the UART */
+    Expansion*           expansion;
 
     /* UART (shared: AT mode for detect/terminal, binary for flash) */
     FuriHalSerialHandle* serial_handle;
@@ -117,6 +123,7 @@ struct FlasherApp {
     View*       menu_view;
     View*       board_view;
     View*       files_view;
+    View*       prepare_view;
     View*       progress_view;
     View*       terminal_view;
     View*       result_view;
@@ -141,6 +148,9 @@ void  view_board_refresh(View* v);
 View* view_files_alloc(FlasherApp* app);
 void  view_files_free(View* v);
 void  view_files_refresh(View* v);
+
+View* view_prepare_alloc(FlasherApp* app);
+void  view_prepare_free(View* v);
 
 View* view_progress_alloc(FlasherApp* app);
 void  view_progress_free(View* v);
