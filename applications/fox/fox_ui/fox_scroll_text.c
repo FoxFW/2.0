@@ -1,6 +1,5 @@
 #include "fox_scroll_text.h"
 
-/* ── Tuneable constants ───────────────────────────────────────────────────── */
 /** Ticks to pause at each end before bouncing (50 ms timer). */
 #define FST_PAUSE_TICKS  10      /* 10 × 50 ms = 500 ms pause at each end */
 /** Pixels to advance per tick — controls scroll speed.
@@ -9,7 +8,6 @@
 /** Radius passed to canvas_draw_rframe when restoring the box border. */
 #define FST_BORDER_RADIUS 3
 
-/* ── Public API ───────────────────────────────────────────────────────────── */
 
 void fox_scroll_text_reset(FoxScrollText* state) {
     if(state) state->tick = 0;
@@ -42,8 +40,7 @@ void fox_scroll_text_draw(
     int tw_measured = (int)canvas_string_width(canvas, text);
 
     if(tw_measured <= tw) {
-        /* ── Fits: centre in the text area ─────────────────────────────── */
-        canvas_draw_str_aligned(canvas, tx + tw / 2, text_y,
+                canvas_draw_str_aligned(canvas, tx + tw / 2, text_y,
                                 AlignCenter, AlignCenter, text);
         return;
     }

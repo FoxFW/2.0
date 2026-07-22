@@ -578,10 +578,7 @@ void fox_settings_update_desktop_settings(uint32_t auto_lock_ms, uint8_t usb_inh
 }
 #endif
 
-/* ── Fox.data SD ↔ INT sync ──────────────────────────────────────────────
- * Called from desktop.c when the SD card is mounted/unmounted.
- * Uses raw storage copy rather than struct rebuild so the XOR encryption
- * and checksum are preserved exactly.                                      */
+/* Raw copy preserves XOR encryption + checksum; called on SD mount/unmount. */
 
 void fox_settings_sync_int_to_sd(void) {
     Storage* st = (Storage*)furi_record_open(RECORD_STORAGE);

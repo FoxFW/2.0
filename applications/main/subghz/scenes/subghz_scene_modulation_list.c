@@ -22,7 +22,6 @@ static SubGhz*       g_mod_subghz      = NULL;
 static VariableItem* g_mod_count_item  = NULL;
 static bool          g_mod_count_dirty = false;
 
-/* ── Count header ──────────────────────────────────────────────────────── */
 
 static void build_mod_count_text(char* buf, size_t buf_size) {
     SubGhzSetting* setting = subghz_txrx_get_setting(g_mod_subghz->txrx);
@@ -35,7 +34,6 @@ static void build_mod_count_text(char* buf, size_t buf_size) {
     snprintf(buf, buf_size, "%u/%u", (unsigned)enabled, (unsigned)total);
 }
 
-/* ── Per-modulation toggle callback (Left/Right) ───────────────────────── */
 
 static void mod_toggle_cb(VariableItem* item) {
     /* Context is the modulation index stored as uintptr_t — no aliasing. */
@@ -66,7 +64,6 @@ static void mod_toggle_cb(VariableItem* item) {
     g_mod_count_dirty = true;
 }
 
-/* ── Build / rebuild the full list ────────────────────────────────────── */
 
 static const char* const mod_select_labels[] = {"All", "None"};
 static uint8_t        g_mod_select_choice = 0;
@@ -139,7 +136,6 @@ static void mod_list_populate(SubGhz* subghz) {
     }
 }
 
-/* ── Scene lifecycle ───────────────────────────────────────────────────── */
 
 void subghz_scene_modulation_list_on_enter(void* context) {
     SubGhz* subghz = context;

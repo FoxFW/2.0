@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FoxFW ESP32 — Web Flasher</title>
+<style>
+  :root{
+    --bg:#0c0d10;
+    --panel:#151619;
+    --panel-2:#1c1e22;
+    --line:#2a2c31;
+    --fox:#f89521;
+    --fox-dim:#c97417;
+    --text:#eceef1;
+    --text-dim:#9a9ea6;
+    --ok:#3ecf6e;
+    --warn:#f2b705;
+    --err:#e5484d;
+    --mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
+    --sans: "Inter", -apple-system, "Segoe UI", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:32px 16px 64px;
+  }
+  .brand{ text-align:center; margin-bottom:6px; }
+  .brand .fox{ font-size:34px; line-height:1; }
+  .brand h1{
+    font-family:var(--mono);
+    font-size:15px; letter-spacing:.14em; text-transform:uppercase;
+    margin:8px 0 2px; color:var(--text);
+  }
+  .brand .sub{
+    font-family:var(--mono); font-size:11px; letter-spacing:.12em;
+    color:var(--fox); text-transform:uppercase;
+  }
+  .focus-banner{
+    margin-top:18px; width:100%; max-width:560px;
+    background:linear-gradient(180deg,#2a1b06,#1c1305);
+    border:1px solid var(--fox-dim); color:var(--fox);
+    font-family:var(--mono); font-size:12px; text-align:center;
+    padding:9px 12px; border-radius:6px;
+  }
+  .status-row{
+    width:100%; max-width:560px; display:flex; align-items:center;
+    justify-content:space-between; margin:18px 0 6px; font-family:var(--mono); font-size:12px;
+  }
+  .status-pill{
+    display:inline-flex; align-items:center; gap:7px;
+    padding:5px 11px; border-radius:20px; background:var(--panel-2);
+    border:1px solid var(--line); color:var(--text-dim);
+  }
+  .status-pill .dot{ width:7px; height:7px; border-radius:50%; background:var(--text-dim); }
+  .status-pill.connected .dot{ background:var(--ok); box-shadow:0 0 6px var(--ok); }
+  .status-pill.connected{ color:var(--ok); border-color:#1f4a30; }
+  .status-pill.error .dot{ background:var(--err); }
+  .status-pill.error{ color:var(--err); border-color:#4a1f21; }
+  .card{
+    width:100%; max-width:560px; background:var(--panel);
+    border:1px solid var(--line); border-radius:10px; padding:20px;
+    margin-top:10px;
+  }
+  .card + .card{ margin-top:14px; }
+  .card h2{
+    font-size:12px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--text-dim); margin:0 0 14px; font-family:var(--mono);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .card h2 .ver{ color:var(--fox); text-transform:none; letter-spacing:0; }
+  .row{ display:flex; gap:10px; align-items:center; }
+  .row + .row{ margin-top:12px; }
+  label{ font-size:12px; color:var(--text-dim); min-width:88px; flex-shrink:0; }
+  select, input[type=text], input[type=number]{
+    flex:1; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    border-radius:6px; padding:9px 10px; font-family:var(--mono); font-size:13px;
+    min-width:0;
+  }
+  select:focus, input:focus{ outline:2px solid var(--fox-dim); outline-offset:1px; }
+  .btn{
+    font-family:var(--mono); font-size:12.5px; letter-spacing:.05em; text-transform:uppercase;
+    border-radius:6px; padding:11px 16px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--text); cursor:pointer;
+    transition:.15s border-color, .15s background, .15s color;
+  }
+  .btn:hover:not(:disabled){ border-color:var(--fox); color:var(--fox); }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn-primary{ background:var(--fox); border-color:var(--fox); color:#1a0f00; font-weight:600; }
+  .btn-primary:hover:not(:disabled){ background:#ffab3d; color:#1a0f00; }
+  .btn-danger{ border-color:#4a1f21; color:var(--err); }
+  .btn-danger:hover:not(:disabled){ border-color:var(--err); }
+  .btn-sm{ padding:6px 10px; font-size:11px; }
+  .btn-block{ width:100%; }
+  .btn-row{ display:flex; gap:10px; margin-top:14px; }
+  details{ margin-top:14px; }
+  summary{
+    font-family:var(--mono); font-size:11px; color:var(--text-dim);
+    cursor:pointer; letter-spacing:.08em; text-transform:uppercase;
+  }
+  details .row{ margin-top:12px; }
+  .file-table{ margin-top:4px; }
+  .file-item{
+    border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+    margin-top:8px; background:var(--panel-2);
+  }
+  .file-item .fi-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .fi-label{ font-family:var(--mono); font-size:12px; color:var(--text); }
+  .fi-addr{ font-family:var(--mono); font-size:11px; color:var(--text-dim); }
+  .fi-addr input{ width:80px; padding:4px 6px; font-size:11px; }
+  .fi-state{
+    font-family:var(--mono); font-size:10.5px; padding:2px 7px; border-radius:10px;
+    background:var(--panel); color:var(--text-dim); border:1px solid var(--line);
+  }
+  .fi-state.ok{ color:var(--ok); border-color:#1f4a30; }
+  .fi-state.err{ color:var(--err); border-color:#4a1f21; }
+  .fi-state.pending{ color:var(--warn); border-color:#4a3a10; }
+  .fi-bottom{ margin-top:8px; display:flex; align-items:center; gap:8px; }
+  .fi-bottom input[type=file]{
+    font-family:var(--sans); font-size:11px; color:var(--text-dim);
+    flex:1; min-width:0;
+  }
+  .fi-source{ font-size:10.5px; color:var(--text-dim); font-family:var(--mono); }
+  .progress-wrap{ margin-top:16px; display:none; }
+  .progress-wrap.active{ display:block; }
+  .progress-label{
+    display:flex; justify-content:space-between; font-family:var(--mono);
+    font-size:11px; color:var(--text-dim); margin-bottom:6px;
+  }
+  .progress-track{
+    height:8px; border-radius:5px; background:var(--panel-2); overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .progress-fill{
+    height:100%; width:0%; border-radius:5px;
+    background:linear-gradient(90deg, var(--fox-dim), var(--fox));
+    transition:width .2s ease;
+  }
+  .console{
+    margin-top:16px; background:#08090a; border:1px solid var(--line); border-radius:6px;
+    padding:12px; font-family:var(--mono); font-size:11.5px; line-height:1.6;
+    color:#8fe38f; height:150px; overflow-y:auto; white-space:pre-wrap;
+  }
+  .console .ts{ color:#565a63; }
+  .console .e{ color:var(--err); }
+  .console .w{ color:var(--warn); }
+  .footnote{
+    max-width:560px; margin-top:20px; text-align:center;
+    font-size:11px; color:var(--text-dim); line-height:1.6;
+  }
+  .footnote a{ color:var(--fox); text-decoration:none; }
+  .footnote a:hover{ text-decoration:underline; }
+  @media (prefers-reduced-motion: reduce){ .progress-fill{ transition:none; } }
+</style>
+</head>
+<body>
+
+  <div class="brand">
+    <div class="fox">🦊</div>
+    <h1>FoxFW ESP32</h1>
+    <div class="sub">Web Flasher</div>
+  </div>
+
+  <div class="focus-banner">⚠️ Keep this window in focus while flashing!</div>
+
+  <div class="status-row">
+    <span>Target: <strong style="color:var(--text)">ESP32 · .bin</strong></span>
+    <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Not connected</span></span>
+  </div>
+
+  <div class="card">
+    <h2><span>Board</span> <span class="ver" id="boardVersion"></span></h2>
+    <div class="row">
+      <label>Model</label>
+      <select id="boardSelect"></select>
+    </div>
+    <div class="row" id="fetchRow" style="display:none;">
+      <label></label>
+      <button class="btn btn-sm" id="fetchBtn">↻ Re-fetch firmware set</button>
+      <span class="fi-source" id="fetchStatus"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Device</h2>
+    <div class="row">
+      <label>Baud rate</label>
+      <select id="baudRate">
+        <option value="115200" selected>115200</option>
+        <option value="230400">230400</option>
+        <option value="460800">460800</option>
+        <option value="921600">921600</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-block" id="connectBtn">Connect</button>
+      <button class="btn btn-block" id="disconnectBtn" disabled>Disconnect</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Firmware files</h2>
+    <div class="file-table" id="fileTable"></div>
+
+    <details>
+      <summary>Advanced options</summary>
+      <div class="row">
+        <label>Flash mode</label>
+        <select id="flashMode">
+          <option value="keep" selected>keep</option>
+          <option value="qio">qio</option>
+          <option value="dio">dio</option>
+          <option value="dout">dout</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Flash freq</label>
+        <select id="flashFreq">
+          <option value="keep" selected>keep</option>
+          <option value="40m">40m</option>
+          <option value="80m">80m</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Flash size</label>
+        <select id="flashSize">
+          <option value="keep" selected>keep</option>
+          <option value="4MB">4MB</option>
+          <option value="8MB">8MB</option>
+          <option value="16MB">16MB</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Erase all</label>
+        <select id="eraseAll">
+          <option value="false" selected>No</option>
+          <option value="true">Yes</option>
+        </select>
+      </div>
+    </details>
+
+    <div class="btn-row">
+      <button class="btn btn-primary btn-block" id="programBtn" disabled>⚡ Program</button>
+      <button class="btn btn-danger" id="eraseBtn" disabled>Erase</button>
+    </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label">
+        <span id="progressStage">Writing…</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Console</h2>
+    <div class="console" id="console"></div>
+  </div>
+
+  <div class="footnote">
+    - FoxFW and its affiliated contributors disclaim any liability for damages, misuse, or unintended consequences resulting from the use of this firmware tool or the flashing of firmware onto your device.<br><br>
+    Built on <a href="https://github.com/espressif/esptool-js" target="_blank" rel="noopener">esptool-js</a> (Apache-2.0, Espressif Systems). Requires a browser with <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API" target="_blank" rel="noopener">Web Serial</a> support (Chrome/Edge).
+  </div>
+
+<script type="module">
+  import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.5.7/bundle.js";
+
+  /* ============================================================
+     BOARD MANIFEST
+     Add a new object here for every new board. `baseUrl` should
+     point at a folder (e.g. a GitHub Pages / Releases URL) that
+     hosts each filename listed below. If baseUrl is left empty,
+     or the fetch fails, the user can still pick each file by hand
+     — nothing here is required for the flasher to work.
+
+     address values are hex strings as Arduino/esptool expects them.
+     Typical Arduino-IDE ESP32 export (classic ESP32):
+       bootloader.bin  -> 0x1000
+       partitions.bin  -> 0x8000
+       boot_app0.bin   -> 0xE000
+       *.ino.bin       -> 0x10000
+     ESP32-S2/S3/C3 boards commonly use 0x0 for the bootloader —
+     check the address esptool prints when you flash from Arduino
+     and adjust per-board below.
+
+     `chipFamily` (new) is a short canonical label ("ESP32",
+     "ESP32-S3", etc.) matched against whatever esploader.main()
+     detects on Connect (see detectChipFamily() below) - if it
+     doesn't match the currently selected board, Program is blocked
+     so a mismatched binary set can't get written to the wrong chip.
+     Leave it unset on a board entry to skip this check entirely.
+     ============================================================ */
+  // ── Flash-offset quick reference ──────────────────────────────────────────
+  // Classic ESP32 and ESP32-S2 place the second-stage bootloader at 0x1000.
+  // Every S3/C-series chip maps flash differently: the ROM itself is the
+  // first-stage loader and reads the second stage from 0x0.
+  // Partitions, Boot App0, and Firmware offsets are the same across all
+  // variants (0x8000 / 0xE000 / 0x10000).
+  // boot_app0.bin is identical across all boards (verified by md5) and lives
+  // in the same docs/ directory as this file.
+  // ──────────────────────────────────────────────────────────────────────────
+  const BOARD_MANIFEST = [
+    // ── Classic ESP32 family (Xtensa LX6, Bluedroid BLE) ──────────────────
+    // ESP32 Dev Module / Generic ESP32 board
+    {
+      id: "fox-esp32-classic",
+      name: "ESP32 (Classic / Dev Module)",
+      version: "2.0.0",
+      chipFamily: "ESP32",
+      baseUrl: "", // fill in after GitHub Pages deploy
+      files: [
+        { label: "Bootloader", filename: "firmware-classic.bootloader.bin", address: "0x1000" },
+        { label: "Partitions", filename: "firmware-classic.partitions.bin", address: "0x8000" },
+        { label: "Boot App0",  filename: "boot_app0.bin",                   address: "0xE000" },
+        { label: "Firmware",   filename: "firmware-classic.bin",            address: "0x10000" },
+      ],
+    },
+    // ESP32-WROOM-32 module (same silicon as Classic, different antenna/module)
+    {
+      id: "fox-esp32-wroom",
+      name: "ESP32-WROOM",
+      version: "2.0.0",
+      chipFamily: "ESP32",
+      baseUrl: "",
+      files: [
+        { label: "Bootloader", filename: "firmware-classic.bootloader.bin", address: "0x1000" },
+        { label: "Partitions", filename: "firmware-classic.partitions.bin", address: "0x8000" },
+        { label: "Boot App0",  filename: "boot_app0.bin",                   address: "0xE000" },
+        { label: "Firmware",   filename: "firmware-classic.bin",            address: "0x10000" },
+      ],
+    },
+    // ESP32-WROVER module (same silicon, adds PSRAM and external antenna)
+    {
+      id: "fox-esp32-wrover",
+      name: "ESP32-WROVER",
+      version: "2.0.0",
+      chipFamily: "ESP32",
+      baseUrl: "",
+      files: [
+        { label: "Bootloader", filename: "firmware-classic.bootloader.bin", address: "0x1000" },
+        { label: "Partitions", filename: "firmware-classic.partitions.bin", address: "0x8000" },
+        { label: "Boot App0",  filename: "boot_app0.bin",                   address: "0xE000" },
+        { label: "Firmware",   filename: "firmware-classic.bin",            address: "0x10000" },
+      ],
+    },
+    // ESP32-CAM (same classic chip, onboard OV2640 camera, no USB-UART bridge)
+    {
+      id: "fox-esp32-cam",
+      name: "ESP32-CAM",
+      version: "2.0.0",
+      chipFamily: "ESP32",
+      baseUrl: "",
+      files: [
+        { label: "Bootloader", filename: "firmware-classic.bootloader.bin", address: "0x1000" },
+        { label: "Partitions", filename: "firmware-classic.partitions.bin", address: "0x8000" },
+        { label: "Boot App0",  filename: "boot_app0.bin",                   address: "0xE000" },
+        { label: "Firmware",   filename: "firmware-classic.bin",            address: "0x10000" },
+      ],
+    },
+    // ── ESP32-S2 (Xtensa LX7, no BLE) ────────────────────────────────────
+    {
+      id: "fox-esp32-s2",
+      name: "ESP32-S2",
+      version: "2.0.0",
+      chipFamily: "ESP32-S2",
+      baseUrl: "",
+      files: [
+        { label: "Bootloader", filename: "firmware-s2.bootloader.bin", address: "0x1000" },
+        { label: "Partitions", filename: "firmware-s2.partitions.bin", address: "0x8000" },
+        { label: "Boot App0",  filename: "boot_app0.bin",              address: "0xE000" },
+        { label: "Firmware",   filename: "firmware-s2.bin",            address: "0x10000" },
+      ],
+    },
+    // ── ESP32-S3 (Xtensa LX7, NimBLE) ────────────────────────────────────
+    // S3 and all C-series chips boot their second-stage loader from 0x0, not 0x1000.
+    {
+      id: "fox-esp32-s3",
+      name: "ESP32-S3",
+      version: "2.0.0",
+      chipFamily: "ESP32-S3",
+      baseUrl: "",
+      files: [
+        { label: "Bootloader", filename: "firmware-s3.bootloader.bin", address: "0x0" },
+        { label: "Partitions", filename: "firmware-s3.partitions.bin", address: "0x8000" },
+        { label: "Boot App0",  filename: "boot_app0.bin",              address: "0xE000" },
+        { label: "Firmware",   filename: "firmware-s3.bin",            address: "0x10000" },
+      ],
+    },
+    // ── ESP32-C3 (RISC-V, NimBLE, Huge APP 3 MB partition) ───────────────
+    {
+      id: "fox-esp32-c3",
+      name: "ESP32-C3",
+      version: "2.0.0",
+      chipFamily: "ESP32-C3",
+      baseUrl: "",
+      files: [
+        { label: "Bootloader", filename: "firmware-c3.bootloader.bin", address: "0x0" },
+        { label: "Partitions", filename: "firmware-c3.partitions.bin", address: "0x8000" },
+        { label: "Boot App0",  filename: "boot_app0.bin",              address: "0xE000" },
+        { label: "Firmware",   filename: "firmware-c3.bin",            address: "0x10000" },
+      ],
+    },
+    // ── ESP32-C5 (RISC-V, NimBLE, Huge APP 3 MB partition) ───────────────
+    {
+      id: "fox-esp32-c5",
+      name: "ESP32-C5",
+      version: "2.0.0",
+      chipFamily: "ESP32-C5",
+      baseUrl: "",
+      files: [
+        { label: "Bootloader", filename: "firmware-c5.bootloader.bin", address: "0x0" },
+        { label: "Partitions", filename: "firmware-c5.partitions.bin", address: "0x8000" },
+        { label: "Boot App0",  filename: "boot_app0.bin",              address: "0xE000" },
+        { label: "Firmware",   filename: "firmware-c5.bin",            address: "0x10000" },
+      ],
+    },
+    // ── ESP32-C6 (RISC-V, NimBLE, Huge APP 3 MB partition) ───────────────
+    {
+      id: "fox-esp32-c6",
+      name: "ESP32-C6",
+      version: "2.0.0",
+      chipFamily: "ESP32-C6",
+      baseUrl: "",
+      files: [
+        { label: "Bootloader", filename: "firmware-c6.bootloader.bin", address: "0x0" },
+        { label: "Partitions", filename: "firmware-c6.partitions.bin", address: "0x8000" },
+        { label: "Boot App0",  filename: "boot_app0.bin",              address: "0xE000" },
+        { label: "Firmware",   filename: "firmware-c6.bin",            address: "0x10000" },
+      ],
+    },
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const statusPill = $("statusPill");
+  const statusText = $("statusText");
+  const connectBtn = $("connectBtn");
+  const disconnectBtn = $("disconnectBtn");
+  const programBtn = $("programBtn");
+  const eraseBtn = $("eraseBtn");
+  const consoleEl = $("console");
+  const progressWrap = $("progressWrap");
+  const progressFill = $("progressFill");
+  const progressPct = $("progressPct");
+  const progressStage = $("progressStage");
+  const boardSelect = $("boardSelect");
+  const boardVersion = $("boardVersion");
+  const fetchRow = $("fetchRow");
+  const fetchBtn = $("fetchBtn");
+  const fetchStatus = $("fetchStatus");
+  const fileTable = $("fileTable");
+
+  let transport = null;
+  let esploader = null;
+  let slots = [];
+  let lastDetectedChip = null; // raw string from esploader.main()
+  let chipMismatch = false;
+
+  /* esptool-js's main() returns a descriptive chip string (real
+     examples look like "ESP32-D0WDQ6 (revision 1)" or "ESP32-S3
+     (QFN56) (revision 0.1)"), not a clean short label - and
+     critically, "ESP32" is itself a substring of every variant's
+     name ("ESP32-S3", "ESP32-C3", etc.), so a naive .includes("ESP32")
+     check would match all of them. This checks the more specific
+     variant tokens first and only falls back to plain "ESP32" if none
+     matched, so classic ESP32 doesn't get confused with a variant.
+     Reasonable pattern-match against documented esptool output, not a
+     verified exact API contract - worth confirming against real
+     hardware the first time each chip is actually connected. */
+  function detectChipFamily(chipString) {
+    if (!chipString) return null;
+    const s = chipString.toUpperCase();
+    const variants = ["S3", "S2", "C3", "C6", "C2", "C5", "H2"];
+    for (const v of variants) {
+      if (s.includes("ESP32-" + v) || s.includes("ESP32" + v)) return "ESP32-" + v;
+    }
+    if (s.includes("ESP32")) return "ESP32";
+    return null;
+  }
+
+  // Compares the currently selected board's declared chipFamily
+  // against whatever was last detected on Connect, and blocks Program
+  // (via the chipMismatch flag, read by updateProgramState()) if they
+  // disagree. Called right after a successful connect, and again if
+  // the board dropdown changes while already connected. Erase is
+  // deliberately left available on a mismatch - it's chip-agnostic,
+  // doesn't write anything board-specific, and can be a legitimate way
+  // to recover from having picked the wrong board.
+  function checkChipMismatch() {
+    if (!esploader || !lastDetectedChip) { chipMismatch = false; return; }
+    const board = BOARD_MANIFEST[parseInt(boardSelect.value, 10)];
+    const detectedFamily = detectChipFamily(lastDetectedChip);
+    if (board.chipFamily && detectedFamily && board.chipFamily !== detectedFamily) {
+      chipMismatch = true;
+      setStatus("error", `Mismatch: board=${board.chipFamily}, chip=${detectedFamily}`);
+      log(`⚠ Selected board is "${board.name}" (${board.chipFamily}), but the connected device identifies as ${detectedFamily} (raw: "${lastDetectedChip}"). Programming is blocked — pick the matching board above, or Disconnect and reconnect once you have the right one.`, "e");
+    } else {
+      chipMismatch = false;
+      setStatus("connected", lastDetectedChip || "Connected");
+    }
+    updateProgramState();
+  }
+
+  function log(msg, cls) {
+    const line = document.createElement("div");
+    const ts = new Date().toLocaleTimeString();
+    line.innerHTML = `<span class="ts">[${ts}]</span> ` + (cls ? `<span class="${cls}">${msg}</span>` : msg);
+    consoleEl.appendChild(line);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  function setStatus(state, text) {
+    statusPill.className = "status-pill" + (state ? " " + state : "");
+    statusText.textContent = text;
+  }
+
+  const terminal = {
+    clean() { consoleEl.innerHTML = ""; },
+    writeLine(data) { log(data); },
+    write(data) { log(data); },
+  };
+
+  if (!("serial" in navigator)) {
+    setStatus("error", "Web Serial unsupported");
+    connectBtn.disabled = true;
+    log("This browser does not support Web Serial. Use Chrome or Edge on desktop.", "e");
+  }
+
+  BOARD_MANIFEST.forEach((b, i) => {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = b.name;
+    boardSelect.appendChild(opt);
+  });
+
+  function arrayBufferToBinaryString(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let result = "";
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      result += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    return result;
+  }
+
+  function renderFileTable() {
+    fileTable.innerHTML = "";
+    slots.forEach((slot, idx) => {
+      const item = document.createElement("div");
+      item.className = "file-item";
+      item.innerHTML = `
+        <div class="fi-top">
+          <span class="fi-label">${slot.label}</span>
+          <span class="fi-addr">addr <input type="text" data-idx="${idx}" class="addr-input" value="${slot.address}" spellcheck="false"></span>
+          <span class="fi-state" data-state="${idx}">not loaded</span>
+        </div>
+        <div class="fi-bottom">
+          <input type="file" accept=".bin" data-idx="${idx}" class="manual-input">
+        </div>
+      `;
+      fileTable.appendChild(item);
+    });
+
+    fileTable.querySelectorAll(".addr-input").forEach((el) => {
+      el.addEventListener("change", (e) => {
+        const idx = parseInt(e.target.dataset.idx, 10);
+        slots[idx].address = e.target.value.trim();
+      });
+    });
+    fileTable.querySelectorAll(".manual-input").forEach((el) => {
+      el.addEventListener("change", (e) => {
+        const idx = parseInt(e.target.dataset.idx, 10);
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          // Routed through the same chunked conversion the fetch path
+          // uses (arrayBufferToBinaryString), rather than the legacy
+          // FileReader.readAsBinaryString() - keeps both paths
+          // encoding bytes identically and doesn't rely on a method
+          // Chromium no longer documents in the File API spec.
+          slots[idx].data = arrayBufferToBinaryString(ev.target.result);
+          slots[idx].source = "manual";
+          setSlotState(idx, "ok", "manual: " + file.name);
+          updateProgramState();
+          log(`Loaded ${file.name} for "${slots[idx].label}" (manual).`);
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    });
+
+    slots.forEach((s, idx) => setSlotState(idx, s.data ? "ok" : "pending", s.data ? s.source : "not loaded"));
+  }
+
+  function setSlotState(idx, cls, text) {
+    const el = fileTable.querySelector(`.fi-state[data-state="${idx}"]`);
+    if (!el) return;
+    el.className = "fi-state" + (cls ? " " + cls : "");
+    el.textContent = text;
+  }
+
+  async function loadBoard(index) {
+    const board = BOARD_MANIFEST[index];
+    boardVersion.textContent = board.version ? `v${board.version}` : "";
+    slots = board.files.map((f) => ({ label: f.label, address: f.address, data: null, source: null, filename: f.filename }));
+    renderFileTable();
+    updateProgramState();
+
+    if (board.baseUrl) {
+      fetchRow.style.display = "flex";
+      await fetchBoardFiles(board);
+    } else {
+      fetchRow.style.display = "none";
+      log(`"${board.name}" has no hosted firmware URL configured yet — choose files manually below.`, "w");
+    }
+  }
+
+  async function fetchBoardFiles(board) {
+    fetchStatus.textContent = "fetching…";
+    fetchBtn.disabled = true;
+    let okCount = 0;
+    for (let i = 0; i < board.files.length; i++) {
+      const f = board.files[i];
+      const url = board.baseUrl.replace(/\/$/, "") + "/" + f.filename;
+      setSlotState(i, "pending", "fetching…");
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buf = await res.arrayBuffer();
+        slots[i].data = arrayBufferToBinaryString(buf);
+        slots[i].source = "fetched";
+        setSlotState(i, "ok", "fetched (" + (buf.byteLength / 1024).toFixed(1) + " KB)");
+        okCount++;
+        log(`Fetched ${f.filename} for "${board.name}".`);
+      } catch (err) {
+        setSlotState(i, "err", "fetch failed — choose manually");
+        log(`Could not fetch ${f.filename}: ${err.message || err}. You can pick it manually below.`, "e");
+      }
+    }
+    fetchStatus.textContent = okCount === board.files.length ? "all files fetched" : `${okCount}/${board.files.length} fetched`;
+    fetchBtn.disabled = false;
+    updateProgramState();
+  }
+
+  boardSelect.addEventListener("change", async (e) => {
+    await loadBoard(parseInt(e.target.value, 10));
+    checkChipMismatch(); // re-validate against whatever's already connected, if anything
+  });
+  fetchBtn.addEventListener("click", () => loadBoard(parseInt(boardSelect.value, 10)));
+
+  function updateProgramState() {
+    const ready = esploader && !chipMismatch && slots.length > 0 && slots.every((s) => s.data);
+    programBtn.disabled = !ready;
+  }
+
+  connectBtn.addEventListener("click", async () => {
+    try {
+      const device = await navigator.serial.requestPort();
+      transport = new Transport(device, true);
+      const baudrate = parseInt($("baudRate").value, 10);
+      esploader = new ESPLoader({ transport, baudrate, terminal });
+
+      setStatus(null, "Connecting…");
+      const chip = await esploader.main();
+      log(`Connected. Detected chip: ${chip}`);
+      lastDetectedChip = chip;
+
+      connectBtn.disabled = true;
+      disconnectBtn.disabled = false;
+      eraseBtn.disabled = false;
+
+      checkChipMismatch(); // sets status pill + logs a warning + gates Program if it doesn't match the selected board
+    } catch (err) {
+      log(`Connection failed: ${err.message || err}`, "e");
+      setStatus("error", "Connection failed");
+    }
+  });
+
+  disconnectBtn.addEventListener("click", async () => {
+    try {
+      if (transport) await transport.disconnect();
+    } catch (err) {
+      log(`Disconnect error: ${err.message || err}`, "w");
+    }
+    esploader = null; transport = null;
+    lastDetectedChip = null; chipMismatch = false;
+    setStatus(null, "Not connected");
+    connectBtn.disabled = false;
+    disconnectBtn.disabled = true;
+    eraseBtn.disabled = true;
+    programBtn.disabled = true;
+    log("Disconnected.");
+  });
+
+  eraseBtn.addEventListener("click", async () => {
+    if (!esploader) return;
+    if (!confirm("This will fully erase the flash. Continue?")) return;
+    try {
+      eraseBtn.disabled = true; programBtn.disabled = true; connectBtn.disabled = true; disconnectBtn.disabled = true;
+      log("Erasing flash…");
+      progressWrap.classList.add("active");
+      progressStage.textContent = "Erasing…";
+      progressFill.style.width = "50%";
+      progressPct.textContent = "";
+      await esploader.eraseFlash();
+      progressFill.style.width = "100%";
+      log("Erase complete.");
+    } catch (err) {
+      log(`Erase failed: ${err.message || err}`, "e");
+    } finally {
+      setTimeout(() => progressWrap.classList.remove("active"), 800);
+      eraseBtn.disabled = false; connectBtn.disabled = true; disconnectBtn.disabled = false;
+      updateProgramState();
+    }
+  });
+
+  programBtn.addEventListener("click", async () => {
+    if (!esploader || !slots.every((s) => s.data)) return;
+
+    const fileArray = [];
+    for (const s of slots) {
+      const address = parseInt(s.address, 16);
+      if (Number.isNaN(address)) {
+        log(`Invalid address "${s.address}" for ${s.label}.`, "e");
+        return;
+      }
+      fileArray.push({ data: s.data, address });
+    }
+
+    const flashMode = $("flashMode").value;
+    const flashFreq = $("flashFreq").value;
+    const flashSize = $("flashSize").value;
+    const eraseAll = $("eraseAll").value === "true";
+
+    const flashOptions = {
+      fileArray, flashMode, flashFreq, flashSize, eraseAll,
+      compress: true,
+      reportProgress: (fileIndex, written, total) => {
+        const pct = Math.min(100, Math.round((written / total) * 100));
+        progressFill.style.width = pct + "%";
+        progressPct.textContent = pct + "%";
+        progressStage.textContent = `Writing ${slots[fileIndex]?.label || "file " + (fileIndex + 1)}…`;
+      },
+    };
+
+    try {
+      programBtn.disabled = true; eraseBtn.disabled = true; disconnectBtn.disabled = true;
+      progressWrap.classList.add("active");
+      progressFill.style.width = "0%";
+      progressPct.textContent = "0%";
+      log(`Flashing ${fileArray.length} file(s)…`);
+
+      await esploader.writeFlash(flashOptions);
+      progressStage.textContent = "Done";
+      log("Firmware flashed successfully. Resetting device…");
+      await esploader.after("hard_reset");
+      log("Device reset. Flash complete.");
+
+      // The device just rebooted into the new firmware - the Web
+      // Serial port object may still look "open" to the browser, but
+      // esploader's own sync state is stale and a second
+      // writeFlash()/eraseFlash() without a fresh handshake is not
+      // reliable. Treat this like a disconnect for Program/Erase
+      // purposes (Disconnect itself stays available so the port gets
+      // closed properly) rather than leaving both looking clickable
+      // when they'd need a real reconnect first.
+      esploader = null;
+      lastDetectedChip = null;
+      chipMismatch = false;
+      setStatus(null, "Rebooted — reconnect to flash again");
+      log("Device has rebooted into the new firmware. Click Disconnect, then Connect again if you want to flash or erase it a second time.", "w");
+    } catch (err) {
+      log(`Flashing failed: ${err.message || err}`, "e");
+      progressStage.textContent = "Failed";
+    } finally {
+      setTimeout(() => progressWrap.classList.remove("active"), 1200);
+      eraseBtn.disabled = !esploader; // stays disabled post-success (see above); re-enabled by a fresh Connect
+      disconnectBtn.disabled = false;
+      updateProgramState();
+    }
+  });
+
+  log("Ready. Select a board, connect your ESP32, and load firmware files.");
+  loadBoard(0);
+</script>
+</body>
+</html>

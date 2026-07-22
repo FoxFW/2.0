@@ -665,8 +665,6 @@ void elements_scrollable_text_line_str(
         }
 
         if(ellipsis) {
-            /* ── Non-selected item: one-direction scroll + "..." ──────────
-             * Bounce + ellipsis looks odd; keep the classic slide for these. */
             uint8_t ew = width - (uint8_t)canvas_string_width(canvas, "...");
             size_t scroll_size = furi_string_size(line);
             size_t right_width = 0;
@@ -688,10 +686,7 @@ void elements_scrollable_text_line_str(
             }
             furi_string_cat(line, "...");
         } else {
-            /* ── Fox Exclusive: bounce scroll ─────────────────────────────
-             * Text slides left to reveal the end, pauses, slides back,
-             * pauses, and repeats.  pause=2 ticks × 333 ms = ~667 ms hold
-             * at each end.                                                 */
+            /* Bounce scroll: slides left to end, pauses, slides back, pauses, repeats. */
             size_t scroll_size = furi_string_size(line);
             size_t right_width = 0;
             for(size_t i = scroll_size - 1; i > 0; i--) {

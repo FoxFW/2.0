@@ -9,7 +9,6 @@
 // 2 encoded bytes per digit + null terminator
 #define DESKTOP_PIN_DATA_LEN     ((DESKTOP_PIN_CODE_MAX_LEN * 2) + 1)
 
-// ── Fox.Settings unified file ──────────────────────────────────────────────
 // Single file that holds ALL Fox security and settings data.
 // Stored on BOTH internal flash AND SD card — firmware syncs them on boot.
 // The SD copy is what the Python recovery tool reads and edits.
@@ -30,7 +29,6 @@
 #define FOX_ESCROW_MAX_USED_TOKENS (8)
 #define FOX_TOKEN_SIZE             (16)
 
-// ── Unified Fox.Settings binary struct (packed, XOR encrypted) ──────────────
 // Must stay in sync with fox_recovery_tool.py SETTINGS_FMT.
 // Total size: 310 bytes.
 typedef struct {
@@ -71,7 +69,6 @@ typedef struct {
  * PIN and escrow data are stored exclusively in Fox.data (FoxSettingsData).
  * FOX_PIN_PATH and FOX_ESCROW_PATH are kept below only for removal during
  * migration (storage_common_remove calls on first boot with new firmware). */
-// ── Legacy per-file types (kept for migration) ──────────────────────────────
 
 typedef struct {
     char    data[DESKTOP_PIN_DATA_LEN];

@@ -89,7 +89,6 @@ static void gui_redraw_status_bar(Gui* gui, bool need_attention) {
     canvas_draw_icon(gui->canvas, 0, 0, &I_Background_128x11);
     canvas_set_bitmap_mode(gui->canvas, 0);
 
-    // ── Right side ────────────────────────────────────────────────────────────
     uint8_t x = GUI_DISPLAY_WIDTH - 2;
     ViewPortArray_it(it, gui->layers[GuiLayerStatusBarRight]);
     while(!ViewPortArray_end_p(it) && right_used < GUI_STATUS_BAR_WIDTH) {
@@ -116,7 +115,6 @@ static void gui_redraw_status_bar(Gui* gui, bool need_attention) {
         ViewPortArray_next(it);
     }
 
-    // ── Left side (2px inward from outer border) ─────────────────────────────
     x = 4;
     ViewPortArray_it(it, gui->layers[GuiLayerStatusBarLeft]);
     while(!ViewPortArray_end_p(it) && (right_used + left_used) < GUI_STATUS_BAR_WIDTH) {
@@ -143,7 +141,6 @@ static void gui_redraw_status_bar(Gui* gui, bool need_attention) {
         ViewPortArray_next(it);
     }
 
-    // ── Hidden-window notification ────────────────────────────────────────────
     if(need_attention) {
         width = icon_get_width(&I_Hidden_window_9x8);
         canvas_frame_set(
@@ -160,7 +157,6 @@ static void gui_redraw_status_bar(Gui* gui, bool need_attention) {
         canvas_draw_icon(gui->canvas, 0, 0, &I_Hidden_window_9x8);
     }
 
-    // ── Center element (clock) — fixed horizontal center ──────────────────────
     {
         ViewPort* center_vp =
             gui_view_port_find_enabled(gui->layers[GuiLayerStatusBarCenter]);

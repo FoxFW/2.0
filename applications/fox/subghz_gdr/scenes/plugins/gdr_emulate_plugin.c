@@ -95,10 +95,8 @@ static const char* emu_get_short_preset_name(const char* preset_name) {
     return preset_name;
 }
 
-// -----------------------------------------------------------------------------
 // Notification sequence used while transmitting. Duplicated locally so the
 // plugin does not link against the host's `static const` copy.
-// -----------------------------------------------------------------------------
 static const NotificationSequence emu_sequence_tx = {
     &message_note_c5,
     &message_vibro_on,

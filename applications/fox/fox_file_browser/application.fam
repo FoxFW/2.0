@@ -9,7 +9,7 @@ App(
         "dialogs",
     ],
     stack_size=3 * 1024,
-    fap_category="Settings",
+    fap_category="Fox",
     fap_version="1.0",
     fap_description="Browse files and install firmware updates",
     fap_author="FoxFW Team",

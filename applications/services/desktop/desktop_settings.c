@@ -246,7 +246,7 @@ void desktop_settings_load(DesktopSettings* settings) {
 
         /* Default all arrow-key shortcuts to FFV so users immediately get
          * the file viewer instead of the apps menu or the old SubGHz fallback. */
-        const char ffv_path[] = "/ext/apps/Settings/ffb.fap";
+        const char ffv_path[] = "/ext/apps/Fox/ffb.fap";
         strlcpy(settings->favorite_apps[FavoriteAppLeftShort].name_or_path,
                 ffv_path, sizeof(settings->favorite_apps[0].name_or_path));
         strlcpy(settings->favorite_apps[FavoriteAppLeftLong].name_or_path,

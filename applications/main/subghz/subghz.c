@@ -58,11 +58,7 @@ static void subghz_rpc_command_callback(const RpcAppSystemEvent* event, void* co
         rpc_system_app_confirm(subghz->rpc_ctx, false);
     }
 }
-/* ── Combined settings save ─────────────────────────────────────────────────
- * Writes ALL subghz settings to one file (last_subghz.settings) including
- * the protocol and modulation filters.  Call this everywhere instead of
- * calling subghz_last_settings_save / protocol_filter_save / mod_filter_save
- * separately.                                                                */
+/* Writes all subghz settings (last_settings + protocol/mod filters) to one file. */
 void subghz_save_all(SubGhz* subghz) {
     furi_assert(subghz);
     /* Copy current filter state into the last_settings struct */

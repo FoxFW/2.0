@@ -11,7 +11,6 @@
 
 #define TAG "SubGhzSceneSignalVisualizer"
 
-/* ── scene callback forwarded from the view ──────────────────────────────── */
 
 static void subghz_scene_signal_visualizer_view_callback(SubGhzCustomEvent event, void* context) {
     furi_assert(context);
@@ -19,7 +18,6 @@ static void subghz_scene_signal_visualizer_view_callback(SubGhzCustomEvent event
     view_dispatcher_send_custom_event(subghz->view_dispatcher, event);
 }
 
-/* ── scene lifecycle ─────────────────────────────────────────────────────── */
 
 void subghz_scene_signal_visualizer_on_enter(void* context) {
     SubGhz* subghz = context;

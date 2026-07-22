@@ -1881,11 +1881,7 @@ cleanup:
     free(app);
 }
 
-/* ── SubGHz integration entry point ──────────────────────────────────────────
- * Opens the editor directly on a known path, skipping the file-browser
- * dialog.  Called by subghz_raw_edit_app() when launched with a path
- * argument from SubGHz's "Edit RAW" menu item (via the Loader service).
- * ─────────────────────────────────────────────────────────────────────────── */
+/* Called with a path arg from SubGHz "Edit RAW", bypasses the file-browser dialog. */
 static void run_editor_with_path(Storage *storage, DialogsApp *dialogs, const char *path)
 {
     App *app = safe_malloc(sizeof(App));

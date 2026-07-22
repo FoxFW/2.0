@@ -51,7 +51,7 @@ static void desktop_scene_main_open_app_or_profile(Desktop* desktop, FavoriteApp
      * settings showed "Dolphin (default)".                              */
     if(!load_ok) {
         loader_start_detached_with_gui_error(
-            desktop->loader, EXT_PATH("apps/Settings/ffb.fap"), NULL);
+            desktop->loader, EXT_PATH("apps/Fox/ffb.fap"), NULL);
     }
 }
 
@@ -121,7 +121,7 @@ bool desktop_scene_main_on_event(void* context, SceneManagerEvent event) {
         case DesktopMainEventOpenArchive:
             /* Always open FFV — Archive is replaced by FFV in FoxFW. */
             loader_start_detached_with_gui_error(
-                desktop->loader, EXT_PATH("apps/Settings/ffb.fap"), NULL);
+                desktop->loader, EXT_PATH("apps/Fox/ffb.fap"), NULL);
             consumed = true;
             break;
 

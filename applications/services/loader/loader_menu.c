@@ -85,7 +85,7 @@ static void
 static void loader_menu_fox_settings_callback(void* context, uint32_t index) {
     UNUSED(context);
     UNUSED(index);
-    loader_menu_start("/ext/apps/Settings/desktop_settings.fap");
+    loader_menu_start("/ext/apps/Fox/desktop_settings.fap");
 }
 
 static void loader_menu_switch_to_settings(void* context, uint32_t index) {

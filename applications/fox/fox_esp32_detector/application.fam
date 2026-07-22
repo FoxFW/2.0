@@ -1,0 +1,16 @@
+App(
+    appid="fox_esp32_detector",
+    name="Fox ESP32 Detector",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="fox_esp32_detector_main",
+    # Everything runs on this one thread - no separate worker thread like
+    # Fox Chameleon's esp_at.c uses - so this carries both the GUI event
+    # loop's own stack usage and this app's line-reading buffers at once.
+    # 8 KB matches the budget Fox Chameleon needed after its own
+    # real-hardware stack overflow; see main.c for the buffer sizes.
+    stack_size=8 * 1024,
+    fap_category="Fox",
+    fap_version="0.1",
+    fap_icon="icon.png",
+    fap_description="Scans every pin/baud combination on the GPIO header for an ESP-AT-compatible module",
+)

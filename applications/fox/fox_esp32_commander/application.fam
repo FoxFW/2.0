@@ -1,0 +1,20 @@
+App(
+    appid="fox_esp32_commander",
+    name="Fox ESP32 Commander",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="fox_esp32_commander_main",
+    # Same reasoning as fox_chameleon's stack_size: this app's own
+    # thread runs the GUI event loop directly (ViewDispatcher/Gui
+    # internals share this stack), and esp_at.c carries a ~530-byte
+    # EspAtMsg as a plain local variable in a couple of places - 8 KB
+    # rather than the more typical 1-3 KB for the same reason
+    # fox_chameleon needed it (a real build crashed with "possibly
+    # stack overflow" at 3 KB there).
+    stack_size=8 * 1024,
+    fap_category="Fox",
+    fap_version="0.1",
+    fap_author="",
+    fap_icon="icon.png",
+    fap_icon_assets="images",
+    fap_description="Fox ESP32 Commander - talks to an ESP32 running Fox ESP32 Firmware (WiFi/BLE/HTTP/scripting toolkit)",
+)

@@ -18,13 +18,11 @@
 
 #define TAG "SubGhzProtocolFilter"
 
-/* ── internal struct ─────────────────────────────────────────────────────── */
 
 struct SubGhzProtocolFilter {
     uint8_t enabled[SUBGHZ_FILTER_MAX_PROTOCOLS]; /* 0x00=off  0x01=on */
 };
 
-/* ── public API ──────────────────────────────────────────────────────────── */
 
 SubGhzProtocolFilter* subghz_protocol_filter_alloc(void) {
     SubGhzProtocolFilter* inst = malloc(sizeof(SubGhzProtocolFilter));

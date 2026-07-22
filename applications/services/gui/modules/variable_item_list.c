@@ -132,7 +132,6 @@ static void variable_item_list_draw_callback(Canvas* canvas, void* _model) {
                     }
                 }
             } else {
-                /* ── Classic layout (unchanged) ── */
                 uint8_t temp_x_default = 73;
                 uint8_t temp_w_default = 66;
                 if(!has_value) {
@@ -302,17 +301,25 @@ void variable_item_list_process_up(VariableItemList* variable_item_list) {
         VariableItemListModel * model,
         {
             uint8_t items_on_screen = fox_theme_is_active() ? 3u : 4u;
+            uint8_t items_size = VariableItemArray_size(model->items);
+
             if(model->position > 0) {
                 model->position--;
-
-                if((model->position == model->window_position) && (model->window_position > 0)) {
-                    model->window_position--;
-                }
             } else {
-                model->position = VariableItemArray_size(model->items) - 1;
-                if(model->position > (items_on_screen - 1)) {
-                    model->window_position = model->position - (items_on_screen - 1);
-                }
+                model->position = items_size - 1;
+            }
+
+            /* Clamp window to keep position in view — see the matching
+             * fix in gui/modules/submenu.c for why the old
+             * "position == window_position" heuristic breaks when only
+             * 2 rows are visible. Kept here preventatively in case
+             * items_on_screen ever drops to 2 for this widget too. */
+            if(model->position < model->window_position) {
+                model->window_position = model->position;
+            } else if(
+                items_size > items_on_screen &&
+                model->position >= model->window_position + items_on_screen) {
+                model->window_position = model->position - items_on_screen + 1;
             }
             model->scroll_counter = 0;
         },
@@ -325,15 +332,22 @@ void variable_item_list_process_down(VariableItemList* variable_item_list) {
         VariableItemListModel * model,
         {
             uint8_t items_on_screen = fox_theme_is_active() ? 3u : 4u;
-            if(model->position < (VariableItemArray_size(model->items) - 1)) {
+            uint8_t items_size = VariableItemArray_size(model->items);
+
+            if(model->position < (items_size - 1)) {
                 model->position++;
-                if((model->position - model->window_position) > (items_on_screen - 2) &&
-                   model->window_position <
-                       (VariableItemArray_size(model->items) - items_on_screen)) {
-                    model->window_position++;
-                }
             } else {
                 model->position = 0;
+            }
+
+            /* Same clamp as variable_item_list_process_up() — see comment there. */
+            if(model->position < model->window_position) {
+                model->window_position = model->position;
+            } else if(
+                items_size > items_on_screen &&
+                model->position >= model->window_position + items_on_screen) {
+                model->window_position = model->position - items_on_screen + 1;
+            } else if(model->position == 0) {
                 model->window_position = 0;
             }
             model->scroll_counter = 0;

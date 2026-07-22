@@ -7,6 +7,7 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <lib/subghz/devices/cc1101_int/cc1101_int_interconnect.h>
+#include <applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h>
 #include <lib/subghz/devices/devices.h>
 #include <lib/subghz/devices/preset.h>
 #include <notification/notification.h>
@@ -23,9 +24,10 @@ struct JammerWorker {
     /* Callback fired when a new jammer alert is raised */
     JammerWorkerCallback alert_cb;
     void* alert_cb_ctx;
+    /* Set in the worker thread after device selection — used for OTG cleanup */
+    bool is_external;
 };
 
-/* ── Rolling-window helpers ── */
 
 static void window_push(JammerState* s, uint8_t idx, float rssi) {
     uint8_t pos = s->window_pos[idx];
@@ -40,7 +42,6 @@ static void window_push(JammerState* s, uint8_t idx, float rssi) {
     s->window_max[idx] = max;
 }
 
-/* ── Worker thread ── */
 
 static int32_t jammer_worker_thread(void* context) {
     JammerWorker* worker = context;
@@ -50,11 +51,35 @@ static int32_t jammer_worker_thread(void* context) {
     /* Grab the notification service for alerts */
     NotificationApp* notifications = furi_record_open(RECORD_NOTIFICATION);
 
-    /* Bring up the SubGHz device stack */
+    /* Bring up the SubGHz device stack.
+       Try the external GPIO CC1101 attachment first (same priority as fox_rf_jammer
+       and the main SubGHz app).  If OTG power isn't already on, enable it briefly
+       so the external board can be detected.  Fall back to the internal CC1101 if
+       no external device is found. */
     subghz_devices_init();
-    const SubGhzDevice* device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME);
+
+    bool otg_was_enabled = furi_hal_power_is_otg_enabled();
+    if(!otg_was_enabled) {
+        uint8_t tries = 0;
+        while(!furi_hal_power_is_otg_enabled() && tries++ < 5) {
+            furi_hal_power_enable_otg();
+            furi_delay_ms(10);
+        }
+    }
+
+    const SubGhzDevice* device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);
+    worker->is_external = (device != NULL);
+
     if(!device) {
-        FURI_LOG_E(TAG, "CC1101 device not found");
+        /* External not present — power off OTG if we turned it on, use internal */
+        if(!otg_was_enabled && furi_hal_power_is_otg_enabled()) {
+            furi_hal_power_disable_otg();
+        }
+        device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME);
+    }
+
+    if(!device) {
+        FURI_LOG_E(TAG, "No CC1101 device found (internal or external)");
         if(furi_mutex_acquire(worker->mutex, FuriWaitForever) == FuriStatusOk) {
             worker->state->hw_error = true;
             furi_mutex_release(worker->mutex);
@@ -65,6 +90,8 @@ static int32_t jammer_worker_thread(void* context) {
         return -1;
     }
 
+    FURI_LOG_I(TAG, "Using %s CC1101", worker->is_external ? "external" : "internal");
+
     if(!subghz_devices_begin(device)) {
         FURI_LOG_E(TAG, "subghz_devices_begin failed");
         if(furi_mutex_acquire(worker->mutex, FuriWaitForever) == FuriStatusOk) {
@@ -72,6 +99,9 @@ static int32_t jammer_worker_thread(void* context) {
             furi_mutex_release(worker->mutex);
         }
         worker->running = false;
+        if(worker->is_external && furi_hal_power_is_otg_enabled()) {
+            furi_hal_power_disable_otg();
+        }
         subghz_devices_deinit();
         furi_record_close(RECORD_NOTIFICATION);
         return -1;
@@ -180,6 +210,9 @@ static int32_t jammer_worker_thread(void* context) {
     subghz_devices_idle(device);
     subghz_devices_sleep(device);
     subghz_devices_end(device);
+    if(worker->is_external && furi_hal_power_is_otg_enabled()) {
+        furi_hal_power_disable_otg();
+    }
     subghz_devices_deinit();
 
     furi_record_close(RECORD_NOTIFICATION);
@@ -188,7 +221,6 @@ static int32_t jammer_worker_thread(void* context) {
     return 0;
 }
 
-/* ── Public API ── */
 
 JammerWorker* jammer_worker_alloc(JammerState* state, FuriMutex* mutex) {
     JammerWorker* worker = malloc(sizeof(JammerWorker));

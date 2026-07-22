@@ -12,8 +12,8 @@ from SCons.Subst import quote_spaces
 WINPATHSEP_RE = re.compile(r"\\([^\"'\\]|$)")
 
 # Used by default when globbing for files with GlobRecursive
-# Excludes all files ending with ~, usually created by editors as backup files
-GLOB_FILE_EXCLUSION = ["*~"]
+# Excludes editor backup files, documentation directories, and archive files
+GLOB_FILE_EXCLUSION = ["*~", "*.zip", "docs"]
 
 # List of environment variables to proxy to child processes
 FORWARDED_ENV_VARIABLES = [

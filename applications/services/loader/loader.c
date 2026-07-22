@@ -14,6 +14,66 @@
 
 #define LOADER_MAGIC_THREAD_VALUE 0xDEADBEEF
 
+#define LOADER_LOAD_WATCHDOG_TIMEOUT_MS 5000
+#define LOADER_LOAD_WARN_THRESHOLD_MS 2000
+
+static void loader_still_loading_draw_callback(Canvas* canvas, void* model) {
+    UNUSED(model);
+    canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str_aligned(canvas, 64, 6, AlignCenter, AlignTop, "App is Still Loading");
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str_aligned(canvas, 64, 24, AlignCenter, AlignTop, "Please Wait OR");
+    canvas_draw_str_aligned(canvas, 64, 38, AlignCenter, AlignTop, "Press and Hold Back");
+    canvas_draw_str_aligned(canvas, 64, 50, AlignCenter, AlignTop, "To Try Again");
+}
+
+static bool loader_still_loading_input_callback(InputEvent* event, void* context) {
+    Loader* loader = context;
+    if(event->key == InputKeyBack && event->type == InputTypeLong) {
+        // Just walk away from the stuck screen - do NOT reset the device.
+        // The blocked load in loader_srv can't be cancelled and keeps
+        // running in the background; it'll finish on its own (success or
+        // failure) and the existing cleanup path handles that when it does.
+        // If the app is tapped again before that happens, the new request
+        // simply queues behind the still-running one rather than starting
+        // a second attempt.
+        FURI_LOG_W(TAG, "User exited still-loading screen (load continues in background)");
+        view_holder_set_view(loader->view_holder, NULL);
+    }
+    // Consume everything else, including short Back: exiting only happens
+    // on the deliberate long-press gesture above.
+    return true;
+}
+
+static void loader_load_watchdog_callback(void* context) {
+    Loader* loader = context;
+    uint32_t elapsed = furi_get_tick() - loader->load_watchdog_started_tick;
+    FURI_LOG_E(
+        TAG,
+        "Loading spinner still visible after %lums for \"%s\" - switching to still-loading "
+        "screen (underlying load may still be in progress and will open normally if/when it "
+        "finishes)",
+        (unsigned long)elapsed,
+        loader->load_watchdog_app_name);
+    view_holder_set_view(loader->view_holder, loader->still_loading_view);
+}
+
+static void loader_load_watchdog_arm(Loader* loader, const char* app_name) {
+    strncpy(
+        loader->load_watchdog_app_name,
+        app_name ? app_name : "?",
+        sizeof(loader->load_watchdog_app_name) - 1);
+    loader->load_watchdog_app_name[sizeof(loader->load_watchdog_app_name) - 1] = '\0';
+    loader->load_watchdog_started_tick = furi_get_tick();
+    furi_timer_start(loader->load_watchdog, furi_ms_to_ticks(LOADER_LOAD_WATCHDOG_TIMEOUT_MS));
+}
+
+static void loader_load_watchdog_disarm(Loader* loader) {
+    furi_timer_stop(loader->load_watchdog);
+}
+
 // helpers
 
 static const char* loader_find_external_application_by_name(const char* app_name) {
@@ -361,6 +421,12 @@ static Loader* loader_alloc(void) {
     loader->loading = loading_alloc();
     loader->empty_screen = empty_screen_alloc();
     view_holder_attach_to_gui(loader->view_holder, loader->gui);
+    loader->load_watchdog =
+        furi_timer_alloc(loader_load_watchdog_callback, FuriTimerTypeOnce, loader);
+    loader->still_loading_view = view_alloc();
+    view_set_draw_callback(loader->still_loading_view, loader_still_loading_draw_callback);
+    view_set_input_callback(loader->still_loading_view, loader_still_loading_input_callback);
+    view_set_context(loader->still_loading_view, loader);
     return loader;
 }
 
@@ -524,6 +590,12 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
 
         FlipperApplicationPreloadStatus preload_res =
             flipper_application_preload(loader->app.fap, path);
+        {
+            size_t preload_ms = furi_get_tick() - start;
+            if(preload_ms >= LOADER_LOAD_WARN_THRESHOLD_MS) {
+                FURI_LOG_W(TAG, "Slow preload: %zums for %s", preload_ms, path);
+            }
+        }
         if(preload_res != FlipperApplicationPreloadStatusSuccess) {
             if((preload_res == FlipperApplicationPreloadStatusApiTooOld) ||
                (preload_res == FlipperApplicationPreloadStatusApiTooNew)) {
@@ -574,8 +646,15 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
             }
         }
 
+        size_t map_start = furi_get_tick();
         FlipperApplicationLoadStatus load_status =
             flipper_application_map_to_memory(loader->app.fap);
+        {
+            size_t map_ms = furi_get_tick() - map_start;
+            if(map_ms >= LOADER_LOAD_WARN_THRESHOLD_MS) {
+                FURI_LOG_W(TAG, "Slow map_to_memory: %zums for %s", map_ms, path);
+            }
+        }
         if(load_status != FlipperApplicationLoadStatusSuccess) {
             const char* err_msg = flipper_application_load_status_to_string(load_status);
             result.value = loader_make_status_error(
@@ -584,7 +663,11 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
             break;
         }
 
-        FURI_LOG_I(TAG, "Loaded in %zums", (size_t)(furi_get_tick() - start));
+        size_t total_ms = furi_get_tick() - start;
+        if(total_ms >= LOADER_LOAD_WARN_THRESHOLD_MS) {
+            FURI_LOG_W(TAG, "Slow total load: %zums for %s", total_ms, path);
+        }
+        FURI_LOG_I(TAG, "Loaded in %zums", total_ms);
 
         if(flipper_application_is_plugin(loader->app.fap)) {
             result.value = loader_make_status_error(
@@ -769,12 +852,8 @@ static void loader_do_next_deferred_launch_if_available(Loader* loader) {
         loader_do_deferred_launch(loader, &record, true /* was_queued */);
         loader_queue_item_clear(&record);
     } else {
-        /* Queue is empty — no FAP round-trip in progress.
-         * Clear any loading view that keep_loading_view left active
-         * (e.g. spinner from SubGHz launch that the user is now
-         * exiting via Back). Without this, the spinner stays visible
-         * forever because nobody else clears it when SubGHz exits
-         * normally with an empty queue. */
+        /* Queue empty — clear any spinner keep_loading_view left active. */
+        loader_load_watchdog_disarm(loader);
         view_holder_set_view(loader->view_holder, NULL);
         loader_do_emit_queue_empty_event(loader);
     }
@@ -787,14 +866,8 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
     bool is_successful = false;
     FuriString* error_message = furi_string_alloc();
 
-    /* SubGHz's Frequency/Modulation Analyzer FAPs paint their own
-     * full-screen blank transition cover before triggering this launch
-     * (and the FAP itself registers its own viewport immediately on
-     * startup, before any slower setup work) — so the Loader's own
-     * hourglass would just be an unwanted extra flash sandwiched between
-     * two screens that already cover the transition smoothly on their
-     * own. Skip it specifically for these two known launch paths; every
-     * other app's loading view is completely unaffected. */
+    /* FA/MA/RAW FAPs show their own blank transition — skip the loader spinner
+     * to avoid an extra flash between two screens that already cover it. */
     bool skip_loading_view = false;
     if(record->name_or_path) {
         if(strstr(record->name_or_path, "subghz_frequency_analyzer") ||
@@ -804,24 +877,8 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
         }
     }
 
-    /* When returning to SubGHz from one of our FAPs, the spinner was
-     * already pre-shown by the EnqueueLaunch handler. After
-     * loader_do_start_by_name returns, SubGHz's thread has been created
-     * but its viewport is NOT yet registered — clearing the spinner here
-     * immediately causes the Desktop to show through until SubGHz paints.
-     * Fix: keep the spinner visible (don't clear it) when launching subghz.
-     * SubGHz's own fullscreen viewport takes priority over the spinner's
-     * viewport the moment it registers, hiding it naturally. The spinner
-     * then stays "registered but hidden" until the next app launch clears
-     * it — this is harmless since the ViewHolder's viewport is behind
-     * any fullscreen viewport. */
-    /* Keep the spinner visible when SubGHz is being launched as part of
-     * a FAP round-trip (FA/MA/RAW Edit → SubGHz return). SubGHz's own
-     * fullscreen viewport covers the spinner as soon as it registers.
-     * was_queued=true means this launch came from loader_enqueue_launch
-     * (our FAPs always use that). was_queued=false means SubGHz was
-     * launched directly (e.g. normal app exit) — clear spinner normally
-     * to avoid the infinite-spin bug. */
+    /* Keep spinner visible for queued SubGHz relaunches — SubGHz's viewport
+     * covers it once registered; clearing early would flash the Desktop. */
     bool keep_loading_view = false;
     if(was_queued &&
        record->name_or_path &&
@@ -835,6 +892,7 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
     if(!skip_loading_view) {
         view_holder_set_view(loader->view_holder, loading_get_view(loader->loading));
         view_holder_send_to_front(loader->view_holder);
+        loader_load_watchdog_arm(loader, record->name_or_path);
     }
 
     do {
@@ -856,6 +914,7 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
     } while(false);
 
     if(!skip_loading_view && !keep_loading_view) {
+        loader_load_watchdog_disarm(loader);
         view_holder_set_view(loader->view_holder, NULL);
     }
     furi_string_free(error_message);
@@ -1012,11 +1071,8 @@ int32_t loader_srv(void* p) {
                 break;
             case LoaderMessageTypeEnqueueLaunch:
                 furi_check(loader_queue_push(&loader->launch_queue, &message.defer_start));
-                /* Inbound (SubGHz→FAP): show blank white screen to cover
-                 * the gap between SubGHz's viewport being removed and the
-                 * FAP registering its own. Also clears any lingering spinner.
-                 * Outbound (FAP→SubGHz): show spinner with delay so GUI
-                 * renders it before the FAP removes its viewport. */
+                /* Inbound→FAP: blank screen covers the viewport gap.
+                 * Outbound→SubGHz: spinner shown; keep_loading_view holds it. */
                 if(message.defer_start.name_or_path) {
                     const char* p = message.defer_start.name_or_path;
                     bool is_fap = strstr(p, "subghz_frequency") ||
@@ -1033,9 +1089,6 @@ int32_t loader_srv(void* p) {
                             loader->view_holder,
                             loading_get_view(loader->loading));
                         view_holder_send_to_front(loader->view_holder);
-                        /* No delay needed — keep_loading_view in
-                         * loader_do_deferred_launch keeps the spinner
-                         * alive until SubGHz's viewport takes over. */
                     }
                 }
                 api_lock_unlock(message.api_lock);

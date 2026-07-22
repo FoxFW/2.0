@@ -31,7 +31,6 @@ static void desktop_clock_lock_timer_callback(void* context) {
         true);
 }
  
-// ── 7-segment constants ───────────────────────────────────────────────────────
 #define SEG_W    22   // digit width
 #define SEG_H    40   // digit height
 #define SEG_T     3   // segment thickness

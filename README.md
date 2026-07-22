@@ -240,5 +240,8 @@ README.md           ← This file
 ---
 
 <div align="center">
-  <sub>FoxFW v2.0 &nbsp;·&nbsp; foxcustomfirmware@gmail.com</sub>
+  <sub>FoxFW v2.0 &nbsp;·&nbsp; foxcustomfirmware@gmail.com<br>
+Michael Joyce, also known as <b>AussieMike86</b><br>
+Adam Alioa, also known as <b>z4men</b>
+  </sub>
 </div>

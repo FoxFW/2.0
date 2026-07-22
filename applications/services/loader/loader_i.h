@@ -4,6 +4,7 @@
 #include <flipper_application/flipper_application.h>
 
 #include <gui/gui.h>
+#include <gui/view.h>
 #include <gui/view_holder.h>
 #include <gui/modules/loading.h>
 #include <gui/modules/empty_screen.h>
@@ -36,6 +37,22 @@ struct Loader {
     ViewHolder* view_holder;
     Loading* loading;
     EmptyScreen* empty_screen; /* blank white cover for inbound FAP transitions */
+
+    /* Failsafe watchdog: if the loading spinner stays on screen longer than
+     * LOADER_LOAD_WATCHDOG_TIMEOUT_MS, something has gone wrong with the
+     * *visibility* of the launch (e.g. the new app's viewport never took
+     * over) or the load is genuinely stuck in a blocking storage call.
+     * Runs on the FreeRTOS timer service thread, so it still fires even
+     * while loader_srv itself is blocked inside a slow storage call.
+     * It cannot cancel that blocked call - see loader.c for why - instead
+     * it switches to still_loading_view, which offers a fast, controlled
+     * long-press-Back reset in place of the plain spinner (which has no
+     * Back handling at all) and in place of waiting on the Flipper's
+     * uncontrolled hardware reset-on-long-hold fallback. */
+    FuriTimer* load_watchdog;
+    uint32_t load_watchdog_started_tick;
+    char load_watchdog_app_name[40];
+    View* still_loading_view;
 };
 
 typedef enum {

@@ -12,7 +12,7 @@ bool md5_calc_file(File* file, const char* path, unsigned char output[16], FS_Er
         return false;
     }
 
-    const size_t size_to_read = 512;
+    const size_t size_to_read = 4096;
     uint8_t* data = malloc(size_to_read);
     bool result = true;
 

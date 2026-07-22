@@ -174,7 +174,6 @@ static void fox_start_tx(FoxRFJammer* app) {
     furi_thread_start(app->tx_thread);
 }
 
-// ── Splash screen ─────────────────────────────────────────────────────────────
 static void fox_splash_draw_cb(Canvas* canvas, void* ctx) {
     UNUSED(ctx);
     canvas_clear(canvas);
@@ -184,7 +183,6 @@ static void fox_splash_draw_cb(Canvas* canvas, void* ctx) {
     canvas_draw_str_aligned(canvas, 96, 38, AlignCenter, AlignCenter, "Jammer");
 }
 
-// ── Main screen ───────────────────────────────────────────────────────────────
 // Layout (128×64 px):
 //
 //   Y=0       "Freq:" bold label (pseudo-bold: drawn at x+0 and x+1)
@@ -204,13 +202,11 @@ static void fox_main_draw_cb(Canvas* canvas, void* ctx) {
     bool in_mod  = (!tx_on && app->cursor_position == CURSOR_MODULATION);
     bool in_atk  = (!tx_on && app->cursor_position == CURSOR_METHOD);
 
-    // ── "Freq:" bold label ────────────────────────────────────────────────────
     // Pseudo-bold: draw twice at x=2 and x=3 (1 px right shift)
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 2, 0, AlignLeft, AlignTop, "Freq:");
     canvas_draw_str_aligned(canvas, 3, 0, AlignLeft, AlignTop, "Freq:");
 
-    // ── Frequency digits "NNN.NNN" ────────────────────────────────────────────
     char freq_str[10];
     snprintf(freq_str, sizeof(freq_str), "%03lu.%03lu",
              (unsigned long)(app->frequency / 1000000UL),
@@ -237,7 +233,6 @@ static void fox_main_draw_cb(Canvas* canvas, void* ctx) {
     canvas_draw_str_aligned(canvas, sx + 7 * CHAR_W + 3, FREQ_Y + 2,
                             AlignLeft, AlignTop, "MHz");
 
-    // ── Mod row (box Y=23, H=11) ──────────────────────────────────────────────
     canvas_set_font(canvas, FontSecondary);
     if(in_mod) {
         canvas_draw_box(canvas, 0, 23, 128, 11);
@@ -259,7 +254,6 @@ static void fox_main_draw_cb(Canvas* canvas, void* ctx) {
         canvas_set_color(canvas, ColorBlack);
     }
 
-    // ── Atk row (box Y=35, H=11) ──────────────────────────────────────────────
     if(in_atk) {
         canvas_draw_box(canvas, 0, 35, 128, 11);
         canvas_set_color(canvas, ColorWhite);
@@ -280,7 +274,6 @@ static void fox_main_draw_cb(Canvas* canvas, void* ctx) {
         canvas_set_color(canvas, ColorBlack);
     }
 
-    // ── Start / Stop button ───────────────────────────────────────────────────
     elements_button_center(canvas, tx_on ? "STOP" : "Start");
 }
 
@@ -370,14 +363,12 @@ int32_t fox_rf_jammer_app(void* p) {
     fox_apply_mod_preset(app);
     view_port_update(app->view_port);
 
-    // ── Main event loop ───────────────────────────────────────────────────────
     InputEvent ev;
     while(app->running) {
         if(furi_message_queue_get(app->event_queue, &ev, 10) != FuriStatusOk) continue;
         if(ev.type != InputTypeShort && ev.type != InputTypeRepeat) continue;
 
-        // ── While TX is running: only OK and Back stop it; all others consumed ──
-        if(app->tx_active && app->tx_running) {
+            if(app->tx_active && app->tx_running) {
             if(ev.key == InputKeyOk || ev.key == InputKeyBack) {
                 app->tx_active = false;
                 fox_stop_tx(app);
@@ -387,8 +378,7 @@ int32_t fox_rf_jammer_app(void* p) {
             continue;  // consume every key during TX
         }
 
-        // ── Normal (stopped) input handling ───────────────────────────────────
-        bool redraw = false;
+            bool redraw = false;
 
         switch(ev.key) {
 

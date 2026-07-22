@@ -38,7 +38,6 @@ void variable_item_list_reserve(VariableItemList* list, size_t count);
 static const char* const proto_toggle_labels[] = {"OFF", "ON"};
 static const char* const select_labels[]       = {"All", "None"};
 
-/* ── File-scope state ─────────────────────────────────────────────────── */
 
 typedef struct {
     SubGhz* subghz;
@@ -54,7 +53,6 @@ static bool          g_filter_dirty    = false;
 static bool          g_count_dirty     = false;
 static SubGhz*       g_proto_subghz    = NULL;
 
-/* ── Helpers ──────────────────────────────────────────────────────────── */
 
 static void build_count_text(SubGhz* subghz, size_t total, char* buf, size_t n) {
     size_t active = subghz_protocol_filter_enabled_count(subghz->protocol_filter, total);
@@ -75,7 +73,6 @@ static void apply_items_to_filter(void) {
     g_filter_dirty = false;
 }
 
-/* ── Per-protocol toggle callback ────────────────────────────────────── */
 
 static void proto_toggle_cb(VariableItem* item) {
     uintptr_t ctx_raw = (uintptr_t)variable_item_get_context(item);
@@ -90,14 +87,12 @@ static void proto_toggle_cb(VariableItem* item) {
     g_count_dirty  = true;
 }
 
-/* ── Select row value-change callback ───────────────────────────────── */
 
 static void select_value_change_cb(VariableItem* item) {
     g_select_choice = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, select_labels[g_select_choice]);
 }
 
-/* ── Build / rebuild the full list ───────────────────────────────────── */
 
 static void protocol_list_populate(SubGhz* subghz) {
     VariableItemList* list = subghz->variable_item_list;
@@ -156,7 +151,6 @@ static void protocol_list_populate(SubGhz* subghz) {
     }
 }
 
-/* ── Enter callback: OK on Select row ────────────────────────────────── */
 
 static void protocol_list_enter_cb(void* context, uint32_t index) {
     SubGhz* subghz = context;
@@ -171,7 +165,6 @@ static void protocol_list_enter_cb(void* context, uint32_t index) {
     variable_item_list_set_selected_item(subghz->variable_item_list, SELECT_ROW_INDEX);
 }
 
-/* ── Scene lifecycle ─────────────────────────────────────────────────── */
 
 void subghz_scene_protocol_list_on_enter(void* context) {
     SubGhz* subghz = context;

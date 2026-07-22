@@ -499,14 +499,21 @@ void submenu_process_up(Submenu* submenu) {
 
             if(model->position > 0) {
                 model->position--;
-                if((model->position == model->window_position) && (model->window_position > 0)) {
-                    model->window_position--;
-                }
             } else {
                 model->position = items_size - 1;
-                if(model->position > items_on_screen - 1) {
-                    model->window_position = model->position - (items_on_screen - 1);
-                }
+            }
+
+            /* Clamp window to keep position in view. Fixes desync when
+             * items_on_screen <= 2 (Fox theme + header), where the old
+             * "position == window_position" heuristic assumed the
+             * selection always rested one row below the top edge while
+             * scrolling — true for >=3 visible rows, false for 2. */
+            if(model->position < model->window_position) {
+                model->window_position = model->position;
+            } else if(
+                items_size > items_on_screen &&
+                model->position >= model->window_position + items_on_screen) {
+                model->window_position = model->position - items_on_screen + 1;
             }
         },
         true);
@@ -522,12 +529,18 @@ void submenu_process_down(Submenu* submenu) {
 
             if(model->position < items_size - 1) {
                 model->position++;
-                if((model->position - model->window_position > items_on_screen - 2) &&
-                   (model->window_position < items_size - items_on_screen)) {
-                    model->window_position++;
-                }
             } else {
                 model->position = 0;
+            }
+
+            /* Same clamp as submenu_process_up() — see comment there. */
+            if(model->position < model->window_position) {
+                model->window_position = model->position;
+            } else if(
+                items_size > items_on_screen &&
+                model->position >= model->window_position + items_on_screen) {
+                model->window_position = model->position - items_on_screen + 1;
+            } else if(model->position == 0) {
                 model->window_position = 0;
             }
         },

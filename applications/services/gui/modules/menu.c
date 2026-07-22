@@ -30,7 +30,6 @@ typedef struct {
     uint8_t cached_theme; // loaded once at alloc, updated via menu_set_theme
 } MenuModel;
 
-// ── Fox grid layout constants ─────────────────────────────────────────────────
 #define FOX_CELL_W   40
 #define FOX_CELL_H   30
 #define FOX_CELL_GAP  3
@@ -44,7 +43,6 @@ static void menu_process_left(Menu* menu);
 static void menu_process_right(Menu* menu);
 static void menu_process_ok(Menu* menu);
 
-// ── Fox grid: first visible item index for current selection ──────────────────
 static size_t fox_shift(size_t position, size_t count) {
     if(count <= FOX_VISIBLE) return 0;
     size_t col = position / FOX_ROWS;
@@ -66,7 +64,6 @@ static const char* menu_fox_label(const char* label) {
     return label;
 }
 
-// ── Draw ──────────────────────────────────────────────────────────────────────
 static void menu_draw_callback(Canvas* canvas, void* _model) {
     MenuModel* model = _model;
     canvas_clear(canvas);
@@ -84,8 +81,7 @@ static void menu_draw_callback(Canvas* canvas, void* _model) {
     model->cached_theme = theme;
 
     if(theme == 1) {
-        // ── Fox 3×2 grid ──────────────────────────────────────────────────────
-        size_t shift = fox_shift(position, items_count);
+            size_t shift = fox_shift(position, items_count);
 
         for(uint8_t cell = 0; cell < FOX_VISIBLE; cell++) {
             size_t item_idx = shift + cell;
@@ -104,8 +100,7 @@ static void menu_draw_callback(Canvas* canvas, void* _model) {
                 item_idx == position);
         }
     } else {
-        // ── Classic 3-item scrolling list ─────────────────────────────────────
-        MenuItem* item;
+            MenuItem* item;
         size_t shift_position;
 
         canvas_set_font(canvas, FontSecondary);
@@ -131,7 +126,6 @@ static void menu_draw_callback(Canvas* canvas, void* _model) {
     }
 }
 
-// ── Input ─────────────────────────────────────────────────────────────────────
 static bool menu_input_callback(InputEvent* event, void* context) {
     Menu* menu = context;
     bool consumed = false;
@@ -167,7 +161,6 @@ static bool menu_input_callback(InputEvent* event, void* context) {
     return consumed;
 }
 
-// ── Enter / Exit ──────────────────────────────────────────────────────────────
 static void menu_enter(void* context) {
     Menu* menu = context;
     with_view_model(menu->view, MenuModel* model, {
@@ -203,7 +196,6 @@ static void menu_exit(void* context) {
     }, false);
 }
 
-// ── Alloc / Free ─────────────────────────────────────────────────────────────
 Menu* menu_alloc(void) {
     Menu* menu = malloc(sizeof(Menu));
     menu->view = view_alloc();
@@ -296,7 +288,6 @@ void menu_set_theme(Menu* menu, uint8_t theme) {
     }, true);
 }
 
-// ── Navigation ────────────────────────────────────────────────────────────────
 static void menu_change_position(Menu* menu, size_t new_pos) {
     with_view_model(menu->view, MenuModel* model, {
         size_t count = MenuItemArray_size(model->items);

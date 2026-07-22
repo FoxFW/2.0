@@ -188,10 +188,6 @@ uint8_t subghz_scene_receiver_config_next_frequency(const uint32_t value, void* 
     return index;
 }
 
-/* ── Modulation filter helpers ────────────────────────────────────────
- * These translate between "display index" (0..enabled_count-1) and
- * "actual preset index" (0..total_count-1), hiding disabled modulations
- * from the VariableItemList entirely. */
 
 /* How many presets are currently enabled (minimum 1 to avoid 0-item list) */
 static size_t mod_filter_enabled_count(SubGhz* subghz) {

@@ -25,7 +25,6 @@
 #include "assets_icons.h"
 #include "fox_scroll_text.h"
 
-/* ── View IDs ────────────────────────────────────────────────────────────── */
 typedef enum {
     ViewStart      = 0,   /* home screen — opened first                     */
     ViewBrowser    = 1,   /* SD card file browser                           */
@@ -34,26 +33,20 @@ typedef enum {
     ViewTextInput  = 4,   /* text input — used for both rename and search   */
 } FFVViewId;
 
-/* ── Context-menu actions ────────────────────────────────────────────────── */
 typedef enum { MenuRun=0, MenuPin=1, MenuRename=2, MenuDelete=3 } FFVMenuAction;
 
-/* ── Home screen menu items (dynamic — Favorites only shown if non-empty) ── */
 typedef enum { StartItemBrowse=0, StartItemSearch=1, StartItemFavs=2 } FFVStartItem;
 
-/* ── What's currently populating fav_list: saved favorites or search hits ── */
 typedef enum { ListSrcFavorites=0, ListSrcSearch=1 } FFVListSource;
 
-/* ── Which buffer/callback the shared text input view is bound to ────────── */
 typedef enum { TextInputRename=0, TextInputSearch=1 } FFVTextInputMode;
 
-/* ── File types ──────────────────────────────────────────────────────────── */
 typedef enum {
     TypeFolder, TypeSubGhz, TypeSubGhzRemote, TypeNfc, TypeInfrared,
     TypeLFRFID, TypeBadUsb, TypeIButton, TypeU2F, TypeApp, TypeUpdate,
     TypeScript, TypeSettings, TypeMusic, TypeFile, TypeUnknown,
 } FFVFileType;
 
-/* ── Layout constants ────────────────────────────────────────────────────── */
 #define ROW_HEADER_H  14
 #define ROW_ITEM_H    12
 #define ROW_VISIBLE    4
@@ -67,7 +60,6 @@ typedef enum {
 #define SEARCH_MAX_RESULTS 200
 #define SEARCH_NAME_MAX    128
 
-/* ── App context ─────────────────────────────────────────────────────────── */
 typedef struct {
     Gui*            gui;
     ViewDispatcher* view_dispatcher;
@@ -835,7 +827,6 @@ static void ffv_browser_callback(void* ctx){
     view_dispatcher_switch_to_view(app->view_dispatcher,ViewMenu);
 }
 
-/* ── Rename ─────────────────────────────────────────────────────────────── */
 static void ffv_rename_done(void* ctx){
     FFVApp* app=ctx;
     const char* old=furi_string_get_cstr(app->selected_path);
@@ -849,7 +840,6 @@ static void ffv_rename_done(void* ctx){
     ffv_return_from_menu(app);
 }
 
-/* ── Search ─────────────────────────────────────────────────────────────── */
 static void ffv_search_done(void* ctx){
     FFVApp* app=ctx;
     if(!strlen(app->search_query)){ ffv_go_start(app); return; }

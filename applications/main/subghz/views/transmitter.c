@@ -110,7 +110,6 @@ static void subghz_view_transmitter_button_right(Canvas* canvas, const char* str
     canvas_invert_color(canvas);
 }
 
-/* ── Helpers for parsing key_str ───────────────────────────────────── */
 static void txv_first_line(const char* s, char* d, size_t n) {
     size_t i = 0;
     while(s[i] && s[i] != '\n' && i < n-1) { d[i]=s[i]; i++; }
@@ -160,8 +159,7 @@ void subghz_view_transmitter_draw(Canvas* canvas, SubGhzViewTransmitterModel* mo
     const char* mod  = furi_string_get_cstr(model->preset_str);
     bool has_custom  = subghz_custom_btn_is_allowed();
 
-    /* ── Protocol name header (inverted, full width) ── */
-    char proto[40] = {0};
+        char proto[40] = {0};
     txv_first_line(key, proto, sizeof(proto));
     canvas_draw_box(canvas, 0, 0, 128, 11);
     canvas_set_color(canvas, ColorWhite);
@@ -169,8 +167,7 @@ void subghz_view_transmitter_draw(Canvas* canvas, SubGhzViewTransmitterModel* mo
     canvas_draw_str_aligned(canvas, 64, 6, AlignCenter, AlignCenter, proto);
     canvas_set_color(canvas, ColorBlack);
 
-    /* ── SN + CNT row ── */
-    char sn[12]={0}, cnt[12]={0};
+        char sn[12]={0}, cnt[12]={0};
     txv_after(key, "Sn:", sn, sizeof(sn));
     if(!sn[0]) txv_after(key, "SN:", sn, sizeof(sn));
     txv_after(key, "Cnt:", cnt, sizeof(cnt));

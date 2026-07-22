@@ -10,26 +10,17 @@
 #define SUBGHZ_READ_RAW_RSSI_HISTORY_SIZE 100
 #define TAG                               "SubGhzReadRaw"
 
-/* ── Seek step size (percentage points per Left/Right press while paused) ── */
 #define SEEK_STEP_PCT 5u
 
-/* ── Reveal animation: how fast the envelope "builds in" after loading ──── */
 #define REVEAL_TIMER_MS      15u
 #define REVEAL_COLS_PER_TICK 4u   /* ~100/4 * 15ms ≈ 375ms total reveal time */
 
-/* ── Tick period this app's scene runs its tick timer at (see subghz.c:
- * view_dispatcher_set_tick_event_callback(..., 100)). MUST match — this is
- * what turns total playback duration into a tick count for the position
- * cursor. ── */
+/* MUST match the scene tick in subghz.c (view_dispatcher_set_tick_event_callback(..., 100)).
+ * Converts total playback duration into a tick count for the position cursor. */
 #define SCENE_TICK_PERIOD_US 100000u /* 100ms */
 
-/* ── Zoom levels: window span as a percentage of the full file, narrowing
- * by roughly 2/3 per step (same ratio the RAW editor itself uses), capped
- * at a sane minimum so very short captures don't zoom into nothing. ──── */
+/* Zoom levels: window span as % of full file, narrowing ~2/3 per step. */
 #define ZOOM_LEVEL_COUNT 5u
-/* The actual window-percentage table lives in the scene (where windowed
- * bucketing happens) — the view only needs the level COUNT to clamp
- * Up/Down, so it doesn't duplicate that table. */
 
 struct SubGhzReadRAW {
     View*                  view;
@@ -54,8 +45,7 @@ typedef struct {
     bool        not_showing_samples;
     SubGhzRadioDeviceType device_type;
 
-    /* ── Signal display (Bar / Line — no other modes exist) ──── */
-    SubGhzReadRawVizMode viz_mode;
+        SubGhzReadRawVizMode viz_mode;
     uint8_t  target_envelope[SUBGHZ_READ_RAW_RSSI_HISTORY_SIZE];
     uint8_t  shown_envelope[SUBGHZ_READ_RAW_RSSI_HISTORY_SIZE];
     uint8_t  reveal_count;
@@ -68,9 +58,7 @@ typedef struct {
     uint32_t recording_ticks;  /* incremented every scene tick while in REC state */
 } SubGhzReadRAWModel;
 
-/* ────────────────────────────────────────────────────────────────────────── */
 /*  Public setters                                                            */
-/* ────────────────────────────────────────────────────────────────────────── */
 
 void subghz_read_raw_set_callback(
     SubGhzReadRAW* instance,
@@ -270,7 +258,6 @@ bool subghz_read_raw_is_playback_overdue(SubGhzReadRAW* instance) {
     return overdue;
 }
 
-/* ── Reveal animation timer: progressively copies target → shown ─────────── */
 static void reveal_timer_cb(void* ctx) {
     SubGhzReadRAW* instance = ctx;
     bool done = false;
@@ -357,9 +344,7 @@ void subghz_read_raw_tick_tx(SubGhzReadRAW* instance) {
         true);
 }
 
-/* ────────────────────────────────────────────────────────────────────────── */
 /*  Draw helpers — recording-phase RSSI history (unchanged from original)    */
-/* ────────────────────────────────────────────────────────────────────────── */
 
 static void subghz_read_raw_draw_scale(Canvas* canvas, SubGhzReadRAWModel* model) {
 #define SUBGHZ_RAW_TOP_SCALE 15
@@ -458,9 +443,7 @@ static void subghz_read_raw_draw_threshold_rssi(Canvas* canvas, SubGhzReadRAWMod
     canvas_draw_dot(canvas, x - 2, y);
 }
 
-/* ────────────────────────────────────────────────────────────────────────── */
 /*  Draw helpers — playback envelope: Bar & Line (NO other modes exist)      */
-/* ────────────────────────────────────────────────────────────────────────── */
 
 static void subghz_read_raw_draw_envelope(Canvas* canvas, SubGhzReadRAWModel* model) {
     const uint8_t W      = 114;
@@ -494,8 +477,7 @@ static void subghz_read_raw_draw_envelope(Canvas* canvas, SubGhzReadRAWModel* mo
         }
     }
 
-    /* ── Position cursor (vertical dashed line) ── */
-    uint8_t cursor_x = (uint8_t)((uint16_t)model->play_pct * W / 100);
+        uint8_t cursor_x = (uint8_t)((uint16_t)model->play_pct * W / 100);
     for(uint8_t y = TOP; y < BAR_Y; y += 3)
         canvas_draw_dot(canvas, cursor_x, y);
 
@@ -505,25 +487,21 @@ static void subghz_read_raw_draw_envelope(Canvas* canvas, SubGhzReadRAWModel* mo
     uint8_t fill_w = (uint8_t)((uint16_t)model->play_pct * W / 100);
     if(fill_w > 0) canvas_draw_box(canvas, 1, BAR_Y + 1, fill_w, BAR_H);
 
-    /* ── Seek marker (while paused) ── */
-    if(model->status == SubGhzReadRAWStatusLoadKeyTXPaused) {
+        if(model->status == SubGhzReadRAWStatusLoadKeyTXPaused) {
         uint8_t seek_x = (uint8_t)((uint16_t)model->seek_pct * W / 100);
         canvas_draw_dot(canvas, seek_x, BAR_Y - 1);
         canvas_draw_dot(canvas, seek_x - 1, BAR_Y - 2);
         canvas_draw_dot(canvas, seek_x + 1, BAR_Y - 2);
     }
 
-    /* ── Zoom indicator (only shown when zoomed in) ── */
-    if(model->zoom_level > 0) {
+        if(model->zoom_level > 0) {
         char zb[8];
         snprintf(zb, sizeof(zb), "%ux", model->zoom_level + 1);
         canvas_draw_str_aligned(canvas, W - 2, TOP - 1, AlignRight, AlignBottom, zb);
     }
 }
 
-/* ── Compact bargraph for the legacy "send before saving" path. No seek (no
- * file backing exists yet for an in-progress, unsaved recording) — just a
- * clean bar visualisation of the rssi_history captured while recording. ── */
+/* Compact bargraph for send-before-save path; no seek (no file backing yet). */
 static void subghz_read_raw_draw_legacy_bargraph(Canvas* canvas, SubGhzReadRAWModel* model) {
     const uint8_t W   = 114;
     const uint8_t TOP = 14;
@@ -539,9 +517,7 @@ static void subghz_read_raw_draw_legacy_bargraph(Canvas* canvas, SubGhzReadRAWMo
     }
 }
 
-/* ────────────────────────────────────────────────────────────────────────── */
 /*  Main draw callback                                                        */
-/* ────────────────────────────────────────────────────────────────────────── */
 
 void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
     canvas_set_color(canvas, ColorBlack);
@@ -688,9 +664,7 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
     /* signal_mode == 3: clean empty waveform area for Start state */
 }
 
-/* ────────────────────────────────────────────────────────────────────────── */
 /*  Input callback                                                            */
-/* ────────────────────────────────────────────────────────────────────────── */
 
 bool subghz_read_raw_input(InputEvent* event, void* context) {
     furi_assert(context);
@@ -778,8 +752,7 @@ bool subghz_read_raw_input(InputEvent* event, void* context) {
         return true;
     }
 
-    /* ── Left: seek backward (paused) / New (idle, allow_new only) / Config ── */
-    if(event->key == InputKeyLeft &&
+        if(event->key == InputKeyLeft &&
        (event->type == InputTypeShort || event->type == InputTypeRepeat)) {
         bool fire_erase = false;
         with_view_model(instance->view, SubGhzReadRAWModel * model, {
@@ -883,9 +856,7 @@ bool subghz_read_raw_input(InputEvent* event, void* context) {
     return true;
 }
 
-/* ────────────────────────────────────────────────────────────────────────── */
 /*  set_status                                                                */
-/* ────────────────────────────────────────────────────────────────────────── */
 
 void subghz_read_raw_set_status(
     SubGhzReadRAW* instance,
@@ -941,9 +912,7 @@ void subghz_read_raw_set_status(
     }
 }
 
-/* ────────────────────────────────────────────────────────────────────────── */
 /*  Enter / Exit / Alloc / Free                                               */
-/* ────────────────────────────────────────────────────────────────────────── */
 
 void subghz_read_raw_enter(void* context) { UNUSED(context); }
 

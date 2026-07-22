@@ -8,59 +8,16 @@
 
 #include <lib/subghz/protocols/raw.h>
 
-/* ── Launching a sub-tool FAP from within SubGHz ─────────────────────────────
- *
- * TWO separate bugs were fixed here, both confirmed directly against the
- * real applications/services/loader/loader.{h,c}:
- *
- * 1. loader_start() can NEVER succeed while called from inside an
- *    already-running app, including the caller itself:
- *        static bool loader_do_is_locked(Loader* loader) {
- *            return loader->app.thread != NULL;
- *        }
- *    `loader->app.thread` is non-NULL for SubGHz's entire runtime — not a
- *    transient race. The fix: loader_enqueue_launch() queues an app to
- *    start AFTER the current one exits, firing the instant the running
- *    app's thread stops (confirmed: loader_do_next_deferred_launch_
- *    if_available() runs right after app cleanup in loader_do_app_closed).
- *
- * 2. "Application not found" — confirmed in loader_do_start_by_name():
- *    by-name resolution only checks a hardcoded catalog
- *    (loader_find_external_application_by_name(), in loader_applications.c)
- *    of "officially known" apps. Our custom FAPs aren't in it. The Apps-
- *    list FAP browser launches by FULL FILE PATH, bypassing name
- *    resolution entirely — that's why it works from there. Fix: pass the
- *    actual installed path, not the bare appid.
- *
- * ── Menu-marker argument ─────────────────────────────────────────────────
- * The args string passed to each analyzer doubles as the "where to return
- * to" marker: "menu:freq" / "menu:mod". The FAP holds onto this (it's its
- * own launch argument, see each FAP's entry point) and, when the user
- * backs out without selecting a result, re-passes the SAME marker when it
- * enqueues SubGHz's relaunch — subghz_app() parses "menu:X" and pre-selects
- * that exact Start-menu item, so it looks like backing out one menu level
- * rather than returning from a standalone app. If the user instead
- * confirms a result, the FAP writes frequency/preset into last_settings
- * and enqueues SubGHz with "read" instead, deep-linking straight to the
- * Receiver screen already tuned. A FAP launched with no argument at all
- * (i.e. from the Apps list, not from SubGHz) never enqueues a SubGHz
- * relaunch and simply returns to the Desktop/Apps list, per the request.
- * ───────────────────────────────────────────────────────────────────────── */
+/* Uses loader_enqueue_launch() (not loader_start() — locked while any app runs).
+ * Passes full FAP path — custom FAPs are not in the loader name catalog. */
 
-/* Installed paths — fap_category="Sub-GHz" in each manifest places the
- * built .fap at /ext/apps/Sub-GHz/<appid>.fap, the standard FBT
- * convention. If this still doesn't resolve, the actual filename can be
- * confirmed directly via the Flipper's file browser under that folder. */
 #define SUBGHZ_MOD_ANALYZER_FAP_PATH  EXT_PATH("apps/Sub-GHz/subghz_modulation_analyzer.fap")
 #define SUBGHZ_FREQ_ANALYZER_FAP_PATH EXT_PATH("apps/Sub-GHz/subghz_frequency_analyzer.fap")
 #define SUBGHZ_GDR_FAP_PATH           EXT_PATH("apps/Sub-GHz/garage_door_remote.fap")
-#define SUBGHZ_RF_JAMMER_FAP_PATH     EXT_PATH("apps/Sub-GHz/fox_rf_jammer.fap")
+#define SUBGHZ_RF_JAMMER_FAP_PATH     EXT_PATH("apps/Fox/fox_rf_jammer.fap")
 
 void subghz_blank_transition_draw_cb(Canvas* canvas, void* ctx) {
     UNUSED(ctx);
-    /* Truly blank — just clear to the background, no black fill. A solid
-     * black flash would look worse than the brief Desktop flash it's
-     * replacing; an empty page is the actual ask. */
     canvas_clear(canvas);
 }
 

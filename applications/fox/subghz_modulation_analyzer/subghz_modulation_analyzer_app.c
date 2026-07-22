@@ -37,7 +37,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/* ── Verified register tables from cc1101_configs.h ── */
 extern const uint8_t subghz_device_cc1101_preset_ook_270khz_async_regs[];
 extern const uint8_t subghz_device_cc1101_preset_ook_650khz_async_regs[];
 extern const uint8_t subghz_device_cc1101_preset_2fsk_dev2_38khz_async_regs[];
@@ -49,7 +48,6 @@ extern const uint8_t subghz_device_cc1101_preset_gfsk_9_99kb_async_regs[];
 /* Preset arrays removed — names/data loaded dynamically from SubGhzSetting.
  * Adding new modulations requires no changes to this file. */
 
-/* ── Modulation filter (mirrors SUBGHZ_MOD_FILTER_COUNT from main app) ── */
 #define MA_MOD_FILTER_COUNT 64u
 #define MA_MOD_FILTER_PATH "/ext/subghz/modulation_filter.save"
 
@@ -137,7 +135,6 @@ typedef struct {
     uint8_t    preset_count;   /* subghz_setting_get_preset_count() */
 } ModAnalApp;
 
-/* ── Persistence ──────────────────────────────────────────────────────── */
 
 static uint32_t digits_to_hz(const uint8_t* d) {
     /* d[0..2] = MHz part, d[3..4] = 10kHz / 100kHz part */
@@ -268,7 +265,6 @@ static void write_result_to_settings(ModAnalApp* app, uint32_t freq_hz, uint8_t 
     furi_record_close(RECORD_STORAGE);
 }
 
-/* ── Dwell timer: sample → hop to next modulation ─────────────────────── */
 
 static void dwell_timer_cb(void* ctx) {
     ModAnalApp* app = ctx;
@@ -361,7 +357,6 @@ static void dwell_timer_cb(void* ctx) {
     furi_mutex_release(app->mutex);
 }
 
-/* ── Draw helpers ─────────────────────────────────────────────────────── */
 
 static void draw_feedback_icon(Canvas* canvas, uint8_t x, uint8_t y, FeedbackLevel level) {
     canvas_set_color(canvas, ColorBlack);
@@ -542,7 +537,6 @@ static void input_cb(InputEvent* event, void* ctx) {
     furi_message_queue_put((FuriMessageQueue*)ctx, event, FuriWaitForever);
 }
 
-/* ── App lifecycle ──────────────────────────────────────────────────────── */
 
 static ModAnalApp* app_alloc(void) {
     ModAnalApp* app = malloc(sizeof(ModAnalApp));
@@ -630,8 +624,7 @@ int32_t subghz_modulation_analyzer_app(void* p) {
     while(!app->exit_requested) {
         if(furi_message_queue_get(app->input_queue, &event, REDRAW_MS) == FuriStatusOk) {
 
-            /* ── Screen 1: Frequency Setup ── */
-            if(app->screen == ScreenFreqSetup) {
+                        if(app->screen == ScreenFreqSetup) {
                 if(event.key == InputKeyBack && event.type == InputTypeShort) {
                     app->exit_requested = true;
 
@@ -664,8 +657,7 @@ int32_t subghz_modulation_analyzer_app(void* p) {
                     furi_mutex_release(app->mutex);
                 }
 
-            /* ── Screen 2: Scanning ── */
-            } else {
+                        } else {
                 if(event.key == InputKeyBack && event.type == InputTypeShort) {
                     stop_scanning(app);
 

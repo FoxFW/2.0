@@ -10,6 +10,6 @@ App(
     stack_size=2 * 1024,
     order=0,
     fap_icon="fox_icon_10x10.png",
-    fap_category="Settings",
+    fap_category="Fox",
     fap_icon_assets="images",
      )

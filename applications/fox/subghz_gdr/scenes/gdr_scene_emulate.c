@@ -77,9 +77,7 @@ static const GDREmulateHostApi gdr_emulate_host_api = {
     .storage_delete_temp = host_storage_delete_temp,
 };
 
-// -----------------------------------------------------------------------------
 // Plugin load / unload
-// -----------------------------------------------------------------------------
 static void emulate_plugin_unload(GDRApp* app) {
     furi_check(app);
 

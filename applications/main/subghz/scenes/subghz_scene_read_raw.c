@@ -72,17 +72,8 @@ void subghz_scene_read_raw_callback_end_tx(void* context) {
 }
 
 
-/* ── Signal envelope generation (Bar/Line — no "waveform" mode exists) ───
- * RAW .sub files store sample data as one or more "RAW_Data:" TEXT lines,
- * each holding a run of space-separated signed integers (sign = level,
- * magnitude = duration in microseconds). The key is NOT a single
- * FlipperFormat array under one name — it's a repeated text key, so this
- * reads the file as plain text (same proven approach as load_sub() in the
- * companion subghz_raw_edit FAP) rather than via flipper_format_read_int32.
- *
- * Produces a 100-byte HIGH/LOW preview array so the view can draw the
- * signal timeline during TX. Called once when a RAW file is loaded.
- * ─────────────────────────────────────────────────────────────────────────── */
+/* RAW .sub files use repeated "RAW_Data:" text lines (not a FlipperFormat array).
+ * Reads as plain text; produces a 100-byte HIGH/LOW preview for TX timeline display. */
 #define ENVELOPE_PREVIEW_SAMPLES 2048u
 
 typedef struct {

@@ -41,8 +41,6 @@ void subghz_scene_decode_raw_failed_set_context(bool all_protocols_enabled) {
     g_all_protocols_were_enabled = all_protocols_enabled;
 }
 
-/* ── Shared cleanup + return, copied verbatim from the proven pattern in
- * subghz_scene_save_success.c's DecodeRAW-context branch. ── */
 static void decode_raw_failed_cleanup_and_return(SubGhz* subghz) {
     scene_manager_set_scene_state(
         subghz->scene_manager, SubGhzSceneDecodeRAW, SubGhzDecodeRawStateStart);
@@ -74,14 +72,12 @@ static void decode_raw_failed_cleanup_and_return(SubGhz* subghz) {
     }
 }
 
-/* ── Case 2: timed auto-dismiss popup ── */
 
 static void decode_raw_failed_popup_cb(void* context) {
     SubGhz* subghz = context;
     view_dispatcher_send_custom_event(subghz->view_dispatcher, SubGhzCustomEventDecodeRawFailedCancel);
 }
 
-/* ── Case 1: Re-Run / Cancel widget buttons ── */
 
 static void decode_raw_failed_widget_cb(GuiButtonType result, InputType type, void* context) {
     SubGhz* subghz = context;
@@ -94,7 +90,6 @@ static void decode_raw_failed_widget_cb(GuiButtonType result, InputType type, vo
     }
 }
 
-/* ── Scene lifecycle ─────────────────────────────────────────────────────── */
 
 void subghz_scene_decode_raw_failed_on_enter(void* context) {
     SubGhz* subghz = context;

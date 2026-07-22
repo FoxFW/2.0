@@ -3,6 +3,8 @@
 #include <cli/cli_vcp.h>
 #include <bt/bt_service/bt.h>
 #include <furi_hal_serial_control.h>
+#include <furi_hal.h>
+#include <expansion/expansion.h>
 #include <gui/gui_i.h>
 #include <locale/locale.h>
 #include <storage/storage.h>
@@ -23,11 +25,6 @@
 static FuriHalSerialHandle* s_locked_gpio_usart  = NULL;
 static FuriHalSerialHandle* s_locked_gpio_lpuart = NULL;
 static FuriHalUsbInterface* s_locked_usb_config  = NULL; // saved USB config, restored on unlock
-/* Tracks whether animation_manager_unload_and_stall_animation() was called when the
- * last app launched. Fox Theme runs without a Dolphin animation so the stall is
- * skipped — without this flag, animation_manager_load_and_continue_animation()
- * would be called unconditionally on app exit and hit its internal furi_assert,
- * crashing the desktop with a NULL pointer fault every time an app exits. */
 static bool s_animation_was_stalled = false;
 
 #define WALLPAPER_PATH "/ext/wallpaper.xbm"
@@ -37,17 +34,35 @@ static bool s_animation_was_stalled = false;
 #define FOX_SETUP_FLAG_EXT_PATH  "/ext/System/.fox_setup.done"  /* EXT mirror — both must be absent to bypass */
 #define FOX_SETUP_AUTO_ARG   "auto"
 
+/* Fox ESP32 companion apps (fox_esp32_commander etc.) write "1" or "0"
+ * here whenever they confirm the ESP32's WiFi connect state changes -
+ * see fox_esp32_commander's wifi_menu.c. Unrelated to the FOX_SETUP_*
+ * flags above (different "Fox" subsystem, same project prefix). The
+ * icon itself only ever reads this file (see
+ * desktop_wifi_status_timer_callback() below) - it never touches the
+ * UART directly, because only one thing can own the ESP32's serial
+ * connection at a time and that's whichever Fox app the user
+ * currently has open; the icon polling the UART itself on every tick
+ * would fight whatever app is running.
+ *
+ * That used to mean this file could go stale forever with nobody
+ * around to correct it - e.g. reflash the ESP32 (or unplug it) while
+ * every Fox app is closed, and the icon would just keep showing
+ * whatever it last said, since nothing was left to write "0". See
+ * desktop_wifi_recheck_thread() further down for the fix: a slow
+ * background probe that only touches the UART when nothing else is
+ * using it, and rewrites this same file when it gets a real answer.
+ * See desktop_wifi_icon_draw_callback()'s header comment for the rest
+ * of the icon-drawing reasoning. */
+#define FOX_ESP32_WIFI_STATUS_PATH EXT_PATH("apps_data/fox_esp32/wifi_status.txt")
+#define FOX_ESP32_WIFI_POLL_MS 2000
+
 static void desktop_auto_lock_arm(Desktop*);
 static void desktop_auto_lock_inhibit(Desktop*);
 static void desktop_start_auto_lock_timer(Desktop*);
 static void desktop_apply_settings(Desktop*);
 static void desktop_load_wallpaper(Desktop*);
 
-// ── PIN lockout blocking screen ───────────────────────────────────────────────
-// Shown on every boot when /int/.fox_locked.bin exists.
-// Runs before view_dispatcher_run — device is completely blocked until recovery.
-
-/* Forward declaration — fox_no_sd_draw_callback is defined later in this file */
 static void fox_no_sd_draw_callback(Canvas* canvas, void* context);
 
 static void fox_lockout_draw_callback(Canvas* canvas, void* context) {
@@ -67,7 +82,6 @@ static void fox_lockout_draw_callback(Canvas* canvas, void* context) {
 static void fox_lockout_input_callback(InputEvent* event, void* context) {
     UNUSED(event);
     UNUSED(context);
-    // Consume everything — no escape from lockout or format screen
 }
 
 static volatile bool s_sd_ejected_during_lockout = false;
@@ -96,12 +110,10 @@ static void fox_desktop_show_lockout_blocking(Desktop* desktop) {
         furi_hal_usb_set_config(NULL, NULL);
     }
 
-    /* Pubsub fires the instant storage detects card removal/insertion.
-     * 50ms poll is belt-and-suspenders fallback only. */
     ViewPort* sd_overlay = NULL;
 
     while(true) {
-        furi_delay_ms(50);
+        furi_delay_ms(1200);
 
         bool sd_gone = s_sd_ejected_during_lockout ||
                        (storage_sd_status(desktop->storage) != FSE_OK);
@@ -147,25 +159,19 @@ static void fox_desktop_show_format_blocking(Desktop* desktop) {
     view_port_input_callback_set(vp, fox_lockout_input_callback, NULL);
     gui_add_view_port(desktop->gui, vp, GuiLayerFullscreen);
 
-    /* Kill USB/BLE/GPIO — same as lock screen */
     if(furi_hal_usb_get_config() != NULL) {
         furi_hal_usb_set_config(NULL, NULL);
     }
 
-    /* Block permanently — only DFU can recover from a format wipe */
     while(true) {
         furi_delay_ms(10000);
     }
 }
 
-// ── Fox.data corruption blocking screen ────────────────────────────────────
-// Shown when BOTH Fox.data copies (INT + SD) are missing after initial setup.
-// This indicates intentional deletion — no recovery, must re-flash firmware.
 static void fox_corrupt_draw_callback(Canvas* canvas, void* context) {
     UNUSED(context);
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
-    // Full-width centered — no icon, maximises text room
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 8, AlignCenter, AlignTop, "Firmware Corrupt");
     canvas_set_font(canvas, FontSecondary);
@@ -187,10 +193,6 @@ static void fox_desktop_show_corrupt_blocking(Desktop* desktop) {
     }
 }
 
-// ── Default wallpaper seeding ─────────────────────────────────────────────────
-// If /ext/wallpaper.xbm is absent, write the sample wallpaper so the desktop
-// always has something to draw. Never overwrites an existing user file.
-// Pixel data is 128×64 monochrome XBM, LSB-first, 1024 bytes.
 static const uint8_t s_sample_wallpaper_xbm[WALLPAPER_SIZE] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80,
@@ -307,10 +309,8 @@ static void fox_desktop_show_no_sd_blocking(Desktop* desktop) {
     view_port_input_callback_set(vp, fox_lockout_input_callback, NULL);
     gui_add_view_port(desktop->gui, vp, GuiLayerFullscreen);
 
-    /* Poll at 50ms as a belt-and-suspenders fallback alongside the pubsub.
-     * The pubsub fires the instant storage mounts, so restart is effectively instant. */
     while(true) {
-        furi_delay_ms(50);
+        furi_delay_ms(1200);
         if(s_sd_mounted_event || storage_sd_status(desktop->storage) == FSE_OK) {
             furi_pubsub_unsubscribe(storage_get_pubsub(desktop->storage), sub);
             furi_hal_power_reset();
@@ -318,38 +318,28 @@ static void fox_desktop_show_no_sd_blocking(Desktop* desktop) {
     }
 }
 
-// ── fox_setup auto-launch thread ──────────────────────────────────────────────
-// Waits for the update slideshow to finish (slideshow deletes SLIDESHOW_FS_PATH
-// when it completes), then launches fox_setup if the wizard flag is absent.
-//
-// IMPORTANT: loader_start() resolves names against:
-//   1. Built-in compiled app list (name or appid)
-//   2. FLIPPER_EXTSETTINGS_APPS list (display name field, NOT appid)
-//   3. File path (storage_file_exists check)
-// "fox_setup" is the APPID, not the display name ("Fox Setup") — it fails
-// both lookups 1 and 2. We must pass the actual FAP path so lookup 3 succeeds.
-#define FOX_SETUP_FAP_PATH EXT_PATH("apps/Settings/fox_setup.fap")
+#define FOX_SETUP_FAP_PATH EXT_PATH("apps/Fox/fox_setup.fap")
 
 static FuriThread* s_fox_setup_launch_thread = NULL;
 
 static int32_t desktop_fox_setup_launch_thread_fn(void* context) {
     Desktop* desktop = context;
 
-    /* Fast path: if /int/fox_setup.done already exists fox_setup completed
-     * successfully on a previous boot.  Skip the settle delay and loader call
-     * entirely — fox_setup would exit in <1 ms anyway, but this avoids any
-     * app-switch overhead and is cleaner.                                    */
     if(storage_file_exists(desktop->storage, FOX_SETUP_FLAG_PATH)) {
         return 0;
     }
 
-    // Small settle so the desktop's own first frame has rendered before the
-    // loader takes over the screen.
     furi_delay_ms(200);
 
     if(!storage_file_exists(desktop->storage, FOX_SETUP_FAP_PATH)) {
         FURI_LOG_E("FoxSetup", "fox_setup.fap not found at %s — wizard cannot launch",
                    FOX_SETUP_FAP_PATH);
+        /* If a slideshow was deferred waiting for fox_setup to exit, unblock
+           it now — otherwise it stays stuck until the next app happens to run. */
+        if(desktop->pending_slideshow) {
+            view_dispatcher_send_custom_event(
+                desktop->view_dispatcher, DesktopGlobalAfterAppFinished);
+        }
         return 0;
     }
 
@@ -465,9 +455,174 @@ static void desktop_stealth_mode_icon_draw_callback(Canvas* canvas, void* contex
     canvas_draw_icon(canvas, 0, 0, &I_Muted_8x8);
 }
 
-// Wallpaper view draw callback.
-// NOTE: this is a VIEW draw callback — second param is the MODEL, not context.
-// We store a Desktop* inside the model so we can access settings and data.
+static void desktop_wifi_icon_draw_callback(Canvas* canvas, void* context) {
+    Desktop* desktop = context;
+    furi_assert(canvas);
+    furi_assert(desktop);
+
+    canvas_draw_icon(
+        canvas, 2, 0, desktop->wifi_connected ? &I_WiFi_Connected_9x8 : &I_WiFi_Disconnected_9x8);
+}
+
+static void desktop_wifi_status_timer_callback(void* context) {
+    Desktop* desktop = context;
+    furi_assert(desktop);
+
+    bool connected = false;
+    File* f = storage_file_alloc(desktop->storage);
+    if(storage_file_open(f, FOX_ESP32_WIFI_STATUS_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
+        char buf[1] = {0};
+        if(storage_file_read(f, buf, 1) == 1) {
+            connected = (buf[0] == '1');
+        }
+    }
+    storage_file_close(f);
+    storage_file_free(f);
+
+    if(connected != desktop->wifi_connected) {
+        desktop->wifi_connected = connected;
+        view_port_update(desktop->wifi_icon_viewport);
+    }
+
+    gui_view_port_send_to_front(desktop->gui, desktop->wifi_icon_viewport);
+}
+
+
+#define FOX_ESP32_WIFI_RECHECK_MS        60000
+#define FOX_ESP32_WIFI_PROBE_TIMEOUT_MS  500
+#define FOX_ESP32_WIFI_PROBE_BAUD        115200
+
+typedef struct {
+    FuriStreamBuffer* stream;
+} FoxWifiProbeCtx;
+
+static void fox_wifi_probe_rx_callback(
+    FuriHalSerialHandle* handle,
+    FuriHalSerialRxEvent event,
+    void* context) {
+    FoxWifiProbeCtx* ctx = context;
+    if(event == FuriHalSerialRxEventData) {
+        uint8_t byte = furi_hal_serial_async_rx(handle);
+        furi_stream_buffer_send(ctx->stream, &byte, 1, 0);
+    }
+}
+
+/* Returns 1 for a confirmed "true" reply, 0 for a confirmed "false"
+   reply, -1 if the UART was already owned by another app (port busy -
+   a Fox app is running and managing wifi_status.txt itself; the caller
+   must NOT overwrite the file this cycle), or -2 if we acquired the
+   port ourselves but got no usable reply before the timeout (nothing
+   wired to this pin pair, or whatever's out there didn't answer). The
+   -1 vs -2 distinction matters to desktop_wifi_recheck_thread() below:
+   -1 = skip the write, -2 = write "0" (genuinely nothing here). */
+static int fox_wifi_probe_pins(FuriHalSerialId serial_id) {
+    Expansion* expansion = furi_record_open(RECORD_EXPANSION);
+    expansion_disable(expansion);
+
+    FuriHalSerialHandle* handle = furi_hal_serial_control_acquire(serial_id);
+    if(handle == NULL) {
+        /* Already owned by a running Fox app - back off, don't contend. */
+        expansion_enable(expansion);
+        furi_record_close(RECORD_EXPANSION);
+        return -1;
+    }
+
+    FuriHalBus bus = (serial_id == FuriHalSerialIdUsart) ? FuriHalBusUSART1 : FuriHalBusLPUART1;
+    bool serial_owned = !furi_hal_bus_is_enabled(bus);
+    if(serial_owned) {
+        furi_hal_serial_init(handle, FOX_ESP32_WIFI_PROBE_BAUD);
+    }
+    furi_hal_serial_set_br(handle, FOX_ESP32_WIFI_PROBE_BAUD);
+
+    FoxWifiProbeCtx ctx;
+    ctx.stream = furi_stream_buffer_alloc(256, 1);
+    furi_hal_serial_async_rx_start(handle, fox_wifi_probe_rx_callback, &ctx, false);
+
+    static const char cmd[] = "[WIFI/STATUS]\r\n";
+    furi_hal_serial_tx(handle, (const uint8_t*)cmd, strlen(cmd));
+
+    char line[32];
+    size_t line_len = 0;
+    int result = -2; /* -2 = acquired port but no response yet */
+    uint32_t deadline = furi_get_tick() + furi_ms_to_ticks(FOX_ESP32_WIFI_PROBE_TIMEOUT_MS);
+    while(furi_get_tick() < deadline) {
+        uint8_t byte;
+        uint32_t remaining = deadline - furi_get_tick();
+        if(furi_stream_buffer_receive(ctx.stream, &byte, 1, remaining) == 0) break;
+        if(byte == '\n') {
+            if(line_len > 0 && line[line_len - 1] == '\r') line_len--;
+            line[line_len] = '\0';
+            if(strcmp(line, "true") == 0) {
+                result = 1;
+                break;
+            }
+            if(strcmp(line, "false") == 0) {
+                result = 0;
+                break;
+            }
+            /* Some other line (banner text, an echoed prompt, whatever) -
+               keep listening instead of giving up on the first miss. */
+            line_len = 0;
+        } else if(line_len < sizeof(line) - 1) {
+            line[line_len++] = (char)byte;
+        } else {
+            line_len = 0; /* overlong line - drop it, resync on the next \n */
+        }
+    }
+
+    furi_hal_serial_async_rx_stop(handle);
+    if(serial_owned) {
+        furi_hal_serial_deinit(handle);
+    }
+    furi_hal_serial_control_release(handle);
+    expansion_enable(expansion);
+    furi_record_close(RECORD_EXPANSION);
+    furi_stream_buffer_free(ctx.stream);
+
+    return result;
+}
+
+static void fox_wifi_status_write_raw(Storage* storage, bool connected) {
+    storage_simply_mkdir(storage, "/ext/apps_data");
+    storage_simply_mkdir(storage, "/ext/apps_data/fox_esp32");
+
+    File* file = storage_file_alloc(storage);
+    if(storage_file_open(file, FOX_ESP32_WIFI_STATUS_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+        const char* v = connected ? "1" : "0";
+        storage_file_write(file, v, 1);
+    }
+    storage_file_close(file);
+    storage_file_free(file);
+}
+
+static int32_t desktop_wifi_recheck_thread(void* context) {
+    Desktop* desktop = context;
+
+    while(true) {
+        furi_delay_ms(FOX_ESP32_WIFI_RECHECK_MS);
+
+        int result_usart = fox_wifi_probe_pins(FuriHalSerialIdUsart);
+        int result = result_usart;
+        if(result_usart < 0) {
+            int result_lpuart = fox_wifi_probe_pins(FuriHalSerialIdLpuart);
+            if(result_lpuart >= 0) {
+                result = result_lpuart;
+            } else if(result_usart == -1 || result_lpuart == -1) {
+                result = -1;
+            } else {
+                result = -2;
+            }
+        }
+
+        if(result != -1) {
+            bool connected = (result == 1);
+            fox_wifi_status_write_raw(desktop->storage, connected);
+        }
+    }
+
+    return 0;
+}
+
 static void desktop_wallpaper_draw_callback(Canvas* canvas, void* model) {
     if(!model) return;
     Desktop* desktop = *(Desktop**)model;
@@ -504,9 +659,6 @@ static bool desktop_custom_event_callback(void* context, uint32_t event) {
         desktop_auto_lock_arm(desktop);
         desktop->app_running = false;
 
-        // If fox_setup was launched ahead of a pending slideshow, this is the
-        // moment it just exited. Show the slideshow now — driven entirely by
-        // this event, not by any fixed delay or polling loop.
         if(desktop->pending_slideshow) {
             desktop->pending_slideshow = false;
             if(storage_file_exists(desktop->storage, SLIDESHOW_FS_PATH)) {
@@ -529,10 +681,6 @@ static bool desktop_custom_event_callback(void* context, uint32_t event) {
         desktop_settings_load(&desktop->settings);
         desktop_apply_settings(desktop);
     } else if(event == DesktopGlobalSdCardRemoved) {
-        // SD card ejected mid-session. Always show the SD missing overlay — even
-        // if the PIN entry screen is visible. The user will be prompted to reinsert
-        // the card, which triggers an instant restart and brings them back to the
-        // PIN lock screen after the reboot.
         if(desktop->no_sd_viewport == NULL) {
             desktop->no_sd_viewport = view_port_alloc();
             view_port_draw_callback_set(desktop->no_sd_viewport, fox_no_sd_draw_callback, NULL);
@@ -540,12 +688,8 @@ static bool desktop_custom_event_callback(void* context, uint32_t event) {
             gui_add_view_port(desktop->gui, desktop->no_sd_viewport, GuiLayerFullscreen);
         }
     } else if(event == DesktopGlobalSdCardMounted) {
-        // SD card was re-inserted after mid-session ejection.
-        // Sync Fox.data: push our INT copy to SD if SD is missing it, and
-        // pull SD copy to INT if INT is missing it (user swapped SD cards).
         fox_settings_sync_int_to_sd();
         fox_settings_sync_sd_to_int();
-        // Brief settle delay, then reboot so Fox.Settings loads cleanly from SD.
         if(desktop->no_sd_viewport != NULL) {
             furi_delay_ms(400);
             furi_hal_power_reset();
@@ -569,19 +713,12 @@ static void desktop_tick_event_callback(void* context) {
     Desktop* app = context;
     scene_manager_handle_tick_event(app->scene_manager);
 
-    // ── Gate: run storage-intensive checks only every 2 s ─────────────────────
-    // The tick fires every 500 ms.  Storage needs ≥ 1000 ms of idle time
-    // between calls for its internal tick to fire.  Without this gate we make
-    // 6+ storage calls every 500 ms, permanently starving storage_tick() and
-    // causing SD-card hangs that lock up qFlipper during firmware updates.
-    // This was the "very old error" fixed in session 2 — the gate was
-    // accidentally dropped in a later edit.
+    // Run storage-intensive checks only every 2 s (tick fires every 500 ms).
     static uint32_t s_last_integrity_ms = 0;
     uint32_t now = furi_get_tick();
     if(now - s_last_integrity_ms < furi_ms_to_ticks(2000)) return;
     s_last_integrity_ms = now;
 
-    // ── Fox.data + fox_setup.done live integrity monitoring ───────────────────
     {
         Storage* s = app->storage;
         bool sd_present = (storage_sd_status(s) == FSE_OK);
@@ -608,11 +745,6 @@ static void desktop_tick_event_callback(void* context) {
                 storage_common_copy(s, FOX_SETUP_FLAG_EXT_PATH, FOX_SETUP_FLAG_PATH);
             }
 
-            /* Apply a PIN written by fox_setup.fap during the current session.
-             * fox_setup cannot call desktop_pin_code_set() directly (not in
-             * FAP API) so it writes fox_pend.tmp and we pick it up here within
-             * 2 seconds — PIN becomes active without any reboot needed.
-             * Also handles the startup case (file from a previous session).  */
             const char* pin_pending = EXT_PATH("apps_data/fox_setup/fox_pend.tmp");
             if(storage_file_exists(s, pin_pending)) {
                 File* pf = storage_file_alloc(s);
@@ -693,12 +825,7 @@ static uint8_t desktop_hex2byte(char hi, char lo) {
     return (h << 4) | l;
 }
 
-// Parses a standard text-format XBM file into a raw 1024-byte bitmap.
-// XBM text files look like:
-//   #define name_width 128
-//   #define name_height 64
-//   static unsigned char name_bits[] = { 0x00, 0xff, ... };
-// We scan for the opening '{' then pull every "0xNN" value into the output buffer.
+// Parses XBM text into a raw 1024-byte bitmap (scans for '{', pulls every 0xNN value).
 static void desktop_load_wallpaper(Desktop* desktop) {
     furi_assert(desktop);
 
@@ -770,10 +897,6 @@ static void desktop_apply_settings(Desktop* desktop) {
     desktop_clock_reconfigure(desktop);
     desktop_load_wallpaper(desktop);
 
-    /* Notify the power service to re-read displayBatteryPercentage from the
-     * settings file and redraw its battery viewport immediately.
-     * desktop_settings_save() has already run before this function is called
-     * (same DesktopGlobalSaveSettings handler), so the file holds the new value. */
     {
         Power* power = furi_record_open(RECORD_POWER);
         power_trigger_ui_update(power);
@@ -806,7 +929,7 @@ static Desktop* desktop_alloc(void) {
     Desktop* desktop = malloc(sizeof(Desktop));
 
     desktop->wallpaper_data  = NULL;
-    desktop->no_sd_viewport  = NULL;  /* must be explicit — malloc does not zero-init */
+    desktop->no_sd_viewport  = NULL;
     desktop->pending_slideshow = false;
 
     desktop->animation_semaphore = furi_semaphore_alloc(1, 0);
@@ -840,9 +963,6 @@ static Desktop* desktop_alloc(void) {
     desktop->main_view = desktop_main_alloc();
     View* dolphin_view = animation_manager_get_animation_view(desktop->animation_manager);
 
-    // Wallpaper view: sits between dolphin and the locked overlay.
-    // When enabled it clears and redraws with the XBM, replacing the dolphin output.
-    // Uses a model (Desktop**) so the VIEW draw callback can access settings/data.
     desktop->wallpaper_view = view_alloc();
     view_allocate_model(desktop->wallpaper_view, ViewModelTypeLocking, sizeof(Desktop*));
     with_view_model(
@@ -920,6 +1040,13 @@ static Desktop* desktop_alloc(void) {
     }
     gui_add_view_port(desktop->gui, desktop->stealth_mode_icon_viewport, GuiLayerStatusBarLeft);
 
+    desktop->wifi_icon_viewport = view_port_alloc();
+    view_port_set_width(desktop->wifi_icon_viewport, icon_get_width(&I_WiFi_Connected_9x8) + 2);
+    view_port_draw_callback_set(
+        desktop->wifi_icon_viewport, desktop_wifi_icon_draw_callback, desktop);
+    view_port_enabled_set(desktop->wifi_icon_viewport, true);
+    gui_add_view_port(desktop->gui, desktop->wifi_icon_viewport, GuiLayerStatusBarRight);
+
     desktop->loader = furi_record_open(RECORD_LOADER);
     furi_pubsub_subscribe(loader_get_pubsub(desktop->loader), desktop_loader_callback, desktop);
 
@@ -934,6 +1061,15 @@ static Desktop* desktop_alloc(void) {
 
     desktop->update_clock_timer =
         furi_timer_alloc(desktop_clock_timer_callback, FuriTimerTypePeriodic, desktop);
+
+    desktop->update_wifi_timer =
+        furi_timer_alloc(desktop_wifi_status_timer_callback, FuriTimerTypePeriodic, desktop);
+    desktop_wifi_status_timer_callback(desktop); /* first read now, don't wait a full period */
+    furi_timer_start(desktop->update_wifi_timer, furi_ms_to_ticks(FOX_ESP32_WIFI_POLL_MS));
+
+    desktop->wifi_recheck_thread =
+        furi_thread_alloc_ex("FoxWifiRecheck", 1024, desktop_wifi_recheck_thread, desktop);
+    furi_thread_start(desktop->wifi_recheck_thread);
 
     desktop->app_running = loader_is_locked(desktop->loader);
 
@@ -955,33 +1091,13 @@ void desktop_lock(Desktop* desktop) {
         }
 
         if(desktop->settings.lock_disconnect_gpio) {
-            // Acquire both serial interfaces — blocks GPIO CLI and USB-UART bridge.
-            // acquire() disables logging/expansion on those pins gracefully if active.
-            // Returns NULL if already held by another app (safe to ignore).
             s_locked_gpio_usart  = furi_hal_serial_control_acquire(FuriHalSerialIdUsart);
             s_locked_gpio_lpuart = furi_hal_serial_control_acquire(FuriHalSerialIdLpuart);
         }
 
-        // USB session lock/disable stubbed out — CLI VCP record timing TBD in Projects
     }
 
-    // USB disconnect on lock.
-    // NOT gated by lock_on_lock_enabled — USB security is independent of the
-    // BLE/GPIO master switch. Two triggers:
-    //   1. PIN is set → always kill USB (prevents qFlipper file-access bypass).
-    //   2. User explicitly chose CLI+RPC or Full Disconnect in Advanced Security.
-    //
-    // The intended usage model with a PIN:
-    //   • "USB: No AutoLock = ON"  → auto-lock never fires while qFlipper is
-    //     connected (the DesktopGlobalAutoLock handler swallows it).  The device
-    //     stays unlocked the whole session.
-    //   • User presses manual lock  → reaches here → USB is forcefully kicked.
-    //     furi_hal_usb_unlock() is required because the VCP service holds
-    //     furi_hal_usb_lock() while qFlipper has an open session; without the
-    //     unlock, furi_hal_usb_set_config silently returns false and qFlipper
-    //     stays connected.
-    //
-    // Restored in desktop_unlock() when s_locked_usb_config is non-NULL.
+    // USB disconnect on lock — force-kills qFlipper session if PIN is set or USB level requires it.
     {
         bool should_disconnect_usb =
             desktop_pin_code_is_set() ||
@@ -1030,10 +1146,8 @@ void desktop_unlock(Desktop* desktop) {
             }
         }
 
-        // USB session unlock/re-enable stubbed out — matches lock stub above
     }
 
-    // Restore USB — re-enables qFlipper now that the PIN has been correctly entered.
     if(s_locked_usb_config) {
         furi_hal_usb_set_config(s_locked_usb_config, NULL);
         s_locked_usb_config = NULL;
@@ -1095,9 +1209,6 @@ void desktop_api_set_settings(Desktop* instance, const DesktopSettings* settings
 void desktop_api_set_pin(Desktop* instance, const DesktopPinCode* pin_code) {
     furi_assert(instance);
     furi_assert(pin_code);
-    // Updates in-memory state AND persists to /int/.fox_pin.bin immediately —
-    // no reboot required. Called through the service API so it works from both
-    // internal apps and external FAPs.
     desktop_pin_code_set(pin_code);
 }
 
@@ -1117,10 +1228,6 @@ int32_t desktop_srv(void* p) {
 
     Desktop* desktop = desktop_alloc();
 
-    // ── SD card required check ─────────────────────────────────────────────────
-    // Fox firmware requires the SD card to be present for operation.
-    // Initial 200ms settle, then up to 8×100ms = 1s total — fast enough for a
-    // genuine SD to mount while showing the missing screen almost immediately if absent.
     {
         furi_delay_ms(200);
         bool sd_ok = false;
@@ -1137,10 +1244,6 @@ int32_t desktop_srv(void* p) {
     // Seed default wallpaper if user doesn't have one yet
     desktop_ensure_wallpaper(desktop);
 
-    // ── /int/ flag checks — run after SD is confirmed present ─────────────────
-    // SD check runs first (user sees SD missing screen, reinserts, device reboots).
-    // On the reboot with SD present, we now check the security flags.
-    // These flags live on internal flash — always readable regardless of SD state.
     {
         bool format_flagged = storage_file_exists(desktop->storage, FOX_FORMAT_FLAG_PATH);
         bool lock_flagged   = storage_file_exists(desktop->storage, FOX_LOCKOUT_FLAG_PATH);
@@ -1153,26 +1256,17 @@ int32_t desktop_srv(void* p) {
             /* never returns */
         }
     }
-    // ──────────────────────────────────────────────────────────────────────────
 
     desktop_init_settings(desktop);
 
     // Restore PIN from internal storage — survives soft resets unlike RAM variables
     desktop_pin_code_load_from_storage();
 
-    // If no PIN is set, auto-lock has no security value and can trap the user.
-    // Reset it to OFF whenever PIN is absent — handles firmware updates that
-    // clear Fox.data (and therefore the PIN) while leaving .desktop_settings
-    // intact with a non-zero auto_lock_delay_ms from the previous install.
     if(!desktop_pin_code_is_set() && desktop->settings.auto_lock_delay_ms != 0) {
         desktop->settings.auto_lock_delay_ms = 0;
         desktop_settings_save(&desktop->settings);
     }
 
-    // If the SD copy of Fox.Settings has the override_flag set (written by the Python
-    // recovery tool), import it now — it may clear the PIN, reset attempts, or change
-    // any setting. Always wins over the internal copy. Reboots after importing so the
-    // new state is fully applied from a clean boot.
     if(fox_settings_import_override()) {
         FURI_LOG_I("Desktop", "Fox.Settings override applied");
         furi_hal_power_reset();
@@ -1191,88 +1285,16 @@ int32_t desktop_srv(void* p) {
         furi_hal_power_reset();  // Clean reboot — device starts fresh
     }
 
-    {
-        /* Apply a device name written by fox_setup.fap on the previous boot.
-         *
-         * TWO PATHS lead here:
-         *   A) Slideshow path (firmware update / auto-launch):
-         *      desktop_scene_slideshow.c writes the namechanger file and
-         *      DELETES name.pending BEFORE calling furi_hal_power_reset().
-         *      On the subsequent boot this block finds nothing → no action,
-         *      no extra reboot, zero double-restart risk.
-         *
-         *   B) Direct-reboot path (fox_setup from Apps list, fox_settings):
-         *      The app calls furi_hal_power_reset() directly without going
-         *      through the slideshow, so name.pending is still present.
-         *      namechanger_srv already ran earlier this boot, so we must
-         *      write the namechanger file HERE and reboot ONE more time so
-         *      namechanger_srv picks it up on the next clean boot.           */
-        const char* pending = EXT_PATH("apps_data/fox_setup/name.pending");
-        File* nf = storage_file_alloc(desktop->storage);
-        if(storage_file_open(nf, pending, FSAM_READ, FSOM_OPEN_EXISTING)) {
-            char name[FURI_HAL_VERSION_ARRAY_NAME_LENGTH] = {0};
-            storage_file_read(nf, name, sizeof(name) - 1);
-            storage_file_close(nf);
-            storage_common_remove(desktop->storage, pending);
-
-            if(name[0] != '\0') {
-                if(strcmp(name, "") == 0) {
-                    storage_simply_remove(desktop->storage, NAMECHANGER_PATH);
-                } else {
-                    /* Ensure the parent directory exists — flipper_format_file_open_always
-                     * does NOT create parent directories; if the NameChanger data dir was
-                     * never created the write fails silently and the name is never applied. */
-                    char nc_dir[64];
-                    strlcpy(nc_dir, NAMECHANGER_PATH, sizeof(nc_dir));
-                    char* sl = strrchr(nc_dir, '/');
-                    if(sl) { *sl = '\0'; storage_simply_mkdir(desktop->storage, nc_dir); }
-                    FlipperFormat* ff = flipper_format_file_alloc(desktop->storage);
-                    if(flipper_format_file_open_always(ff, NAMECHANGER_PATH)) {
-                        flipper_format_write_header_cstr(
-                            ff, NAMECHANGER_HEADER, NAMECHANGER_VERSION);
-                        flipper_format_write_string_cstr(ff, "Name", name);
-                        flipper_format_file_close(ff);
-                    }
-                    flipper_format_free(ff);
-                }
-                /* Reboot so namechanger_srv can read the file on the next boot.
-                 * This is safe: path A deleted name.pending before its reboot,
-                 * so this line is only reached in path B (direct-reboot case). */
-                furi_hal_power_reset();
-            }
-        }
-        storage_file_free(nf);
-    }
-
-    /* fox_pend.tmp PIN processing removed: fox_setup now calls desktop_api_set_pin()
-     * directly, which persists to flash immediately — no tmp file needed. */
-
-    // On first boot after a firmware update, the slideshow file is present.
-    // Use this as the trigger to clear all security state (PIN, lockout, wizard
-    // flag) so the device starts fresh after any update. No version hash needed.
     if(storage_file_exists(desktop->storage, SLIDESHOW_FS_PATH)) {
         storage_common_remove(desktop->storage, FOX_LOCKOUT_FLAG_PATH);
         storage_common_remove(desktop->storage, FOX_FORMAT_FLAG_PATH);
         desktop_pin_code_reset();
         storage_common_remove(desktop->storage, FOX_SETUP_FLAG_PATH);
         storage_common_remove(desktop->storage, FOX_SETUP_FLAG_EXT_PATH);  /* Also clear EXT mirror */
-        /* Also clear fox_setup's own completed.flag.  desktop checks
-         * FOX_SETUP_FLAG_PATH to decide whether to run the wizard, but
-         * fox_setup_already_ran() checks THIS separate file — if it still
-         * exists after a firmware update, fox_setup silently exits the
-         * moment it launches and the wizard never appears.               */
         storage_common_remove(desktop->storage,
                               EXT_PATH("apps_data/fox_setup/completed.flag"));
     }
 
-    // ── Fox.data integrity check ──────────────────────────────────────────────
-    // Runs AFTER the slideshow clear: on a fresh install the slideshow calls
-    // desktop_pin_code_reset() → fox_settings_write() which creates both copies,
-    // and removes FOX_SETUP_FLAG_PATH, so this block will not fire.
-    //
-    // After setup completes, FOX_SETUP_FLAG_PATH exists on /int/.
-    // If both Fox.data copies are then deleted the device shows "Firmware Corrupt".
-    // If only one copy is missing, restore it immediately from the survivor.
     {
         bool setup_done = storage_file_exists(desktop->storage, FOX_SETUP_FLAG_PATH);
         bool int_ok = storage_file_exists(desktop->storage, FOX_SETTINGS_INT_PATH);
@@ -1292,9 +1314,6 @@ int32_t desktop_srv(void* p) {
         // Both missing + no setup_done: genuine fresh install, proceed normally.
     }
 
-    // ── fox_setup.done integrity check ─────────────────────────────────────────
-    // Sync the INT flag and its EXT mirror so both always exist together.
-    // This prevents the "delete INT flag → wizard re-runs with existing PIN" attack.
     {
         bool flag_int = storage_file_exists(desktop->storage, FOX_SETUP_FLAG_PATH);
         bool flag_ext = storage_file_exists(desktop->storage, FOX_SETUP_FLAG_EXT_PATH);
@@ -1320,31 +1339,16 @@ int32_t desktop_srv(void* p) {
                           (hcheck.active_fail_count == 0xFF);
         desktop_lock(desktop);
     }
-    // No else needed: CLI VCP is enabled by default on boot.
-    // It is only disabled/re-enabled by the lock/unlock path.
 
     if(!wiper_screen_active && storage_file_exists(desktop->storage, SLIDESHOW_FS_PATH)) {
-        // fox_setup.done was already cleared above if a new slideshow appeared
-        // (fresh install/update), so this check tells us whether the wizard
-        // still has work to do this boot.
         bool fox_setup_pending = !storage_file_exists(desktop->storage, FOX_SETUP_FLAG_PATH);
         if(fox_setup_pending) {
-            // Defer the slideshow — fox_setup will take over the screen via the
-            // loader immediately below. The slideshow is shown the instant
-            // fox_setup exits (DesktopGlobalAfterAppFinished), driven by that
-            // event rather than any fixed delay.
             desktop->pending_slideshow = true;
         } else {
-            // Wizard already complete — show the slideshow immediately, as before.
             scene_manager_next_scene(desktop->scene_manager, DesktopSceneSlideshow);
         }
     }
 
-    // Always launch fox_setup. It checks its own completed flag internally and
-    // exits in under a millisecond if the wizard was already done — completely
-    // invisible to the user. No artificial waiting on the slideshow: if one is
-    // pending, fox_setup launches immediately and the slideshow follows once
-    // fox_setup's app-finished event fires (see DesktopGlobalAfterAppFinished).
     {
         s_fox_setup_launch_thread = furi_thread_alloc();
         furi_thread_set_name(s_fox_setup_launch_thread, "FoxSetupLaunch");

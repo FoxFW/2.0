@@ -278,10 +278,6 @@
       power users who want enhanced security, a smarter file browser,
       deeper Sub-GHz tooling, and a polished system-wide experience.
     </p>
-    <div class="support-note" style="margin:18px auto 0;">
-      🔒 <strong>Locked out?</strong> If you have exhausted your PIN attempts and
-      cannot access the device, <a href="#lockout">Click Here</a> for recovery support.
-    </div>
   </div>
 </header>
 
@@ -302,6 +298,7 @@
       </li>
       <li><a href="#desktop">Desktop Overview</a>
         <ul class="sub">
+          <li><a href="#wifi-icon">Internet Connectivity Icon</a></li>
           <li><a href="#shortcuts">Button Shortcuts</a></li>
           <li><a href="#lock-menu">Lock Menu</a></li>
           <li><a href="#lock-screen">Lock Screen</a></li>
@@ -325,8 +322,9 @@
           <li><a href="#fav-apps">Favorite Apps</a></li>
         </ul>
       </li>
+      <li><a href="#fox-esp32-apps">Fox ESP32 Apps</a></li>
     </ol>
-    <ol start="7">
+    <ol start="8">
       <li><a href="#subghz">Sub-GHz</a>
         <ul class="sub">
           <li><a href="#read">Read</a></li>
@@ -379,6 +377,7 @@
     <li>An extended <strong>Custom Wallpaper</strong> system with a factory-seeded template that generates automatically if missing.</li>
     <li>A built-in <strong>Garage Door Remote</strong> app accessible directly from the Sub-GHz main screen — no App Menu navigation needed.</li>
     <li>A <strong>Sub-GHz Bruteforcer</strong> app in the App Menu for brute-forcing fixed-code remotes across common protocols.</li>
+    <li>A full <strong>Fox ESP32 companion suite</strong> — Commander, Chat, Portal, Detector, Flasher, and Chameleon — turning a wired ESP32 into a WiFi/BLE/HTTP extension of your Flipper. Powered by the separate <a href="https://github.com/FoxFW/Fox_ESP32_FW" style="color:#80c890;">Fox ESP32 Firmware</a>.</li>
   </ul>
   <div class="back-top"><a href="#top">↑ Back to top</a></div>
 </section>
@@ -504,6 +503,57 @@
     static screen. The status bar at the top shows the battery,
     clock (if enabled), and connection indicators.
   </p>
+
+  <h3 id="wifi-icon">Internet Connectivity Icon <span class="badge">New</span></h3>
+  <p>
+    A small three-bar icon sits in the status bar immediately to the left of
+    the battery indicator, showing whether an attached
+    <strong>ESP32 companion board</strong> currently has a WiFi/internet
+    connection.
+  </p>
+
+  <div style="display:flex;gap:20px;flex-wrap:wrap;margin:18px 0;">
+    <div style="background:var(--mid);border:1px solid var(--border);border-radius:8px;padding:18px 22px;text-align:center;flex:1;min-width:180px;">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAABQCAYAAACZM2JkAAAA4UlEQVR4nO3ZsQ2AMBAEQYzov2XTAgHMB+wUYFmrz27tvfeRz53TH/iLQiOFRgqNFBopNFJopNBIoZFCI4VGCo0UGik0Umik0EihkUIjhUau6Q9oa61X33s6uXbRSKGRQiOFRgqNFBopNFJopNBIoZFCI4VGCo0UGik0Umik0EihkUIjY5vh1HY3pYtGCo0UGik0Umik0EihkUIjhUYKjRQaKTRSaKTQSKGRQiOFRgqNFBq5/rbdTemikUIjhUYKjRQaKTRSaKTQSKGRQiOFRgqNFBopNFJopNBIoZFCI4VGbkGvDaLyiRZ9AAAAAElFTkSuQmCC" alt="Connected WiFi status bar icon" width="90" height="80" style="image-rendering:pixelated;background:#000;border-radius:4px;padding:10px;">
+      <div style="margin-top:10px;font-weight:600;color:var(--accent);">Connected</div>
+      <div style="font-size:0.85rem;color:#999;margin-top:2px;">Bold, solid ascending bars</div>
+    </div>
+    <div style="background:var(--mid);border:1px solid var(--border);border-radius:8px;padding:18px 22px;text-align:center;flex:1;min-width:180px;">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAABQCAYAAACZM2JkAAAA+ElEQVR4nO3ZQQoCMRAAwUT8/5fXDwjOQTqyVp3Dkm3mEmavta41cF2jY2vvPTo3/d5dPE5f4F8IHRE6InRE6IjQEaEjQkeEjjy9+BomOiJ0ROiI0BGhI0JHhI4IHRE6sped4Vvf/g8THRE6InRE6IjQEaEjQkeEjggdGe8Mp379xXeKiY4IHRE6InRE6IjQEaEjQkeEjjxPX+CTu+wgTXRE6IjQEaEjQkeEjggdEToidEToiNARoSNCR4SOCB0ROiJ0ROiI0JHxzvAuu7tTTHRE6IjQEaEjQkeEjggdEToidEToiNARoSNCR4SOCB0ROiJ0ROiI0JEXHigjloY0AnQAAAAASUVORK5CYII=" alt="Disconnected WiFi status bar icon" width="90" height="80" style="image-rendering:pixelated;background:#000;border-radius:4px;padding:10px;">
+      <div style="margin-top:10px;font-weight:600;color:var(--accent);">Disconnected / Idle</div>
+      <div style="font-size:0.85rem;color:#999;margin-top:2px;">Same bars, thin outline — not an error</div>
+    </div>
+  </div>
+
+  <div class="box info">
+    Both states use the same three-ascending-bars shape on purpose, so
+    they're clearly the same icon at a glance. The icon stays visible even
+    when nothing is connected — it's a deliberate hint to anyone who hasn't
+    tried the ESP32 companion apps yet that the feature exists at all.
+  </div>
+
+  <p>
+    The icon reflects whatever an ESP32 board wired to your Flipper's GPIO
+    header last reported through <strong>Fox ESP32 Commander</strong>'s WiFi
+    menu, and FoxFW also runs a quiet background check roughly once a
+    minute so the icon can't get stuck showing "connected" forever if the
+    board is reflashed, unplugged, or powered off while no companion app is
+    open to notice.
+  </p>
+
+  <div class="box tip">
+    <strong>Requires Fox ESP32 Firmware.</strong> This icon — and the full
+    suite of Fox ESP32 apps bundled with FoxFW (<strong>Commander</strong>,
+    <strong>Chat</strong>, <strong>Portal</strong>, <strong>Detector</strong>,
+    <strong>Flasher</strong>, and <strong>Chameleon</strong>) — need a
+    companion ESP32 board wired to your Flipper's GPIO header and running
+    Fox ESP32 Firmware. Flash it straight from the Flipper using the built-in
+    <strong>Fox ESP32 Flasher</strong> app (no PC required), or via the
+    <a href="https://foxfw.github.io/esp32-fw/fox-esp32-flasher.html" style="color:#80c890;">Web Flasher</a>.
+    Source code and releases are at
+    <a href="https://github.com/FoxFW/Fox_ESP32_FW" style="color:#80c890;">github.com/FoxFW/Fox_ESP32_FW</a>.
+    See the <a href="#fox-esp32-apps" style="color:#80c890;">Fox ESP32 Apps</a> section below for a full overview.
+  </div>
 
   <h3 id="shortcuts">Button Shortcuts</h3>
   <p>
@@ -980,6 +1030,81 @@
     <strong>Tip:</strong> Any installed app (including external FAPs) can be
     assigned to a Favorite slot. Select <em>None</em> to clear a slot and
     restore its default behaviour.
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 5.5 · FOX ESP32 APPS ══════════════════ -->
+<section class="section" id="fox-esp32-apps">
+  <h2>Fox ESP32 Apps <span class="badge">FoxFW Exclusive</span></h2>
+  <p>
+    FoxFW ships a full suite of apps that pair with a wired ESP32 to extend
+    your Flipper Zero with WiFi, BLE, HTTP, scripting, Discord, captive portal,
+    and more. All communicate over a plain UART link at 115200 baud — connect
+    TX (GPIO1) → Flipper pin 14 and RX (GPIO3) → Flipper pin 13.
+  </p>
+  <div class="box tip">
+    <strong>Firmware required.</strong> Flash your ESP32 first. The easiest
+    way is the built-in <strong>Fox ESP32 Flasher</strong> app (see below) —
+    no PC, no downloads, the firmware is bundled into FoxFW. Alternatively
+    use the <a href="https://foxfw.github.io/esp32-fw/fox-esp32-flasher.html" style="color:#80c890;">Web Flasher</a>
+    (Chrome / Edge). Source code and releases:
+    <a href="https://github.com/FoxFW/Fox_ESP32_FW" style="color:#80c890;">github.com/FoxFW/Fox_ESP32_FW</a>.
+  </div>
+
+  <table>
+    <tr><th>App</th><th>Location</th><th>ESP32?</th><th>What it does</th></tr>
+    <tr>
+      <td><strong>Fox ESP32 Commander</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">✓</td>
+      <td>The main control hub — WiFi recon, BLE scanning and attacks, HTTP/WebSocket bridge, FoxScript engine, Discord messaging, and more. Start here after flashing.</td>
+    </tr>
+    <tr>
+      <td><strong>Fox Chat</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">✓</td>
+      <td>Post and read Discord channel messages directly from your Flipper using the ESP32's WiFi connection.</td>
+    </tr>
+    <tr>
+      <td><strong>Fox Portal</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">✓</td>
+      <td>Turns the ESP32 into a captive portal access point. Visitors who join the Fox Portal WiFi network see your custom HTML form; submissions stream back to the Flipper over UART.</td>
+    </tr>
+    <tr>
+      <td><strong>Fox ESP32 Detector</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">✓</td>
+      <td>Scans every GPIO pin pair and baud rate combination to identify a connected ESP32. Run this first if any app reports "not detected".</td>
+    </tr>
+    <tr>
+      <td><strong>Fox ESP32 Flasher</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">✓</td>
+      <td>Flash Fox ESP32 Firmware onto a connected ESP32 directly from the Flipper — no PC, no browser, no files to download. Firmware for every supported board is bundled into FoxFW.</td>
+    </tr>
+    <tr>
+      <td><strong>Fox Chameleon</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">✓</td>
+      <td>BLE bridge between the Flipper and a Chameleon Ultra — uses the ESP32's BLE stack to relay commands without a phone or PC.</td>
+    </tr>
+    <tr>
+      <td><strong>Fox RF Jammer</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">—</td>
+      <td>Multi-mode Sub-GHz RF jammer. Runs entirely on the Flipper's built-in CC1101 radio — no ESP32 needed.</td>
+    </tr>
+  </table>
+
+  <div class="box info">
+    <strong>Compatible boards.</strong> ESP32 Classic (WROOM-32 / DevKit), ESP32-S3,
+    ESP32-S2, ESP32-C3, ESP32-C5, and ESP32-C6 are all supported. See the
+    <a href="https://foxfw.github.io/esp32-fw/fox-esp32-flasher.html" style="color:#80c890;">Fox ESP32 Firmware guide</a>
+    for full wiring diagrams, board-specific notes, and the complete command reference.
   </div>
 
   <div class="back-top"><a href="#top">↑ Back to top</a></div>

@@ -80,7 +80,6 @@ const char* const tx_power_text[TX_POWER_COUNT] = {
     "-30dBm",
 };
 
-/* ── Visualizer display mode ── */
 #define VIZ_MODE_COUNT 2
 static const char* const viz_mode_text[VIZ_MODE_COUNT] = {
     "Bar",  /* Full-screen vertical bars */

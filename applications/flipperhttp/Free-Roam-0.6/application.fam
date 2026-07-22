@@ -5,7 +5,7 @@ App(
     entry_point="free_roam_main",
     stack_size=4 * 1024,
     fap_icon="app.png",
-    fap_category="FlipperHTTP",
+    fap_category="GPIO/FlipperHTTP",
     fap_icon_assets="assets",
     fap_description="3D Open World Multiplayer Game", 
     fap_author="JBlanked",

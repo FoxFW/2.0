@@ -4,12 +4,18 @@
 #include <flipper_application/flipper_application.h>
 #include <assets_icons.h>
 #include <gui/gui.h>
+#include <gui/view.h>
 #include <gui/view_holder.h>
 #include <gui/modules/loading.h>
 #include <dolphin/dolphin.h>
 #include <lib/toolbox/path.h>
 
 #define TAG "LoaderApplications"
+
+/* See loader.c for why this only clears the stale spinner and logs, rather
+ * than killing/retrying a load: the blocking storage read has no safe
+ * cancellation point from another thread. */
+#define LOADER_APPLICATIONS_WATCHDOG_TIMEOUT_MS 5000
 
 struct LoaderApplications {
     FuriThread* thread;
@@ -45,7 +51,65 @@ typedef struct {
     Gui* gui;
     ViewHolder* view_holder;
     Loading* loading;
+
+    FuriTimer* load_watchdog;
+    uint32_t load_watchdog_started_tick;
+    FuriString* load_watchdog_app_name;
+    View* still_loading_view;
 } LoaderApplicationsApp;
+
+// See loader.c for the full rationale: this covers only the window of the
+// blocking loader_start_with_gui_error() call, and cannot cancel it - long-
+// press Back here just hands the screen back to whatever was showing
+// before (typically the file browser dialog will reappear once its own
+// blocking call underneath finally returns); it does not reset the device.
+static void loader_applications_still_loading_draw_callback(Canvas* canvas, void* model) {
+    UNUSED(model);
+    canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str_aligned(canvas, 64, 6, AlignCenter, AlignTop, "App is Still Loading");
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str_aligned(canvas, 64, 24, AlignCenter, AlignTop, "Please Wait OR");
+    canvas_draw_str_aligned(canvas, 64, 38, AlignCenter, AlignTop, "Press and Hold Back");
+    canvas_draw_str_aligned(canvas, 64, 50, AlignCenter, AlignTop, "To Try Again");
+}
+
+static bool
+    loader_applications_still_loading_input_callback(InputEvent* event, void* context) {
+    LoaderApplicationsApp* app = context;
+    if(event->key == InputKeyBack && event->type == InputTypeLong) {
+        // Just walk away - the blocked loader_start_with_gui_error() call
+        // can't be cancelled and keeps running in the background until it
+        // resolves on its own; no device reset.
+        FURI_LOG_W(TAG, "User exited still-loading screen (load continues in background)");
+        view_holder_set_view(app->view_holder, NULL);
+    }
+    return true;
+}
+
+static void loader_applications_watchdog_callback(void* context) {
+    LoaderApplicationsApp* app = context;
+    uint32_t elapsed = furi_get_tick() - app->load_watchdog_started_tick;
+    FURI_LOG_E(
+        TAG,
+        "Loading spinner still visible after %lums for \"%s\" - switching to still-loading "
+        "screen",
+        (unsigned long)elapsed,
+        furi_string_get_cstr(app->load_watchdog_app_name));
+    view_holder_set_view(app->view_holder, app->still_loading_view);
+}
+
+static void loader_applications_watchdog_arm(LoaderApplicationsApp* app, const char* name) {
+    furi_string_set(app->load_watchdog_app_name, name ? name : "?");
+    app->load_watchdog_started_tick = furi_get_tick();
+    furi_timer_start(
+        app->load_watchdog, furi_ms_to_ticks(LOADER_APPLICATIONS_WATCHDOG_TIMEOUT_MS));
+}
+
+static void loader_applications_watchdog_disarm(LoaderApplicationsApp* app) {
+    furi_timer_stop(app->load_watchdog);
+}
 
 static LoaderApplicationsApp* loader_applications_app_alloc(void) {
     LoaderApplicationsApp* app = malloc(sizeof(LoaderApplicationsApp)); //-V799
@@ -60,12 +124,27 @@ static LoaderApplicationsApp* loader_applications_app_alloc(void) {
 
     view_holder_attach_to_gui(app->view_holder, app->gui);
 
+    app->load_watchdog_app_name = furi_string_alloc();
+    app->load_watchdog = furi_timer_alloc(
+        loader_applications_watchdog_callback, FuriTimerTypeOnce, app);
+    app->still_loading_view = view_alloc();
+    view_set_draw_callback(
+        app->still_loading_view, loader_applications_still_loading_draw_callback);
+    view_set_input_callback(
+        app->still_loading_view, loader_applications_still_loading_input_callback);
+    view_set_context(app->still_loading_view, app);
+
     return app;
 } //-V773
 
 static void loader_applications_app_free(LoaderApplicationsApp* app) {
     furi_assert(app);
 
+    furi_timer_free(app->load_watchdog);
+    furi_string_free(app->load_watchdog_app_name);
+
+    view_holder_set_view(app->view_holder, NULL);
+    view_free(app->still_loading_view);
     view_holder_free(app->view_holder);
     loading_free(app->loading);
     furi_record_close(RECORD_GUI);
@@ -126,7 +205,9 @@ static void
     FuriPubSubSubscription* subscription =
         furi_pubsub_subscribe(loader_get_pubsub(app->loader), loader_pubsub_callback, thread_id);
 
+    loader_applications_watchdog_arm(app, name);
     LoaderStatus status = loader_start_with_gui_error(app->loader, name, args);
+    loader_applications_watchdog_disarm(app);
 
     if(status == LoaderStatusOk) {
         furi_thread_flags_wait(APPLICATION_STOP_EVENT, FuriFlagWaitAny, FuriWaitForever);

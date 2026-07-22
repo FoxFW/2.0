@@ -661,7 +661,7 @@ int32_t fox_setup_app(void* p) {
     view_dispatcher_switch_to_view(app->view_dispatcher, ViewIdMain);
     view_dispatcher_run(app->view_dispatcher);
 
-    bool write_flag    = app->model->completed && !wiper_launch;
+    bool write_flag    = !wiper_launch;
     /* Only name changes need an immediate reboot (so namechanger_srv can
      * apply the new name on the next boot).  PIN changes are applied
      * automatically by desktop_srv at startup — no deliberate reboot needed.

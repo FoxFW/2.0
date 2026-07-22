@@ -39,7 +39,6 @@
 
 #define TAG "SubGhzVisualizer"
 
-/* ── tuneable constants ──────────────────────────────────────────────────── */
 
 /** Ring buffer depth.  Must be a power of two. */
 #define VIZ_RAW_BUF_SIZE     1024u
@@ -68,7 +67,6 @@
 /** Redraw timer period: ~33 ms ≈ 30 fps. */
 #define REDRAW_TIMER_MS      33u
 
-/* ── types ───────────────────────────────────────────────────────────────── */
 
 typedef enum {
     VizModeBar = 0,
@@ -119,9 +117,7 @@ struct SubGhzSignalVisualizer {
     bool running;
 };
 
-/* ── helper: RSSI → display level (0-3) ─────────────────────────────────── */
 
-/* ── helper: RSSI → pixel height (0 = bottom, max = top) ────────────────── */
 
 static inline uint8_t rssi_to_pixel_h(float rssi, uint8_t area_h) {
     if(rssi < RSSI_FLOOR) rssi = RSSI_FLOOR;
@@ -130,7 +126,6 @@ static inline uint8_t rssi_to_pixel_h(float rssi, uint8_t area_h) {
     return (uint8_t)(norm * (float)(area_h - 1));
 }
 
-/* ── 1 kHz sample timer callback ────────────────────────────────────────── */
 
 static void viz_sample_timer_callback(void* ctx) {
     SubGhzSignalVisualizer* inst = ctx;
@@ -157,7 +152,6 @@ static void viz_sample_timer_callback(void* ctx) {
     furi_mutex_release(inst->sample_mutex);
 }
 
-/* ── 30 fps redraw timer callback ───────────────────────────────────────── */
 
 static void viz_redraw_timer_callback(void* ctx) {
     SubGhzSignalVisualizer* inst = ctx;
@@ -217,7 +211,6 @@ static void viz_redraw_timer_callback(void* ctx) {
         true /* trigger redraw */);
 }
 
-/* ── draw helpers ─────────────────────────────────────────────────────────── */
 
 /**
  * Draw the live signal display, full 128x64.  Two styles, both reading
@@ -278,7 +271,6 @@ static void draw_signal_area(Canvas* canvas, SubGhzSignalVisualizerModel* mdl) {
     }
 }
 
-/* ── canvas draw callback ────────────────────────────────────────────────── */
 
 static void viz_draw_callback(Canvas* canvas, void* model_ptr) {
     SubGhzSignalVisualizerModel* mdl = model_ptr;
@@ -302,7 +294,6 @@ static void viz_draw_callback(Canvas* canvas, void* model_ptr) {
     canvas_draw_str(canvas, 3, VIZ_OSCOPE_H - 2, thr_label);
 }
 
-/* ── input callback ──────────────────────────────────────────────────────── */
 
 static bool viz_input_callback(InputEvent* event, void* ctx) {
     SubGhzSignalVisualizer* inst = ctx;
@@ -348,7 +339,6 @@ static bool viz_input_callback(InputEvent* event, void* ctx) {
     }
 }
 
-/* ── public API ──────────────────────────────────────────────────────────── */
 
 SubGhzSignalVisualizer* subghz_signal_visualizer_alloc(SubGhzTxRx* txrx) {
     furi_assert(txrx);
