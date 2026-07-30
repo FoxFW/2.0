@@ -46,10 +46,6 @@
     font-family:var(--mono); font-size:12px; text-align:center;
     padding:9px 12px; border-radius:6px;
   }
-  .status-row{
-    width:100%; max-width:560px; display:flex; align-items:center;
-    justify-content:space-between; margin:18px 0 6px; font-family:var(--mono); font-size:12px;
-  }
   .status-pill{
     display:inline-flex; align-items:center; gap:7px;
     padding:5px 11px; border-radius:20px; background:var(--panel-2);
@@ -72,6 +68,36 @@
     display:flex; justify-content:space-between; align-items:center;
   }
   .card h2 .ver{ color:var(--fox); text-transform:none; letter-spacing:0; }
+  .card h2 .status-pill{ text-transform:none; letter-spacing:0; font-size:11px; }
+  .tabs{
+    display:flex; gap:4px; margin:0 0 14px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:3px;
+  }
+  .tab-btn{
+    flex:1; text-align:center; font-family:var(--mono); font-size:11.5px;
+    letter-spacing:.05em; text-transform:uppercase; padding:8px 10px;
+    border-radius:6px; border:none; background:transparent; color:var(--text-dim);
+    cursor:pointer; transition:.15s background, .15s color;
+  }
+  .tab-btn.active{
+    background:linear-gradient(180deg,#2a1b06,#1c1305);
+    border:1px solid var(--fox-dim); color:var(--fox); font-weight:600;
+  }
+  .ready-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:11px; text-transform:none; letter-spacing:0;
+  }
+  .ready-pill .rdot{ width:7px; height:7px; border-radius:50%; }
+  .ready-pill.ready{ color:var(--ok); }
+  .ready-pill.ready .rdot{
+    background:var(--ok); box-shadow:0 0 6px var(--ok);
+    animation:ready-pulse 1.4s ease-in-out infinite;
+  }
+  .ready-pill.notready{ color:var(--err); }
+  .ready-pill.notready .rdot{ background:var(--err); }
+  @keyframes ready-pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+  .tab-btn:hover:not(.active){ color:var(--text); }
+  .fi-addr input:disabled{ opacity:.75; cursor:default; }
   .row{ display:flex; gap:10px; align-items:center; }
   .row + .row{ margin-top:12px; }
   label{ font-size:12px; color:var(--text-dim); min-width:88px; flex-shrink:0; }
@@ -153,7 +179,10 @@
   }
   .footnote a{ color:var(--fox); text-decoration:none; }
   .footnote a:hover{ text-decoration:underline; }
-  @media (prefers-reduced-motion: reduce){ .progress-fill{ transition:none; } }
+  @media (prefers-reduced-motion: reduce){
+    .progress-fill{ transition:none; }
+    .ready-pill.ready .rdot{ animation:none; }
+  }
 </style>
 </head>
 <body>
@@ -166,21 +195,11 @@
 
   <div class="focus-banner">⚠️ Keep this window in focus while flashing!</div>
 
-  <div class="status-row">
-    <span>Target: <strong style="color:var(--text)">ESP32 · .bin</strong></span>
-    <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Not connected</span></span>
-  </div>
-
   <div class="card">
-    <h2>HARDWARE</h2>
+    <h2>HARDWARE <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Not connected</span></span></h2>
     <div class="row">
       <label>Model</label>
       <select id="boardSelect"></select>
-    </div>
-    <div class="row" id="fetchRow" style="display:none;">
-      <label></label>
-      <button class="btn btn-sm" id="fetchBtn">↻ Re-fetch firmware set</button>
-      <span class="fi-source" id="fetchStatus"></span>
     </div>
     <div class="row">
       <label>Baud rate</label>
@@ -198,7 +217,16 @@
   </div>
 
   <div class="card">
-    <h2>Firmware files</h2>
+    <h2>Firmware files <span class="ready-pill" id="readyPill"><span class="rdot"></span><span id="readyText">Not Ready</span></span></h2>
+    <div class="tabs" id="fwTabs">
+      <button class="tab-btn active" type="button" data-mode="fox" id="tabFoxBtn">Fox Firmware</button>
+      <button class="tab-btn" type="button" data-mode="custom" id="tabCustomBtn">Custom Firmware</button>
+    </div>
+    <div class="row" id="fetchRow" style="display:none;">
+      <label></label>
+      <button class="btn btn-sm" id="fetchBtn">↻ Re-fetch firmware set</button>
+      <span class="fi-source" id="fetchStatus"></span>
+    </div>
     <div class="file-table" id="fileTable"></div>
 
     <details>
@@ -206,7 +234,7 @@
       <div class="row">
         <label>Flash mode</label>
         <select id="flashMode">
-          <option value="keep" selected>keep</option>
+          <option value="keep" selected>Keep Original</option>
           <option value="qio">qio</option>
           <option value="dio">dio</option>
           <option value="dout">dout</option>
@@ -215,7 +243,7 @@
       <div class="row">
         <label>Flash freq</label>
         <select id="flashFreq">
-          <option value="keep" selected>keep</option>
+          <option value="keep" selected>Keep Original</option>
           <option value="40m">40m</option>
           <option value="80m">80m</option>
         </select>
@@ -223,7 +251,7 @@
       <div class="row">
         <label>Flash size</label>
         <select id="flashSize">
-          <option value="keep" selected>keep</option>
+          <option value="keep" selected>Keep Original</option>
           <option value="4MB">4MB</option>
           <option value="8MB">8MB</option>
           <option value="16MB">16MB</option>
@@ -267,11 +295,13 @@
 
   /* ============================================================
      BOARD MANIFEST
-     Add a new object here for every new board. `baseUrl` should
-     point at a folder (e.g. a GitHub Pages / Releases URL) that
-     hosts each filename listed below. If baseUrl is left empty,
-     or the fetch fails, the user can still pick each file by hand
-     — nothing here is required for the flasher to work.
+     Add a new object here for every new board.
+
+     Fox Firmware files always load from whatever folder is hosting this
+     page (docs/ in the repo, or https://foxfw.github.io/2.0/ once
+     deployed) via assetUrl() below — nothing here needs a URL filled in,
+     just make sure the named files sit next to this html file (that's
+     what scripts/deploy_esp32_boards.py does after every board export).
 
      address values are hex strings as Arduino/esptool expects them.
      Typical Arduino-IDE ESP32 export (classic ESP32):
@@ -283,12 +313,11 @@
      check the address esptool prints when you flash from Arduino
      and adjust per-board below.
 
-     `chipFamily` (new) is a short canonical label ("ESP32",
-     "ESP32-S3", etc.) matched against whatever esploader.main()
-     detects on Connect (see detectChipFamily() below) - if it
-     doesn't match the currently selected board, Program is blocked
-     so a mismatched binary set can't get written to the wrong chip.
-     Leave it unset on a board entry to skip this check entirely.
+     `chipFamily` is a short canonical label ("ESP32", "ESP32-S3", etc.)
+     matched against whatever esploader.main() detects on Connect (see
+     detectChipFamily() below) - used both to auto-select a board on
+     Connect and to block Program if the wrong board stays selected for
+     the connected chip. Leave it unset on a board entry to skip both.
      ============================================================ */
   // ── Flash-offset quick reference ──────────────────────────────────────────
   // Classic ESP32 and ESP32-S2 place the second-stage bootloader at 0x1000.
@@ -299,15 +328,18 @@
   // boot_app0.bin is identical across all boards (verified by md5) and lives
   // in the same docs/ directory as this file.
   // ──────────────────────────────────────────────────────────────────────────
+
+  // Current Fox ESP32 Firmware release - keep this in sync with
+  // Fox_ESP32_FW/config.h's FOX_FIRMWARE_VERSION whenever you cut a release.
+  const FOX_FIRMWARE_VERSION = "1.1.0";
+
   const BOARD_MANIFEST = [
     // ── Classic ESP32 family (Xtensa LX6, Bluedroid BLE) ──────────────────
     // ESP32 Dev Module / Generic ESP32 board
     {
       id: "fox-esp32-classic",
       name: "ESP32 (Classic / Dev Module)",
-      version: "2.0.0",
       chipFamily: "ESP32",
-      baseUrl: "", // fill in after GitHub Pages deploy
       files: [
         { label: "Bootloader", filename: "firmware-classic.bootloader.bin", address: "0x1000" },
         { label: "Partitions", filename: "firmware-classic.partitions.bin", address: "0x8000" },
@@ -319,9 +351,7 @@
     {
       id: "fox-esp32-wroom",
       name: "ESP32-WROOM",
-      version: "2.0.0",
       chipFamily: "ESP32",
-      baseUrl: "",
       files: [
         { label: "Bootloader", filename: "firmware-classic.bootloader.bin", address: "0x1000" },
         { label: "Partitions", filename: "firmware-classic.partitions.bin", address: "0x8000" },
@@ -333,9 +363,7 @@
     {
       id: "fox-esp32-wrover",
       name: "ESP32-WROVER",
-      version: "2.0.0",
       chipFamily: "ESP32",
-      baseUrl: "",
       files: [
         { label: "Bootloader", filename: "firmware-classic.bootloader.bin", address: "0x1000" },
         { label: "Partitions", filename: "firmware-classic.partitions.bin", address: "0x8000" },
@@ -347,9 +375,7 @@
     {
       id: "fox-esp32-cam",
       name: "ESP32-CAM",
-      version: "2.0.0",
       chipFamily: "ESP32",
-      baseUrl: "",
       files: [
         { label: "Bootloader", filename: "firmware-classic.bootloader.bin", address: "0x1000" },
         { label: "Partitions", filename: "firmware-classic.partitions.bin", address: "0x8000" },
@@ -361,9 +387,7 @@
     {
       id: "fox-esp32-s2",
       name: "ESP32-S2",
-      version: "2.0.0",
       chipFamily: "ESP32-S2",
-      baseUrl: "",
       files: [
         { label: "Bootloader", filename: "firmware-s2.bootloader.bin", address: "0x1000" },
         { label: "Partitions", filename: "firmware-s2.partitions.bin", address: "0x8000" },
@@ -376,9 +400,7 @@
     {
       id: "fox-esp32-s3",
       name: "ESP32-S3",
-      version: "2.0.0",
       chipFamily: "ESP32-S3",
-      baseUrl: "",
       files: [
         { label: "Bootloader", filename: "firmware-s3.bootloader.bin", address: "0x0" },
         { label: "Partitions", filename: "firmware-s3.partitions.bin", address: "0x8000" },
@@ -390,9 +412,7 @@
     {
       id: "fox-esp32-c3",
       name: "ESP32-C3",
-      version: "2.0.0",
       chipFamily: "ESP32-C3",
-      baseUrl: "",
       files: [
         { label: "Bootloader", filename: "firmware-c3.bootloader.bin", address: "0x0" },
         { label: "Partitions", filename: "firmware-c3.partitions.bin", address: "0x8000" },
@@ -404,9 +424,7 @@
     {
       id: "fox-esp32-c5",
       name: "ESP32-C5",
-      version: "2.0.0",
       chipFamily: "ESP32-C5",
-      baseUrl: "",
       files: [
         { label: "Bootloader", filename: "firmware-c5.bootloader.bin", address: "0x0" },
         { label: "Partitions", filename: "firmware-c5.partitions.bin", address: "0x8000" },
@@ -418,9 +436,7 @@
     {
       id: "fox-esp32-c6",
       name: "ESP32-C6",
-      version: "2.0.0",
       chipFamily: "ESP32-C6",
-      baseUrl: "",
       files: [
         { label: "Bootloader", filename: "firmware-c6.bootloader.bin", address: "0x0" },
         { label: "Partitions", filename: "firmware-c6.partitions.bin", address: "0x8000" },
@@ -429,6 +445,38 @@
       ],
     },
   ];
+
+  // esptool-js's main() returns a free-text chip description straight from
+  // esptool's own detection table, not a clean enum - these are strings
+  // actually seen in the wild (not exhaustive, but covers the vast majority
+  // of boards). "D0WD" = dual-core, "S0WD" = single-core, "-V3" means chip
+  // revision 3 silicon (current production for most modules); "PICO-D4" /
+  // "U4WDH" are SiP variants with flash bonded inside the chip package
+  // itself (e.g. ESP32-PICO-KIT). All classic-family variants below run
+  // identical FoxFW firmware and flash addresses, so auto-select just lands
+  // on "ESP32 (Classic / Dev Module)" as the representative entry - switch
+  // it by hand if you know your exact module and it matters to you.
+  //   ESP32-D0WD (revision 1)        -> ESP32 (Classic / Dev Module)
+  //   ESP32-D0WDQ6 (revision 1)      -> ESP32 (Classic / Dev Module)
+  //   ESP32-D0WD-V3 (revision 3)     -> ESP32 (Classic / Dev Module)
+  //   ESP32-D0WDQ6-V3 (revision 3)   -> ESP32 (Classic / Dev Module)
+  //   ESP32-S0WD (revision 1)        -> ESP32 (Classic / Dev Module)
+  //   ESP32-PICO-D4 (revision 1)     -> ESP32 (Classic / Dev Module)
+  //   ESP32-U4WDH (revision 1)       -> ESP32 (Classic / Dev Module)
+  //   ESP32-S2 (revision x)          -> ESP32-S2
+  //   ESP32-S3 (QFN56) (revision x)  -> ESP32-S3
+  //   ESP32-C3 (QFN32) (revision x)  -> ESP32-C3
+  //   ESP32-C6 (QFN40) (revision x)  -> ESP32-C6
+  //   ESP32-C5 (revision x)          -> ESP32-C5
+  function assetUrl(filename) {
+    // Resolve relative to wherever this page itself was loaded from, so the
+    // exact same code works from docs/ locally and from GitHub Pages.
+    return new URL(filename, document.baseURI).toString();
+  }
+
+  function firstBoardIndexForFamily(family) {
+    return BOARD_MANIFEST.findIndex((b) => b.chipFamily === family);
+  }
 
   const $ = (id) => document.getElementById(id);
   const statusPill = $("statusPill");
@@ -447,12 +495,17 @@
   const fetchBtn = $("fetchBtn");
   const fetchStatus = $("fetchStatus");
   const fileTable = $("fileTable");
+  const tabFoxBtn = $("tabFoxBtn");
+  const tabCustomBtn = $("tabCustomBtn");
+  const readyPill = $("readyPill");
+  const readyText = $("readyText");
 
   let transport = null;
   let esploader = null;
   let slots = [];
   let lastDetectedChip = null; // raw string from esploader.main()
   let chipMismatch = false;
+  let firmwareMode = "fox"; // "fox" | "custom"
 
   /* esptool-js's main() returns a descriptive chip string (real
      examples look like "ESP32-D0WDQ6 (revision 1)" or "ESP32-S3
@@ -543,18 +596,20 @@
 
   function renderFileTable() {
     fileTable.innerHTML = "";
+    const locked = firmwareMode === "fox";
     slots.forEach((slot, idx) => {
       const item = document.createElement("div");
       item.className = "file-item";
       item.innerHTML = `
         <div class="fi-top">
           <span class="fi-label">${slot.label}</span>
-          <span class="fi-addr">addr <input type="text" data-idx="${idx}" class="addr-input" value="${slot.address}" spellcheck="false"></span>
+          <span class="fi-addr">addr <input type="text" data-idx="${idx}" class="addr-input" value="${slot.address}" spellcheck="false" ${locked ? "disabled" : ""}></span>
           <span class="fi-state" data-state="${idx}">not loaded</span>
         </div>
+        ${locked ? "" : `
         <div class="fi-bottom">
           <input type="file" accept=".bin" data-idx="${idx}" class="manual-input">
-        </div>
+        </div>`}
       `;
       fileTable.appendChild(item);
     });
@@ -587,7 +642,7 @@
       });
     });
 
-    slots.forEach((s, idx) => setSlotState(idx, s.data ? "ok" : "pending", s.data ? s.source : "not loaded"));
+    slots.forEach((s, idx) => setSlotState(idx, s.data ? "ok" : "pending", s.data ? s.source : (locked ? "loading…" : "not loaded")));
   }
 
   function setSlotState(idx, cls, text) {
@@ -603,12 +658,11 @@
     renderFileTable();
     updateProgramState();
 
-    if (board.baseUrl) {
+    if (firmwareMode === "fox") {
       fetchRow.style.display = "flex";
       await fetchBoardFiles(board);
     } else {
       fetchRow.style.display = "none";
-      log(`"${board.name}" has no hosted firmware URL configured yet — choose files manually below.`, "w");
     }
   }
 
@@ -618,7 +672,7 @@
     let okCount = 0;
     for (let i = 0; i < board.files.length; i++) {
       const f = board.files[i];
-      const url = board.baseUrl.replace(/\/$/, "") + "/" + f.filename;
+      const url = assetUrl(f.filename);
       setSlotState(i, "pending", "fetching…");
       try {
         const res = await fetch(url);
@@ -626,15 +680,15 @@
         const buf = await res.arrayBuffer();
         slots[i].data = arrayBufferToBinaryString(buf);
         slots[i].source = "fetched";
-        setSlotState(i, "ok", "fetched (" + (buf.byteLength / 1024).toFixed(1) + " KB)");
+        setSlotState(i, "ok", "v" + FOX_FIRMWARE_VERSION + " · " + (buf.byteLength / 1024).toFixed(1) + " KB");
         okCount++;
         log(`Fetched ${f.filename} for "${board.name}".`);
       } catch (err) {
-        setSlotState(i, "err", "fetch failed — choose manually");
-        log(`Could not fetch ${f.filename}: ${err.message || err}. You can pick it manually below.`, "e");
+        setSlotState(i, "err", "fetch failed — Re-fetch, or use Custom Firmware");
+        log(`Could not fetch ${f.filename}: ${err.message || err}. Click "Re-fetch firmware set" to retry, or switch to the Custom Firmware tab to load it by hand.`, "e");
       }
     }
-    fetchStatus.textContent = okCount === board.files.length ? "all files fetched" : `${okCount}/${board.files.length} fetched`;
+    fetchStatus.textContent = okCount === board.files.length ? "all files loaded — v" + FOX_FIRMWARE_VERSION : `${okCount}/${board.files.length} loaded`;
     fetchBtn.disabled = false;
     updateProgramState();
   }
@@ -645,9 +699,34 @@
   });
   fetchBtn.addEventListener("click", () => loadBoard(parseInt(boardSelect.value, 10)));
 
+  function setActiveTab(mode) {
+    firmwareMode = mode;
+    tabFoxBtn.classList.toggle("active", mode === "fox");
+    tabCustomBtn.classList.toggle("active", mode === "custom");
+  }
+
+  tabFoxBtn.addEventListener("click", async () => {
+    if (firmwareMode === "fox") return;
+    setActiveTab("fox");
+    log("Fox Firmware selected — loading official release files.");
+    await loadBoard(parseInt(boardSelect.value, 10));
+    checkChipMismatch();
+  });
+  tabCustomBtn.addEventListener("click", async () => {
+    if (firmwareMode === "custom") return;
+    setActiveTab("custom");
+    log("Custom Firmware selected — choose your own .bin files below.", "w");
+    await loadBoard(parseInt(boardSelect.value, 10));
+    checkChipMismatch();
+  });
+
   function updateProgramState() {
-    const ready = esploader && !chipMismatch && slots.length > 0 && slots.every((s) => s.data);
+    const filesReady = slots.length > 0 && slots.every((s) => s.data);
+    const ready = esploader && !chipMismatch && filesReady;
     programBtn.disabled = !ready;
+
+    readyPill.className = "ready-pill " + (filesReady ? "ready" : "notready");
+    readyText.textContent = filesReady ? "Ready" : "Not Ready";
   }
 
   connectBtn.addEventListener("click", async () => {
@@ -661,6 +740,19 @@
       const chip = await esploader.main();
       log(`Connected. Detected chip: ${chip}`);
       lastDetectedChip = chip;
+
+      // Auto-select the matching board in the dropdown, if the currently
+      // selected one doesn't already agree with what's actually plugged in.
+      const detectedFamily = detectChipFamily(chip);
+      const currentBoard = BOARD_MANIFEST[parseInt(boardSelect.value, 10)];
+      if (detectedFamily && currentBoard.chipFamily !== detectedFamily) {
+        const guessIndex = firstBoardIndexForFamily(detectedFamily);
+        if (guessIndex >= 0) {
+          boardSelect.value = guessIndex;
+          log(`Auto-selected board "${BOARD_MANIFEST[guessIndex].name}" based on detected chip (${detectedFamily}).`);
+          await loadBoard(guessIndex);
+        }
+      }
 
       connectBtn.disabled = true;
       disconnectBtn.disabled = false;
@@ -777,6 +869,8 @@
     }
   });
 
+  tabFoxBtn.textContent = "Fox ESP32 Firmware v" + FOX_FIRMWARE_VERSION;
+  setActiveTab("fox");
   log("Ready. Select a board, connect your ESP32, and load firmware files.");
   loadBoard(0);
 </script>
