@@ -69,6 +69,13 @@
   }
   .card h2 .ver{ color:var(--fox); text-transform:none; letter-spacing:0; }
   .card h2 .status-pill{ text-transform:none; letter-spacing:0; font-size:11px; }
+  #fwHeading{ display:grid; grid-template-columns: 1fr auto 1fr; gap:8px; align-items:center; }
+  /* Pinned to explicit columns (not just source order) so hiding
+     #fetchBtn on the Custom tab doesn't let auto-placement pull
+     .ready-pill into the middle column. */
+  #fwHeading .fw-title{ grid-column:1; justify-self:start; }
+  #fwHeading #fetchBtn{ grid-column:2; justify-self:center; }
+  #fwHeading .ready-pill{ grid-column:3; justify-self:end; }
   .tabs{
     display:flex; gap:4px; margin:0 0 14px;
     background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:3px;
@@ -122,7 +129,7 @@
   .btn-primary:hover:not(:disabled){ background:#ffab3d; color:#1a0f00; }
   .btn-danger{ border-color:#4a1f21; color:var(--err); }
   .btn-danger:hover:not(:disabled){ border-color:var(--err); }
-  .btn-sm{ padding:6px 10px; font-size:11px; }
+  .btn-sm{ padding:4px 9px; font-size:10.5px; }
   .btn-block{ width:100%; }
   .btn-row{ display:flex; gap:10px; margin-top:14px; }
   details{ margin-top:14px; }
@@ -136,10 +143,19 @@
     border:1px solid var(--line); border-radius:8px; padding:10px 12px;
     margin-top:8px; background:var(--panel-2);
   }
-  .file-item .fi-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
-  .fi-label{ font-family:var(--mono); font-size:12px; color:var(--text); }
-  .fi-addr{ font-family:var(--mono); font-size:11px; color:var(--text-dim); }
-  .fi-addr input{ width:80px; padding:4px 6px; font-size:11px; }
+  .file-item .fi-top{
+    display:grid; grid-template-columns: 88px 120px 1fr 78px;
+    align-items:center; gap:8px;
+  }
+  .fi-label{
+    font-family:var(--mono); font-size:12px; color:var(--text);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .fi-addr{
+    font-family:var(--mono); font-size:11px; color:var(--text-dim);
+    display:flex; align-items:center; gap:6px;
+  }
+  .fi-addr input{ width:74px; padding:4px 6px; font-size:11px; }
   .fi-state{
     font-family:var(--mono); font-size:10.5px; padding:2px 7px; border-radius:10px;
     background:var(--panel); color:var(--text-dim); border:1px solid var(--line);
@@ -147,9 +163,17 @@
   .fi-state.ok{ color:var(--ok); border-color:#1f4a30; }
   .fi-state.err{ color:var(--err); border-color:#4a1f21; }
   .fi-state.pending{ color:var(--warn); border-color:#4a3a10; }
-  .fi-state-wrap{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
-  .fi-file-link{ text-decoration:none; cursor:pointer; }
+  /* fi-state-wrap's children become direct grid items of fi-top (columns
+     3 and 4) so the filename and size line up in their own columns across
+     every row, rather than being sized by their own content. */
+  .fi-state-wrap{ display:contents; }
+  .fi-state-solo{ grid-column:span 2; justify-self:center; }
+  .fi-file-link{
+    justify-self:center; max-width:100%; text-decoration:none; cursor:pointer;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
   .fi-file-link:hover{ text-decoration:underline; }
+  .fi-size{ justify-self:end; }
   .fi-bottom{ margin-top:8px; display:flex; align-items:center; gap:8px; }
   .fi-bottom input[type=file]{
     font-family:var(--sans); font-size:11px; color:var(--text-dim);
@@ -222,13 +246,14 @@
   </div>
 
   <div class="card">
-    <h2>Firmware files <span class="ready-pill" id="readyPill"><span class="rdot"></span><span id="readyText">Not Ready</span></span></h2>
+    <h2 id="fwHeading">
+      <span class="fw-title">Firmware files</span>
+      <button class="btn btn-sm" id="fetchBtn" type="button" style="visibility:hidden;">↻ Re-fetch</button>
+      <span class="ready-pill" id="readyPill"><span class="rdot"></span><span id="readyText">Not Ready</span></span>
+    </h2>
     <div class="tabs" id="fwTabs">
       <button class="tab-btn active" type="button" data-mode="fox" id="tabFoxBtn">Fox Firmware</button>
-      <button class="tab-btn" type="button" data-mode="custom" id="tabCustomBtn">Custom Firmware</button>
-    </div>
-    <div class="row" id="fetchRow" style="display:none; justify-content:center;">
-      <button class="btn btn-sm" id="fetchBtn">↻ Re-fetch firmware set</button>
+      <button class="tab-btn" type="button" data-mode="custom" id="tabCustomBtn">Select Custom Firmware Files</button>
     </div>
     <div class="file-table" id="fileTable"></div>
 
@@ -494,7 +519,6 @@
   const progressPct = $("progressPct");
   const progressStage = $("progressStage");
   const boardSelect = $("boardSelect");
-  const fetchRow = $("fetchRow");
   const fetchBtn = $("fetchBtn");
   const fileTable = $("fileTable");
   const tabFoxBtn = $("tabFoxBtn");
@@ -669,13 +693,13 @@
 
     if (s.data && s.source === "fetched" && s.downloadUrl) {
       wrap.innerHTML = `
-        <a class="fi-state ok fi-file-link" href="${s.downloadUrl}" download="${s.filename}" target="_blank" rel="noopener">${s.filename}</a>
-        <span class="fi-state ok">${(s.sizeBytes / 1024).toFixed(1)} KB</span>
+        <a class="fi-state ok fi-file-link" href="${s.downloadUrl}" download="${s.filename}" target="_blank" rel="noopener" title="${s.filename}">${s.filename}</a>
+        <span class="fi-state ok fi-size">${(s.sizeBytes / 1024).toFixed(1)} KB</span>
       `;
     } else if (s.data && s.source === "manual") {
-      wrap.innerHTML = `<span class="fi-state ok">manual: ${s.manualName || s.filename}</span>`;
+      wrap.innerHTML = `<span class="fi-state ok fi-state-solo">manual: ${s.manualName || s.filename}</span>`;
     } else {
-      wrap.innerHTML = `<span class="fi-state${s.stateCls ? " " + s.stateCls : ""}">${s.stateText || "not loaded"}</span>`;
+      wrap.innerHTML = `<span class="fi-state fi-state-solo${s.stateCls ? " " + s.stateCls : ""}">${s.stateText || "not loaded"}</span>`;
     }
   }
 
@@ -686,10 +710,14 @@
     updateProgramState();
 
     if (firmwareMode === "fox") {
-      fetchRow.style.display = "flex";
+      // visibility (not display) so the button keeps reserving its cell's
+      // height/width - toggling display:none shrank the whole #fwHeading
+      // row by a few px whenever the Custom tab hid the button, making the
+      // tabs/file list jump slightly on every tab switch.
+      fetchBtn.style.visibility = "visible";
       await fetchBoardFiles(board);
     } else {
-      fetchRow.style.display = "none";
+      fetchBtn.style.visibility = "hidden";
     }
   }
 
