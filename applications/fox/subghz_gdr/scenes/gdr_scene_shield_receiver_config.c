@@ -1,4 +1,3 @@
-// scenes/gdr_scene_shield_receiver_config.c
 #include "../gdr_app_i.h"
 
 #ifdef ENABLE_SHIELD_RX_SCENE
@@ -169,4 +168,4 @@ void gdr_scene_shield_receiver_config_on_exit(void* context) {
     variable_item_list_reset(app->variable_item_list);
 }
 
-#endif // ENABLE_SHIELD_RX_SCENE
+#endif

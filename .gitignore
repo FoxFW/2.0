@@ -91,3 +91,5 @@ lib/subghz/protocols/honda_rolling.h
 lib/subghz/protocols/honda_pandora.c
 lib/subghz/protocols/honda_pandora.h
 applications/system/picopass-main/videos/NR-MAC.mkv
+scripts/deploy_esp32_boards.py
+scripts/deploy_flipper_docs.py

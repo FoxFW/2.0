@@ -1,14 +1,12 @@
-// scenes/gdr_scene_receiver.c
 #include "../gdr_app_i.h"
 #include "../helpers/gdr_storage.h"
 #include "views/gdr_receiver.h"
 #include <notification/notification_messages.h>
 #include <stdio.h>
-#include "gdr_icons.h"
+#include "garage_door_remote_icons.h"
 
 #define TAG "GDRSceneRx"
 
-// Forward declaration
 void gdr_scene_receiver_view_callback(GDRCustomEvent event, void* context);
 static void gdr_scene_receiver_start_rx_stack(GDRApp* app);
 

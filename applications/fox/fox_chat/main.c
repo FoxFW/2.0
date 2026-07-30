@@ -30,7 +30,15 @@ static const uint32_t baud_options[] = {115200};
 #define BAUD_OPTION_DEFAULT_INDEX 0
 
 #define FOX_TERMINAL_LOG_MAX_CHARS 4000
-#define FOX_COMMANDER_EVENT_SPLASH_DONE 0
+#define FOX_COMMANDER_EVENT_SPLASH_DONE   0
+#define FOX_CHAT_EVENT_SERIAL_BUSY_TICK   1
+#define FOX_CHAT_EVENT_SERIAL_DO_RETRY    2
+
+typedef enum {
+    ProbeResultOk,
+    ProbeResultSerialBusy,
+    ProbeResultNotFound,
+} ProbeResult;
 
 void app_log(App* app, const char* fmt, ...) {
     char buffer[128];
@@ -273,9 +281,9 @@ static bool terminal_input_cb(InputEvent* event, void* context) {
     }
 }
 
-static bool app_probe_uart(App* app, size_t pin_index, size_t baud_index) {
+static ProbeResult app_probe_uart(App* app, size_t pin_index, size_t baud_index) {
     app->esp_at = esp_at_alloc(pin_options[pin_index].serial_id, baud_options[baud_index]);
-    if(app->esp_at == NULL) return false;
+    if(app->esp_at == NULL) return ProbeResultSerialBusy;
 
     esp_at_send(app->esp_at, "info");
     bool ok = app_expect_line(app, "Fox ESP32 Firmware", 1500);
@@ -283,12 +291,12 @@ static bool app_probe_uart(App* app, size_t pin_index, size_t baud_index) {
     if(!ok) {
         esp_at_free(app->esp_at);
         app->esp_at = NULL;
-        return false;
+        return ProbeResultNotFound;
     }
 
     app->pin_option_index = pin_index;
     app->baud_option_index = baud_index;
-    return true;
+    return ProbeResultOk;
 }
 
 static void action_check_wifi(App* app) {
@@ -307,8 +315,10 @@ static void action_check_wifi(App* app) {
 static void action_check_esp32(App* app) {
     message_view_show_detecting(app);
 
+    bool any_busy = false;
     for(size_t i = 0; i < PIN_OPTION_COUNT; i++) {
-        if(app_probe_uart(app, i, BAUD_OPTION_DEFAULT_INDEX)) {
+        ProbeResult r = app_probe_uart(app, i, BAUD_OPTION_DEFAULT_INDEX);
+        if(r == ProbeResultOk) {
             app->esp32_detected = true;
             app_log(app, "Fox ESP32 Firmware detected");
             app_log(
@@ -316,12 +326,19 @@ static void action_check_esp32(App* app) {
                 "on %s @ %lu",
                 pin_options[i].label,
                 (unsigned long)baud_options[BAUD_OPTION_DEFAULT_INDEX]);
-            action_check_wifi(app); /* check WiFi before showing menu */
+            action_check_wifi(app);
             return;
         }
+        if(r == ProbeResultSerialBusy) any_busy = true;
     }
 
-    message_view_show_not_detected(app);
+    if(any_busy) {
+        app->serial_busy_countdown = 3;
+        message_view_show_serial_busy(app);
+        furi_timer_start(app->serial_busy_timer, 1000);
+    } else {
+        message_view_show_not_detected(app);
+    }
 }
 
 void app_retry_detection(App* app) {
@@ -355,7 +372,8 @@ uint32_t app_baud_option_value(size_t index) {
 bool app_probe_uart_selected(App* app) {
     message_view_show_detecting(app);
 
-    if(app_probe_uart(app, app->pin_option_index, app->baud_option_index)) {
+    ProbeResult r = app_probe_uart(app, app->pin_option_index, app->baud_option_index);
+    if(r == ProbeResultOk) {
         app->esp32_detected = true;
         app_log(app, "Fox ESP32 Firmware detected");
         app_log(
@@ -363,8 +381,15 @@ bool app_probe_uart_selected(App* app) {
             "on %s @ %lu",
             pin_options[app->pin_option_index].label,
             (unsigned long)baud_options[app->baud_option_index]);
-        action_check_wifi(app); /* check WiFi before showing menu */
+        action_check_wifi(app);
         return true;
+    }
+
+    if(r == ProbeResultSerialBusy) {
+        app->serial_busy_countdown = 3;
+        message_view_show_serial_busy(app);
+        furi_timer_start(app->serial_busy_timer, 1000);
+        return false;
     }
 
     message_view_show_not_detected(app);
@@ -376,10 +401,56 @@ static void fox_splash_done_cb(void* context) {
     view_dispatcher_send_custom_event(app->view_dispatcher, FOX_COMMANDER_EVENT_SPLASH_DONE);
 }
 
+static void serial_busy_timer_cb(void* context) {
+    App* app = context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, FOX_CHAT_EVENT_SERIAL_BUSY_TICK);
+}
+
+static void serial_retry_timer_cb(void* context) {
+    App* app = context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, FOX_CHAT_EVENT_SERIAL_DO_RETRY);
+}
+
 static bool custom_event_callback(void* context, uint32_t event) {
     App* app = context;
     if(event == FOX_COMMANDER_EVENT_SPLASH_DONE) {
         action_check_esp32(app);
+        return true;
+    }
+    if(event == FOX_CHAT_EVENT_SERIAL_BUSY_TICK) {
+        if(app->serial_busy_countdown > 0) {
+            app->serial_busy_countdown--;
+            if(app->serial_busy_countdown == 0) {
+                furi_timer_stop(app->serial_busy_timer);
+                app->message_view_serial_retrying = true;
+            }
+            with_view_model(app->message_view, uint8_t * _m, { UNUSED(_m); }, true);
+            if(app->serial_busy_countdown == 0) {
+                furi_timer_start(app->serial_retry_timer, 500);
+            }
+        }
+        return true;
+    }
+    if(event == FOX_CHAT_EVENT_SERIAL_DO_RETRY) {
+        bool found = false;
+        for(size_t i = 0; i < PIN_OPTION_COUNT; i++) {
+            ProbeResult r = app_probe_uart(app, i, BAUD_OPTION_DEFAULT_INDEX);
+            if(r == ProbeResultOk) {
+                app->esp32_detected = true;
+                app->message_view_serial_busy     = false;
+                app->message_view_serial_retrying = false;
+                app_log(app, "Fox ESP32 Firmware detected");
+                app_log(
+                    app,
+                    "on %s @ %lu",
+                    pin_options[i].label,
+                    (unsigned long)baud_options[BAUD_OPTION_DEFAULT_INDEX]);
+                action_check_wifi(app);
+                found = true;
+                break;
+            }
+        }
+        if(!found) message_view_show_serial_retry_failed(app);
         return true;
     }
     return false;
@@ -416,7 +487,7 @@ static bool navigation_callback(void* context) {
     return true;
 }
 
-static App* app_alloc(void) {
+static App* app_alloc(bool skip_splash) {
     App* app = malloc(sizeof(App));
     memset(app, 0, sizeof(App));
 
@@ -471,14 +542,26 @@ static App* app_alloc(void) {
 
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    app->current_view = FoxCommanderViewSplash;
-    view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewSplash);
-    fox_splash_start(app->splash);
+    app->serial_busy_timer  = furi_timer_alloc(serial_busy_timer_cb,  FuriTimerTypePeriodic, app);
+    app->serial_retry_timer = furi_timer_alloc(serial_retry_timer_cb, FuriTimerTypeOnce,     app);
+
+    if(skip_splash) {
+        action_check_esp32(app);
+    } else {
+        app->current_view = FoxCommanderViewSplash;
+        view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewSplash);
+        fox_splash_start(app->splash);
+    }
 
     return app;
 }
 
 static void app_free(App* app) {
+    furi_timer_stop(app->serial_busy_timer);
+    furi_timer_free(app->serial_busy_timer);
+    furi_timer_stop(app->serial_retry_timer);
+    furi_timer_free(app->serial_retry_timer);
+
     if(app->esp_at != NULL) esp_at_free(app->esp_at);
 
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewSplash);
@@ -507,8 +590,8 @@ static void app_free(App* app) {
 }
 
 int32_t fox_chat_main(void* p) {
-    UNUSED(p);
-    App* app = app_alloc();
+    bool skip_splash = (p != NULL && strcmp((const char*)p, "SKIPSPLASH") == 0);
+    App* app = app_alloc(skip_splash);
     view_dispatcher_run(app->view_dispatcher);
 
     bool launch_commander = app->launch_commander;

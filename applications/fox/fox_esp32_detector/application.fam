@@ -12,5 +12,6 @@ App(
     fap_category="Fox",
     fap_version="0.1",
     fap_icon="icon.png",
+    fap_icon_assets="images",
     fap_description="Scans every pin/baud combination on the GPIO header for an ESP-AT-compatible module",
 )

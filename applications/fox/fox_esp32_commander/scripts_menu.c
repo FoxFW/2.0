@@ -28,7 +28,6 @@ void scripts_render_menu(App* app) {
         char name[FOX_SCRIPT_NAME_MAX] = {0};
         uint32_t bytes = 0;
         if(sscanf(msg.line + 7, "%39[^ ] bytes:%lu", name, &bytes) >= 1) {
-            /* Strip .js suffix — sanitizeName() adds it back on the firmware side. */
             size_t len = strlen(name);
             if(len > 3 && strcmp(name + len - 3, ".js") == 0) name[len - 3] = '\0';
 
@@ -93,12 +92,38 @@ static void action_show(App* app, const char* name) {
 
     app_log(app, "Fetching %s...", name);
     app_render_log(app);
+
     EspAtMsg msg;
-    if(esp_at_receive(app->esp_at, &msg, 3000)) {
-        app_log(app, "%s", msg.line);
-    } else {
+    if(!esp_at_receive(app->esp_at, &msg, 3000)) {
         app_log(app, "No response.");
+        app_render_log(app);
+        return;
     }
+
+    if(strncmp(msg.line, "ERROR", 5) == 0) {
+        app_log(app, "%s", msg.line);
+        app_render_log(app);
+        return;
+    }
+
+    FuriString* full = furi_string_alloc();
+    bool done = false;
+    for(size_t guard = 0; !done && guard < 200; guard++) {
+        if(strcmp(msg.line, "SCRIPTSHOWDONE") == 0) {
+            done = true;
+            break;
+        }
+        furi_string_cat(full, msg.line);
+
+        if(!esp_at_receive(app->esp_at, &msg, 3000)) break;
+    }
+
+    if(furi_string_size(full) > 0) {
+        app_log_raw(app, furi_string_get_cstr(full));
+    } else {
+        app_log(app, "(empty script)");
+    }
+    furi_string_free(full);
     app_render_log(app);
 }
 
@@ -116,7 +141,6 @@ static void action_delete(App* app, const char* name) {
         app_log(app, "No response.");
     }
 
-    /* Return to Scripts menu — ScriptActions entry may no longer exist after delete. */
     app->menu_return_context = MenuContextScripts;
     app_render_log(app);
 }

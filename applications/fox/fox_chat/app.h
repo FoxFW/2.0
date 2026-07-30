@@ -37,7 +37,7 @@ typedef enum {
 #define FOX_CHAT_MESSAGE_TEXT_MAX 110
 
 typedef struct {
-    char time[6];
+    char time[16];
     char text[FOX_CHAT_MESSAGE_TEXT_MAX + 1];
 } ChatMessage;
 
@@ -59,6 +59,13 @@ typedef struct {
 
     bool message_view_detecting;
     bool message_view_wifi_not_connected;
+    bool message_view_not_detected_focus_left;
+    bool     message_view_serial_busy;
+    bool     message_view_serial_retrying;
+    bool     message_view_serial_retry_failed;
+    uint8_t  serial_busy_countdown;
+    FuriTimer* serial_busy_timer;
+    FuriTimer* serial_retry_timer;
     View* message_view;
 
     MenuContext menu_context;
@@ -103,4 +110,3 @@ bool app_probe_uart_selected(App* app);
 void app_retry_detection(App* app);
 void app_launch_commander(App* app);
 void app_show_text_input_restore(App* app, const char* header, TextInputPurpose purpose);
-

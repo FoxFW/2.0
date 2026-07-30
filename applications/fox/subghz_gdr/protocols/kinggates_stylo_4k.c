@@ -77,20 +77,10 @@ const SubGhzProtocol subghz_protocol_kinggates_stylo_4k = {
     .encoder = &subghz_protocol_kinggates_stylo_4k_encoder,
 };
 
-//
-// Encoder
-//
-
-// Pre define function
 static void subghz_protocol_kinggates_stylo_4k_remote_controller(
     SubGhzBlockGeneric* instance,
     SubGhzKeystore* keystore);
 
-/**
- * Defines the button value for the current btn_id
- * Basic set | 0xE | 0xD | 0xB | 0x7 |
- * @return Button code
- */
 static uint8_t subghz_protocol_kinggates_stylo_4k_get_btn_code(void);
 
 void* subghz_protocol_encoder_kinggates_stylo_4k_alloc(SubGhzEnvironment* environment) {
@@ -139,30 +129,19 @@ LevelDuration subghz_protocol_encoder_kinggates_stylo_4k_yield(void* context) {
     return ret;
 }
 
-/** 
- * Key generation from simple data
- * @param instance Pointer to a SubGhzProtocolEncoderKingGates_stylo_4k* instance
- * @param btn Button number, 4 bit
- */
 static bool subghz_protocol_kinggates_stylo_4k_gen_data(
     SubGhzProtocolEncoderKingGates_stylo_4k* instance,
     uint8_t btn) {
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
-        // subghz_custom_btn_set_original(btn);
     }
 
     btn = subghz_protocol_kinggates_stylo_4k_get_btn_code();
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&btn))
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", btn);
 
-    // Check for OFEX (overflow experimental) mode
     if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
-        // standart counter mode. PULL data from subghz_block_generic_global variables
         if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
-            // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
             if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
                 instance->generic.cnt = 0;
             } else {
@@ -179,7 +158,6 @@ static bool subghz_protocol_kinggates_stylo_4k_gen_data(
         }
     }
 
-    // hop is encrypted part
     uint32_t hop = (uint64_t)btn << 28 | (((uint32_t)0x0C) << 24) |
                    ((instance->generic.serial & 0xFF) << 16) | (instance->generic.cnt & 0xFFFF);
 
@@ -192,7 +170,6 @@ static bool subghz_protocol_kinggates_stylo_4k_gen_data(
     for
         M_EACH(manufacture_code, *subghz_keystore_get_data(instance->keystore), SubGhzKeyArray_t) {
             if(manufacture_code->type == KEELOQ_LEARNING_SIMPLE_KINGGATES) {
-                // Simple Learning
                 encrypt = subghz_protocol_keeloq_common_encrypt(hop, manufacture_code->key);
                 encrypt = subghz_protocol_blocks_reverse_key(encrypt, 32);
                 instance->generic.data_2 = encrypt << 4;
@@ -225,7 +202,6 @@ bool subghz_protocol_kinggates_stylo_4k_create_data(
     for
         M_EACH(manufacture_code, *subghz_keystore_get_data(instance->keystore), SubGhzKeyArray_t) {
             if(manufacture_code->type == KEELOQ_LEARNING_SIMPLE_KINGGATES) {
-                // Simple Learning
                 encrypt = subghz_protocol_keeloq_common_encrypt(decrypt, manufacture_code->key);
                 encrypt = subghz_protocol_blocks_reverse_key(encrypt, 32);
                 instance->generic.data_2 = encrypt << 4;
@@ -260,27 +236,19 @@ bool subghz_protocol_kinggates_stylo_4k_create_data(
     return res == SubGhzProtocolStatusOk;
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderKingGates_stylo_4k instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_kinggates_stylo_4k_get_upload(
     SubGhzProtocolEncoderKingGates_stylo_4k* instance,
     uint8_t btn) {
     furi_assert(instance);
 
-    // Gen new key
     if(!subghz_protocol_kinggates_stylo_4k_gen_data(instance, btn)) {
         return false;
     }
 
     size_t index = 0;
 
-    // Start
     instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)9500);
 
-    // Send header
     for(uint8_t i = 12; i > 0; i--) {
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_short);
@@ -288,22 +256,18 @@ static bool subghz_protocol_encoder_kinggates_stylo_4k_get_upload(
             false, (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_short);
     }
 
-    // After header
     instance->encoder.upload[index - 1].duration =
         (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_long * 2;
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_short * 2);
 
-    // Send key fix
     for(uint8_t i = 53; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] = level_duration_make(
                 false, (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_short);
             instance->encoder.upload[index++] = level_duration_make(
                 true, (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_long);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] = level_duration_make(
                 false, (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_long);
             instance->encoder.upload[index++] = level_duration_make(
@@ -311,24 +275,19 @@ static bool subghz_protocol_encoder_kinggates_stylo_4k_get_upload(
         }
     }
 
-    // Send key hop
     for(uint8_t i = 36; i > 0; i--) {
         if(bit_read(instance->generic.data_2, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] = level_duration_make(
                 false, (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_short);
             instance->encoder.upload[index++] = level_duration_make(
                 true, (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_long);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] = level_duration_make(
                 false, (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_long);
             instance->encoder.upload[index++] = level_duration_make(
                 true, (uint32_t)subghz_protocol_kinggates_stylo_4k_const.te_short);
         }
     }
-
-    // Set upload size after generating upload, fix it later
 
     instance->encoder.size_upload = index;
 
@@ -348,7 +307,6 @@ SubGhzProtocolStatus subghz_protocol_encoder_kinggates_stylo_4k_deserialize(
             break;
         }
 
-        // Optional value
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -401,9 +359,6 @@ SubGhzProtocolStatus subghz_protocol_encoder_kinggates_stylo_4k_deserialize(
     return res;
 }
 
-//
-// Decoder
-//
 void* subghz_protocol_decoder_kinggates_stylo_4k_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderKingGates_stylo_4k* instance =
         malloc(sizeof(SubGhzProtocolDecoderKingGates_stylo_4k));
@@ -447,7 +402,6 @@ void subghz_protocol_decoder_kinggates_stylo_4k_feed(void* context, bool level, 
         if((instance->header_count > 2) &&
            (DURATION_DIFF(duration, subghz_protocol_kinggates_stylo_4k_const.te_long * 2) <
             subghz_protocol_kinggates_stylo_4k_const.te_delta * 2)) {
-            // Found header
             instance->decoder.parser_step = KingGates_stylo_4kDecoderStepCheckStartBit;
         } else {
             instance->decoder.parser_step = KingGates_stylo_4kDecoderStepReset;
@@ -524,36 +478,9 @@ void subghz_protocol_decoder_kinggates_stylo_4k_feed(void* context, bool level, 
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- * @param data Input encrypted data
- * @param keystore Pointer to a SubGhzKeystore* instance
- */
 static void subghz_protocol_kinggates_stylo_4k_remote_controller(
     SubGhzBlockGeneric* instance,
     SubGhzKeystore* keystore) {
-    /**
- *  9500us   12*(400/400)  2200/800|1-bit|0-bit|
- *           _   _       _       __   ___     _ 
- *  ________| |_| |_..._| |_____|  |_|   |___| |.....
- * 
- *  1-bit 400/1100 us
- *  0-bit 1100/400 us
- *  
- *  The package consists of 89 bits of data, LSB first  
- *  Data        - 1C9037F0C80000 CE280BA00
- *    S[3]     S[2]   1 key    S[1]     S[0]    2 byte always 0   Hop[3]   Hop[2]  Hop[1]   Hop[0]    0
- *  11100100 10000001 1 0111 11110000 11001000 00000000 00000000 11001110 00101000 00001011 10100000 0000
- * 
- *  Encryption  - keeloq Simple Learning
- *                                         key C  S[3]  CNT 
- *  Decrypt     - 0xEC270B9C        =>  0x  E  C   27   0B9C
- * 
- * 
- * 
-*/
-
     uint32_t hop = subghz_protocol_blocks_reverse_key(instance->data_2 >> 4, 32);
     uint64_t fix = subghz_protocol_blocks_reverse_key(instance->data, 53);
     bool ret = false;
@@ -574,11 +501,9 @@ static void subghz_protocol_kinggates_stylo_4k_remote_controller(
         }
     if(ret) {
         instance->cnt = decrypt & 0xFFFF;
-        // Save original button for later use
+
         if(subghz_custom_btn_get_original() == 0) {
-            // subghz_custom_btn_set_original(instance->btn);
         }
-        // subghz_custom_btn_set_max(3);
     } else {
         instance->btn = 0;
         instance->serial = 0;
@@ -658,9 +583,7 @@ static uint8_t subghz_protocol_kinggates_stylo_4k_get_btn_code(void) {
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -726,7 +649,6 @@ void subghz_protocol_decoder_kinggates_stylo_4k_get_string(void* context, FuriSt
     SubGhzProtocolDecoderKingGates_stylo_4k* instance = context;
     subghz_protocol_kinggates_stylo_4k_remote_controller(&instance->generic, instance->keystore);
 
-    // push protocol data to global variable
     subghz_block_generic_global.cnt_is_available = true;
     subghz_block_generic_global.cnt_length_bit = 16;
     subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -734,7 +656,6 @@ void subghz_protocol_decoder_kinggates_stylo_4k_get_string(void* context, FuriSt
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

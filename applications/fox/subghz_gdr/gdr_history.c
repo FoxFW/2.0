@@ -1,4 +1,3 @@
-// gdr_history.c
 #include "gdr_history.h"
 #include "helpers/gdr_storage.h"
 #include <lib/subghz/receiver.h>

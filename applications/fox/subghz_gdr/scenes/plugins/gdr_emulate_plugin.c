@@ -1,5 +1,3 @@
-// scenes/plugins/gdr_emulate_plugin.c
-
 #include "gdr_emulate_plugin.h"
 
 #include "../../gdr_app_i.h"
@@ -95,8 +93,6 @@ static const char* emu_get_short_preset_name(const char* preset_name) {
     return preset_name;
 }
 
-// Notification sequence used while transmitting. Duplicated locally so the
-// plugin does not link against the host's `static const` copy.
 static const NotificationSequence emu_sequence_tx = {
     &message_note_c5,
     &message_vibro_on,
@@ -110,30 +106,28 @@ static const NotificationSequence emu_sequence_tx = {
     NULL,
 };
 
-#define TX_PRESET_VALUES_AM    8 // Gets 1 added, so is 1 less than actual value.
+#define TX_PRESET_VALUES_AM    8
 #define TX_PRESET_VALUES_COUNT 17
 
 static const uint8_t tx_power_value[TX_PRESET_VALUES_COUNT] = {
-    // FM Power Values for 1st PA Table Byte.
     0,
-    0xC0, // 10dBm
-    0xC8, // 7dBm
-    0x84, // 5dBm
-    0x60, // 0dBm
-    0x34, // -10dBm
-    0x1D, // -15dBm
-    0x0E, // -20dBm
-    0x12, // -30dBm
+    0xC0,
+    0xC8,
+    0x84,
+    0x60,
+    0x34,
+    0x1D,
+    0x0E,
+    0x12,
 
-    // AM Power Values for 1st PA Table Byte.
-    0xC0, // 12dBm
-    0xCD, // 7dBm
-    0x86, // 5dBm
-    0x50, // 0dBm
-    0x26, // -10dBm
-    0x1D, // -15dBm
-    0x17, // -20dBm
-    0x03 // -30dBm
+    0xC0,
+    0xCD,
+    0x86,
+    0x50,
+    0x26,
+    0x1D,
+    0x17,
+    0x03
 };
 
 static bool emulate_radio_ready(GDRApp* app) {
@@ -879,7 +873,6 @@ static bool plugin_on_event(void* context, SceneManagerEvent event) {
 static void plugin_on_exit(void* context) {
     GDRApp* app = context;
 
-    // Stop any active transmission before tearing down callbacks.
     if(app->txrx && app->txrx->txrx_state == GDRTxRxStateTx) {
         FURI_LOG_I(TAG, "Stopping transmission on exit");
         if(app->txrx->radio_device) {
@@ -949,4 +942,4 @@ const FlipperAppPluginDescriptor* gdr_emulate_plugin_ep(void) {
     return &gdr_emulate_plugin_descriptor;
 }
 
-#endif // ENABLE_EMULATE_FEATURE
+#endif

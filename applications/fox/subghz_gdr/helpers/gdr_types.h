@@ -1,4 +1,3 @@
-// helpers/gdr_types.h
 #pragma once
 
 #include <furi.h>
@@ -19,42 +18,41 @@ typedef enum {
 } GDRView;
 
 typedef enum {
-    // Custom events for views
     GDRCustomEventViewReceiverOK,
     GDRCustomEventViewReceiverConfig,
     GDRCustomEventViewReceiverBack,
     GDRCustomEventViewReceiverDeleteItem,
     GDRCustomEventViewReceiverUnlock,
-    // Custom events for scenes
+
     GDRCustomEventSceneReceiverUpdate,
     GDRCustomEventReceiverDeferredRxStart,
     GDRCustomEventSceneSettingLock,
-    // File management
+
     GDRCustomEventReceiverInfoSave,
     GDRCustomEventReceiverInfoSaveConfirm,
     GDRCustomEventReceiverInfoEmulate,
     GDRCustomEventReceiverInfoBruteforceStart,
     GDRCustomEventReceiverInfoBruteforceCancel,
     GDRCustomEventSavedInfoDelete,
-    // Emulator
+
     GDRCustomEventSavedInfoEmulate,
     GDRCustomEventEmulateTransmit,
     GDRCustomEventEmulateStop,
     GDRCustomEventEmulateExit,
-    // Sub decode
+
     GDRCustomEventSubDecodeUpdate,
     GDRCustomEventSubDecodeSave,
     GDRCustomEventSubDecodeBruteforceStart,
     GDRCustomEventPsaBruteforceComplete,
-    // File Browser
+
     GDRCustomEventSavedFileSelected,
-    // Need saving confirmation
+
     GDRCustomEventSceneStay,
     GDRCustomEventSceneExit,
-    // About scene
+
     GDRCustomEventAboutToggleEmulate,
 #ifdef ENABLE_DUAL_RX_SCENE
-    // Dual RX scene
+
     GDRCustomEventDualReceiverDeferredRxStart,
     GDRCustomEventDualReceiverUpdate,
     GDRCustomEventViewDualReceiverOK,

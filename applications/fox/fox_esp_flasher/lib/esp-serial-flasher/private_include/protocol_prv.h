@@ -24,15 +24,12 @@
 typedef struct {
     const void *cmd;
     size_t cmd_size;
-    const void *data; // Set to NULL if the command has no data
+    const void *data;
     size_t data_size;
-    void *resp_data; // Set to NULL if the response has no data
+    void *resp_data;
     size_t resp_data_size;
-    uint32_t *resp_data_recv_size; /* Out parameter indicating actual size of the response read
-                                      for commands where response size can vary, in which
-                                      case resp_data_size is the maximum response data size allowed.
-                                      Set to NULL to require fixed response size of resp_data_size. */
-    uint32_t *reg_value; // Out parameter for the READ_REG command, will return zero otherwise
+    uint32_t *resp_data_recv_size;
+    uint32_t *reg_value;
 } send_cmd_config;
 
 void log_loader_internal_error(error_code_t error);

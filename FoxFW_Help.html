@@ -1087,6 +1087,18 @@
       <td>Flash Fox ESP32 Firmware onto a connected ESP32 directly from the Flipper — no PC, no browser, no files to download. Firmware for every supported board is bundled into FoxFW.</td>
     </tr>
     <tr>
+      <td><strong>Fox ESP32 Terminal</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">✓</td>
+      <td>A focused live-terminal companion — streaming console, quick command send, and per-session logs saved to your SD card.</td>
+    </tr>
+    <tr>
+      <td><strong>Fox Update Downloader</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">✓</td>
+      <td>Checks GitHub for newer FoxFW2.0 and Fox ESP32 Firmware releases, downloads them over the ESP32 bridge, and hands off to install — no PC needed.</td>
+    </tr>
+    <tr>
       <td><strong>Fox Chameleon</strong></td>
       <td>Apps → Fox</td>
       <td style="text-align:center;">✓</td>
@@ -1103,7 +1115,7 @@
   <div class="box info">
     <strong>Compatible boards.</strong> ESP32 Classic (WROOM-32 / DevKit), ESP32-S3,
     ESP32-S2, ESP32-C3, ESP32-C5, and ESP32-C6 are all supported. See the
-    <a href="https://foxfw.github.io/esp32-fw/fox-esp32-flasher.html" style="color:#80c890;">Fox ESP32 Firmware guide</a>
+    <a href="FoxESP32_Help.html" style="color:#80c890;">Fox ESP32 Firmware guide</a>
     for full wiring diagrams, board-specific notes, and the complete command reference.
   </div>
 
@@ -1689,7 +1701,7 @@
 <section class="section" id="firmware-update">
   <div class="chapter-label">Chapter 9</div>
   <h2>Installing Firmware Updates</h2>
-  <p>There are three ways to install a FoxFW update:</p>
+  <p>There are four ways to install a FoxFW update:</p>
 
   <h3>Method 1 — via Web Installer <span class="badge">New</span> (recommended)</h3>
   <ol>
@@ -1724,6 +1736,29 @@
   <div class="box tip">
     <strong>Tip:</strong> Pin your <code>.fuf</code> file to FFB Favorites for one-tap
     access — ideal if you regularly test new builds.
+  </div>
+
+  <h3>Method 4 — via Fox Update Downloader (fully wireless, no PC or USB)</h3>
+  <p>
+    If you already have a wired ESP32 running Fox ESP32 Firmware, <strong>Fox
+    Update Downloader</strong> can check GitHub, download, and install a
+    FoxFW update entirely on-device — the ESP32 acts as the internet
+    connection your Flipper doesn't otherwise have.
+  </p>
+  <ol>
+    <li>Make sure your ESP32 is wired up and joined to a WiFi network (see the <a href="#fox-esp32-apps" style="color:#80c890;">Fox ESP32 Apps</a> chapter if you haven't set this up yet).</li>
+    <li>Open <strong>Fox Update Downloader</strong> and select <strong>Fox Custom Firmware</strong>.</li>
+    <li>Wait for the check to finish. If an update is available, press <strong>Download</strong>.</li>
+    <li>Once it finishes downloading, press <strong>Install</strong> — the device restarts automatically to apply it, same as any other method.</li>
+  </ol>
+  <div class="box tip">
+    <strong>Not ready to install yet?</strong> Press <strong>Later</strong>
+    instead of Install — the downloaded update stays on your SD card, and a
+    <strong>Restart</strong> button on the following screen installs it
+    whenever you come back, without downloading it again. The same app can
+    also update your <strong>Fox ESP32 Firmware</strong> — see the
+    <a href="FoxESP32_Help.html#update-downloader" style="color:#80c890;">Fox ESP32 Firmware guide</a>
+    for that side of it, including picking your board.
   </div>
   <div class="box info">
     <strong>After an update:</strong> The Fox Setup Wizard runs on the first boot

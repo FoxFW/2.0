@@ -6,15 +6,11 @@
 #include <lib/subghz/subghz_tx_rx_worker.h>
 #include <stdint.h>
 
-// cursor_position 0-5 : six frequency digits (100 MHz down to 1 kHz)
-// cursor_position 6   : Modulation (radio preset)
-// cursor_position 7   : Attack method (waveform / data pattern)
 #define CURSOR_FREQ_DIGITS  6
 #define CURSOR_MODULATION   6
 #define CURSOR_METHOD       7
 #define CURSOR_MAX          7
 
-// Radio presets — what the CC1101 is configured to transmit
 #define JAM_MOD_COUNT 5
 static const char* const s_mod_names[JAM_MOD_COUNT] = {
     "OOK 650kHz",
@@ -24,7 +20,6 @@ static const char* const s_mod_names[JAM_MOD_COUNT] = {
     "GFSK 9.99Kb/s",
 };
 
-// Attack methods — what data pattern is sent over the air
 #define JAM_METHOD_COUNT 11
 static const char* const s_method_names[JAM_METHOD_COUNT] = {
     "Brute 0xFF",
@@ -46,14 +41,14 @@ typedef struct {
     FuriMessageQueue*   event_queue;
 
     uint32_t            frequency;
-    uint8_t             cursor_position;  // 0-5: freq, 6: mod, 7: method
+    uint8_t             cursor_position;
 
-    bool                running;     // main loop alive
-    bool                tx_active;   // user toggled jamming ON
-    bool                tx_running;  // TX thread executing
+    bool                running;
+    bool                tx_active;
+    bool                tx_running;
 
-    uint8_t             mod_idx;     // index into s_mod_names    (radio preset)
-    uint8_t             method_idx;  // index into s_method_names (data pattern)
+    uint8_t             mod_idx;
+    uint8_t             method_idx;
 
     const SubGhzDevice* device;
     SubGhzTxRxWorker*   subghz_txrx;

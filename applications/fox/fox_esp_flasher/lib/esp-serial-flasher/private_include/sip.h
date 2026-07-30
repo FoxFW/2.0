@@ -52,7 +52,7 @@ typedef struct __attribute__((packed))
 typedef struct __attribute__((packed))
 {
     uint8_t fc[2];
-    uint16_t len; // Length of packet, including the header itself, must align to 4
+    uint16_t len;
     union {
         uint32_t recycled_credits;
         sip_tx_info_t tx_info;

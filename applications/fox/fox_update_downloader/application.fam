@@ -1,0 +1,19 @@
+App(
+    appid="fox_update_downloader",
+    name="Fox Update Downloader",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="fox_update_downloader_main",
+    requires=[
+        "gui",
+        "storage",
+        "dialogs",
+        "loader",
+    ],
+    stack_size=8 * 1024,
+    fap_category="Fox",
+    fap_version="0.1",
+    fap_author="",
+    fap_icon="icon.png",
+    fap_icon_assets="images",
+    fap_description="Fox Update Downloader - checks GitHub for newer FoxFW2.0 and Fox ESP32 Firmware releases, downloads them over the ESP32 bridge, and hands off to install",
+)

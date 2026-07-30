@@ -126,31 +126,20 @@ static bool local_flipper_format_stream_read_valid_key(Stream* stream, FuriStrin
         for(size_t i = 0; i < was_read; i++) {
             uint8_t data = buffer[i];
             if(data == local_flipper_format_eoln) {
-                // EOL found, clean data, start accumulating data and set the new_line flag
                 furi_string_reset(key);
                 accumulate = true;
                 new_line = true;
             } else if(data == local_flipper_format_eolr) {
-                // ignore
             } else if(data == local_flipper_format_comment && new_line) {
-                // if there is a comment character and we are at the beginning of a new line
-                // do not accumulate comment data and reset the new_line flag
                 accumulate = false;
                 new_line = false;
             } else if(data == local_flipper_format_delimiter) {
                 if(new_line) {
-                    // we are on a "new line" and found the delimiter
-                    // this can only be if we have previously found some kind of key, so
-                    // clear the data, set the flag that we no longer want to accumulate data
-                    // and reset the new_line flag
                     furi_string_reset(key);
                     accumulate = false;
                     new_line = false;
                 } else {
-                    // parse the delimiter only if we are accumulating data
                     if(accumulate) {
-                        // we found the delimiter, move the rw pointer to the delimiter location
-                        // and signal that we have found something
                         if(!stream_seek(
                                stream, (int32_t)i - (int32_t)was_read, StreamOffsetFromCurrent)) {
                             error = true;
@@ -162,10 +151,8 @@ static bool local_flipper_format_stream_read_valid_key(Stream* stream, FuriStrin
                     }
                 }
             } else {
-                // just new symbol, reset the new_line flag
                 new_line = false;
                 if(accumulate) {
-                    // and accumulate data if we want
                     furi_string_push_back(key, data);
                 }
             }
@@ -227,7 +214,6 @@ static bool local_flipper_format_stream_get_value_count(
             *count = *count + 1;
             if(last) break;
         }
-
     } while(false);
 
     furi_string_free(value);
@@ -296,7 +282,6 @@ bool raw_file_reader_open(RawFileReader* reader, const char* file_path) {
 
     while(local_flipper_format_stream_get_value_count(
         reader->ff->stream, "RAW_Data", &temp_count, reader->ff->strict_mode)) {
-        //reader->file_finished = true;
         reader->count += temp_count;
     }
     flipper_format_rewind(reader->ff);
@@ -373,4 +358,4 @@ bool raw_file_reader_is_finished(RawFileReader* reader) {
     if(!reader) return true;
     return reader->file_finished && (reader->buffer_index >= reader->buffer_count);
 }
-#endif // ENABLE_SUB_DECODE_SCENE
+#endif

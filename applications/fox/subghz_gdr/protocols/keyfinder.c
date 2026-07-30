@@ -89,33 +89,25 @@ void subghz_protocol_encoder_keyfinder_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderKeyFinder instance
- */
 static void
     subghz_protocol_encoder_keyfinder_get_upload(SubGhzProtocolEncoderKeyFinder* instance) {
     furi_assert(instance);
     size_t index = 0;
 
-    // Send key data 24 bit first
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            // Send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_keyfinder_const.te_short);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_keyfinder_const.te_long);
-
         } else {
-            // Send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_keyfinder_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_keyfinder_const.te_short);
         }
     }
-    // End bits (3 times then 1 more with gap 4k us)
+
     for(uint8_t i = 0; i < 3; i++) {
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_keyfinder_const.te_short);
@@ -131,10 +123,6 @@ static void
     return;
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_keyfinder_check_remote_controller(SubGhzBlockGeneric* instance) {
     instance->serial = instance->data >> 4;
     instance->btn = instance->data & 0xF;
@@ -153,7 +141,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -212,23 +200,10 @@ void subghz_protocol_decoder_keyfinder_feed(void* context, bool level, volatile 
     furi_assert(context);
     SubGhzProtocolDecoderKeyFinder* instance = context;
 
-    // KeyFinder Decoder
-    // 2026.03 - @xMasterX (MMX)
-
-    // Key samples
-    //
-    // 433.92 MHz AM650
-    //         Serial ID      Serial           ID
-    // RED -    C396F E = 11000011100101101111 1110
-    // PURPLE - C396F B = 11000011100101101111 1011
-    // GREEN -  C396F D = 11000011100101101111 1101
-    // BLUE -   C396F C = 11000011100101101111 1100
-
     switch(instance->decoder.parser_step) {
     case KeyFinderDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_keyfinder_const.te_short * 10) <
                         subghz_protocol_keyfinder_const.te_delta * 5)) {
-            //Found GAP
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
             instance->decoder.parser_step = KeyFinderDecoderStepSaveDuration;
@@ -266,14 +241,12 @@ void subghz_protocol_decoder_keyfinder_feed(void* context, bool level, volatile 
         break;
     case KeyFinderDecoderStepCheckDuration:
         if(!level) {
-            // Bit 1 is short and long timing = 400us HIGH (te_last) and 1200us LOW
             if((DURATION_DIFF(instance->decoder.te_last, subghz_protocol_keyfinder_const.te_short) <
                 subghz_protocol_keyfinder_const.te_delta) &&
                (DURATION_DIFF(duration, subghz_protocol_keyfinder_const.te_long) <
                 subghz_protocol_keyfinder_const.te_delta)) {
                 subghz_protocol_blocks_add_bit(&instance->decoder, 1);
                 instance->decoder.parser_step = KeyFinderDecoderStepSaveDuration;
-                // Bit 0 is long and short timing = 1200us HIGH (te_last) and 400us LOW
             } else if(
                 (DURATION_DIFF(instance->decoder.te_last, subghz_protocol_keyfinder_const.te_long) <
                  subghz_protocol_keyfinder_const.te_delta) &&
@@ -289,7 +262,7 @@ void subghz_protocol_decoder_keyfinder_feed(void* context, bool level, volatile 
         }
         break;
     case KeyFinderDecoderStepFinish:
-        // If got 24 bits key reading is finished
+
         if(instance->decoder.decode_count_bit ==
            subghz_protocol_keyfinder_const.min_count_bit_for_found) {
             instance->generic.data = instance->decoder.decode_data;
@@ -339,13 +312,6 @@ void subghz_protocol_decoder_keyfinder_get_string(void* context, FuriString* out
 
     uint64_t code_found_reverse = subghz_protocol_blocks_reverse_key(
         instance->generic.data, instance->generic.data_count_bit);
-
-    // for future use
-    // // push protocol data to global variable
-    // subghz_block_generic_global.btn_is_available = false;
-    // subghz_block_generic_global.current_btn = instance->generic.btn;
-    // subghz_block_generic_global.btn_length_bit = 4;
-    // //
 
     furi_string_cat_printf(
         output,

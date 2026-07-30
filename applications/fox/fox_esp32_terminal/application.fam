@@ -1,0 +1,13 @@
+App(
+    appid="fox_esp32_terminal",
+    name="Fox ESP32 Terminal",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="fox_esp32_terminal_main",
+    stack_size=8 * 1024,
+    fap_category="Fox",
+    fap_version="0.1",
+    fap_author="",
+    fap_icon="icon.png",
+    fap_icon_assets="images",
+    fap_description="Fox ESP32 Terminal - a focused live-terminal companion to Fox ESP32 Firmware: streaming console, quick command send, and per-session SD-card logs.",
+)

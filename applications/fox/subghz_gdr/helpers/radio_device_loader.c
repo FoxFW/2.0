@@ -1,4 +1,3 @@
-// helpers/radio_device_loader.c
 #include "radio_device_loader.h"
 
 #include <applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h>
@@ -15,7 +14,7 @@ static void radio_device_loader_power_on() {
     uint8_t attempts = 0;
     while(!furi_hal_power_is_otg_enabled() && attempts++ < 5) {
         furi_hal_power_enable_otg();
-        // CC1101 power-up time
+
         furi_delay_ms(10);
     }
     if(furi_hal_power_is_otg_enabled()) {
@@ -59,7 +58,6 @@ const SubGhzDevice* radio_device_loader_set(
     SubGhzRadioDeviceType radio_device_type) {
     const SubGhzDevice* target_radio_device = NULL;
 
-    // Decide the target device first (external if requested+present, else internal)
     if(radio_device_type == SubGhzRadioDeviceTypeExternalCC1101 &&
        radio_device_loader_is_connect_external(SUBGHZ_DEVICE_CC1101_EXT_NAME)) {
         radio_device_loader_power_on();
@@ -77,7 +75,6 @@ const SubGhzDevice* radio_device_loader_set(
         }
     }
 
-    // If we’re already on the target device, don’t reload
     if(current_radio_device == target_radio_device) {
         if(target_radio_device == subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME)) {
             FURI_LOG_I(TAG, "External CC1101 already selected");
@@ -87,15 +84,12 @@ const SubGhzDevice* radio_device_loader_set(
         return target_radio_device;
     }
 
-    // Cleanly stop the current device before switching
     if(current_radio_device) {
         radio_device_loader_end(current_radio_device);
     }
 
-    // Start the target device
     subghz_devices_begin(target_radio_device);
 
-    // Log what we ended up with
     if(target_radio_device == subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME)) {
         FURI_LOG_I(TAG, "Switched to external CC1101");
     } else {

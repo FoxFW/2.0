@@ -1,6 +1,5 @@
-// scenes/gdr_scene_need_saving.c
 #include "../gdr_app_i.h"
-#include "gdr_icons.h"
+#include "garage_door_remote_icons.h"
 
 #define TAG "GDRNeedSaving"
 
@@ -51,7 +50,6 @@ bool gdr_scene_need_saving_on_event(void* context, SceneManagerEvent event) {
     GDRApp* app = context;
 
     if(event.type == SceneManagerEventTypeBack) {
-        // Hardware back button = same as "Stay"
         scene_manager_previous_scene(app->scene_manager);
         return true;
     } else if(event.type == SceneManagerEventTypeCustom) {

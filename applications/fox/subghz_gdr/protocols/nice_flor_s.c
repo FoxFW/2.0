@@ -8,12 +8,6 @@
 
 #include <lib/subghz/blocks/custom_btn_i.h>
 
-/*
- * https://phreakerclub.com/1615
- * https://phreakerclub.com/forum/showthread.php?t=2360
- * https://vrtp.ru/index.php?showtopic=27867
- */
-
 #define TAG "SubGhzProtocolNiceFlorS"
 
 #define NICE_ONE_COUNT_BIT                          72
@@ -21,7 +15,6 @@
 #define SUBGHZ_NICE_FLOR_S_RAINBOW_TABLE_SIZE_BYTES 32
 #define SUBGHZ_NO_NICE_FLOR_S_RAINBOW_TABLE         0
 
-//variable used to bypass CounterMode settings if user just change Counter or Button
 static bool bypass = false;
 
 static const SubGhzBlockConst subghz_protocol_nice_flor_s_const = {
@@ -108,7 +101,7 @@ void* subghz_protocol_encoder_nice_flor_s_alloc(SubGhzEnvironment* environment) 
             TAG, "Loading rainbow table from %s", instance->nice_flor_s_rainbow_table_file_name);
     }
     instance->encoder.repeat = 1;
-    instance->encoder.size_upload = 2400; // 2368 for Nice ONE
+    instance->encoder.size_upload = 2400;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
     instance->encoder.is_running = false;
     return instance;
@@ -123,18 +116,8 @@ void subghz_protocol_encoder_nice_flor_s_free(void* context) {
 
 static void subghz_protocol_nice_one_get_data(uint8_t* p, uint8_t num_parcel, uint8_t hold_bit);
 
-/**
- * Defines the button value for the current btn_id
- * Basic set | 0x1 | 0x2 | 0x4 | 0x8 |
- * @return Button code
- */
 static uint8_t subghz_protocol_nice_flor_s_get_btn_code(void);
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderNiceFlorS instance
- * @return true On success
- */
 static void subghz_protocol_encoder_nice_flor_s_get_upload(
     SubGhzProtocolEncoderNiceFlorS* instance,
     uint8_t btn,
@@ -143,14 +126,11 @@ static void subghz_protocol_encoder_nice_flor_s_get_upload(
     size_t index = 0;
     btn = instance->generic.btn;
 
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
-        // subghz_custom_btn_set_original(btn);
     }
 
     btn = subghz_protocol_nice_flor_s_get_btn_code();
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&btn)) {
         bypass = true;
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", btn);
@@ -163,16 +143,13 @@ static void subghz_protocol_encoder_nice_flor_s_get_upload(
         instance->encoder.size_upload = size_upload;
     }
 
-    // if we change counter/button in SignalSettings menu then we must bypass counter_modes, just gen and save signal file.
     if(subghz_block_generic_global.cnt_need_override) bypass = true;
 
     if(nice_flors_counter_mode == 0 || bypass) {
-        // Check for OFEX (overflow experimental) mode
         if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF || bypass) {
             bypass = false;
-            // standart counter mode. PULL data from subghz_block_generic_global variables
+
             if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
-                // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
                 if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
                     instance->generic.cnt = 0;
                 } else {
@@ -189,16 +166,12 @@ static void subghz_protocol_encoder_nice_flor_s_get_upload(
             }
         }
     } else if(nice_flors_counter_mode == 1) {
-        // Mode 1 (floxi2r)
-        // 0001 / FFFE
         if(instance->generic.cnt == 0xFFFE) {
             instance->generic.cnt = 0x0001;
         } else {
             instance->generic.cnt = 0xFFFE;
         }
     } else {
-        // Mode 2 (ox2)
-        // 0x0000 / 0x0001
         if(instance->generic.cnt >= 0x0001) {
             instance->generic.cnt = 0;
         } else {
@@ -218,25 +191,21 @@ static void subghz_protocol_encoder_nice_flor_s_get_upload(
         byte = btn << 4 | (0xF ^ btn ^ loops[i]);
         instance->generic.data = (uint64_t)byte << 44 | enc_part;
 
-        //Send header
         instance->encoder.upload[index++] =
             level_duration_make(false, (uint32_t)subghz_protocol_nice_flor_s_const.te_short * 37);
-        //Send start bit
+
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_nice_flor_s_const.te_short * 3);
         instance->encoder.upload[index++] =
             level_duration_make(false, (uint32_t)subghz_protocol_nice_flor_s_const.te_short * 3);
 
-        //Send key data
         for(uint8_t j = 52; j > 0; j--) {
             if(bit_read(instance->generic.data, j - 1)) {
-                //send bit 1
                 instance->encoder.upload[index++] =
                     level_duration_make(true, (uint32_t)subghz_protocol_nice_flor_s_const.te_long);
                 instance->encoder.upload[index++] = level_duration_make(
                     false, (uint32_t)subghz_protocol_nice_flor_s_const.te_short);
             } else {
-                //send bit 0
                 instance->encoder.upload[index++] = level_duration_make(
                     true, (uint32_t)subghz_protocol_nice_flor_s_const.te_short);
                 instance->encoder.upload[index++] = level_duration_make(
@@ -255,16 +224,13 @@ static void subghz_protocol_encoder_nice_flor_s_get_upload(
                 instance->generic.data_2 += add_data[j];
             }
 
-            //Send key data
             for(uint8_t j = 24; j > 4; j--) {
                 if(bit_read(instance->generic.data_2, j - 1)) {
-                    //send bit 1
                     instance->encoder.upload[index++] = level_duration_make(
                         true, (uint32_t)subghz_protocol_nice_flor_s_const.te_long);
                     instance->encoder.upload[index++] = level_duration_make(
                         false, (uint32_t)subghz_protocol_nice_flor_s_const.te_short);
                 } else {
-                    //send bit 0
                     instance->encoder.upload[index++] = level_duration_make(
                         true, (uint32_t)subghz_protocol_nice_flor_s_const.te_short);
                     instance->encoder.upload[index++] = level_duration_make(
@@ -272,11 +238,9 @@ static void subghz_protocol_encoder_nice_flor_s_get_upload(
                 }
             }
         }
-        //Send stop bit
+
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_nice_flor_s_const.te_short * 3);
-        //instance->encoder.upload[index++] =
-        //level_duration_make(false, (uint32_t)subghz_protocol_nice_flor_s_const.te_short * 3);
     }
     instance->encoder.size_upload = index;
 }
@@ -293,11 +257,9 @@ SubGhzProtocolStatus
             break;
         }
 
-        // Optional value
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
-        // flipper_format_read_uint32(
-        // flipper_format, "Data", (uint32_t*)&instance->generic.data_2, 1);
+
         if(!flipper_format_rewind(flipper_format)) {
             FURI_LOG_E(TAG, "Rewind error");
             break;
@@ -370,11 +332,6 @@ LevelDuration subghz_protocol_encoder_nice_flor_s_yield(void* context) {
     return ret;
 }
 
-/**
- * Read bytes from rainbow table
- * @param p array[10]  P0-P1|P2-P3-P4-P5-P6-P7-P8-P9-P10
- * @return crc
- */
 static uint32_t subghz_protocol_nice_one_crc(uint8_t* p) {
     uint8_t crc = 0;
     uint8_t crc_data = 0xff;
@@ -397,12 +354,6 @@ static uint32_t subghz_protocol_nice_one_crc(uint8_t* p) {
     return crc;
 }
 
-/**
- * Read bytes from rainbow table
- * @param p array[10]  P0-P1|P2-P3-P4-P5-P6-P7-XX-XX-XX
- * @param num_parcel  parcel number 0..15
- * @param hold_bit  0 - the button was only pressed, 1 - the button was held down
- */
 static void subghz_protocol_nice_one_get_data(uint8_t* p, uint8_t num_parcel, uint8_t hold_bit) {
     uint8_t k = 0;
     uint8_t crc = 0;
@@ -428,12 +379,6 @@ static void subghz_protocol_nice_one_get_data(uint8_t* p, uint8_t num_parcel, ui
     p[9] = crc << 4;
 }
 
-/** 
- * Read bytes from buffer array with rainbow table
- * @param buffer pointer to decrypted rainbow table 
- * @param address Byte address in file
- * @return data
- */
 static uint8_t subghz_protocol_nice_flor_s_get_byte_from_buffer(uint8_t* buffer, uint8_t address) {
     return buffer[address];
 }
@@ -445,7 +390,6 @@ static inline void subghz_protocol_decoder_nice_flor_s_magic_xor(uint8_t* p, uin
 }
 
 uint64_t subghz_protocol_nice_flor_s_encrypt(uint64_t data, const char* file_name) {
-    // load and decrypt rainbow table from file to buffer array in RAM
     if(!file_name) return SUBGHZ_NO_NICE_FLOR_S_RAINBOW_TABLE;
 
     uint8_t buffer[SUBGHZ_NICE_FLOR_S_RAINBOW_TABLE_SIZE_BYTES] = {0};
@@ -495,7 +439,6 @@ static uint64_t
     furi_assert(instance);
     uint64_t data = instance->data;
 
-    // load and decrypt rainbow table from file to buffer array in RAM
     if(!file_name) return SUBGHZ_NO_NICE_FLOR_S_RAINBOW_TABLE;
 
     uint8_t buffer[SUBGHZ_NICE_FLOR_S_RAINBOW_TABLE_SIZE_BYTES] = {0};
@@ -618,14 +561,12 @@ void subghz_protocol_decoder_nice_flor_s_feed(void* context, bool level, uint32_
     case NiceFlorSDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_nice_flor_s_const.te_short * 38) <
                         subghz_protocol_nice_flor_s_const.te_delta * 38)) {
-            //Found start header Nice Flor-S
             instance->decoder.parser_step = NiceFlorSDecoderStepCheckHeader;
         }
         break;
     case NiceFlorSDecoderStepCheckHeader:
         if((level) && (DURATION_DIFF(duration, subghz_protocol_nice_flor_s_const.te_short * 3) <
                        subghz_protocol_nice_flor_s_const.te_delta * 3)) {
-            //Found next header Nice Flor-S
             instance->decoder.parser_step = NiceFlorSDecoderStepFoundHeader;
         } else {
             instance->decoder.parser_step = NiceFlorSDecoderStepReset;
@@ -634,7 +575,6 @@ void subghz_protocol_decoder_nice_flor_s_feed(void* context, bool level, uint32_
     case NiceFlorSDecoderStepFoundHeader:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_nice_flor_s_const.te_short * 3) <
                         subghz_protocol_nice_flor_s_const.te_delta * 3)) {
-            //Found header Nice Flor-S
             instance->decoder.parser_step = NiceFlorSDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -646,7 +586,6 @@ void subghz_protocol_decoder_nice_flor_s_feed(void* context, bool level, uint32_
         if(level) {
             if(DURATION_DIFF(duration, subghz_protocol_nice_flor_s_const.te_short * 3) <
                subghz_protocol_nice_flor_s_const.te_delta) {
-                //Found STOP bit
                 instance->decoder.parser_step = NiceFlorSDecoderStepReset;
                 if((instance->decoder.decode_count_bit ==
                     subghz_protocol_nice_flor_s_const.min_count_bit_for_found) ||
@@ -661,7 +600,6 @@ void subghz_protocol_decoder_nice_flor_s_feed(void* context, bool level, uint32_
                 }
                 break;
             } else {
-                //save interval
                 instance->decoder.te_last = duration;
                 instance->decoder.parser_step = NiceFlorSDecoderStepCheckDuration;
             }
@@ -698,55 +636,9 @@ void subghz_protocol_decoder_nice_flor_s_feed(void* context, bool level, uint32_
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- * @param file_name Full path to rainbow table the file 
- */
 static void subghz_protocol_nice_flor_s_remote_controller(
     SubGhzBlockGeneric* instance,
     const char* file_name) {
-    /*
-    * Protocol Nice Flor-S
-    * Packet format Nice Flor-s: START-P0-P1-P2-P3-P4-P5-P6-P7-STOP
-    * P0 (4-bit)    - button positional code - 1:0x1, 2:0x2, 3:0x4, 4:0x8;
-    * P1 (4-bit)    - batch repetition number, calculated by the formula:
-    * P1 = 0xF ^ P0 ^ n; where n changes from 1 to 15, then 0, and then in a circle
-    * key 1: {0xE,0xF,0xC,0xD,0xA,0xB,0x8,0x9,0x6,0x7,0x4,0x5,0x2,0x3,0x0,0x1};
-    * key 2: {0xD,0xC,0xF,0xE,0x9,0x8,0xB,0xA,0x5,0x4,0x7,0x6,0x1,0x0,0x3,0x2};
-    * key 3: {0xB,0xA,0x9,0x8,0xF,0xE,0xD,0xC,0x3,0x2,0x1,0x0,0x7,0x6,0x5,0x4};
-    * key 4: {0x7,0x6,0x5,0x4,0x3,0x2,0x1,0x0,0xF,0xE,0xD,0xC,0xB,0xA,0x9,0x8};
-    * P2 (4-bit)    - part of the serial number, P2 = (K ^ S3) & 0xF;
-    * P3 (byte)     - the major part of the encrypted index
-    * P4 (byte)     - the low-order part of the encrypted index
-    * P5 (byte)     - part of the serial number, P5 = K ^ S2;
-    * P6 (byte)     - part of the serial number, P6 = K ^ S1;
-    * P7 (byte)     - part of the serial number, P7 = K ^ S0;
-    * K (byte)      - depends on P3 and P4, K = Fk(P3, P4);
-    * S3,S2,S1,S0   - serial number of the console 28 bit.
-    *
-    * data    => 0x1c5783607f7b3     key  serial  cnt
-    * decrypt => 0x10436c6820444 => 0x1  0436c682 0444
-    * 
-    * Protocol Nice One
-    * Generally repeats the Nice Flor-S protocol, but there are a few changes
-    * Packet format first 52 bytes repeat Nice Flor-S protocol
-    * The additional 20 bytes contain the code of the pressed button,
-    *    the button hold bit and the CRC of the entire message.
-    *       START-P0-P1-P2-P3-P4-P5-P6-P7-P8-P9-P10-STOP
-    * P7 (byte)     - if (n<4) k=0x8f : k=0x80; P7= k^n;
-    * P8 (byte)     - if (hold bit) b=0x00 : b=0x10; P8= b^(k<<4) | 4 hi bit crc
-    * P10 (4-bit)   - 4 lo bit crc 
-    *                            key+b crc  
-    * data    => 0x1724A7D9A522F  899  D6 hold bit = 0 - just pressed the button
-    * data    => 0x1424A7D9A522F  8AB  03 hold bit = 1 - button hold
-    * 
-    * A small button hold counter (0..15) is stored between each press,
-    *  i.e. if 1 press of the button stops counter 6, then the next press 
-    *  of the button will start from the value 7 (hold bit = 0), 8 (hold bit = 1)...
-    *  further up to 15 with overflow
-    * 
-    */
     if(!file_name) {
         instance->cnt = 0;
         instance->serial = 0;
@@ -757,12 +649,6 @@ static void subghz_protocol_nice_flor_s_remote_controller(
         instance->serial = (decrypt >> 16) & 0xFFFFFFF;
         instance->btn = (decrypt >> 48) & 0xF;
     }
-
-    // Save original button for later use
-    // if(subghz_custom_btn_get_original() == 0) {
-    //     // subghz_custom_btn_set_original(instance->btn);
-    // }
-        // // subghz_custom_btn_set_max(4);
 }
 
 uint8_t subghz_protocol_decoder_nice_flor_s_get_hash_data(void* context) {
@@ -846,9 +732,7 @@ static uint8_t subghz_protocol_nice_flor_s_get_btn_code(void) {
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -946,7 +830,6 @@ void subghz_protocol_decoder_nice_flor_s_get_string(void* context, FuriString* o
     subghz_protocol_nice_flor_s_remote_controller(
         &instance->generic, instance->nice_flor_s_rainbow_table_file_name);
 
-    // push protocol data to global variable
     subghz_block_generic_global.cnt_is_available = true;
     subghz_block_generic_global.cnt_length_bit = 16;
     subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -954,7 +837,6 @@ void subghz_protocol_decoder_nice_flor_s_get_string(void* context, FuriString* o
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     if(instance->generic.data_count_bit == NICE_ONE_COUNT_BIT) {
         furi_string_cat_printf(

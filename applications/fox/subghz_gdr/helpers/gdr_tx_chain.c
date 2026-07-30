@@ -1,4 +1,3 @@
-// helpers/gdr_tx_chain.c
 #include "gdr_tx_chain.h"
 
 #ifdef ENABLE_SHIELD_RX_SCENE
@@ -270,4 +269,4 @@ void gdr_tx_chain_stop(GDRTxChain* chain) {
     chain->state = GDRTxRxStateIDLE;
 }
 
-#endif // ENABLE_SHIELD_RX_SCENE
+#endif

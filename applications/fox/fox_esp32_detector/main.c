@@ -5,14 +5,14 @@
 #include <gui/view.h>
 #include <gui/view_dispatcher.h>
 #include <gui/modules/widget.h>
+#include <gui/icon_i.h>
+#include "fox_esp32_detector_icons.h"
 
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 
-/* Sized for AT response lines only - the longest expected is the AT+GMR
-   version banner, well under 128 bytes. */
 #define LINE_MAX 128
 
 #define AT_TIMEOUT_MS       600
@@ -21,18 +21,15 @@
 #define NMEA_LISTEN_MS      200
 #define CAPTURE_MAX         160
 
-/* scan_worker()'s local `banner` buffer specifically - LINE_MAX is too
-   small for it: the Tier 2 "Match \"%.20s\": %.100s" format alone needs
-   up to 131 bytes (10 literal + 20 + 100 + the null terminator), which
-   a real build's -Wformat-truncation correctly flagged as a possible
-   overflow of a 128-byte buffer. post_result()'s copy into
-   App::result_banner (still LINE_MAX bytes) already truncates safely
-   via strncpy, so only this local buffer needs to grow. */
+#define FLOOD_LISTEN_MS  900
+#define FLOOD_MIN_BYTES  24
+
 #define BANNER_BUFFER_MAX 160
 
 typedef enum {
     DetectorViewResult,
     DetectorViewProgress,
+    DetectorViewResultTable,
 } DetectorView;
 
 typedef enum {
@@ -51,28 +48,17 @@ static const PinOption pin_options[] = {
 #define PIN_OPTION_COUNT (sizeof(pin_options) / sizeof(pin_options[0]))
 
 static const uint32_t baud_options[] =
-    {9600, 19200, 38400, 57600, 74880, 115200, 230400, 460800, 921600};
+    {115200, 9600, 19200, 38400, 57600, 74880, 230400, 460800, 921600};
 #define BAUD_OPTION_COUNT (sizeof(baud_options) / sizeof(baud_options[0]))
 
-/* Raw substrings this app knows how to translate into a clean name,
-   wherever they turn up - a tier-2 signature match, or buried in an
-   otherwise-unidentified tier-3/GPS capture. This is meant to grow:
-   every confirmed real-world response adds one line here rather than a
-   special case elsewhere. Only Bruce is confirmed for real (see the
-   comment on signatures[] below) - the commented-out entries show the
-   intended shape for adding more once their actual output is known
-   from real hardware, e.g. a Marauder banner containing a short build
-   tag like "MRDR" would become {"MRDR", "Marauder"}. */
 typedef struct {
-    const char* raw_marker; /* case-insensitive substring to look for */
+    const char* raw_marker;
     const char* clean_name;
 } KnownTag;
 
 static const KnownTag known_tags[] = {
     {"bruce", "Bruce firmware"},
     {"fox esp32 firmware", "Fox ESP32 Firmware"},
-    /* {"MRDR", "Marauder"}, */
-    /* {"esp-idf", "ESP-IDF application (unidentified)"}, */
 };
 #define KNOWN_TAG_COUNT (sizeof(known_tags) / sizeof(known_tags[0]))
 
@@ -81,31 +67,18 @@ typedef struct {
     ViewDispatcher* view_dispatcher;
     Widget* widget;
     View* progress_view;
+    View* result_view;
 
     FuriMutex* mutex;
     FuriThread* scan_thread;
     bool scanning;
-    /* Set by navigation_callback() when Back is pressed mid-scan, read by
-       scan_worker() (via Link::cancel) on its tightest blocking loop -
-       without this, view_dispatcher_stop() still fires immediately, but
-       app_free()'s furi_thread_join() then blocks until the in-flight
-       scan finishes on its own (up to ~45s for the full pin/baud combo
-       sweep), which is exactly what looked like a freeze on Back. */
+
     volatile bool cancel_requested;
 
-    /* Written by scan_worker() under mutex, read by custom_event_callback()
-       under mutex - the only two places that ever touch these. */
     size_t progress_index;
     size_t progress_total;
     char progress_status[64];
 
-    /* Snapshot of the three fields above, copied out from under the mutex
-       once per custom event by custom_event_callback() - see its comment
-       for why progress_draw_cb() reads these instead of the raw fields
-       directly. Touched only on the view dispatcher's own thread (the
-       custom event callback and every draw callback both run there), so
-       unlike progress_index/progress_total/progress_status above, these
-       don't need the mutex at all. */
     size_t progress_display_index;
     size_t progress_display_total;
     char progress_display_status[64];
@@ -116,11 +89,11 @@ typedef struct {
     char result_banner[LINE_MAX];
     size_t result_pin;
     uint32_t result_baud;
+
+    bool result_flood_detected;
+    size_t result_flood_pin;
 } App;
 
-/* Bare-minimum receive path: an ISR pushes bytes into a stream buffer,
-   and everything else runs synchronously on the scan worker thread as a
-   sequence of blocking, timeout-bounded reads. */
 typedef struct {
     FuriStreamBuffer* rx_stream;
     FuriHalSerialHandle* serial;
@@ -212,23 +185,6 @@ static const char* lookup_known_tag(const char* raw) {
     return NULL;
 }
 
-/* "info" is a real, documented Bruce serial command (confirmed against
-   BruceDevices/firmware's own wiki), tried here purely to elicit some
-   response - matching "bruce" in whatever comes back is a reasonable
-   bet given how consistently these community firmwares self-identify,
-   but the exact wording of that output was not independently confirmed
-   the way the command's validity was. Marauder is deliberately not
-   here: its documented commands are all WiFi-attack actions, none of
-   which double as a safe "identify yourself". A Marauder module will
-   still surface via the generic fallback tier and known_tags[] above,
-   just not with a dedicated probe of its own yet.
-
-   Fox ESP32 Firmware answers this same "info" probe with a plain
-   "Fox ESP32 Firmware" line (see its own handleCommand()'s "info" case)
-   specifically so it's identified here instead of falling through to
-   the generic ECHO: fallback and showing up as an unhelpful
-   "Unidentified: ECHO:?" - the exact real-world result this project's
-   own firmware produced before that command existed. */
 typedef struct {
     const char* probe;
     const char* match;
@@ -239,8 +195,6 @@ static const FirmwareSignature signatures[] = {
 };
 #define SIGNATURE_COUNT (sizeof(signatures) / sizeof(signatures[0]))
 
-/* Sends a probe command and accumulates whatever line(s) come back
-   within timeout_ms into a single space-joined string. */
 static bool
     link_capture_response(Link* link, const char* probe, char* out, size_t out_capacity, uint32_t timeout_ms) {
     char command[40];
@@ -268,13 +222,6 @@ static bool
     return len > 0;
 }
 
-/* Passive listen, no probe sent at all: a GPS module speaks NMEA
-   sentences continuously and unprompted, always starting with '$', so
-   the right way to detect one is to just listen briefly rather than
-   send it a command it has no reason to understand. This runs before
-   the AT/signature tiers precisely because it needs silence from us to
-   work - sending "AT" first and only listening afterward could miss a
-   sentence already in progress or catch a mid-sentence fragment. */
 static bool link_listen_for_nmea(Link* link, char* out, size_t out_capacity, uint32_t timeout_ms) {
     char line[LINE_MAX];
     uint32_t deadline = furi_get_tick() + timeout_ms;
@@ -284,6 +231,17 @@ static bool link_listen_for_nmea(Link* link, char* out, size_t out_capacity, uin
         return true;
     }
     return false;
+}
+
+static bool link_check_bootloop_flood(Link* link, uint32_t window_ms, size_t min_bytes) {
+    uint32_t deadline = furi_get_tick() + window_ms;
+    size_t total = 0;
+    while(furi_get_tick() < deadline) {
+        if(link->cancel != NULL && *link->cancel) return false;
+        uint8_t byte;
+        if(furi_stream_buffer_receive(link->rx_stream, &byte, 1, 50) > 0) total++;
+    }
+    return total >= min_bytes;
 }
 
 static void post_progress(App* app, const char* status, size_t index, size_t total) {
@@ -302,7 +260,9 @@ static void post_result(
     bool any_pin_claimed,
     const char* banner,
     size_t pin,
-    uint32_t baud) {
+    uint32_t baud,
+    bool flood_detected,
+    size_t flood_pin) {
     furi_mutex_acquire(app->mutex, FuriWaitForever);
     app->result_found = found;
     app->result_any_pin_claimed = any_pin_claimed;
@@ -310,23 +270,13 @@ static void post_result(
     app->result_banner[sizeof(app->result_banner) - 1] = '\0';
     app->result_pin = pin;
     app->result_baud = baud;
+    app->result_flood_detected = flood_detected;
+    app->result_flood_pin = flood_pin;
     app->scan_done = true;
     furi_mutex_release(app->mutex);
     view_dispatcher_send_custom_event(app->view_dispatcher, DetectorEventProgress);
 }
 
-/* Runs entirely on its own thread (started by start_scan()) and never
-   touches Widget/Gui directly - only shared App fields, guarded by
-   app->mutex, followed by view_dispatcher_send_custom_event() to ask
-   the main thread to redraw. An earlier version called widget_reset()
-   and friends directly from inside the Scan button's own callback in a
-   tight loop; the screen never visibly updated until the whole 18-combo
-   scan finished, some 25-30 seconds later. Flipper's GUI does redraw
-   asynchronously on its own thread, but Widget updates are only
-   reliably picked up when driven through the ViewDispatcher's own
-   event-processing cycle - i.e. from a context like this callback,
-   which the dispatcher itself invokes, not from inside another
-   button's callback still executing a blocking loop. */
 static int32_t scan_worker(void* context) {
     App* app = context;
     size_t total_combos = PIN_OPTION_COUNT * BAUD_OPTION_COUNT;
@@ -338,8 +288,11 @@ static int32_t scan_worker(void* context) {
     size_t found_pin = 0;
     uint32_t found_baud = 0;
     bool any_pin_claimed = false;
+    bool flood_detected = false;
+    size_t flood_pin = 0;
 
-    for(size_t p = 0; p < PIN_OPTION_COUNT && !found && !app->cancel_requested; p++) {
+    for(size_t p = 0; p < PIN_OPTION_COUNT && !found && !flood_detected && !app->cancel_requested;
+        p++) {
         Expansion* expansion = furi_record_open(RECORD_EXPANSION);
         expansion_disable(expansion);
 
@@ -363,7 +316,9 @@ static int32_t scan_worker(void* context) {
         link.cancel = &app->cancel_requested;
         furi_hal_serial_async_rx_start(handle, link_rx_callback, &link, false);
 
-        for(size_t b = 0; b < BAUD_OPTION_COUNT && !found && !app->cancel_requested; b++) {
+        for(size_t b = 0; b < BAUD_OPTION_COUNT && !found && !flood_detected &&
+                          !app->cancel_requested;
+            b++) {
             size_t combo_index = p * BAUD_OPTION_COUNT + b;
             char status[64];
             snprintf(
@@ -380,7 +335,6 @@ static int32_t scan_worker(void* context) {
             while(furi_stream_buffer_receive(link.rx_stream, &discard, 1, 0) > 0) {
             }
 
-            /* Tier 0: GPS/NMEA, passive - see link_listen_for_nmea(). */
             char capture[CAPTURE_MAX];
             if(link_listen_for_nmea(&link, capture, sizeof(capture), NMEA_LISTEN_MS)) {
                 snprintf(banner, sizeof(banner), "GPS (NMEA): %.100s", capture);
@@ -390,7 +344,29 @@ static int32_t scan_worker(void* context) {
                 break;
             }
 
-            /* Tier 1: ESP-AT. */
+            /* Must run before the AT/OK probe below - Fox ESP32 Firmware
+               answers a bare "AT" with "OK" too, which would otherwise
+               match first and shadow the "info" signature check. */
+            bool signature_found = false;
+            for(size_t s = 0; s < SIGNATURE_COUNT; s++) {
+                if(link_capture_response(
+                       &link, signatures[s].probe, capture, sizeof(capture), FINGERPRINT_TIMEOUT_MS) &&
+                   contains_ci(capture, signatures[s].match)) {
+                    const char* clean = lookup_known_tag(capture);
+                    if(clean != NULL) {
+                        snprintf(banner, sizeof(banner), "%.100s", clean);
+                    } else {
+                        snprintf(banner, sizeof(banner), "Match \"%.20s\": %.100s", signatures[s].match, capture);
+                    }
+                    found = true;
+                    signature_found = true;
+                    found_pin = p;
+                    found_baud = baud_options[b];
+                    break;
+                }
+            }
+            if(signature_found) break;
+
             furi_hal_serial_tx(handle, (const uint8_t*)"AT\r\n", 4);
             if(link_expect_ok(&link, AT_TIMEOUT_MS)) {
                 furi_hal_serial_tx(handle, (const uint8_t*)"AT+GMR\r\n", 8);
@@ -408,36 +384,6 @@ static int32_t scan_worker(void* context) {
                 break;
             }
 
-            /* Tier 2: known non-AT firmware signatures. */
-            bool tier2_found = false;
-            for(size_t s = 0; s < SIGNATURE_COUNT; s++) {
-                if(link_capture_response(
-                       &link, signatures[s].probe, capture, sizeof(capture), FINGERPRINT_TIMEOUT_MS) &&
-                   contains_ci(capture, signatures[s].match)) {
-                    const char* clean = lookup_known_tag(capture);
-                    if(clean != NULL) {
-                        snprintf(banner, sizeof(banner), "%.100s", clean);
-                    } else {
-                        snprintf(banner, sizeof(banner), "Match \"%.20s\": %.100s", signatures[s].match, capture);
-                    }
-                    found = true;
-                    tier2_found = true;
-                    found_pin = p;
-                    found_baud = baud_options[b];
-                    break;
-                }
-            }
-            if(tier2_found) break;
-
-            /* Tier 3: nothing recognized by name. Requiring the same
-               probe to repeat identically twice is what actually
-               distinguishes a real command-response from a device
-               that's continuously outputting something on its own (a
-               boot log, a crash loop) getting caught mid-transmission,
-               or a baud mismatch scrambling readable bytes into other
-               readable-looking garbage - both of which produced a
-               different result on every scan during this app's own
-               bring-up before this check existed. */
             char capture_repeat[CAPTURE_MAX];
             if(link_capture_response(&link, "?", capture, sizeof(capture), FINGERPRINT_TIMEOUT_MS) &&
                link_capture_response(
@@ -454,12 +400,17 @@ static int32_t scan_worker(void* context) {
                 found_baud = baud_options[b];
                 break;
             }
+
+            if(baud_options[b] == 115200 &&
+               link_check_bootloop_flood(&link, FLOOD_LISTEN_MS, FLOOD_MIN_BYTES)) {
+                flood_detected = true;
+                flood_pin = p;
+                break;
+            }
         }
 
-        /* Order matters: stop the receive interrupt before anything
-           else, free the buffer it writes into last - see esp_at.c in
-           the companion fox_chameleon project for the full story on
-           why (a real Flipper firmware bug class, PR #4246). */
+        /* Stop async rx before deinit/release, free the stream buffer last -
+           wrong order here is a known Flipper firmware bug class (PR #4246). */
         furi_hal_serial_async_rx_stop(handle);
         if(owned) furi_hal_serial_deinit(handle);
         furi_hal_serial_control_release(handle);
@@ -469,7 +420,15 @@ static int32_t scan_worker(void* context) {
     }
 
     if(app->cancel_requested) return 0;
-    post_result(app, found, any_pin_claimed, found ? banner : "", found_pin, found_baud);
+    post_result(
+        app,
+        found,
+        any_pin_claimed,
+        found ? banner : "",
+        found_pin,
+        found_baud,
+        flood_detected,
+        flood_pin);
     return 0;
 }
 
@@ -492,20 +451,6 @@ static void scan_button_callback(GuiButtonType result, InputType type, void* con
     if(type == InputTypeShort && result == GuiButtonTypeCenter) start_scan(app);
 }
 
-/* --- Progress: custom View (not the Widget) for the scan-in-progress
-   screen. ---
-   Same "static App* pointer set once, read from the draw callback"
-   pattern fox_chameleon's candidate/terminal/settings views use, for the
-   same reason - the draw callback only gets the throwaway model
-   allocated for it, not the context set via view_set_context() (only
-   the input callback gets that).
-
-   Replaces the old Widget-based render_progress(), which drew the bar
-   as a literal "####------" string - functional, but exactly the "looks
-   terrible" ASCII look the user asked to move away from. This instead
-   hand-draws a rounded outer frame with a smaller rounded fill inset
-   inside it, the same rounded-rect vocabulary Flipper's own firmware
-   update/install progress screens use. */
 static App* s_progress_view_app = NULL;
 
 #define PROGRESS_TITLE_Y     2
@@ -550,10 +495,6 @@ static void progress_draw_cb(Canvas* canvas, void* model) {
     if(fill_w > inner_w) fill_w = inner_w;
 
     if(fill_w > 0) {
-        /* Radius has to shrink with the fill - a full-height sliver at
-           the start of a scan can't take the same radius as the full
-           bar without canvas_draw_rbox() drawing something that looks
-           broken rather than just small. */
         int32_t fill_radius = PROGRESS_BAR_RADIUS - PROGRESS_BAR_PAD;
         if(fill_radius < 0) fill_radius = 0;
         int32_t max_radius = (fill_w < inner_h ? fill_w : inner_h) / 2;
@@ -574,29 +515,146 @@ static void progress_draw_cb(Canvas* canvas, void* model) {
 static bool progress_input_cb(InputEvent* event, void* context) {
     UNUSED(event);
     UNUSED(context);
-    /* No buttons on this screen, same as the old Widget-based version -
-       Back falls through to navigation_callback and exits the app,
-       the only Back behavior this single-screen app has ever had. */
+
     return false;
 }
 
-static void render_result(App* app, bool found, bool any_pin_claimed, const char* banner, size_t pin, uint32_t baud) {
+#define RESULT_TABLE_X      1
+#define RESULT_TABLE_W      126
+#define RESULT_ROW_H        14
+#define RESULT_TABLE_ROWS   3
+#define RESULT_TABLE_Y      3
+#define RESULT_TABLE_H      (RESULT_ROW_H * RESULT_TABLE_ROWS)
+#define RESULT_TABLE_RADIUS 4
+#define RESULT_LABEL_PAD    4
+#define RESULT_VALUE_PAD    4
+
+static App* s_result_view_app = NULL;
+
+static size_t result_fit_chars(Canvas* canvas, const char* text, int32_t max_w) {
+    size_t len = strlen(text);
+    size_t n = 0;
+    char buf[BANNER_BUFFER_MAX];
+    while(n < len) {
+        size_t take = n + 1;
+        size_t cap = take < sizeof(buf) - 1 ? take : sizeof(buf) - 1;
+        memcpy(buf, text, cap);
+        buf[cap] = '\0';
+        if((int32_t)canvas_string_width(canvas, buf) > max_w) break;
+        n = take;
+    }
+    return n;
+}
+
+static void
+    result_draw_value(Canvas* canvas, int32_t x, int32_t y, int32_t max_w, const char* value) {
+    canvas_set_font(canvas, FontSecondary);
+    if((int32_t)canvas_string_width(canvas, value) <= max_w) {
+        canvas_draw_str_aligned(canvas, x, y, AlignLeft, AlignCenter, value);
+        return;
+    }
+    int32_t dots_w = (int32_t)canvas_string_width(canvas, "...");
+    size_t fit = result_fit_chars(canvas, value, max_w - dots_w);
+    char buf[BANNER_BUFFER_MAX];
+    size_t n = fit < sizeof(buf) - 4 ? fit : sizeof(buf) - 4;
+    memcpy(buf, value, n);
+    buf[n] = '.';
+    buf[n + 1] = '.';
+    buf[n + 2] = '.';
+    buf[n + 3] = '\0';
+    canvas_draw_str_aligned(canvas, x, y, AlignLeft, AlignCenter, buf);
+}
+
+static void result_table_draw_cb(Canvas* canvas, void* model) {
+    UNUSED(model);
+    App* app = s_result_view_app;
+    if(app == NULL) return;
+
+    canvas_clear(canvas);
+    canvas_set_font(canvas, FontPrimary);
+
+    static const char* labels[RESULT_TABLE_ROWS] = {"Pins", "Baud", "Info"};
+    char baud_str[16];
+    snprintf(baud_str, sizeof(baud_str), "%lu", (unsigned long)app->result_baud);
+    const char* values[RESULT_TABLE_ROWS] = {
+        pin_options[app->result_pin].label, baud_str, app->result_banner};
+
+    int32_t label_w = 0;
+    for(size_t i = 0; i < RESULT_TABLE_ROWS; i++) {
+        int32_t w = (int32_t)canvas_string_width(canvas, labels[i]);
+        if(w > label_w) label_w = w;
+    }
+    int32_t col1_w = label_w + RESULT_LABEL_PAD * 2;
+    int32_t col2_w = RESULT_TABLE_W - col1_w;
+
+    canvas_set_color(canvas, ColorBlack);
+    canvas_draw_rframe(
+        canvas, RESULT_TABLE_X, RESULT_TABLE_Y, RESULT_TABLE_W, RESULT_TABLE_H, RESULT_TABLE_RADIUS);
+    canvas_draw_box(canvas, RESULT_TABLE_X + 1, RESULT_TABLE_Y + 1, col1_w - 1, RESULT_TABLE_H - 2);
+
+    for(size_t i = 0; i < RESULT_TABLE_ROWS; i++) {
+        int32_t row_y = RESULT_TABLE_Y + (int32_t)i * RESULT_ROW_H;
+        int32_t cy = row_y + RESULT_ROW_H / 2;
+
+        canvas_set_color(canvas, ColorWhite);
+        canvas_set_font(canvas, FontPrimary);
+        canvas_draw_str_aligned(
+            canvas, RESULT_TABLE_X + RESULT_LABEL_PAD, cy, AlignLeft, AlignCenter, labels[i]);
+
+        canvas_set_color(canvas, ColorBlack);
+        int32_t value_x = RESULT_TABLE_X + col1_w + RESULT_VALUE_PAD;
+        int32_t value_max_w = col2_w - RESULT_VALUE_PAD * 2;
+        result_draw_value(canvas, value_x, cy, value_max_w, values[i]);
+    }
+
+    const char* label = "Rescan";
+    const Icon* icon = &I_ButtonCenter_7x7;
+    int32_t icon_gap = 3;
+    int32_t pad = 10;
+    int32_t btn_h = 14;
+    int32_t btn_y = 64 - btn_h - 2;
+    canvas_set_font(canvas, FontSecondary);
+    int32_t group_w = icon->width + icon_gap + (int32_t)canvas_string_width(canvas, label);
+    int32_t btn_w = group_w + pad * 2;
+    int32_t btn_x = (128 - btn_w) / 2;
+
+    canvas_set_color(canvas, ColorBlack);
+    canvas_draw_rbox(canvas, btn_x, btn_y, btn_w, btn_h, 3);
+    canvas_set_color(canvas, ColorWhite);
+    int32_t gx = btn_x + pad;
+    canvas_draw_icon(canvas, gx, btn_y + (btn_h - icon->height) / 2, icon);
+    canvas_draw_str_aligned(
+        canvas, gx + icon->width + icon_gap, btn_y + btn_h / 2, AlignLeft, AlignCenter, label);
+    canvas_set_color(canvas, ColorBlack);
+}
+
+static bool result_table_input_cb(InputEvent* event, void* context) {
+    App* app = context;
+    if(event->type != InputTypeShort) return false;
+    switch(event->key) {
+    case InputKeyOk:
+    case InputKeyRight:
+        start_scan(app);
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void render_result(
+    App* app,
+    bool any_pin_claimed,
+    bool flood_detected,
+    size_t flood_pin) {
     widget_reset(app->widget);
 
     char text[LINE_MAX + 64];
-    if(found) {
-        /* %.20s / %.100s, not bare %s: text is a fixed-size local, but
-           pin_options[pin].label and banner are both plain pointer
-           parameters here, so the compiler can't see any bound on them
-           on its own - same -Wformat-truncation fix as the spots in
-           scan_worker() an actual build already flagged once. */
+    if(flood_detected) {
         snprintf(
             text,
             sizeof(text),
-            "Found a response:\nPins: %.20s\nBaud: %lu\n%.100s",
-            pin_options[pin].label,
-            (unsigned long)baud,
-            banner);
+            "ESP32 detected on\nPins: %.20s\nbut not flashed right -\ncontinuous unprompted\ndata (boot-loop).\nReflash firmware.",
+            pin_options[flood_pin].label);
     } else if(any_pin_claimed) {
         snprintf(
             text,
@@ -626,26 +684,22 @@ static bool custom_event_callback(void* context, uint32_t event) {
     status[sizeof(status) - 1] = '\0';
     bool found = app->result_found;
     bool any_pin_claimed = app->result_any_pin_claimed;
-    char banner[LINE_MAX];
-    strncpy(banner, app->result_banner, sizeof(banner) - 1);
-    banner[sizeof(banner) - 1] = '\0';
-    size_t pin = app->result_pin;
-    uint32_t baud = app->result_baud;
+    bool flood_detected = app->result_flood_detected;
+    size_t flood_pin = app->result_flood_pin;
     furi_mutex_release(app->mutex);
 
     if(!done) {
-        /* Snapshot into the display-only fields progress_draw_cb() reads -
-           see their comment on App for why this is safe without the
-           mutex (both this callback and every draw callback run on the
-           view dispatcher's own thread). */
         app->progress_display_index = index;
         app->progress_display_total = total;
         strncpy(app->progress_display_status, status, sizeof(app->progress_display_status) - 1);
         app->progress_display_status[sizeof(app->progress_display_status) - 1] = '\0';
         view_dispatcher_switch_to_view(app->view_dispatcher, DetectorViewProgress);
         with_view_model(app->progress_view, uint8_t * _m, { UNUSED(_m); }, true);
+    } else if(found) {
+        view_dispatcher_switch_to_view(app->view_dispatcher, DetectorViewResultTable);
+        app->scanning = false;
     } else {
-        render_result(app, found, any_pin_claimed, banner, pin, baud);
+        render_result(app, any_pin_claimed, flood_detected, flood_pin);
         view_dispatcher_switch_to_view(app->view_dispatcher, DetectorViewResult);
         app->scanning = false;
     }
@@ -672,25 +726,19 @@ static App* app_alloc(void) {
     view_dispatcher_set_custom_event_callback(app->view_dispatcher, custom_event_callback);
 
     app->widget = widget_alloc();
-    /* Two short lines, well clear of the Scan button's fixed bottom
-       anchor - a longer, five-line version of this screen silently
-       line-wrapped past its intended length and overlapped the button,
-       which has no configurable position of its own to compensate
-       with. */
+
+    widget_add_string_multiline_element(
+        app->widget, 64, 4, AlignCenter, AlignTop, FontPrimary, "Fox ESP32\nDetector");
     widget_add_string_multiline_element(
         app->widget,
-        2,
-        2,
-        AlignLeft,
+        64,
+        26,
+        AlignCenter,
         AlignTop,
         FontSecondary,
-        "Fox ESP32 Detector\n\n"
-        "Checks what's on\n"
-        "GPIO. Press Scan.");
+        "Checks what's on\nGPIO. Press Scan.");
     widget_add_button_element(app->widget, GuiButtonTypeCenter, "Scan", scan_button_callback, app);
 
-    /* Progress - see progress_draw_cb()/progress_input_cb() above for why
-       this is a custom View, not the Widget the idle/result screens use. */
     app->progress_view = view_alloc();
     view_set_draw_callback(app->progress_view, progress_draw_cb);
     view_set_input_callback(app->progress_view, progress_input_cb);
@@ -698,9 +746,17 @@ static App* app_alloc(void) {
     view_allocate_model(app->progress_view, ViewModelTypeLocking, sizeof(uint8_t));
     s_progress_view_app = app;
 
+    app->result_view = view_alloc();
+    view_set_draw_callback(app->result_view, result_table_draw_cb);
+    view_set_input_callback(app->result_view, result_table_input_cb);
+    view_set_context(app->result_view, app);
+    view_allocate_model(app->result_view, ViewModelTypeLocking, sizeof(uint8_t));
+    s_result_view_app = app;
+
     view_dispatcher_add_view(
         app->view_dispatcher, DetectorViewResult, widget_get_view(app->widget));
     view_dispatcher_add_view(app->view_dispatcher, DetectorViewProgress, app->progress_view);
+    view_dispatcher_add_view(app->view_dispatcher, DetectorViewResultTable, app->result_view);
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
     view_dispatcher_switch_to_view(app->view_dispatcher, DetectorViewResult);
 
@@ -715,9 +771,12 @@ static void app_free(App* app) {
 
     view_dispatcher_remove_view(app->view_dispatcher, DetectorViewResult);
     view_dispatcher_remove_view(app->view_dispatcher, DetectorViewProgress);
+    view_dispatcher_remove_view(app->view_dispatcher, DetectorViewResultTable);
     widget_free(app->widget);
     view_free(app->progress_view);
+    view_free(app->result_view);
     s_progress_view_app = NULL;
+    s_result_view_app = NULL;
     view_dispatcher_free(app->view_dispatcher);
     furi_record_close(RECORD_GUI);
 

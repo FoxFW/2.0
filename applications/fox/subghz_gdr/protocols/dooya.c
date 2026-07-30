@@ -91,11 +91,6 @@ void subghz_protocol_encoder_dooya_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderDooya instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_dooya_get_upload(SubGhzProtocolEncoderDooya* instance) {
     furi_assert(instance);
 
@@ -108,7 +103,6 @@ static bool subghz_protocol_encoder_dooya_get_upload(SubGhzProtocolEncoderDooya*
         instance->encoder.size_upload = size_upload;
     }
 
-    //Send header
     if(bit_read(instance->generic.data, 0)) {
         instance->encoder.upload[index++] = level_duration_make(
             false,
@@ -121,22 +115,18 @@ static bool subghz_protocol_encoder_dooya_get_upload(SubGhzProtocolEncoderDooya*
                 subghz_protocol_dooya_const.te_short);
     }
 
-    //Send start bit
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_dooya_const.te_short * 13);
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_dooya_const.te_long * 2);
 
-    //Send key data
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_dooya_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_dooya_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_dooya_const.te_short);
             instance->encoder.upload[index++] =
@@ -159,7 +149,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -259,7 +249,6 @@ void subghz_protocol_decoder_dooya_feed(void* context, bool level, uint32_t dura
     case DooyaDecoderStepCheckDuration:
         if(!level) {
             if(duration >= (subghz_protocol_dooya_const.te_long * 4)) {
-                //add last bit
                 if(DURATION_DIFF(instance->decoder.te_last, subghz_protocol_dooya_const.te_short) <
                    subghz_protocol_dooya_const.te_delta) {
                     subghz_protocol_blocks_add_bit(&instance->decoder, 0);
@@ -304,40 +293,7 @@ void subghz_protocol_decoder_dooya_feed(void* context, bool level, uint32_t dura
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_dooya_check_remote_controller(SubGhzBlockGeneric* instance) {
-    /*
- * 																serial       s/m  ch      key   	
- * long press down   X * E1DC030533, 40b 			111000011101110000000011 0000 0101 0011 0011
- * 
- * short press down  3 * E1DC030533, 40b			111000011101110000000011 0000 0101 0011 0011
- *                   3 * E1DC03053C, 40b 	        111000011101110000000011 0000 0101 0011 1100
- * 	
- * press stop        X * E1DC030555, 40b			111000011101110000000011 0000 0101 0101 0101
- * 
- * long press up     X * E1DC030511, 40b			111000011101110000000011 0000 0101 0001 0001
- * 
- * short press up    3 * E1DC030511, 40b			111000011101110000000011 0000 0101 0001 0001
- *                   3 * E1DC03051E, 40b		    111000011101110000000011 0000 0101 0001 1110
- *
- * serial: 3 byte serial number
- * s/m: single (b0000) / multi (b0001) channel console  
- * ch: channel if single (always b0101) or multi 
- * key: 0b00010001 - long press up
- *      0b00011110 - short press up
- *      0b00110011 - long press down
- *      0b00111100 - short press down
- *      0b01010101 - press stop 
- *      0b01111001 - press up + down
- *      0b10000000 - press up + stop
- *      0b10000001 - press down + stop
- *      0b11001100 - press P2
- *      
-*/
-
     instance->serial = (instance->data >> 16);
     if((instance->data >> 12) & 0x0F) {
         instance->cnt = (instance->data >> 8) & 0x0F;
@@ -371,10 +327,6 @@ SubGhzProtocolStatus
         &instance->generic, flipper_format, subghz_protocol_dooya_const.min_count_bit_for_found);
 }
 
-/**
- * Get button name.
- * @param btn Button number, 8 bit
- */
 static const char* subghz_protocol_dooya_get_name_button(uint8_t btn) {
     const char* btn_name;
     switch(btn) {
@@ -418,11 +370,9 @@ void subghz_protocol_decoder_dooya_get_string(void* context, FuriString* output)
 
     subghz_protocol_dooya_check_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 8;
-    //
 
     furi_string_cat_printf(
         output,

@@ -95,17 +95,16 @@ bool subghz_protocol_raw_save_to_file_init(
     bool init = false;
 
     do {
-        // Create subghz folder directory if necessary
         if(!storage_simply_mkdir(instance->storage, SUBGHZ_RAW_FOLDER)) {
             break;
         }
-        // Create saved directory if necessary
+
         if(!storage_simply_mkdir(instance->storage, SUBGHZ_RAW_FOLDER)) {
             break;
         }
 
         furi_string_set(instance->file_name, dev_name);
-        // First remove subghz device file if it was saved
+
         furi_string_printf(
             temp_str, "%s/%s%s", SUBGHZ_RAW_FOLDER, dev_name, SUBGHZ_APP_FILENAME_EXTENSION);
 
@@ -113,7 +112,6 @@ bool subghz_protocol_raw_save_to_file_init(
             break;
         }
 
-        // Open file
         if(!flipper_format_file_open_always(
                instance->flipper_file, furi_string_get_cstr(temp_str))) {
             FURI_LOG_E(TAG, "Unable to open file for write: %s", furi_string_get_cstr(temp_str));
@@ -245,7 +243,7 @@ void subghz_protocol_decoder_raw_reset(void* context) {
 void subghz_protocol_decoder_raw_feed(void* context, bool level, uint32_t duration) {
     furi_check(context);
     SubGhzProtocolDecoderRAW* instance = context;
-    // Add check if we got duration higher than 1 second, we skipping it, temp fix
+
     if((!instance->pause && (instance->upload_raw != NULL)) && (duration < ((uint32_t)1000000))) {
         if(duration > subghz_protocol_raw_const.te_short) {
             if(instance->last_level != level) {
@@ -265,13 +263,13 @@ SubGhzProtocolStatus
     furi_check(context);
     UNUSED(context);
     UNUSED(flipper_format);
-    // stub, for backwards compatibility
+
     return SubGhzProtocolStatusOk;
 }
 
 void subghz_protocol_decoder_raw_get_string(void* context, FuriString* output) {
     furi_check(context);
-    //SubGhzProtocolDecoderRAW* instance = context;
+
     UNUSED(context);
     furi_string_cat_printf(output, "RAW Data");
 }
@@ -327,7 +325,6 @@ static bool subghz_protocol_encoder_raw_worker_init(SubGhzProtocolEncoderRAW* in
            instance->file_worker_encoder,
            furi_string_get_cstr(instance->file_name),
            furi_string_get_cstr(instance->radio_device_name))) {
-        //the worker needs a file in order to open and read part of the file
         furi_delay_ms(100);
         instance->is_running = true;
     } else {

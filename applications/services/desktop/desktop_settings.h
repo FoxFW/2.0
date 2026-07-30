@@ -51,7 +51,8 @@ typedef struct {
     uint8_t lock_disconnect_ble;
     uint8_t lock_disconnect_gpio;
     uint8_t lock_usb_level;
-    uint8_t menu_theme; // MenuTheme enum
+    uint8_t menu_theme;       /* MenuTheme enum */
+    uint8_t wifi_icon_hidden; /* 0 = show (default), 1 = hide */
 } DesktopSettings;
 
 void desktop_settings_load(DesktopSettings* settings);

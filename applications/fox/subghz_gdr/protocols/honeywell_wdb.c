@@ -8,12 +8,6 @@
 
 #define TAG "SubGhzProtocolHoneywellWdb"
 
-/*
- * 
- * https://github.com/klohner/honeywell-wireless-doorbell
- *
- */
-
 static const SubGhzBlockConst subghz_protocol_honeywell_wdb_const = {
     .te_short = 160,
     .te_long = 320,
@@ -102,11 +96,6 @@ void subghz_protocol_encoder_honeywell_wdb_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderHoneywell_WDB instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_honeywell_wdb_get_upload(
     SubGhzProtocolEncoderHoneywell_WDB* instance) {
     furi_assert(instance);
@@ -118,19 +107,17 @@ static bool subghz_protocol_encoder_honeywell_wdb_get_upload(
     } else {
         instance->encoder.size_upload = size_upload;
     }
-    //Send header
+
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_honeywell_wdb_const.te_short * 3);
-    //Send key data
+
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_honeywell_wdb_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_honeywell_wdb_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_honeywell_wdb_const.te_short);
             instance->encoder.upload[index++] =
@@ -156,7 +143,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_honeywell_wdb_deserialize(
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -221,14 +208,13 @@ void subghz_protocol_decoder_honeywell_wdb_feed(void* context, bool level, uint3
     case Honeywell_WDBDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_honeywell_wdb_const.te_short * 3) <
                         subghz_protocol_honeywell_wdb_const.te_delta)) {
-            //Found header Honeywell_WDB
             instance->decoder.decode_count_bit = 0;
             instance->decoder.decode_data = 0;
             instance->decoder.parser_step = Honeywell_WDBDecoderStepSaveDuration;
         }
         break;
     case Honeywell_WDBDecoderStepSaveDuration:
-        if(level) { //save interval
+        if(level) {
             if(DURATION_DIFF(duration, subghz_protocol_honeywell_wdb_const.te_short * 3) <
                subghz_protocol_honeywell_wdb_const.te_delta) {
                 if((instance->decoder.decode_count_bit ==
@@ -278,31 +264,8 @@ void subghz_protocol_decoder_honeywell_wdb_feed(void* context, bool level, uint3
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzProtocolDecoderHoneywell_WDB* instance
- */
 static void subghz_protocol_honeywell_wdb_check_remote_controller(
     SubGhzProtocolDecoderHoneywell_WDB* instance) {
-    /*
- *
- * Frame bits used in Honeywell RCWL300A, RCWL330A, Series 3, 5, 9 and all Decor Series Wireless Chimes
- * 0000 0000 1111 1111 2222 2222 3333 3333 4444 4444 5555 5555
- * 7654 3210 7654 3210 7654 3210 7654 3210 7654 3210 7654 3210
- * XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XX.. XXX. .... KEY DATA (any change and receiver doesn't seem to recognize signal)
- * XXXX XXXX XXXX XXXX XXXX .... .... .... .... .... .... .... KEY ID (different for each transmitter)
- * .... .... .... .... .... 0000 00.. 0000 0000 00.. 000. .... KEY UNKNOWN 0 (always 0 in devices I've tested)
- * .... .... .... .... .... .... ..XX .... .... .... .... .... DEVICE TYPE (10 = doorbell, 01 = PIR Motion sensor)
- * .... .... .... .... .... .... .... .... .... ..XX ...X XXX. FLAG DATA (may be modified for possible effects on receiver)
- * .... .... .... .... .... .... .... .... .... ..XX .... .... ALERT (00 = normal, 01 or 10 = right-left halo light pattern, 11 = full volume alarm)
- * .... .... .... .... .... .... .... .... .... .... ...X .... SECRET KNOCK (0 = default, 1 if doorbell is pressed 3x rapidly)
- * .... .... .... .... .... .... .... .... .... .... .... X... RELAY (1 if signal is a retransmission of a received transmission, only some models)
- * .... .... .... .... .... .... .... .... .... .... .... .X.. FLAG UNKNOWN (0 = default, but 1 is accepted and I don't observe any effects)
- * .... .... .... .... .... .... .... .... .... .... .... ..X. LOWBAT (1 if battery is low, receiver gives low battery alert)
- * .... .... .... .... .... .... .... .... .... .... .... ...X PARITY (LSB of count of set bits in previous 47 bits)
- * 
- */
-
     instance->generic.serial = (instance->generic.data >> 28) & 0xFFFFF;
     switch((instance->generic.data >> 20) & 0x3) {
     case 0x02:

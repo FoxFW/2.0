@@ -1,4 +1,3 @@
-// gdr_history.h
 #pragma once
 
 #include <stddef.h>

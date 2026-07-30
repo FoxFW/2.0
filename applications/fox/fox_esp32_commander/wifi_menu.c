@@ -1,18 +1,14 @@
 #include "wifi_menu.h"
+#include "saved_wifi.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <storage/storage.h>
 #include <furi_hal_rtc.h>
+#include <loader/loader.h>
 
-/* Keep this in sync by hand with the firmware's WIFI_PCAP_SNAPLEN
-   (config.h) - no shared header between the two projects, same
-   convention as FOX_PORTAL_MAX_FIELDS. Used both as the pcap global
-   header's snaplen field and as the stack buffer size a captured
-   frame is reassembled into. */
-#define FOX_PCAP_SNAPLEN 256
-
+#define FOX_PCAP_SNAPLEN 256 /* must match firmware's WIFI_PCAP_SNAPLEN (config.h) */
 
 typedef enum {
     MenuWifiConnect,
@@ -24,19 +20,23 @@ typedef enum {
 
 typedef enum {
     MenuConnDisconnect,
+    MenuConnEditSaved,
     MenuConnStatus,
     MenuConnSwitch,
     MenuConnForget,
 } MenuWifiConnectionIndex;
 
-/* One [WIFI/STATUS] round trip - see app->wifi_menu_connected's comment
-   in app.h for why the result is cached rather than queried again on
-   the immediately-following click. */
+static void fox_wifi_status_write(bool connected);
+
 static bool wifi_is_connected(App* app) {
     esp_at_send(app->esp_at, "[WIFI/STATUS]");
     EspAtMsg msg;
-    if(!esp_at_receive(app->esp_at, &msg, 5000)) return false;
-    return strcmp(msg.line, "[WIFI/STATUS/SUCCESS]true") == 0;
+    bool connected = false;
+    if(esp_at_receive(app->esp_at, &msg, 5000)) {
+        connected = strcmp(msg.line, "[WIFI/STATUS/SUCCESS]true") == 0;
+    }
+    fox_wifi_status_write(connected);
+    return connected;
 }
 
 typedef enum {
@@ -65,12 +65,9 @@ void wifi_render_menu(App* app, MenuContext ctx) {
     switch(ctx) {
     case MenuContextWifi:
         submenu_set_header(app->submenu, "WiFi");
-        /* One status round trip per render, cached for the click - see
-           app->wifi_menu_connected's comment in app.h. Already
-           connected: label reads "Connection" and leads to the
-           Disconnect/Status/Switch/Forget submenu below instead of
-           straight into the scan/select/password flow. */
+
         app->wifi_menu_connected = wifi_is_connected(app);
+        wifi_saved_sync(app);
         submenu_add_item(
             app->submenu,
             app->wifi_menu_connected ? "Connection" : "Connect",
@@ -87,6 +84,8 @@ void wifi_render_menu(App* app, MenuContext ctx) {
         submenu_set_header(app->submenu, "Connection");
         submenu_add_item(
             app->submenu, "Disconnect", MenuConnDisconnect, app_menu_item_callback, app);
+        submenu_add_item(
+            app->submenu, "Edit Saved", MenuConnEditSaved, app_menu_item_callback, app);
         submenu_add_item(app->submenu, "Status", MenuConnStatus, app_menu_item_callback, app);
         submenu_add_item(
             app->submenu, "Connect to Network", MenuConnSwitch, app_menu_item_callback, app);
@@ -150,11 +149,9 @@ void wifi_render_menu(App* app, MenuContext ctx) {
     }
 }
 
-
 static void wifi_scan_and_merge(App* app, bool include_saved_out_of_range) {
     app->network_count = 0;
 
-    /* --- WIFISCANAP: AP:<idx> ssid:"<ssid>" bssid:<mac> ch:<n> rssi:<n> enc:<label> --- */
     esp_at_send(app->esp_at, "WIFISCANAP");
     EspAtMsg msg;
     uint32_t deadline = furi_get_tick() + 15000;
@@ -162,11 +159,7 @@ static void wifi_scan_and_merge(App* app, bool include_saved_out_of_range) {
         uint32_t remaining = deadline - furi_get_tick();
         if(!esp_at_receive(app->esp_at, &msg, remaining)) break;
         if(strcmp(msg.line, "SCANDONE") == 0) break;
-        /* Firmware sends this immediately before SCANDONE when
-           WiFi.scanNetworks() itself failed (negative return), as
-           opposed to succeeding with zero APs in range - surface it so
-           "No networks found" isn't ambiguous between "none nearby" and
-           "the scan errored out". */
+
         if(strncmp(msg.line, "SCANERROR:", 10) == 0) {
             app_log(app, "Scan error (code %s).", msg.line + 10);
             continue;
@@ -176,9 +169,7 @@ static void wifi_scan_and_merge(App* app, bool include_saved_out_of_range) {
         char ssid[FOX_WIFI_SSID_MAX] = {0};
         int rssi = 0;
         char enc[16] = {0};
-        /* "AP:%d ssid:\"%[^\"]\" bssid:%*s ch:%*d rssi:%d enc:%15s" -
-           bssid/ch are read but not needed here (WIFISELECT:AP takes an
-           index, not a BSSID), so they're skipped with %*. */
+
         int matched = sscanf(
             msg.line,
             "AP:%d ssid:\"%32[^\"]\" bssid:%*s ch:%*d rssi:%d enc:%15s",
@@ -200,10 +191,6 @@ static void wifi_scan_and_merge(App* app, bool include_saved_out_of_range) {
 
     if(!include_saved_out_of_range) return;
 
-    /* --- [WIFI/LIST]: one "[WIFI/LIST]<ssid>" line per saved network,
-       then "[WIFI/LIST/SUCCESS]". Mark matches against what's already
-       in the list from the scan above (saved AND in range); append
-       anything saved that isn't currently in range. --- */
     esp_at_send(app->esp_at, "[WIFI/LIST]");
     deadline = furi_get_tick() + 3000;
     while(furi_get_tick() < deadline) {
@@ -235,10 +222,6 @@ static void wifi_scan_and_merge(App* app, bool include_saved_out_of_range) {
         }
     }
 
-    /* Saved networks first, per the original request ("list their
-       saved wifi's first, and then list the wifi's that it can
-       detect") - a simple stable-ish selection sort on the small (<=24
-       entry) array is plenty; this isn't a hot path. */
     for(size_t i = 0; i < app->network_count; i++) {
         size_t best = i;
         for(size_t j = i + 1; j < app->network_count; j++) {
@@ -255,20 +238,12 @@ static void wifi_scan_and_merge(App* app, bool include_saved_out_of_range) {
 void wifi_network_list_show(App* app, bool for_connect) {
     app->menu_return_context = app->menu_context;
     app_log(app, for_connect ? "Scanning for networks..." : "Scanning for AP targets...");
-    /* Switch to Terminal immediately, before the blocking scan below -
-       otherwise the screen just sits on the menu (looking frozen/
-       unresponsive) for however long WIFISCANAP + [WIFI/LIST] take,
-       then jumps straight to a fully-populated result. This way
-       "Scanning for..." is visible right away, matching what a click
-       on Connect should feel like. */
+
     app_render_log(app);
 
     wifi_scan_and_merge(app, for_connect);
 
     if(for_connect) {
-        /* Target mode only wants networks with a live scan_index (see
-           wifi_scan_and_merge's comment) - filter those out here rather
-           than complicating the merge function with two return shapes. */
     } else {
         size_t write = 0;
         for(size_t i = 0; i < app->network_count; i++) {
@@ -292,25 +267,6 @@ void wifi_network_list_show(App* app, bool for_connect) {
     view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewNetworkList);
 }
 
-
-/* Escapes " and \ (the two characters that would otherwise break the
-   JSON string they're embedded in) from in into out, truncating safely
-   rather than overflowing if the escaped result wouldn't fit. Every
-   [WIFI/CONNECT] / [WIFI/SAVE] command below builds its JSON with a
-   plain snprintf %s - an un-escaped quote or backslash in an SSID or
-   password would corrupt the command and produce a failure on the
-   firmware side that looks exactly like a wrong password, but is
-   actually a parsing bug. */
-/* Writes "1" or "0" to the SD-card flag file the desktop app's status
-   bar WiFi icon polls (see desktop.c's FOX_ESP32_WIFI_STATUS_PATH /
-   desktop_wifi_status_timer_callback() in the firmware fork's own
-   source, not part of this app). This app is the only one with a WiFi
-   Connect/Disconnect/Forget menu, so it's the only one that needs to
-   write this - fox_chat/fox_portal just use whatever WiFi the ESP32
-   already has and never change it. Best-effort: if the SD card is out
-   or the write fails, the status bar just shows stale/default state
-   until the next successful write - not worth surfacing an error to
-   the user over a status icon. */
 static void fox_wifi_status_write(bool connected) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     storage_simply_mkdir(storage, "/ext/apps_data");
@@ -355,12 +311,6 @@ void wifi_password_submitted(App* app) {
         ssid_esc,
         pass_esc);
 
-    /* Byte-for-byte confirmed correct end to end: whatever the keyboard
-       hands us here matches what the firmware parses on the other end.
-       So the one failure mode left is a mistyped password that *looks*
-       right on the entry screen but isn't - echoing exactly what got
-       captured, right before we act on it, is the only way to catch
-       that before waiting out a whole connect attempt. */
     app_log(app, "Entered: \"%s\" (%d chars)", pass, (int)strlen(pass));
 
     esp_at_send(app->esp_at, cmd);
@@ -368,10 +318,7 @@ void wifi_password_submitted(App* app) {
     app_log(app, "Connecting to %s...", ssid);
     app_render_log(app);
     EspAtMsg msg;
-    /* Firmware's own connect attempt now waits up to 20s (WPA handshake
-       + DHCP can be slow on some routers) - this needs to stay longer
-       than that or the app can give up and report a false timeout right
-       as the firmware was about to succeed. */
+
     uint32_t deadline = furi_get_tick() + 21000;
     bool connected = false;
     while(furi_get_tick() < deadline) {
@@ -400,6 +347,12 @@ void wifi_password_submitted(App* app) {
     fox_wifi_status_write(connected);
 
     app_render_log(app);
+
+    if(connected) {
+        app->wifi_menu_connected = true;
+        furi_delay_ms(1000);
+        app_switch_to_menu(app, MenuContextWifiConnection);
+    }
 }
 
 static void network_connect_selected(App* app, const FoxWifiNetwork* n) {
@@ -414,8 +367,7 @@ static void network_connect_selected(App* app, const FoxWifiNetwork* n) {
         app_render_log(app);
         EspAtMsg msg;
         bool connected = false;
-        /* See wifi_password_submitted()'s comment - must stay longer
-           than the firmware's own 20s connect timeout. */
+
         uint32_t deadline = furi_get_tick() + 21000;
         while(furi_get_tick() < deadline) {
             uint32_t remaining = deadline - furi_get_tick();
@@ -429,22 +381,17 @@ static void network_connect_selected(App* app, const FoxWifiNetwork* n) {
         }
         fox_wifi_status_write(connected);
         app_render_log(app);
+        if(connected) {
+            app->wifi_menu_connected = true;
+            furi_delay_ms(1000);
+            app_switch_to_menu(app, MenuContextWifiConnection);
+        }
         return;
     }
 
-    /* Not saved yet - ask for a password. Open networks still go
-       through this screen (submitting empty text is valid - the
-       firmware treats a missing/empty password as an open-network
-       connect attempt, see http_bridge.cpp's handleWifiConnect). */
     furi_string_set(app->pending_ssid, n->ssid);
     char header[48];
-    /* The case-toggle key on Flipper's stock keyboard has no visible
-       label (it's a small icon, easy to miss), and the keyboard starts
-       in uppercase - so a lowercase-containing password typed without
-       noticing that key produces a silent wrong-password failure that
-       looks identical to a real connection problem. Naming the key
-       directly in the header is the cheapest real fix short of building
-       a whole custom keyboard. */
+
     snprintf(header, sizeof(header), "Pass(Aa key): %.20s", n->ssid);
     app_show_text_input(app, header, TextInputPurposePassword);
 }
@@ -477,7 +424,6 @@ static void network_select(App* app, size_t index) {
     }
 }
 
-
 static void station_scan(App* app) {
     app->station_count = 0;
 
@@ -493,8 +439,7 @@ static void station_scan(App* app) {
 
         char mac[FOX_STATION_MAC_MAX] = {0};
         int rssi = 0;
-        /* "STA:%d mac:%17s rssi:%d" - the index (%*d) isn't needed here,
-           WIFIATTACK:DEAUTH takes a MAC, not an index. */
+
         int matched = sscanf(msg.line, "STA:%*d mac:%17s rssi:%d", mac, &rssi);
         if(matched == 2) {
             FoxStation* s = &app->stations[app->station_count];
@@ -534,7 +479,6 @@ static void station_select(App* app, size_t index) {
     app_log(app, "%s selected as deauth target.", s->mac);
     app_render_log(app);
 }
-
 
 static void action_scan_aps(App* app) {
     app_log(app, "Scanning APs...");
@@ -623,7 +567,6 @@ static void action_packet_count(App* app) {
     app_render_log(app);
 }
 
-
 static void csv_escape_field(const char* in, char* out, size_t out_size) {
     bool needs_quote = false;
     for(size_t i = 0; in[i] != '\0'; i++) {
@@ -646,11 +589,6 @@ static void csv_escape_field(const char* in, char* out, size_t out_size) {
     out[o] = '\0';
 }
 
-/* Parses one "WARDRIVE:ssid:"<ssid>" bssid:<mac> ch:<n> rssi:<n>
-   enc:<label> pos:<lat,lon|NOFIX>" line (wifi_recon.cpp's
-   runWardrive()) into its fields. pos_out is left as the raw
-   "<lat>,<lon>" or "NOFIX" text - splitting that further is the
-   caller's job, since a missing fix has no lat/lon to split. */
 static bool wardrive_parse_line(
     const char* line,
     char* ssid,
@@ -721,12 +659,7 @@ static void run_wardrive(App* app) {
     furi_hal_rtc_get_datetime(&dt);
     char date[16];
     snprintf(date, sizeof(date), "%04u-%02u-%02u", dt.year, dt.month, dt.day);
-    /* 32, not 20 - hour/minute/second are uint8_t (range 0-255 as far
-       as the compiler's concerned), so -Wformat-truncation sizes each
-       "%02u" for a worst-case 3-digit result even though a real RTC
-       never reports any of them above 2 digits. Same fix as
-       foxportal_menu.c's own dated-log-filename buffer earlier in this
-       project - oversize rather than fight the warning. */
+
     char timestamp[32];
     snprintf(
         timestamp,
@@ -793,15 +726,6 @@ static void run_wardrive(App* app) {
             continue;
         }
 
-        /* Sized to match pos[40] itself (the source these are copied
-           from), not to the realistic length of an actual lat/lon
-           string - the compiler's -Wformat-truncation bounds a "%s"
-           copy against the *declared capacity* of the source buffer,
-           not what will actually be in it at runtime (it can't know
-           `pos` was just truncated at the comma above), so a tighter
-           buffer here would just trade a real bug for a compiler
-           warning-turned-error. Same "oversize rather than fight it"
-           call as timestamp[] above. */
         char lat[40] = "";
         char lon[40] = "";
         if(strcmp(pos, "NOFIX") != 0) {
@@ -816,14 +740,6 @@ static void run_wardrive(App* app) {
         char ssid_csv[FOX_WIFI_SSID_MAX * 2 + 4];
         csv_escape_field(ssid, ssid_csv, sizeof(ssid_csv));
 
-        /* Same reasoning again - the compiler bounds this against the
-           full declared capacity of every "%s" argument (bssid,
-           ssid_csv, lat, lon, enc, timestamp) plus worst-case %d width,
-           not their actual runtime contents, so the destination needs
-           real headroom, not just a "reasonable" CSV row length. Sized
-           generously (a real row is under 100 bytes) rather than
-           computed to the exact byte, same margin-over-minimum call as
-           timestamp[]/lat[]/lon[] above. */
         char row[300];
         snprintf(
             row,
@@ -881,10 +797,6 @@ static bool hex_nibble(char c, uint8_t* out) {
     return false;
 }
 
-/* Decodes a PCAPDATA: hex chunk directly into out. Returns 0 (nothing
-   written) on any malformed input - an odd-length string or a non-hex
-   character - so a corrupted line just contributes no bytes to the
-   frame rather than writing garbage. */
 static size_t hex_decode(const char* hex, uint8_t* out, size_t out_capacity) {
     size_t len = strlen(hex);
     if(len == 0 || len % 2 != 0) return 0;
@@ -937,7 +849,7 @@ static void run_pcap_capture(App* app) {
     put_u32_le(ghdr + 8, 0);
     put_u32_le(ghdr + 12, 0);
     put_u32_le(ghdr + 16, FOX_PCAP_SNAPLEN);
-    put_u32_le(ghdr + 20, 105); /* LINKTYPE_IEEE802_11 */
+    put_u32_le(ghdr + 20, 105);
     storage_file_write(file, ghdr, sizeof(ghdr));
 
     esp_at_send(app->esp_at, "WIFIPCAP");
@@ -1009,7 +921,6 @@ static void run_pcap_capture(App* app) {
     app_render_log(app);
 }
 
-
 static void run_attack(App* app, const char* command, const char* label) {
     app_log(app, "%s...", label);
     app_render_log(app);
@@ -1050,13 +961,29 @@ void wifi_beacon_custom_submitted(App* app) {
     run_attack(app, cmd, "Beacon spam (custom)");
 }
 
-
 void wifi_menu_select(App* app, MenuContext ctx, uint32_t index) {
     switch(ctx) {
     case MenuContextWifi:
         switch((MenuWifiIndex)index) {
         case MenuWifiConnect:
             if(app->wifi_menu_connected) {
+                esp_at_send(app->esp_at, "WIFIFOXPORTAL:STATUS");
+                EspAtMsg portal_msg;
+                bool portal_running = false;
+                if(esp_at_receive(app->esp_at, &portal_msg, 1500)) {
+                    portal_running = strncmp(portal_msg.line, "FOXPORTAL:RUNNING:", 18) == 0;
+                }
+                if(portal_running) {
+                    Loader* loader = furi_record_open(RECORD_LOADER);
+                    loader_enqueue_launch(
+                        loader,
+                        EXT_PATH("apps/Fox/fox_portal.fap"),
+                        "SKIPSPLASH",
+                        LoaderDeferredLaunchFlagGui);
+                    furi_record_close(RECORD_LOADER);
+                    view_dispatcher_stop(app->view_dispatcher);
+                    break;
+                }
                 app_switch_to_menu(app, MenuContextWifiConnection);
             } else {
                 wifi_network_list_show(app, true);
@@ -1066,13 +993,48 @@ void wifi_menu_select(App* app, MenuContext ctx, uint32_t index) {
             app_log(app, "Fetching public IP...");
             app_render_log(app);
             esp_at_send(app->esp_at, "[WIFI/IP]");
+
             {
                 EspAtMsg msg;
-                if(esp_at_receive(app->esp_at, &msg, 10000)) {
-                    app_log(app, "%s", msg.line);
-                } else {
+                if(!esp_at_receive(app->esp_at, &msg, 10000)) {
                     app_log(app, "No response.");
+                    app_render_log(app);
+                    break;
                 }
+
+                if(strncmp(msg.line, "[ERROR]", 7) == 0) {
+                    app_log(app, "%s", msg.line);
+                    app_render_log(app);
+                    break;
+                }
+
+                if(strstr(msg.line, "/SUCCESS]{") != NULL) {
+                    app_log(app, "%s", msg.line);
+                    if(!esp_at_receive(app->esp_at, &msg, 3000)) {
+                        app_render_log(app);
+                        break;
+                    }
+                }
+
+                FuriString* full = furi_string_alloc();
+                bool done = false;
+                for(size_t guard = 0; !done && guard < 200; guard++) {
+                    if(strcmp(msg.line, "[GET/END]") == 0) {
+                        done = true;
+                        break;
+                    }
+                    if(furi_string_size(full) > 0) furi_string_cat(full, "\n");
+                    furi_string_cat(full, msg.line);
+
+                    if(!esp_at_receive(app->esp_at, &msg, 3000)) break;
+                }
+
+                if(furi_string_size(full) > 0) {
+                    app_log_raw(app, furi_string_get_cstr(full));
+                } else {
+                    app_log(app, "(empty response)");
+                }
+                furi_string_free(full);
             }
             app_render_log(app);
             break;
@@ -1106,6 +1068,9 @@ void wifi_menu_select(App* app, MenuContext ctx, uint32_t index) {
             app_render_log(app);
             app_switch_to_menu(app, MenuContextWifi);
             break;
+        case MenuConnEditSaved:
+            wifi_saved_list_show(app);
+            break;
         case MenuConnStatus: {
             app_log(app, "Checking status...");
             app_render_log(app);
@@ -1117,11 +1082,7 @@ void wifi_menu_select(App* app, MenuContext ctx, uint32_t index) {
             } else {
                 app_log(app, "No response.");
             }
-            /* This is a genuine live check (unlike the status file's
-               usual best-effort write-on-change elsewhere), so it's a
-               good point to correct the flag if it ever drifted -
-               [WIFI/SSID/SUCCESS] means connected, anything else
-               (including no response) doesn't. */
+
             fox_wifi_status_write(
                 got_ssid && strncmp(msg.line, "[WIFI/SSID/SUCCESS]", 19) == 0);
             esp_at_send(app->esp_at, "[IP/ADDRESS]");
@@ -1149,8 +1110,11 @@ void wifi_menu_select(App* app, MenuContext ctx, uint32_t index) {
                 app_render_log(app);
                 break;
             }
+            char ssid[FOX_WIFI_SSID_MAX];
+            snprintf(ssid, sizeof(ssid), "%.*s", FOX_WIFI_SSID_MAX - 1, msg.line + prefix_len);
+
             char ssid_esc[FOX_WIFI_SSID_MAX * 2];
-            json_escape(msg.line + prefix_len, ssid_esc, sizeof(ssid_esc));
+            json_escape(ssid, ssid_esc, sizeof(ssid_esc));
             char cmd[sizeof(ssid_esc) + 32];
             snprintf(cmd, sizeof(cmd), "[WIFI/FORGET]{\"ssid\":\"%s\"}", ssid_esc);
             esp_at_send(app->esp_at, cmd);
@@ -1163,6 +1127,7 @@ void wifi_menu_select(App* app, MenuContext ctx, uint32_t index) {
             if(esp_at_receive(app->esp_at, &msg, 5000)) {
                 app_log(app, "%s", msg.line);
             }
+            wifi_saved_remove_from_files(ssid);
             fox_wifi_status_write(false);
             app_render_log(app);
             app_switch_to_menu(app, MenuContextWifi);
@@ -1227,7 +1192,6 @@ void wifi_menu_select(App* app, MenuContext ctx, uint32_t index) {
         break;
     }
 }
-
 
 static App* s_network_list_app = NULL;
 
@@ -1342,7 +1306,7 @@ static bool network_list_input_cb(InputEvent* event, void* context) {
         return true;
     case InputKeyBack:
     case InputKeyLeft:
-        return false; /* navigation_callback sends this back to the menu */
+        return false;
     default:
         return false;
     }
@@ -1362,7 +1326,6 @@ void wifi_network_list_view_free(View* view) {
     s_network_list_app = NULL;
     view_free(view);
 }
-
 
 static App* s_station_list_app = NULL;
 
@@ -1461,7 +1424,7 @@ static bool station_list_input_cb(InputEvent* event, void* context) {
         return true;
     case InputKeyBack:
     case InputKeyLeft:
-        return false; /* navigation_callback sends this back to the menu */
+        return false;
     default:
         return false;
     }

@@ -6,7 +6,7 @@
 
 #define FOX_SPLASH_TICK_MS    40
 #define FOX_SPLASH_GRID_SIDE  16
-#define FOX_SPLASH_GRID_TOTAL (FOX_SPLASH_GRID_SIDE * FOX_SPLASH_GRID_SIDE) /* 256 */
+#define FOX_SPLASH_GRID_TOTAL (FOX_SPLASH_GRID_SIDE * FOX_SPLASH_GRID_SIDE)
 
 struct FoxSplash {
     const Icon* icon;
@@ -20,20 +20,9 @@ struct FoxSplash {
     uint32_t elapsed_ms;
     bool finished;
 
-    /* Shuffled once per fox_splash_start() - the order blocks get
-       erased in during the dissolve, so it looks like scattered noise
-       rather than a boring left-to-right wipe. */
     uint8_t block_order[FOX_SPLASH_GRID_TOTAL];
 };
 
-/* Draw callbacks receive the View's model, not its context (only input
-   callbacks get that) - same "static pointer set once" pattern used
-   throughout the rest of the Fox apps (see fox_chameleon's
-   s_settings_view_app/s_terminal_view_app) for Views whose real state
-   doesn't live in the tiny model. Only one splash is ever on screen at
-   a time in practice - it's a boot screen - so a single static slot is
-   enough; if a future Fox app ever wanted two splashes alive at once
-   this would need to become a small registry instead. */
 static FoxSplash* s_active_splash = NULL;
 
 static void fox_splash_shuffle_blocks(FoxSplash* splash) {
@@ -41,9 +30,6 @@ static void fox_splash_shuffle_blocks(FoxSplash* splash) {
         splash->block_order[i] = (uint8_t)i;
     }
 
-    /* Cosmetic dissolve pattern only, not anything security-sensitive -
-       a tiny xorshift seeded from the tick count is plenty, no need to
-       reach for furi_hal's real RNG for this. */
     uint32_t seed = (uint32_t)furi_get_tick() | 1;
     for(uint32_t i = FOX_SPLASH_GRID_TOTAL - 1; i > 0; i--) {
         seed ^= seed << 13;
@@ -76,9 +62,6 @@ static void fox_splash_draw_cb(Canvas* canvas, void* model) {
         (uint32_t)(((uint64_t)fade_elapsed * FOX_SPLASH_GRID_TOTAL) / splash->fade_ms);
     if(revealed > FOX_SPLASH_GRID_TOTAL) revealed = FOX_SPLASH_GRID_TOTAL;
 
-    /* Sized so FOX_SPLASH_GRID_SIDE divides the icon evenly for a
-       64x64 icon (64 / 16 = 4px blocks); for any other icon size this
-       just rounds down, which only matters visually, not structurally. */
     uint8_t block_px = (uint8_t)(icon_w / FOX_SPLASH_GRID_SIDE);
     if(block_px == 0) block_px = 1;
 

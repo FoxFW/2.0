@@ -6,12 +6,6 @@
 #include <lib/subghz/blocks/generic.h>
 #include <lib/subghz/blocks/math.h>
 
-/*
- * Help
- * https://phreakerclub.com/447
- *
- */
-
 #define TAG "SubGhzProtocolCame"
 
 #define CAME_12_COUNT_BIT    12
@@ -104,11 +98,6 @@ void subghz_protocol_encoder_came_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderCame instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_came_get_upload(SubGhzProtocolEncoderCame* instance) {
     furi_assert(instance);
     uint32_t header_te = 0;
@@ -120,43 +109,40 @@ static bool subghz_protocol_encoder_came_get_upload(SubGhzProtocolEncoderCame* i
     } else {
         instance->encoder.size_upload = size_upload;
     }
-    //Send header
 
     switch(instance->generic.data_count_bit) {
     case CAME_24_COUNT_BIT:
     case PRASTEL_42_COUNT_BIT:
-        // CAME 24 Bit = 24320 us
+
         header_te = 76;
         break;
     case CAME_12_COUNT_BIT:
     case AIRFORCE_COUNT_BIT:
-        // CAME 12 Bit Original only! and Airforce protocol = 15040 us
+
         header_te = 47;
         break;
     case PRASTEL_25_COUNT_BIT:
-        // PRASTEL = 11520 us
+
         header_te = 36;
         break;
     default:
-        // Some wrong detected protocols, 5120 us
+
         header_te = 16;
         break;
     }
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_came_const.te_short * header_te);
-    //Send start bit
+
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_came_const.te_short);
-    //Send key data
+
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_came_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_came_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_came_const.te_short);
             instance->encoder.upload[index++] =
@@ -181,7 +167,7 @@ SubGhzProtocolStatus
             ret = SubGhzProtocolStatusErrorValueBitCount;
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -245,10 +231,6 @@ void subghz_protocol_decoder_came_feed(void* context, bool level, uint32_t durat
     case CameDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_came_const.te_short * 56) <
                         subghz_protocol_came_const.te_delta * 63)) {
-            // 17920 us + 7050 us = 24970 us max possible value old one
-            // delta = 150 us x 63 = 9450 us + 17920 us = 27370 us max possible value
-            //Found header CAME
-            // 26700 us or 24000 us max possible values
             instance->decoder.parser_step = CameDecoderStepFoundStartBit;
         }
         break;
@@ -258,7 +240,6 @@ void subghz_protocol_decoder_came_feed(void* context, bool level, uint32_t durat
         } else if(
             DURATION_DIFF(duration, subghz_protocol_came_const.te_short) <
             subghz_protocol_came_const.te_delta) {
-            //Found start bit CAME
             instance->decoder.parser_step = CameDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -267,7 +248,7 @@ void subghz_protocol_decoder_came_feed(void* context, bool level, uint32_t durat
         }
         break;
     case CameDecoderStepSaveDuration:
-        if(!level) { //save interval
+        if(!level) {
             if(duration >= (subghz_protocol_came_const.te_short * 4)) {
                 instance->decoder.parser_step = CameDecoderStepFoundStartBit;
                 if((instance->decoder.decode_count_bit ==

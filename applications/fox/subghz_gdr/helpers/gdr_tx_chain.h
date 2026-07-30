@@ -1,4 +1,3 @@
-// helpers/gdr_tx_chain.h
 #pragma once
 
 #include "gdr_types.h"
@@ -35,4 +34,4 @@ bool gdr_tx_chain_configure(
 bool gdr_tx_chain_start_carrier(GDRTxChain* chain);
 void gdr_tx_chain_stop(GDRTxChain* chain);
 
-#endif // ENABLE_SHIELD_RX_SCENE
+#endif

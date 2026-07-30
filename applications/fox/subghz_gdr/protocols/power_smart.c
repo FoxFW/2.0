@@ -127,10 +127,6 @@ static LevelDuration
     return level_duration_make(data.level, data.duration);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderPowerSmart instance
- */
 static void
     subghz_protocol_encoder_power_smart_get_upload(SubGhzProtocolEncoderPowerSmart* instance) {
     furi_assert(instance);
@@ -163,31 +159,7 @@ static void
     instance->encoder.size_upload = index;
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_power_smart_remote_controller(SubGhzBlockGeneric* instance) {
-    /*
-    * Protocol: Manchester encoding, symbol rate ~2222.
-    * Packet Format: 
-    *       0xFDXXXXYYAAZZZZWW where 0xFD and 0xAA sync word
-    *                           XXXX = ~ZZZZ, YY=(~WW)-1 
-    * Example:
-    *                               SYNC1 K1 CHANNEL DATA1   K2 DATA2    SYNC2  ~K1 ~CHANNEL ~DATA2  ~K2 (~DATA2)-1
-    *       0xFD2137ACAADEC852 => 11111101 0 010000 10011011 1 10101100 10101010  1  1011110 1100100  0  01010010
-    *       0xFDA137ACAA5EC852 => 11111101 1 010000 10011011 1 10101100 10101010  0  1011110 1100100  0  01010010
-    *       0xFDA136ACAA5EC952 => 11111101 1 010000 10011011 0 10101100 10101010  0  1011110 1100100  1  01010010
-    * 
-    * Key:
-    *       K1K2
-    *        0 0 - key_unknown
-    *        0 1 - key_down
-    *        1 0 - key_up
-    *        1 1 - key_stop
-    *        
-    */
-
     instance->btn = ((instance->data >> 54) & 0x02) | ((instance->data >> 40) & 0x1);
     instance->serial = ((instance->data >> 33) & 0x3FFF00) | ((instance->data >> 32) & 0xFF);
     instance->cnt = ((instance->data >> 49) & 0x3F);
@@ -206,13 +178,13 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
         subghz_protocol_power_smart_remote_controller(&instance->generic);
         subghz_protocol_encoder_power_smart_get_upload(instance);
-        instance->encoder.front = 0; // reset before start
+        instance->encoder.front = 0;
         instance->encoder.is_running = true;
     } while(false);
 
@@ -222,7 +194,7 @@ SubGhzProtocolStatus
 void subghz_protocol_encoder_power_smart_stop(void* context) {
     SubGhzProtocolEncoderPowerSmart* instance = context;
     instance->encoder.is_running = false;
-    instance->encoder.front = 0; // reset position
+    instance->encoder.front = 0;
 }
 
 LevelDuration subghz_protocol_encoder_power_smart_yield(void* context) {
@@ -369,11 +341,9 @@ void subghz_protocol_decoder_power_smart_get_string(void* context, FuriString* o
     SubGhzProtocolDecoderPowerSmart* instance = context;
     subghz_protocol_power_smart_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 2;
-    //
 
     furi_string_cat_printf(
         output,

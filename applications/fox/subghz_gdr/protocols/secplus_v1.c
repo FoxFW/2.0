@@ -5,18 +5,12 @@
 #include <lib/subghz/blocks/generic.h>
 #include <lib/subghz/blocks/math.h>
 
-/*
-* Help
-* https://github.com/argilo/secplus
-* https://github.com/merbanan/rtl_433/blob/master/src/devices/secplus_v1.c
-*/
-
 #define TAG "SubGhzProtocoSecPlusV1"
 
-#define SECPLUS_V1_BIT_ERR -1 //0b0000
-#define SECPLUS_V1_BIT_0   0 //0b0001
-#define SECPLUS_V1_BIT_1   1 //0b0011
-#define SECPLUS_V1_BIT_2   2 //0b0111
+#define SECPLUS_V1_BIT_ERR -1
+#define SECPLUS_V1_BIT_0   0
+#define SECPLUS_V1_BIT_1   1
+#define SECPLUS_V1_BIT_2   2
 
 #define SECPLUS_V1_PACKET_1_HEADER     0x00
 #define SECPLUS_V1_PACKET_2_HEADER     0x02
@@ -112,11 +106,6 @@ void subghz_protocol_encoder_secplus_v1_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderSecPlus_v1 instance
- * @return true On success
- */
 static bool
     subghz_protocol_encoder_secplus_v1_get_upload(SubGhzProtocolEncoderSecPlus_v1* instance) {
     furi_assert(instance);
@@ -129,13 +118,11 @@ static bool
         instance->encoder.size_upload = size_upload;
     }
 
-    //Send header packet 1
     instance->encoder.upload[index++] = level_duration_make(
         false, (uint32_t)subghz_protocol_secplus_v1_const.te_short * (116 + 3));
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_secplus_v1_const.te_short);
 
-    //Send data packet 1
     for(uint8_t i = SECPLUS_V1_PACKET_1_INDEX_BASE + 1; i < SECPLUS_V1_PACKET_1_INDEX_BASE + 21;
         i++) {
         switch(instance->data_array[i]) {
@@ -165,13 +152,11 @@ static bool
         }
     }
 
-    //Send header packet 2
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_secplus_v1_const.te_short * (116));
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_secplus_v1_const.te_short * 3);
 
-    //Send data packet 2
     for(uint8_t i = SECPLUS_V1_PACKET_2_INDEX_BASE + 1; i < SECPLUS_V1_PACKET_2_INDEX_BASE + 21;
         i++) {
         switch(instance->data_array[i]) {
@@ -204,11 +189,6 @@ static bool
     return true;
 }
 
-/** 
- * Security+ 1.0 message encoding
- * @param instance SubGhzProtocolEncoderSecPlus_v1* 
- */
-
 static bool subghz_protocol_secplus_v1_encode(SubGhzProtocolEncoderSecPlus_v1* instance) {
     uint32_t fixed = (instance->generic.data >> 32) & 0xFFFFFFFF;
     uint32_t rolling = instance->generic.data & 0xFFFFFFFF;
@@ -217,15 +197,8 @@ static bool subghz_protocol_secplus_v1_encode(SubGhzProtocolEncoderSecPlus_v1* i
     uint8_t fixed_array[20] = {0};
     uint32_t acc = 0;
 
-    //increment the counter
-    //rolling += 2; - old way
-    // Experemental case - we dont know counter size exactly, so just will be think that it is in range of 0xE6000000 - 0xFFFFFFFF
-
-    // Check for OFEX (overflow experimental) mode
     if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
-        // standart counter mode. PULL data from subghz_block_generic_global variables
         if(!subghz_block_generic_global_counter_override_get(&rolling)) {
-            // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
             if((rolling + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFFFFFF) {
                 rolling = 0xE6000000;
             } else {
@@ -234,7 +207,6 @@ static bool subghz_protocol_secplus_v1_encode(SubGhzProtocolEncoderSecPlus_v1* i
         }
         if(rolling < 0xE6000000) rolling = 0xE6000000;
     } else {
-        // OFEX (overflow experimental) mode
         if((rolling + 0x1) > 0xFFFFFFFF) {
             rolling = 0xE6000000;
         } else if(rolling >= 0xE6000000 && rolling != 0xFFFFFFFE) {
@@ -244,7 +216,6 @@ static bool subghz_protocol_secplus_v1_encode(SubGhzProtocolEncoderSecPlus_v1* i
         }
     }
 
-    //update data
     instance->generic.data &= 0xFFFFFFFF00000000;
     instance->generic.data |= rolling;
 
@@ -265,7 +236,6 @@ static bool subghz_protocol_secplus_v1_encode(SubGhzProtocolEncoderSecPlus_v1* i
     instance->data_array[SECPLUS_V1_PACKET_1_INDEX_BASE] = SECPLUS_V1_PACKET_1_HEADER;
     instance->data_array[SECPLUS_V1_PACKET_2_INDEX_BASE] = SECPLUS_V1_PACKET_2_HEADER;
 
-    //encode packet 1
     for(uint8_t i = 1; i < 11; i++) {
         acc += rolling_array[i - 1];
         instance->data_array[i * 2 - 1] = rolling_array[i - 1];
@@ -274,7 +244,7 @@ static bool subghz_protocol_secplus_v1_encode(SubGhzProtocolEncoderSecPlus_v1* i
     }
 
     acc = 0;
-    //encode packet 2
+
     for(uint8_t i = 11; i < 21; i++) {
         acc += rolling_array[i - 1];
         instance->data_array[i * 2] = rolling_array[i - 1];
@@ -298,7 +268,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -368,14 +338,7 @@ void subghz_protocol_decoder_secplus_v1_free(void* context) {
 
 void subghz_protocol_decoder_secplus_v1_reset(void* context) {
     furi_assert(context);
-    // SubGhzProtocolDecoderSecPlus_v1* instance = context;
-    // does not reset the decoder because you need to get 2 parts of the package
 }
-
-/** 
- * Security+ 1.0 message decoding
- * @param instance SubGhzProtocolDecoderSecPlus_v1* 
- */
 
 static void subghz_protocol_secplus_v1_decode(SubGhzProtocolDecoderSecPlus_v1* instance) {
     uint32_t rolling = 0;
@@ -383,7 +346,6 @@ static void subghz_protocol_secplus_v1_decode(SubGhzProtocolDecoderSecPlus_v1* i
     uint32_t acc = 0;
     uint8_t digit = 0;
 
-    //decode packet 1
     for(uint8_t i = 1; i < 21; i += 2) {
         digit = instance->data_array[i];
         rolling = (rolling * 3) + digit;
@@ -395,7 +357,7 @@ static void subghz_protocol_secplus_v1_decode(SubGhzProtocolDecoderSecPlus_v1* i
     }
 
     acc = 0;
-    //decode packet 2
+
     for(uint8_t i = 22; i < 42; i += 2) {
         digit = instance->data_array[i];
         rolling = (rolling * 3) + digit;
@@ -421,7 +383,6 @@ void subghz_protocol_decoder_secplus_v1_feed(void* context, bool level, uint32_t
     case SecPlus_v1DecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_secplus_v1_const.te_short * 120) <
                         subghz_protocol_secplus_v1_const.te_delta * 120)) {
-            //Found header Security+ 1.0
             instance->decoder.parser_step = SecPlus_v1DecoderStepSearchStartBit;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -456,7 +417,7 @@ void subghz_protocol_decoder_secplus_v1_feed(void* context, bool level, uint32_t
         }
         break;
     case SecPlus_v1DecoderStepSaveDuration:
-        if(!level) { //save interval
+        if(!level) {
             if(DURATION_DIFF(duration, subghz_protocol_secplus_v1_const.te_short * 120) <
                subghz_protocol_secplus_v1_const.te_delta * 120) {
                 if(instance->decoder.decode_count_bit ==
@@ -558,13 +519,12 @@ SubGhzProtocolStatus
 }
 
 bool subghz_protocol_secplus_v1_check_fixed(uint32_t fixed) {
-    //uint8_t id0 = (fixed / 3) % 3;
     uint8_t id1 = (fixed / 9) % 3;
     uint8_t btn = fixed % 3;
 
     do {
         if(id1 == 0) return false;
-        if(!(btn == 0 || btn == 1 || btn == 2)) return false; //-V560
+        if(!(btn == 0 || btn == 1 || btn == 2)) return false;
     } while(false);
     return true;
 }
@@ -581,7 +541,6 @@ void subghz_protocol_decoder_secplus_v1_get_string(void* context, FuriString* ou
     uint8_t id1 = (fixed / 9) % 3;
     uint16_t pin = 0;
 
-    // push protocol data to global variable
     subghz_block_generic_global.cnt_is_available = true;
     subghz_block_generic_global.cnt_length_bit = 32;
     subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -589,7 +548,6 @@ void subghz_protocol_decoder_secplus_v1_get_string(void* context, FuriString* ou
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 2;
-    //
 
     furi_string_cat_printf(
         output,
@@ -604,10 +562,8 @@ void subghz_protocol_decoder_secplus_v1_get_string(void* context, FuriString* ou
         id0);
 
     if(id1 == 0) {
-        // (fixed // 3**3) % (3**7)    3^3=27  3^73=72187
-
         instance->generic.serial = (fixed / 27) % 2187;
-        // pin = (fixed // 3**10) % (3**9)  3^10=59049 3^9=19683
+
         pin = (fixed / 59049) % 19683;
 
         if(pin <= 9999) {
@@ -617,7 +573,7 @@ void subghz_protocol_decoder_secplus_v1_get_string(void* context, FuriString* ou
         }
 
         int pin_suffix = 0;
-        // pin_suffix = (fixed // 3**19) % 3   3^19=1162261467
+
         pin_suffix = (fixed / 1162261467) % 3;
 
         if(pin_suffix == 1) {
@@ -637,13 +593,12 @@ void subghz_protocol_decoder_secplus_v1_get_string(void* context, FuriString* ou
             instance->generic.cnt,
             instance->generic.btn);
     } else {
-        //id = fixed / 27;
         instance->generic.serial = fixed / 27;
         if(instance->generic.btn == 1) {
             furi_string_cat_printf(output, " Btn:left\r\n");
         } else if(instance->generic.btn == 0) {
             furi_string_cat_printf(output, " Btn:middle\r\n");
-        } else if(instance->generic.btn == 2) { //-V547
+        } else if(instance->generic.btn == 2) {
             furi_string_cat_printf(output, " Btn:right\r\n");
         }
 

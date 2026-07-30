@@ -13,7 +13,6 @@
 
 #define TAG "SubGhzProtocolBinRaw"
 
-//change very carefully, RAM ends at the most inopportune moment
 #define BIN_RAW_BUF_RAW_SIZE  2048
 #define BIN_RAW_BUF_DATA_SIZE 512
 
@@ -23,8 +22,6 @@
 #define BIN_RAW_TE_MIN_COUNT       40
 #define BIN_RAW_BUF_MIN_DATA_COUNT 128
 #define BIN_RAW_MAX_MARKUP_COUNT   20
-
-//#define BIN_RAW_DEBUG
 
 #ifdef BIN_RAW_DEBUG
 #define bin_raw_debug(...) FURI_LOG_RAW_D(__VA_ARGS__)
@@ -159,16 +156,8 @@ void subghz_protocol_encoder_bin_raw_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderBinRAW instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_bin_raw_get_upload(SubGhzProtocolEncoderBinRAW* instance) {
     furi_assert(instance);
-
-    //we glue all the pieces of the package into 1 long sequence with left alignment,
-    //in the uploaded data we have right alignment.
 
     bin_raw_debug_tag(TAG, "Recovery of offset bits in sequences\r\n");
     uint16_t i = 0;
@@ -309,7 +298,7 @@ SubGhzProtocolStatus
             res = SubGhzProtocolStatusErrorParserOthers;
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -394,10 +383,6 @@ void subghz_protocol_decoder_bin_raw_feed(void* context, bool level, uint32_t du
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzProtocolDecoderBinRAW* instance
- */
 static bool
     subghz_protocol_bin_raw_check_remote_controller(SubGhzProtocolDecoderBinRAW* instance) {
     struct {
@@ -415,12 +400,11 @@ static bool
     if(instance->data_raw_ind < 512) {
         ind =
             instance->data_raw_ind -
-            100; //there is usually garbage at the end of the record, we exclude it from the classification
+            100;
     } else {
         ind = 512;
     }
 
-    //sort the durations to find the shortest correlated interval
     for(size_t i = 0; i < ind; i++) {
         for(size_t k = 0; k < BIN_RAW_SEARCH_CLASSES; k++) {
             if(classes[k].count == 0) {
@@ -429,21 +413,15 @@ static bool
                 break;
             } else if(
                 DURATION_DIFF((float)(abs(instance->data_raw[i])), (classes[k].data)) <
-                (classes[k].data / 4)) { //if the test value does not differ by more than 25%
+                (classes[k].data / 4)) {
                 classes[k].data += ((float)(abs(instance->data_raw[i])) - classes[k].data) *
-                                   0.05f; //running average k=0.05
+                                   0.05f;
                 classes[k].count++;
                 break;
             }
         }
     }
 
-    // if(classes[BIN_RAW_SEARCH_CLASSES - 1].count != 0) {
-    //     //filling the classifier, it means that they received an unclean signal
-    //     return false;
-    // }
-
-    //looking for the minimum te with an occurrence greater than BIN_RAW_TE_MIN_COUNT
     instance->te = subghz_protocol_bin_raw_const.te_long * 2;
 
     bool te_ok = false;
@@ -453,9 +431,8 @@ static bool
     int data_temp = 0;
     BinRAWType bin_raw_type = BinRAWTypeUnknown;
 
-    //sort by number of occurrences
     bool swap = true;
-    while(swap) { //-V1044
+    while(swap) {
         swap = false;
         for(size_t i = 1; i < BIN_RAW_SEARCH_CLASSES; i++) {
             if(classes[i].count > classes[i - 1].count) {
@@ -478,24 +455,20 @@ static bool
     bin_raw_debug("\r\n");
 #endif
     if((classes[0].count > BIN_RAW_TE_MIN_COUNT) && (classes[1].count == 0)) {
-        //adopted only the preamble
         instance->te = (uint32_t)classes[0].data;
         te_ok = true;
-        gap = 0; //gap no
+        gap = 0;
     } else {
-        //take the 2 most common durations
-        //check that there are enough
         if((classes[0].count < BIN_RAW_TE_MIN_COUNT) ||
            (classes[1].count < (BIN_RAW_TE_MIN_COUNT >> 1)))
             return false;
-        //arrange the first 2 date values in ascending order
+
         if(classes[0].data > classes[1].data) {
             uint32_t data = classes[1].data;
             classes[0].data = classes[1].data;
             classes[1].data = data;
         }
 
-        //determine the value to be corrected
         for(uint8_t k = 1; k < 5; k++) {
             float delta = (classes[1].data / (classes[0].data / k));
             bin_raw_debug_tag(TAG, "K_div= %f\r\n", (double)(delta));
@@ -504,31 +477,29 @@ static bool
             if((delta < 0.20f) || (delta > 0.80f)) {
                 instance->te = (uint32_t)classes[0].data / k;
                 bin_raw_debug_tag(TAG, "K= %d\r\n", k);
-                te_ok = true; //found a correlated duration
+                te_ok = true;
                 break;
             }
         }
         if(!te_ok) {
-            //did not find the minimum TE satisfying the condition
             return false;
         }
         bin_raw_debug_tag(TAG, "TE= %lu\r\n\r\n", instance->te);
 
-        //looking for a gap
         for(size_t k = 2; k < BIN_RAW_SEARCH_CLASSES; k++) {
             if((classes[k].count > 2) && (classes[k].data > gap)) {
                 gap = (uint32_t)classes[k].data;
-                gap_delta = gap / 5; //calculate 20% deviation from ideal value
+                gap_delta = gap / 5;
             }
         }
 
         if((gap / instance->te) <
-           10) { //make an assumption, the longest gap should be more than 10 TE
-            gap = 0; //check that our signal has a gap greater than 10*TE
+           10) {
+            gap = 0;
             bin_raw_type = BinRAWTypeNoGap;
         } else {
             bin_raw_type = BinRAWTypeGap;
-            //looking for the last occurrence of gap
+
             ind = instance->data_raw_ind - 1;
             while((ind > 0) &&
                   (DURATION_DIFF(abs(instance->data_raw[ind]), (int32_t)gap) > gap_delta)) {
@@ -538,8 +509,6 @@ static bool
         }
     }
 
-    //if we consider that there is a gap, then we divide the signal with respect to this gap
-    //processing input data from the end
     if(bin_raw_type == BinRAWTypeGap) {
         bin_raw_debug_tag(TAG, "Tinted sequence\r\n");
         ind = (BIN_RAW_BUF_DATA_SIZE * 8);
@@ -548,7 +517,7 @@ static bool
             gap_ind--;
             data_temp = (int)(roundf((float)(instance->data_raw[gap_ind]) / instance->te));
             bin_raw_debug("%d ", data_temp);
-            if(data_temp == 0) bit_count++; //there is noise in the package
+            if(data_temp == 0) bit_count++;
             for(size_t i = 0; i < (size_t)abs(data_temp); i++) {
                 bit_count++;
                 if(ind) {
@@ -564,14 +533,14 @@ static bool
                         false, instance->data, ind, BIN_RAW_BUF_DATA_SIZE);
                 }
             }
-            //split into full bytes if gap is caught
+
             if(DURATION_DIFF(abs(instance->data_raw[gap_ind]), (int32_t)gap) < gap_delta) {
                 instance->data_markup[data_markup_ind].byte_bias = ind >> 3;
                 instance->data_markup[data_markup_ind++].bit_count = bit_count;
                 bit_count = 0;
 
                 if(data_markup_ind == BIN_RAW_MAX_MARKUP_COUNT) break;
-                ind &= 0xFFFFFFF8; //jump to the pre whole byte //-V784
+                ind &= 0xFFFFFFF8;
             }
         } while(gap_ind != 0);
         if((data_markup_ind != BIN_RAW_MAX_MARKUP_COUNT) && (ind != 0)) {
@@ -581,7 +550,6 @@ static bool
 
         bin_raw_debug("\r\n\t count bit= %zu\r\n\r\n", (BIN_RAW_BUF_DATA_SIZE * 8) - ind);
 
-        //reset the classifier and classify the received data
         memset(classes, 0x00, sizeof(classes));
 
         bin_raw_debug_tag(TAG, "Sort the found pieces by the number of bits in them\r\n");
@@ -606,17 +574,14 @@ static bool
         bin_raw_debug("\r\n");
 #endif
 
-        //choose the value with the maximum repetition
         data_temp = 0;
         for(size_t i = 0; i < BIN_RAW_SEARCH_CLASSES; i++) {
             if((classes[i].count > 1) && (data_temp < classes[i].count))
                 data_temp = (int)classes[i].data;
         }
 
-        //if(data_markup_ind == 0) return false;
-
 #ifdef BIN_RAW_DEBUG
-        //output in reverse order
+
         bin_raw_debug_tag(TAG, "Found sequences\r\n");
         bin_raw_debug("\tind  byte_bias\tbit_count\t\tbin_data\r\n");
         uint16_t data_markup_ind_temp = data_markup_ind;
@@ -635,18 +600,14 @@ static bool
             }
             bin_raw_debug("\r\n\r\n");
         }
-        //compare data in chunks with the same number of bits
+
         bin_raw_debug_tag(TAG, "Analyze sequences of long %d bit\r\n\r\n", data_temp);
 #endif
 
-        //if(data_temp == 0) data_temp = (int)classes[0].data;
-
         if(data_temp != 0) {
-            //check that data in transmission is repeated every packet
             for(uint16_t i = 0; i < data_markup_ind - 1; i++) {
                 if((instance->data_markup[i].bit_count == data_temp) &&
                    (instance->data_markup[i + 1].bit_count == data_temp)) {
-                    //if the number of bits in adjacent parcels is the same, compare the data
                     bin_raw_debug_tag(
                         TAG,
                         "Comparison of neighboring sequences ind_1=%d ind_2=%d %02X=%02X .... %02X=%02X\r\n",
@@ -674,10 +635,9 @@ static bool
                         bin_raw_debug_tag(
                             TAG, "Match found bin_raw_type=BinRAWTypeGapRecurring\r\n\r\n");
 
-                        //place in 1 element the offset to valid data
                         instance->data_markup[0].bit_count = instance->data_markup[i].bit_count;
                         instance->data_markup[0].byte_bias = instance->data_markup[i].byte_bias;
-                        //markup end sign
+
                         instance->data_markup[1].bit_count = 0;
                         instance->data_markup[1].byte_bias = 0;
 
@@ -690,7 +650,6 @@ static bool
         }
 
         if(bin_raw_type == BinRAWTypeGap) {
-            // check that retry occurs every n packets
             for(uint16_t i = 0; i < data_markup_ind - 2; i++) {
                 uint16_t byte_count =
                     subghz_protocol_bin_raw_get_full_byte(instance->data_markup[i].bit_count);
@@ -715,8 +674,7 @@ static bool
 
                     if(byte_count ==
                        subghz_protocol_bin_raw_get_full_byte(
-                           instance->data_markup[y].bit_count)) { //if the length in bytes matches
-
+                           instance->data_markup[y].bit_count)) {
                         if((memcmp(
                                 instance->data + instance->data_markup[i].byte_bias,
                                 instance->data + instance->data_markup[y].byte_bias,
@@ -729,7 +687,7 @@ static bool
 #ifdef BIN_RAW_DEBUG
                             bin_raw_debug_tag(
                                 TAG, "Match found bin_raw_type=BinRAWTypeGapRolling\r\n\r\n");
-                            //output in reverse order
+
                             bin_raw_debug("\tind  byte_bias\tbit_count\t\tbin_data\r\n");
                             index = y - 1;
                             for(size_t z = instance->data_markup[y].byte_bias + byte_count;
@@ -774,8 +732,7 @@ static bool
             }
         }
         if(bin_raw_type == BinRAWTypeGap) {
-            if(data_temp != 0) { //there are sequences with the same number of bits
-
+            if(data_temp != 0) {
                 BinRAW_Markup markup_temp[BIN_RAW_MAX_MARKUP_COUNT];
                 memcpy(
                     markup_temp,
@@ -803,14 +760,12 @@ static bool
             return true;
         else
             return false;
-
     } else {
-        // if bin_raw_type == BinRAWTypeGap
         bin_raw_debug_tag(TAG, "Sequence analysis without gap\r\n");
         ind = 0;
         for(size_t i = 0; i < instance->data_raw_ind; i++) {
             int data_temp = (int)(roundf((float)(instance->data_raw[i]) / instance->te));
-            if(data_temp == 0) break; //found an interval 2 times shorter than TE, this is noise
+            if(data_temp == 0) break;
             bin_raw_debug("%d  ", data_temp);
 
             for(size_t k = 0; k < (size_t)abs(data_temp); k++) {
@@ -830,7 +785,7 @@ static bool
 
         if(ind != 0) {
             bin_raw_type = BinRAWTypeNoGap;
-            //right alignment
+
             uint8_t bit_bias = (subghz_protocol_bin_raw_get_full_byte(ind) << 3) - ind;
 #ifdef BIN_RAW_DEBUG
             bin_raw_debug(
@@ -844,7 +799,7 @@ static bool
             }
             bin_raw_debug("\r\n\r\n");
 #endif
-            //checking that the received sequence contains useful data
+
             bool data_check = false;
             for(size_t i = 0; i < subghz_protocol_bin_raw_get_full_byte(ind); i++) {
                 if(instance->data[i] != 0) {
@@ -896,7 +851,6 @@ void subghz_protocol_decoder_bin_raw_data_input_rssi(
             instance->decoder.parser_step = BinRAWDecoderStepWrite;
             bin_raw_debug_tag(TAG, "RSSI\r\n");
         } else {
-            //adaptive noise level adjustment
             instance->adaptive_threshold_rssi += (rssi - instance->adaptive_threshold_rssi) * 0.2f;
         }
         break;
@@ -954,7 +908,7 @@ void subghz_protocol_decoder_bin_raw_data_input_rssi(
         break;
 
     default:
-        //if instance->decoder.parser_step == BinRAWDecoderStepNoParse or others, restore the initial state
+
         if(rssi < instance->adaptive_threshold_rssi + BIN_RAW_DELTA_RSSI) {
             instance->decoder.parser_step = BinRAWDecoderStepReset;
         }

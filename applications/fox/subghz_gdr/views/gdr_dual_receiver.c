@@ -1,4 +1,3 @@
-// views/gdr_dual_receiver.c
 #include "gdr_dual_receiver.h"
 
 #ifdef ENABLE_DUAL_RX_SCENE
@@ -11,8 +10,8 @@
 #define FRAME_HEIGHT             12
 #define MENU_ITEMS               3u
 #define MAX_LEN_PX               118
-#define LIST_HEIGHT              (MENU_ITEMS * FRAME_HEIGHT) // 36
-#define STATUS_TOP_Y             (LIST_HEIGHT) // 36
+#define LIST_HEIGHT              (MENU_ITEMS * FRAME_HEIGHT)
+#define STATUS_TOP_Y             (LIST_HEIGHT)
 #define SUBGHZ_RAW_THRESHOLD_MIN -90.0f
 
 struct GDRDualReceiver {
@@ -490,4 +489,4 @@ void gdr_view_dual_receiver_delete_item(GDRDualReceiver* receiver, uint16_t idx)
     gdr_view_dual_receiver_update_offset(receiver);
 }
 
-#endif // ENABLE_DUAL_RX_SCENE
+#endif

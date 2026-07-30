@@ -1,4 +1,3 @@
-// gdr_app.c
 #include "gdr_app_i.h"
 
 #include <furi.h>
@@ -291,7 +290,6 @@ GDRApp* gdr_app_alloc() {
     }
     app->emulate_feature_enabled = settings.emulate_feature_enabled;
 
-    // Init setting - KEEP THIS, it's small
     app->setting = subghz_setting_alloc();
     app->loaded_file_path = NULL;
     app->start_tx_time = 0;
@@ -438,7 +436,6 @@ bool gdr_radio_init(GDRApp* app) {
 
     FURI_LOG_I(TAG, "Fresh radio init - allocating all components");
 
-    // Create environment with our custom protocols
     app->txrx->environment = subghz_environment_alloc();
     if(!app->txrx->environment) {
         FURI_LOG_E(TAG, "Failed to allocate environment!");
@@ -655,7 +652,6 @@ void gdr_app_free(GDRApp* app) {
 
     gdr_settings_save(&settings);
 
-    // Deinitialize whichever is active - NULL checks inside handle all cases
     FURI_LOG_D(TAG, "Calling radio_deinit");
     gdr_radio_deinit(app);
 
@@ -808,21 +804,15 @@ void gdr_app_free(GDRApp* app) {
 int32_t gdr_app(char* p) {
     furi_hal_power_suppress_charge_enter();
 
-    /* Show a loading wheel immediately, before the slow gdr_app_alloc() runs
-     * (which does multiple SD card reads for settings and SubGhz presets).
-     * Using a ViewHolder on GuiLayerFullscreen gives us something on-screen
-     * during the gap between the loader's own spinner disappearing and GDR's
-     * first scene being ready. Dismissed in gdr_scene_start_on_enter(). */
     Gui*        pre_gui         = furi_record_open(RECORD_GUI);
     Loading*    startup_loading = loading_alloc();
     ViewHolder* startup_holder  = view_holder_alloc();
     view_holder_attach_to_gui(startup_holder, pre_gui);
     view_holder_set_view(startup_holder, loading_get_view(startup_loading));
-    furi_record_close(RECORD_GUI); /* decrement — gdr_app_alloc() will reopen */
+    furi_record_close(RECORD_GUI);
 
     GDRApp* gdr_app = gdr_app_alloc();
     if(!gdr_app) {
-        /* Alloc failed — tear down the loading widget before returning */
         Gui* g = furi_record_open(RECORD_GUI);
         UNUSED(g);
         view_holder_set_view(startup_holder, NULL);
@@ -833,12 +823,9 @@ int32_t gdr_app(char* p) {
         return -1;
     }
 
-    /* Hand the widget to the app so the start scene can dismiss it */
     gdr_app->startup_holder  = startup_holder;
     gdr_app->startup_loading = startup_loading;
 
-    /* If launched with a file path as args (e.g. from the file browser),
-     * open that saved capture directly. Otherwise show the start menu. */
     bool load_saved = (p && strlen(p));
     if(load_saved) gdr_app->loaded_file_path = furi_string_alloc_set(p);
     scene_manager_next_scene(
@@ -858,8 +845,6 @@ int32_t gdr_app(char* p) {
 
     view_dispatcher_run(gdr_app->view_dispatcher);
 
-    /* Safety: if the loading widget was never dismissed (e.g. early exit),
-     * clean it up now before freeing the app. */
     if(gdr_app->startup_holder) {
         view_holder_set_view(gdr_app->startup_holder, NULL);
         view_holder_free(gdr_app->startup_holder);
@@ -874,8 +859,6 @@ int32_t gdr_app(char* p) {
 
     furi_hal_power_suppress_charge_exit();
 
-    /* Write the SubGhz focus marker and relaunch SubGhz so the user
-     * returns to SubGhz with the Garage Remote button selected. */
     {
         Storage* s = furi_record_open(RECORD_STORAGE);
         File* f = storage_file_alloc(s);

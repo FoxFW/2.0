@@ -1,4 +1,3 @@
-// scenes/gdr_scene_sub_decode.c
 #include "../gdr_app_i.h"
 #ifdef ENABLE_SUB_DECODE_SCENE
 #include "../helpers/gdr_storage.h"
@@ -13,7 +12,7 @@
 #include <math.h>
 #include <lib/subghz/types.h>
 
-#include "gdr_icons.h"
+#include "garage_door_remote_icons.h"
 
 #define TAG "GDRSubDecode"
 
@@ -22,7 +21,6 @@
 #define SUCCESS_DISPLAY_TICKS    18
 #define FAILURE_DISPLAY_TICKS    18
 
-// Decode state machine
 typedef enum {
     DecodeStateIdle,
     DecodeStateOpenFile,
@@ -36,7 +34,6 @@ typedef enum {
     DecodeStateDone,
 } DecodeState;
 
-// Context for the whole decode operation
 typedef struct {
     DecodeState state;
     uint16_t animation_frame;
@@ -96,17 +93,14 @@ void gdr_subdecode_psa_bf_complete_refresh(void* app) {
         a->view_dispatcher, GDRCustomEventSubDecodeUpdate);
 }
 
-// Forward declaration
 static void gdr_scene_sub_decode_widget_callback(
     GuiButtonType result,
     InputType type,
     void* context);
 
-// Receiver view callback for history navigation
 static void
     gdr_scene_sub_decode_receiver_callback(GDRCustomEvent event, void* context);
 
-// Callback when receiver successfully decodes a signal
 static void gdr_sub_decode_receiver_callback(
     SubGhzReceiver* receiver,
     SubGhzProtocolDecoderBase* decoder_base,
@@ -136,7 +130,6 @@ static void gdr_sub_decode_receiver_callback(
     subghz_receiver_reset(receiver);
 }
 
-// Draw the decoding animation
 static void gdr_decode_draw_callback(Canvas* canvas, void* context) {
     UNUSED(context);
     SubDecodeContext* ctx = g_decode_ctx;
@@ -159,7 +152,6 @@ static void gdr_decode_draw_callback(Canvas* canvas, void* context) {
         int cx = 64, cy = 32;
         int size = 12;
 
-        // First stroke of check (going down-right from left)
         int stroke1_max = size;
         int stroke1_len = (check_progress > stroke1_max) ? stroke1_max : check_progress;
         for(int i = 0; i <= stroke1_len; i++) {
@@ -168,7 +160,6 @@ static void gdr_decode_draw_callback(Canvas* canvas, void* context) {
             canvas_draw_dot(canvas, cx - size + i + 1, cy - size / 2 + i);
         }
 
-        // Second stroke of check (going up-right)
         if(check_progress > stroke1_max) {
             int stroke2_max = size * 2;
             int stroke2_len = check_progress - stroke1_max;
@@ -206,9 +197,8 @@ static void gdr_decode_draw_callback(Canvas* canvas, void* context) {
         int x_progress = ctx->result_display_counter * 3;
         int cx = 64, cy = 32;
         int size = 10;
-        int stroke_len = size * 2 + 1; // Full diagonal length
+        int stroke_len = size * 2 + 1;
 
-        // First stroke: top-left to bottom-right
         int stroke1_len = (x_progress > stroke_len) ? stroke_len : x_progress;
         for(int i = 0; i < stroke1_len; i++) {
             int x = cx - size + i;
@@ -218,7 +208,6 @@ static void gdr_decode_draw_callback(Canvas* canvas, void* context) {
             canvas_draw_dot(canvas, x, y + 1);
         }
 
-        // Second stroke: top-right to bottom-left
         if(x_progress > stroke_len) {
             int stroke2_progress = x_progress - stroke_len;
             int stroke2_len = (stroke2_progress > stroke_len) ? stroke_len : stroke2_progress;
@@ -238,7 +227,7 @@ static void gdr_decode_draw_callback(Canvas* canvas, void* context) {
         }
 
         canvas_set_font(canvas, FontSecondary);
-        // Show error info if we have it
+
         if(furi_string_size(ctx->error_info) > 0) {
             canvas_draw_str_aligned(
                 canvas, 64, 54, AlignCenter, AlignTop, furi_string_get_cstr(ctx->error_info));
@@ -248,13 +237,10 @@ static void gdr_decode_draw_callback(Canvas* canvas, void* context) {
         return;
     }
 
-
-    // Title with occasional glitch
     canvas_set_font(canvas, FontPrimary);
     int glitch = (frame % 47 == 0) ? 1 : 0;
     canvas_draw_str_aligned(canvas, 64 + glitch, 0, AlignCenter, AlignTop, "Decoding");
 
-    // Waveform visualization - original style with sinf
     int wave_y = 22;
     int wave_height = 14;
 
@@ -394,14 +380,12 @@ static void close_file_handles(SubDecodeContext* ctx) {
     }
 }
 
-// Receiver view callback for history navigation
 static void
     gdr_scene_sub_decode_receiver_callback(GDRCustomEvent event, void* context) {
     GDRApp* app = context;
     view_dispatcher_send_custom_event(app->view_dispatcher, event);
 }
 
-// Widget callback for buttons (used in signal info view)
 static void gdr_scene_sub_decode_widget_callback(
     GuiButtonType result,
     InputType type,
@@ -410,7 +394,6 @@ static void gdr_scene_sub_decode_widget_callback(
 
     if(type == InputTypeShort || type == InputTypeLong) {
         if(result == GuiButtonTypeRight) {
-            // Save button in signal info view
             view_dispatcher_send_custom_event(
                 app->view_dispatcher, GDRCustomEventSubDecodeSave);
         } else if(result == GuiButtonTypeLeft) {
@@ -457,7 +440,6 @@ void gdr_scene_sub_decode_on_enter(void* context) {
 
     FURI_LOG_I(TAG, "After decode context alloc - Free heap: %zu", memmgr_get_free_heap());
 
-    // Allocate history
     if(!app->txrx->history) {
         app->txrx->history = gdr_history_alloc();
         if(!app->txrx->history) {
@@ -520,9 +502,7 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == GDRCustomEventSubDecodeUpdate) {
-            // Update receiver view with new history items (when signals are detected during decoding)
             if(ctx->state == DecodeStateDecodingRaw) {
-                // History is updated in callback, just refresh animation
                 consumed = true;
             } else if(
                 ctx->state == DecodeStateShowHistory ||
@@ -540,7 +520,6 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
             }
             consumed = true;
         } else if(event.event == GDRCustomEventSubDecodeSave) {
-            // Save the file (same as receiver_info)
             FlipperFormat* ff =
                 gdr_history_get_raw_data(ctx->history, ctx->selected_history_index);
 
@@ -551,7 +530,6 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
                     furi_string_set_str(protocol, "Unknown");
                 }
 
-                // Clean protocol name for filename
                 furi_string_replace_all(protocol, "/", "_");
                 furi_string_replace_all(protocol, " ", "_");
 
@@ -591,7 +569,6 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
             }
             consumed = true;
             return consumed;
-
         } else if(event.event == GDRCustomEventPsaBruteforceComplete) {
             app->txrx->idx_menu_chosen = ctx->selected_history_index;
             gdr_selected_capture_set(
@@ -606,9 +583,7 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
             }
             consumed = true;
             return consumed;
-
         } else if(event.event == GDRCustomEventViewReceiverOK) {
-            // User selected a signal from history - show signal info
             uint16_t idx = gdr_view_receiver_get_idx_menu(app->gdr_receiver);
             uint16_t history_count = gdr_history_get_item(ctx->history);
             if(idx < history_count) {
@@ -621,13 +596,12 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
                     GDRCaptureOwnerSubDecode);
                 ctx->state = DecodeStateShowSignalInfo;
                 ctx->showing_signal_info = true;
-                // Trigger state handler
+
                 view_dispatcher_send_custom_event(
                     app->view_dispatcher, GDRCustomEventSubDecodeUpdate);
             }
             consumed = true;
         } else if(event.event == GDRCustomEventViewReceiverBack) {
-            // User pressed back from history - reset and go to main menu
             gdr_history_reset(ctx->history);
             scene_manager_search_and_switch_to_previous_scene(
                 app->scene_manager, GDRSceneStart);
@@ -983,13 +957,10 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
         case DecodeStateShowSuccess: {
             ctx->result_display_counter++;
             if(ctx->result_display_counter >= SUCCESS_DISPLAY_TICKS) {
-                // Check if we have history items (from RAW decoding) - show history list instead of widget
                 uint16_t history_count = gdr_history_get_item(ctx->history);
                 if(history_count > 0) {
-                    // Transition to showing history list
                     ctx->state = DecodeStateShowHistory;
                 } else {
-                    // No history items, show widget with result (for protocol decoding)
                     widget_reset(app->widget);
                     widget_add_text_scroll_element(
                         app->widget, 0, 0, 128, 50, furi_string_get_cstr(ctx->result));
@@ -1023,14 +994,12 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
         }
 
         case DecodeStateShowHistory: {
-            // Show history list using receiver view (same as receive mode)
             uint16_t history_count = gdr_history_get_item(ctx->history);
             if(history_count > 0) {
                 gdr_view_receiver_set_history_mutex(app->gdr_receiver, NULL);
                 gdr_view_receiver_sync_menu_from_history(
                     app->gdr_receiver, ctx->history);
 
-                // Set initial selection
                 gdr_view_receiver_set_idx_menu(
                     app->gdr_receiver, ctx->selected_history_index);
 
@@ -1049,7 +1018,6 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
         }
 
         case DecodeStateShowSignalInfo: {
-            // Show signal info in widget (same layout as receiver_info)
             widget_reset(app->widget);
 
             uint16_t history_count = gdr_history_get_item(ctx->history);
@@ -1069,7 +1037,6 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
                     gdr_scene_sub_decode_widget_callback,
                     app);
 
-                // Store reference to history item's flipper format for saving
                 FlipperFormat* ff =
                     gdr_history_get_raw_data(ctx->history, ctx->selected_history_index);
                 if(ff) {
@@ -1111,7 +1078,6 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
             break;
         }
 
-        // Force view update to show animation - only when actually showing animation
         if(ctx->state != DecodeStateDone && ctx->state != DecodeStateShowHistory &&
            ctx->state != DecodeStateShowSignalInfo) {
             view_commit_model(app->view_about, true);
@@ -1124,16 +1090,14 @@ bool gdr_scene_sub_decode_on_event(void* context, SceneManagerEvent event) {
             consumed = true;
             return consumed;
         }
-        // Handle back button navigation
+
         if(ctx->showing_signal_info) {
-            // In signal info - go back to history
             ctx->showing_signal_info = false;
             ctx->state = DecodeStateShowHistory;
             view_dispatcher_send_custom_event(
                 app->view_dispatcher, GDRCustomEventSubDecodeUpdate);
             consumed = true;
         }
-        // If in history view, back is handled by ViewReceiverBack event
     }
 
     return consumed;

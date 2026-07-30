@@ -7,7 +7,7 @@ static void radio_device_loader_power_on() {
     uint8_t attempts = 0;
     while(!furi_hal_power_is_otg_enabled() && attempts++ < 5) {
         furi_hal_power_enable_otg();
-        //CC1101 power-up time
+
         furi_delay_ms(10);
     }
 }
@@ -38,7 +38,6 @@ bool radio_device_loader_is_connect_external(const char* name) {
 const SubGhzDevice* radio_device_loader_set(
     const SubGhzDevice* current_radio_device,
     SubGhzRadioDeviceType radio_device_type) {
-
     const SubGhzDevice* radio_device = NULL;
 
     if(radio_device_type == SubGhzRadioDeviceTypeExternalCC1101 &&

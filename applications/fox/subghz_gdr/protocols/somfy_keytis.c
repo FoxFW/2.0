@@ -130,15 +130,11 @@ static bool
     instance->generic.cnt = (data >> 24) & 0xFFFF;
     instance->generic.serial = data & 0xFFFFFF;
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&instance->generic.btn))
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", instance->generic.btn);
 
-    // Check for OFEX (overflow experimental) mode
     if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
-        // standart counter mode. PULL data from subghz_block_generic_global variables
         if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
-            // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
             if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
                 instance->generic.cnt = 0;
             } else {
@@ -213,64 +209,53 @@ bool subghz_protocol_somfy_keytis_create_data(
     return res;
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderSomfyKeytis instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_somfy_keytis_get_upload(
     SubGhzProtocolEncoderSomfyKeytis* instance,
     uint8_t btn) {
     furi_assert(instance);
 
-    // Gen new key
     if(!subghz_protocol_somfy_keytis_gen_data(instance, btn)) {
         return false;
     }
 
     size_t index = 0;
 
-    //Send header
-    //Wake up
-    instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)9415); // 1
-    instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)89565); // 0
-    //Hardware sync
+    instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)9415);
+    instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)89565);
+
     for(uint8_t i = 0; i < 12; ++i) {
         instance->encoder.upload[index++] = level_duration_make(
-            true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 4); // 1
+            true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 4);
         instance->encoder.upload[index++] = level_duration_make(
-            false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 4); // 0
+            false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 4);
     }
-    //Software sync
-    instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)4550); // 1
-    instance->encoder.upload[index++] =
-        level_duration_make(false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
 
-    //Send key data MSB manchester
+    instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)4550);
+    instance->encoder.upload[index++] =
+        level_duration_make(false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
 
     for(uint8_t i = instance->generic.data_count_bit - 24; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
             if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_LOW) {
-                instance->encoder.upload[index - 1].duration *= 2; // 00
+                instance->encoder.upload[index - 1].duration *= 2;
                 instance->encoder.upload[index++] = level_duration_make(
-                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
             } else {
                 instance->encoder.upload[index++] = level_duration_make(
-                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 instance->encoder.upload[index++] = level_duration_make(
-                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
             }
-
         } else {
             if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_HIGH) {
-                instance->encoder.upload[index - 1].duration *= 2; // 11
+                instance->encoder.upload[index - 1].duration *= 2;
                 instance->encoder.upload[index++] = level_duration_make(
-                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
             } else {
                 instance->encoder.upload[index++] = level_duration_make(
-                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 instance->encoder.upload[index++] = level_duration_make(
-                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
             }
         }
     }
@@ -278,31 +263,29 @@ static bool subghz_protocol_encoder_somfy_keytis_get_upload(
     for(uint8_t i = 24; i > 0; i--) {
         if(bit_read(instance->generic.data_2, i - 1)) {
             if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_LOW) {
-                instance->encoder.upload[index - 1].duration *= 2; // 00
+                instance->encoder.upload[index - 1].duration *= 2;
                 instance->encoder.upload[index++] = level_duration_make(
-                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
             } else {
                 instance->encoder.upload[index++] = level_duration_make(
-                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 instance->encoder.upload[index++] = level_duration_make(
-                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
             }
-
         } else {
             if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_HIGH) {
-                instance->encoder.upload[index - 1].duration *= 2; // 11
+                instance->encoder.upload[index - 1].duration *= 2;
                 instance->encoder.upload[index++] = level_duration_make(
-                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
             } else {
                 instance->encoder.upload[index++] = level_duration_make(
-                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                    true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 instance->encoder.upload[index++] = level_duration_make(
-                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                    false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
             }
         }
     }
 
-    //Inter-frame silence
     if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_LOW) {
         instance->encoder.upload[index - 1].duration +=
             (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 3;
@@ -312,43 +295,39 @@ static bool subghz_protocol_encoder_somfy_keytis_get_upload(
     }
 
     for(uint8_t i = 0; i < 2; ++i) {
-        //Hardware sync
         for(uint8_t i = 0; i < 6; ++i) {
             instance->encoder.upload[index++] = level_duration_make(
-                true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 4); // 1
+                true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 4);
             instance->encoder.upload[index++] = level_duration_make(
-                false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 4); // 0
+                false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 4);
         }
-        //Software sync
-        instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)4550); // 1
-        instance->encoder.upload[index++] =
-            level_duration_make(false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
 
-        //Send key data MSB manchester
+        instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)4550);
+        instance->encoder.upload[index++] =
+            level_duration_make(false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
 
         for(uint8_t i = instance->generic.data_count_bit - 24; i > 0; i--) {
             if(bit_read(instance->generic.data, i - 1)) {
                 if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_LOW) {
-                    instance->encoder.upload[index - 1].duration *= 2; // 00
+                    instance->encoder.upload[index - 1].duration *= 2;
                     instance->encoder.upload[index++] = level_duration_make(
-                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 } else {
                     instance->encoder.upload[index++] = level_duration_make(
-                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                     instance->encoder.upload[index++] = level_duration_make(
-                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 }
-
             } else {
                 if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_HIGH) {
-                    instance->encoder.upload[index - 1].duration *= 2; // 11
+                    instance->encoder.upload[index - 1].duration *= 2;
                     instance->encoder.upload[index++] = level_duration_make(
-                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 } else {
                     instance->encoder.upload[index++] = level_duration_make(
-                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                     instance->encoder.upload[index++] = level_duration_make(
-                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 }
             }
         }
@@ -356,30 +335,29 @@ static bool subghz_protocol_encoder_somfy_keytis_get_upload(
         for(uint8_t i = 24; i > 0; i--) {
             if(bit_read(instance->generic.data_2, i - 1)) {
                 if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_LOW) {
-                    instance->encoder.upload[index - 1].duration *= 2; // 00
+                    instance->encoder.upload[index - 1].duration *= 2;
                     instance->encoder.upload[index++] = level_duration_make(
-                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 } else {
                     instance->encoder.upload[index++] = level_duration_make(
-                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                     instance->encoder.upload[index++] = level_duration_make(
-                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 }
-
             } else {
                 if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_HIGH) {
-                    instance->encoder.upload[index - 1].duration *= 2; // 11
+                    instance->encoder.upload[index - 1].duration *= 2;
                     instance->encoder.upload[index++] = level_duration_make(
-                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 } else {
                     instance->encoder.upload[index++] = level_duration_make(
-                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 1
+                        true, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                     instance->encoder.upload[index++] = level_duration_make(
-                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short); // 0
+                        false, (uint32_t)subghz_protocol_somfy_keytis_const.te_short);
                 }
             }
         }
-        //Inter-frame silence
+
         if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_LOW) {
             instance->encoder.upload[index - 1].duration +=
                 (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 3;
@@ -389,7 +367,6 @@ static bool subghz_protocol_encoder_somfy_keytis_get_upload(
         }
     }
 
-    //Inter-frame silence
     instance->encoder.upload[index - 1].duration +=
         (uint32_t)30415 - (uint32_t)subghz_protocol_somfy_keytis_const.te_short * 3;
 
@@ -416,7 +393,6 @@ SubGhzProtocolStatus
             break;
         }
 
-        // Optional value
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -466,11 +442,6 @@ LevelDuration subghz_protocol_encoder_somfy_keytis_yield(void* context) {
     return ret;
 }
 
-/** 
- * Сhecksum calculation.
- * @param data Вata for checksum calculation
- * @return CRC
- */
 static uint8_t subghz_protocol_somfy_keytis_crc(uint64_t data) {
     uint8_t crc = 0;
     data &= 0xFFF0FFFFFFFFFF;
@@ -545,7 +516,6 @@ void subghz_protocol_decoder_somfy_keytis_feed(void* context, bool level, uint32
                              subghz_protocol_somfy_keytis_const.te_delta)) {
                 if(instance->decoder.decode_count_bit ==
                    subghz_protocol_somfy_keytis_const.min_count_bit_for_found) {
-                    //check crc
                     uint64_t data_tmp = instance->generic.data ^ (instance->generic.data >> 8);
                     if(((data_tmp >> 40) & 0xF) == subghz_protocol_somfy_keytis_crc(data_tmp)) {
                         instance->generic.data = instance->decoder.decode_data;
@@ -603,120 +573,13 @@ void subghz_protocol_decoder_somfy_keytis_feed(void* context, bool level, uint32
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_somfy_keytis_check_remote_controller(SubGhzBlockGeneric* instance) {
-    //https://pushstack.wordpress.com/somfy-rts-protocol/
-    /*
- *                                                  604 us
- *                                                  /
- *  | 2416us | 2416us | 2416us | 2416us | 4550 us |  | 
- *  
- *  +--------+        +--------+        +---...---+
- *  +        +--------+        +--------+         +--+XXXX...XXX+
- *  
- *  |              hw. sync.            |   soft.    |          |
- *  |                                   |   sync.    |   data   |
- *  
- * 
- *     encrypt              |           decrypt
- *  
- *  package 80 bit   pdc      key btn   crc cnt serial
- * 
- * 0xA453537C4B9855 C40019 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 C80026 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 CC0033 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 D00049 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 D4005C => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 D80063 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 DC0076 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 E00086 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 E40093 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 E800AC => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 EC00B9 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 F000C3 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 F400D6 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 F800E9 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 FC00FC => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 FC0102 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 FC0113 => 0xA  4  F  7 002F 37D3CD
- * 0xA453537C4B9855 FC0120 => 0xA  4  F  7 002F 37D3CD
- * ..........
- * 0xA453537C4B9855 FC048F => 0xA  4  F  7 002F 37D3CD
- *
- * Pdc: "Press Duration Counter" the total delay of the button is sent 72 parcels,
- *            pdc          cnt4b           cnt8b  pdc_crc
- *           C40019	 =>	 11 0001 00 0000 00000001 1001
- *           C80026  =>  11 0010 00 0000 00000010 0110
- *           CC0033  =>  11 0011 00 0000 00000011 0011
- *           D00049  =>  11 0100 00 0000 00000100 1001
- *           D4005C  =>  11 0101 00 0000 00000101 1100
- *           D80063  =>  11 0110 00 0000 00000110 0011
- *           DC0076  =>  11 0111 00 0000 00000111 0110
- *           E00086  =>  11 1000 00 0000 00001000 0110
- *           E40093  =>  11 1001 00 0000 00001001 0011
- *           E800AC  =>  11 1010 00 0000 00001010 1100
- *           EC00B9  =>  11 1011 00 0000 00001011 1001
- *           F000C3  =>  11 1100 00 0000 00001100 0011
- *           F400D6  =>  11 1101 00 0000 00001101 0110
- *           F800E9  =>  11 1110 00 0000 00001110 1001
- *           FC00FC  =>  11 1111 00 0000 00001111 1100
- *           FC0102  =>  11 1111 00 0000 00010000 0010
- *           FC0113  =>  11 1111 00 0000 00010001 0011
- *           FC0120  =>  11 1111 00 0000 00010010 0000
- * 
- *           Cnt4b: 4-bit counter changes from 1 to 15 then always equals 15
- *           Cnt8b: 8-bit counter changes from 1 to 72 (0x48)
- *           Ppdc_crc: 
- *                  uint8_t crc=0;
- *                  for(i=4; i<24; i+=4){
- *                      crc ^=(pdc>>i);
- *                  }
- *                  return crc;
- *               example: crc = 1^0^0^4^C = 9
- *           11, 00, 0000: const
- *          
- * Key: “Encryption Key”, Most significant 4-bit are always 0xA, Least Significant bits is 
- *      a linear counter. In the Smoove Origin this counter is increased together with the 
- *      rolling code. But leaving this on a constant value also works. Gerardwr notes that 
- *      for some other types of remotes the MSB is not constant.
- * Btn: 4-bit Control codes, this indicates the button that is pressed
- * CRC: 4-bit Checksum.
- * Ctn: 16-bit rolling code (big-endian) increased with every button press.
- * Serial: 24-bit identifier of sending device (little-endian)
- * 
- * 
- *      Decrypt
- *  
- *      uint8_t frame[7];
- *      for (i=1; i < 7; i++) {
- *          frame[i] = frame[i] ^ frame[i-1];
- *      }
- *      or
- *      uint64 Decrypt = frame ^ (frame>>8);
- * 
- *      CRC
- * 
- *      uint8_t frame[7];
- *      for (i=0; i < 7; i++) {
- *          crc = crc ^ frame[i] ^ (frame[i] >> 4);
- *      }
- *      crc = crc & 0xf;
- *
- */
-
     uint64_t data = instance->data ^ (instance->data >> 8);
     instance->btn = (data >> 48) & 0xF;
     instance->cnt = (data >> 24) & 0xFFFF;
     instance->serial = data & 0xFFFFFF;
 }
 
-/** 
- * Get button name.
- * @param btn Button number, 4 bit
- */
 static const char* subghz_protocol_somfy_keytis_get_name_button(uint8_t btn) {
     const char* name_btn[0x10] = {
         "Unknown",
@@ -800,7 +663,6 @@ void subghz_protocol_decoder_somfy_keytis_get_string(void* context, FuriString* 
 
     subghz_protocol_somfy_keytis_check_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.cnt_is_available = true;
     subghz_block_generic_global.cnt_length_bit = 16;
     subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -808,7 +670,6 @@ void subghz_protocol_decoder_somfy_keytis_get_string(void* context, FuriString* 
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

@@ -26,6 +26,13 @@ FuriSemaphore* furi_semaphore_alloc(uint32_t max_count, uint32_t initial_count) 
 
     FuriSemaphore* instance = malloc(sizeof(FuriSemaphore));
 
+    /* xSemaphoreCreate*Static only zeroes sizeof(StaticSemaphore_t) bytes.
+     * FuriEventLoopLink follows the container and is NOT covered; zero it
+     * explicitly so furi_semaphore_acquire/release notify calls are safe on
+     * recycled heap allocations. */
+    instance->event_loop_link.item_in  = NULL;
+    instance->event_loop_link.item_out = NULL;
+
     SemaphoreHandle_t hSemaphore;
 
     if(max_count == 1U) {

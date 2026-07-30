@@ -77,11 +77,9 @@ const SubGhzProtocol subghz_protocol_dickert_mahs = {
 static void subghz_protocol_encoder_dickert_mahs_parse_buffer(
     SubGhzProtocolDecoderDickertMAHS* instance,
     FuriString* output) {
-    // We assume we have only decodes < 64 bit!
     uint64_t data = instance->generic.data;
     uint8_t bits[36] = {};
 
-    // Convert uint64_t into bit array
     for(int i = 35; i >= 0; i--) {
         if(data & 1) {
             bits[i] = 1;
@@ -89,13 +87,10 @@ static void subghz_protocol_encoder_dickert_mahs_parse_buffer(
         data >>= 1;
     }
 
-    // Decode symbols
     FuriString* code = furi_string_alloc();
     for(size_t i = 0; i < 35; i += 2) {
         uint8_t dip = (bits[i] << 1) + bits[i + 1];
-        //  PLUS  = 3, // 0b11
-        //  ZERO  = 1, // 0b01
-        //  MINUS = 0, // 0x00
+
         if(dip == 0x01) {
             furi_string_cat(code, "0");
         } else if(dip == 0x00) {
@@ -146,11 +141,6 @@ void subghz_protocol_encoder_dickert_mahs_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderDickertMAHS instance
- * @return true On success
- */
 static bool
     subghz_protocol_encoder_dickert_mahs_get_upload(SubGhzProtocolEncoderDickertMAHS* instance) {
     furi_assert(instance);
@@ -165,20 +155,17 @@ static bool
 
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_dickert_mahs_const.te_short * 112);
-    // Send start bit
+
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_dickert_mahs_const.te_short);
 
-    //Send key data
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_dickert_mahs_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_dickert_mahs_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_dickert_mahs_const.te_short);
             instance->encoder.upload[index++] =
@@ -200,14 +187,13 @@ SubGhzProtocolStatus
             break;
         }
 
-        // Allow for longer keys (<) instead of !=
         if((instance->generic.data_count_bit <
             subghz_protocol_dickert_mahs_const.min_count_bit_for_found)) {
             FURI_LOG_E(TAG, "Wrong number of bits in key");
             ret = SubGhzProtocolStatusErrorValueBitCount;
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -272,7 +258,7 @@ void subghz_protocol_decoder_dickert_mahs_feed(void* context, bool level, uint32
 
     switch(instance->decoder.parser_step) {
     case DickertMAHSDecoderStepReset:
-        // Check if done
+
         if(instance->decoder.decode_count_bit >=
            subghz_protocol_dickert_mahs_const.min_count_bit_for_found) {
             instance->generic.serial = 0x0;
@@ -290,7 +276,6 @@ void subghz_protocol_decoder_dickert_mahs_feed(void* context, bool level, uint32
 
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_dickert_mahs_const.te_long * 50) <
                         subghz_protocol_dickert_mahs_const.te_delta * 70)) {
-            //Found header DICKERT_MAHS 44k us
             instance->decoder.parser_step = DickertMAHSDecoderStepInitial;
         }
         break;
@@ -300,7 +285,6 @@ void subghz_protocol_decoder_dickert_mahs_feed(void* context, bool level, uint32
         } else if(
             DURATION_DIFF(duration, subghz_protocol_dickert_mahs_const.te_short) <
             subghz_protocol_dickert_mahs_const.te_delta) {
-            //Found start bit DICKERT_MAHS
             instance->decoder.parser_step = DickertMAHSDecoderStepRecording;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -369,7 +353,6 @@ SubGhzProtocolStatus
             break;
         }
 
-        // Allow for longer keys (<) instead of !=
         if((instance->generic.data_count_bit <
             subghz_protocol_dickert_mahs_const.min_count_bit_for_found)) {
             FURI_LOG_E(TAG, "Wrong number of bits in key");

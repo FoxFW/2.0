@@ -32,7 +32,6 @@ extern "C" {
 #define MD5_SIZE_ROM  32
 #define MD5_SIZE_STUB 16
 
-// Maximum block sized for RAM and Flash writes, respectively.
 #define ESP_RAM_BLOCK 0x1800
 
 #ifndef MAX
@@ -78,13 +77,13 @@ typedef enum __attribute__((packed))
 typedef enum __attribute__((packed))
 {
     RESPONSE_OK     = 0x00,
-    INVALID_COMMAND = 0x05, // parameters or length field is invalid
-    COMMAND_FAILED  = 0x06, // Failed to act on received message
-    INVALID_CRC     = 0x07, // Invalid CRC in message
-    FLASH_WRITE_ERR = 0x08, // After writing a block of data to flash, the ROM loader reads the value back and the 8-bit CRC is compared to the data read from flash. If they don't match, this error is returned.
-    FLASH_READ_ERR  = 0x09, // SPI read failed
-    READ_LENGTH_ERR = 0x0a, // SPI read request length is too long
-    DEFLATE_ERROR   = 0x0b, // ESP32 compressed uploads only
+    INVALID_COMMAND = 0x05,
+    COMMAND_FAILED  = 0x06,
+    INVALID_CRC     = 0x07,
+    FLASH_WRITE_ERR = 0x08,
+    FLASH_READ_ERR  = 0x09,
+    READ_LENGTH_ERR = 0x0a,
+    DEFLATE_ERROR   = 0x0b,
 
     STUB_BAD_DATA_LEN = 0xC0,
     STUB_BAD_DATA_CHECKSUM = 0xC1,
@@ -102,7 +101,7 @@ typedef enum __attribute__((packed))
 typedef struct __attribute__((packed))
 {
     uint8_t direction;
-    uint8_t command;    // One of command_t
+    uint8_t command;
     uint16_t size;
     uint32_t checksum;
 } command_common_t;
@@ -201,7 +200,7 @@ typedef struct __attribute__((packed))
 {
     command_common_t common;
     uint32_t configuration;
-    uint32_t zero; // ESP32 ROM only
+    uint32_t zero;
 } spi_attach_command_t;
 
 typedef struct __attribute__((packed))
@@ -228,7 +227,7 @@ typedef struct __attribute__((packed))
 typedef struct __attribute__((packed))
 {
     uint8_t direction;
-    uint8_t command;    // One of command_t
+    uint8_t command;
     uint16_t size;
     uint32_t value;
 } common_response_t;
@@ -287,7 +286,7 @@ esp_loader_error_t loader_spi_parameters(uint32_t total_size);
 esp_loader_error_t loader_flash_erase_cmd(void);
 
 esp_loader_error_t loader_flash_erase_region_cmd(uint32_t offset, uint32_t size);
-#endif /* SERIAL_FLASHER_INTERFACE_SPI */
+#endif
 
 #if (defined SERIAL_FLASHER_INTERFACE_UART) || (defined SERIAL_FLASHER_INTERFACE_USB)
 esp_loader_error_t loader_flash_read_rom_cmd(uint32_t address, uint8_t *data);
@@ -302,7 +301,7 @@ esp_loader_error_t loader_run_stub(target_chip_t target);
 
 esp_loader_error_t loader_get_security_info_cmd(get_security_info_response_data_t *response,
         uint32_t *response_recv_size);
-#endif /* SERIAL_FLASHER_INTERFACE_UART || SERIAL_FLASHER_INTERFACE_USB */
+#endif
 
 esp_loader_error_t loader_mem_begin_cmd(uint32_t offset, uint32_t size, uint32_t blocks_to_write, uint32_t block_size);
 
@@ -318,7 +317,7 @@ esp_loader_error_t loader_read_reg_cmd(uint32_t address, uint32_t *reg);
 
 esp_loader_error_t loader_change_baudrate_cmd(uint32_t new_baudrate, uint32_t old_baudrate);
 
-#endif /* SERIAL_FLASHER_INTERFACE_SDIO */
+#endif
 
 #ifdef __cplusplus
 }

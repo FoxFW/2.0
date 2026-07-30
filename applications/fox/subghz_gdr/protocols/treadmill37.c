@@ -87,23 +87,16 @@ void subghz_protocol_encoder_treadmill37_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderTreadmill37 instance
- */
 static void
     subghz_protocol_encoder_treadmill37_get_upload(SubGhzProtocolEncoderTreadmill37* instance) {
     furi_assert(instance);
     size_t index = 0;
 
-    // Send key and GAP
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            // Send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_treadmill37_const.te_long);
             if(i == 1) {
-                //Send gap if bit was last
                 instance->encoder.upload[index++] = level_duration_make(
                     false, (uint32_t)subghz_protocol_treadmill37_const.te_short * 20);
             } else {
@@ -111,11 +104,9 @@ static void
                     false, (uint32_t)subghz_protocol_treadmill37_const.te_short);
             }
         } else {
-            // Send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_treadmill37_const.te_short);
             if(i == 1) {
-                //Send gap if bit was last
                 instance->encoder.upload[index++] = level_duration_make(
                     false, (uint32_t)subghz_protocol_treadmill37_const.te_short * 20);
             } else {
@@ -129,10 +120,6 @@ static void
     return;
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_treadmill37_check_remote_controller(SubGhzBlockGeneric* instance) {
     instance->serial = instance->data >> 17;
     instance->cnt = (instance->data >> 1) & 0xFFFF;
@@ -151,7 +138,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -213,23 +200,10 @@ void subghz_protocol_decoder_treadmill37_feed(
     furi_assert(context);
     SubGhzProtocolDecoderTreadmill37* instance = context;
 
-    // Treadmill37 (QH-433) Decoder
-    // 2026 - @xMasterX (MMX)
-
-    // Key samples
-    //              serial                  button           stop
-    // 1800001830 = 00011000000000000000000 0000110000011000 0
-    // 180000061E = 00011000000000000000000 0000001100001111 0
-    // 180000142C = 00011000000000000000000 0000101000010110 0
-    // 1800000C24 = 00011000000000000000000 0000011000010010 0
-    // 180001556C = 00011000000000000000000 1010101010110110 0
-    // 180001334A = 00011000000000000000000 1001100110100101 0
-
     switch(instance->decoder.parser_step) {
     case Treadmill37DecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_treadmill37_const.te_short * 20) <
                         subghz_protocol_treadmill37_const.te_delta * 4)) {
-            //Found GAP
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
             instance->decoder.parser_step = Treadmill37DecoderStepSaveDuration;
@@ -245,7 +219,6 @@ void subghz_protocol_decoder_treadmill37_feed(
         break;
     case Treadmill37DecoderStepCheckDuration:
         if(!level) {
-            // Bit 0 is short and long timing = 300us HIGH (te_last) and 900us LOW
             if((DURATION_DIFF(
                     instance->decoder.te_last, subghz_protocol_treadmill37_const.te_short) <
                 subghz_protocol_treadmill37_const.te_delta) &&
@@ -253,7 +226,6 @@ void subghz_protocol_decoder_treadmill37_feed(
                 subghz_protocol_treadmill37_const.te_delta)) {
                 subghz_protocol_blocks_add_bit(&instance->decoder, 0);
                 instance->decoder.parser_step = Treadmill37DecoderStepSaveDuration;
-                // Bit 1 is long and short timing = 900us HIGH (te_last) and 300us LOW
             } else if(
                 (DURATION_DIFF(
                      instance->decoder.te_last, subghz_protocol_treadmill37_const.te_long) <
@@ -263,10 +235,8 @@ void subghz_protocol_decoder_treadmill37_feed(
                 subghz_protocol_blocks_add_bit(&instance->decoder, 1);
                 instance->decoder.parser_step = Treadmill37DecoderStepSaveDuration;
             } else if(
-                // End of the key
                 DURATION_DIFF(duration, subghz_protocol_treadmill37_const.te_short * 20) <
                 subghz_protocol_treadmill37_const.te_delta * 4) {
-                //Found next GAP and add bit 0 or 1 (only bit 0 was found on the remotes)
                 if((DURATION_DIFF(
                         instance->decoder.te_last, subghz_protocol_treadmill37_const.te_short) <
                     subghz_protocol_treadmill37_const.te_delta)) {
@@ -277,7 +247,7 @@ void subghz_protocol_decoder_treadmill37_feed(
                     subghz_protocol_treadmill37_const.te_delta)) {
                     subghz_protocol_blocks_add_bit(&instance->decoder, 1);
                 }
-                // If got 37 bits key reading is finished
+
                 if(instance->decoder.decode_count_bit ==
                    subghz_protocol_treadmill37_const.min_count_bit_for_found) {
                     instance->generic.data = instance->decoder.decode_data;
@@ -332,13 +302,6 @@ void subghz_protocol_decoder_treadmill37_get_string(void* context, FuriString* o
 
     uint64_t code_found_reverse = subghz_protocol_blocks_reverse_key(
         instance->generic.data, instance->generic.data_count_bit);
-
-    // for future use
-    // // push protocol data to global variable
-    // subghz_block_generic_global.btn_is_available = false;
-    // subghz_block_generic_global.current_btn = instance->generic.btn;
-    // subghz_block_generic_global.btn_length_bit = 4;
-    // //
 
     furi_string_cat_printf(
         output,

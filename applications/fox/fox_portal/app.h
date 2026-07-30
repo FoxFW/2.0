@@ -17,8 +17,6 @@
 
 #define FOX_WIFI_SSID_MAX 33
 
-#define FOX_PORTAL_MAX_FIELDS 12
-#define FOX_PORTAL_FIELD_KEY_MAX 16
 #define FOX_PORTAL_HTML_TRANSFER_MAX 1024
 
 typedef enum {
@@ -33,14 +31,11 @@ typedef enum {
 
 typedef enum {
     MenuContextFoxPortal,
-    MenuContextFoxPortalFields,
-    MenuContextFoxPortalFieldDelete,
 } MenuContext;
 
 typedef enum {
     TextInputPurposeNone,
     TextInputPurposeFoxPortalSsid,
-    TextInputPurposeFoxPortalNewFieldName,
 } TextInputPurpose;
 
 #define FOX_TEXT_INPUT_BUFFER_MAX 192
@@ -62,6 +57,16 @@ typedef struct {
     FoxCommanderView current_view;
 
     bool message_view_detecting;
+    bool     message_view_not_detected_focus_left;
+    bool     message_view_serial_busy;
+    bool     message_view_serial_retrying;
+    bool     message_view_serial_retry_failed;
+    bool     message_view_attacks_disabled;
+    bool     message_view_wifi_disconnect_required;
+    uint8_t  serial_busy_countdown;
+    FuriTimer* serial_busy_timer;
+    FuriTimer* serial_retry_timer;
+    FuriTimer* portal_sync_timer;
     View* message_view;
 
     MenuContext menu_context;
@@ -70,6 +75,9 @@ typedef struct {
     FuriString* log;
     View* terminal_view;
     size_t terminal_scroll;
+
+    bool showing_results;
+    FuriString* results_text;
 
     TextInputPurpose text_input_purpose;
     char text_input_buffer[FOX_TEXT_INPUT_BUFFER_MAX];
@@ -81,16 +89,15 @@ typedef struct {
     View* foxportal_qr_view;
     uint8_t qr_buf[FOX_QR_BUFFER_LEN];
     int qr_size;
-    char portal_fields[FOX_PORTAL_MAX_FIELDS][FOX_PORTAL_FIELD_KEY_MAX + 1];
-    size_t portal_field_count;
-    size_t portal_field_pending_delete;
+    bool portal_running;
 } App;
 
 void app_log(App* app, const char* fmt, ...);
 void app_render_log(App* app);
 bool app_expect_line(App* app, const char* expected, uint32_t timeout_ms);
 void app_switch_to_menu(App* app, MenuContext ctx);
-void app_show_text_input(App* app, const char* header, TextInputPurpose purpose);
+
+void app_show_text_input(App* app, const char* header, TextInputPurpose purpose, const char* prefill);
 
 void app_menu_item_callback(void* context, uint32_t index);
 
@@ -101,4 +108,4 @@ uint32_t app_baud_option_value(size_t index);
 
 bool app_probe_uart_selected(App* app);
 void app_retry_detection(App* app);
-
+void app_recheck_attacks_enabled(App* app);

@@ -1,5 +1,3 @@
-// scenes/gdr_scene_config.h
-
 #include "../defines.h"
 
 ADD_SCENE(gdr, start, Start)

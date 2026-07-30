@@ -8,27 +8,6 @@
 #include <lib/subghz/blocks/generic.h>
 #include <lib/subghz/blocks/math.h>
 
-// Created by HTotoo 2023-10-30
-// Got a lot of help from LiQuiDz.
-// Protocol decoding help from: https://github.com/merbanan/rtl_433/blob/master/src/devices/honeywell.c
-// Fixes and style changes to use similar codebase as other protocols by @xMasterX 2025-10
-
-/*
-64 bit packets, repeated multiple times per open/close event.
-
-Protocol whitepaper: "DEFCON 22: Home Insecurity" by Logan Lamb.
-
-Data layout:
-
-    PP PP C IIIII EE SS SS
-
-- P: 16bit Preamble and sync bit (always ff fe)
-- C: 4bit Channel
-- I: 20bit Device serial number / or counter value
-- E: 8bit Event, where 0x80 = Open/Close, 0x04 = Heartbeat / or id
-- S: 16bit CRC
-*/
-
 #define TAG "SubGhzProtocolHoneywell"
 
 static const SubGhzBlockConst subghz_protocol_honeywell_const = {
@@ -78,7 +57,6 @@ const SubGhzProtocol subghz_protocol_honeywell = {
             SubGhzProtocolFlag_Sensors,
     .encoder = &subghz_protocol_honeywell_encoder,
     .decoder = &subghz_protocol_honeywell_decoder,
-
 };
 
 static void subghz_protocol_decoder_honeywell_addbit(void* context, bool data);
@@ -192,7 +170,7 @@ static void
     if(level_duration_get_level(instance->encoder.upload[index])) {
         index++;
     }
-    //Send delay
+
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_honeywell_const.te_long * 300);
 
@@ -211,7 +189,6 @@ SubGhzProtocolStatus
             break;
         }
 
-        // Optional value
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -304,7 +281,7 @@ static void subghz_protocol_decoder_honeywell_addbit(void* context, bool data) {
     }
 
     uint16_t preamble = (instance->decoder.decode_data >> 48) & 0xFFFF;
-    //can be multiple, since flipper can't read it well.. (it can, but the sensors are not that good, there are multiple of variations seen)
+
     if(preamble == 0b0011111111111110 || preamble == 0b0111111111111110 ||
        preamble == 0b1111111111111110) {
         uint8_t datatocrc[4];
@@ -315,7 +292,6 @@ static void subghz_protocol_decoder_honeywell_addbit(void* context, bool data) {
         uint8_t channel = (instance->decoder.decode_data >> 44) & 0xF;
         uint16_t crc_calc = 0;
         if(channel == 0x2 || channel == 0x4 || channel == 0xA) {
-            // 2GIG brand
             crc_calc = subghz_protocol_honeywell_crc16(datatocrc, 4, 0x8050, 0);
         } else if(channel == 0x8) {
             crc_calc = subghz_protocol_honeywell_crc16(datatocrc, 4, 0x8005, 0);
@@ -326,7 +302,6 @@ static void subghz_protocol_decoder_honeywell_addbit(void* context, bool data) {
         }
         uint16_t crc = instance->decoder.decode_data & 0xFFFF;
         if(crc == crc_calc) {
-            // Removing possible artifacts from higher bits and setting header to FF FE
             instance->generic.data =
                 ((((((0xFF << 16) | ((instance->decoder.decode_data >> 40) & 0xFFFF)) << 16) |
                    ((instance->decoder.decode_data >> 24) & 0xFFFF))
@@ -382,7 +357,7 @@ SubGhzProtocolStatus
         if(instance->generic.data_count_bit < 62) {
             return SubGhzProtocolStatusErrorValueBitCount;
         }
-        // Removing possible artifacts from higher bits and setting header to FF FE
+
         instance->generic.data =
             ((((((0xFF << 16) | ((instance->generic.data >> 40) & 0xFFFF)) << 16) |
                ((instance->generic.data >> 24) & 0xFFFF))

@@ -5,8 +5,6 @@
 
 #define CHAMELEON_SOF 0x11
 
-/* LRC is the 8-bit two's complement of the sum of the given bytes, i.e.
-   the value that makes (sum of bytes + lrc) == 0 mod 256. */
 static uint8_t lrc(const uint8_t* data, size_t len) {
     uint8_t sum = 0;
     for(size_t i = 0; i < len; i++) {
@@ -34,19 +32,7 @@ size_t chameleon_build_frame(
     out[5] = 0x00;
     out[6] = (uint8_t)(data_len >> 8);
     out[7] = (uint8_t)(data_len & 0xFF);
-    /* LRC2 covers CMD|STATUS|LEN - that's 6 bytes (2+2+2), out[2..7],
-       confirmed against RfidResearchGroup/ChameleonUltraDocs protocol.md
-       ("LRC2: 1 byte, LRC over CMD|STATUS|LEN bytes"). A prior version of
-       this line summed only 5 bytes (out[2..6]), silently dropping LEN's
-       low byte from the checksum. That's invisible for any frame whose
-       data_len fits with a zero low byte (data_len == 0, i.e. most
-       *commands* sent to the device), which is why simple round trips
-       could look fine - but it corrupts LRC2 for essentially every real
-       *response*, since almost every Chameleon response carries a
-       non-zero, sub-256 data_len (e.g. GET_APP_VERSION's LEN=2), whose
-       low byte is exactly the byte this was dropping. This one-byte
-       omission is what was causing "OK" followed by "Malformed response
-       frame" on nearly every info request. */
+
     out[8] = lrc(&out[2], 6);
 
     if(data_len > 0 && data != NULL) {
@@ -95,8 +81,7 @@ bool chameleon_parse_frame_ex(
         if(error_out) *error_out = ChameleonFrameErrBadLrc1;
         return false;
     }
-    /* Must match chameleon_build_frame()'s LRC2 - see the comment there.
-       6 bytes (CMD|STATUS|LEN), not 5. */
+
     if(buffer[8] != lrc(&buffer[2], 6)) {
         if(error_out) *error_out = ChameleonFrameErrBadLrc2;
         return false;
@@ -319,7 +304,7 @@ void chameleon_format_hf14a_scan(const ChameleonFrame* frame, char* out, size_t 
     }
 
     uint8_t uid_len = frame->data[0];
-    size_t fixed_fields = 3; /* atqa[2] + sak */
+    size_t fixed_fields = 3;
     if(frame->data_len < (size_t)(1 + uid_len + fixed_fields)) {
         snprintf(out, out_capacity, "malformed scan response");
         return;

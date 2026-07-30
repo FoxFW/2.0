@@ -90,15 +90,12 @@ void subghz_protocol_encoder_hollarm_free(void* context) {
     free(instance);
 }
 
-// Get custom button code
 static uint8_t subghz_protocol_hollarm_get_btn_code(void) {
     uint8_t custom_btn_id = subghz_custom_btn_get();
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -158,17 +155,11 @@ static uint8_t subghz_protocol_hollarm_get_btn_code(void) {
     return btn;
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderHollarm instance
- */
 static void subghz_protocol_encoder_hollarm_get_upload(SubGhzProtocolEncoderHollarm* instance) {
     furi_assert(instance);
 
-    // Generate new key using custom or default button
     instance->generic.btn = subghz_protocol_hollarm_get_btn_code();
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&instance->generic.btn))
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", instance->generic.btn);
 
@@ -181,15 +172,11 @@ static void subghz_protocol_encoder_hollarm_get_upload(SubGhzProtocolEncoderHoll
 
     size_t index = 0;
 
-    // Send key and GAP between parcels
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
-        // Read and prepare levels with 2 bit (was saved for better parsing) to the left offset to fit with the original remote transmission
         if(bit_read((instance->generic.data << 2), i - 1)) {
-            // Send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_hollarm_const.te_short);
             if(i == 1) {
-                //Send gap if bit was last
                 instance->encoder.upload[index++] = level_duration_make(
                     false, (uint32_t)subghz_protocol_hollarm_const.te_short * 12);
             } else {
@@ -197,11 +184,9 @@ static void subghz_protocol_encoder_hollarm_get_upload(SubGhzProtocolEncoderHoll
                     false, (uint32_t)subghz_protocol_hollarm_const.te_short * 8);
             }
         } else {
-            // Send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_hollarm_const.te_short);
             if(i == 1) {
-                //Send gap if bit was last
                 instance->encoder.upload[index++] = level_duration_make(
                     false, (uint32_t)subghz_protocol_hollarm_const.te_short * 12);
             } else {
@@ -215,34 +200,12 @@ static void subghz_protocol_encoder_hollarm_get_upload(SubGhzProtocolEncoderHoll
     return;
 }
 
-/** 
- * Analysis of received data and parsing serial number
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_hollarm_remote_controller(SubGhzBlockGeneric* instance) {
     instance->btn = (instance->data >> 8) & 0xF;
     instance->serial = (instance->data & 0xFFFFFFF0000) >> 16;
 
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
-        // subghz_custom_btn_set_original(instance->btn);
     }
-    // subghz_custom_btn_set_max(3);
-
-    // Hollarm Decoder
-    // 09.2024 - @xMasterX (MMX)
-    // Thanks @Skorpionm for support!
-
-    // F0B93422FF = FF 8bit Sum
-    // F0B93421FE = FE 8bit Sum
-    // F0B9342401 = 01 8bit Sum
-    // F0B9342805 = 05 8bit Sum
-
-    // Serial (moved 2bit to right)    | Btn | 8b previous 4 bytes sum
-    // 00001111000010111001001101000010 0010  11111111 btn = (0x2)
-    // 00001111000010111001001101000010 0001  11111110 btn = (0x1)
-    // 00001111000010111001001101000010 0100  00000001 btn = (0x4)
-    // 00001111000010111001001101000010 1000  00000101 btn = (0x8)
 }
 
 SubGhzProtocolStatus
@@ -258,7 +221,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -335,14 +298,13 @@ void subghz_protocol_decoder_hollarm_feed(void* context, bool level, volatile ui
     case HollarmDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_hollarm_const.te_short * 12) <
                         subghz_protocol_hollarm_const.te_delta * 2)) {
-            //Found GAP between parcels
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
             instance->decoder.parser_step = HollarmDecoderStepSaveDuration;
         }
         break;
     case HollarmDecoderStepSaveDuration:
-        // Save HIGH level timing for next step
+
         if(level) {
             instance->decoder.te_last = duration;
             instance->decoder.parser_step = HollarmDecoderStepCheckDuration;
@@ -352,14 +314,12 @@ void subghz_protocol_decoder_hollarm_feed(void* context, bool level, volatile ui
         break;
     case HollarmDecoderStepCheckDuration:
         if(!level) {
-            // Bit 0 is short 200us HIGH + long 1000us LOW timing
             if((DURATION_DIFF(instance->decoder.te_last, subghz_protocol_hollarm_const.te_short) <
                 subghz_protocol_hollarm_const.te_delta) &&
                (DURATION_DIFF(duration, subghz_protocol_hollarm_const.te_long) <
                 subghz_protocol_hollarm_const.te_delta)) {
                 subghz_protocol_blocks_add_bit(&instance->decoder, 0);
                 instance->decoder.parser_step = HollarmDecoderStepSaveDuration;
-                // Bit 1 is short 200us HIGH + short x8 = 1600us LOW timing
             } else if(
                 (DURATION_DIFF(instance->decoder.te_last, subghz_protocol_hollarm_const.te_short) <
                  subghz_protocol_hollarm_const.te_delta) &&
@@ -368,17 +328,12 @@ void subghz_protocol_decoder_hollarm_feed(void* context, bool level, volatile ui
                 subghz_protocol_blocks_add_bit(&instance->decoder, 1);
                 instance->decoder.parser_step = HollarmDecoderStepSaveDuration;
             } else if(
-                // End of the key
                 DURATION_DIFF(duration, subghz_protocol_hollarm_const.te_short * 12) <
                 subghz_protocol_hollarm_const.te_delta) {
-                // When next GAP is found add bit 0 and do check for read finish
-                // (we have 42 high level pulses, last or first one may be a stop/start bit but we will parse it as zero)
                 subghz_protocol_blocks_add_bit(&instance->decoder, 0);
 
-                // If got 42 bits key reading is finished
                 if(instance->decoder.decode_count_bit ==
                    subghz_protocol_hollarm_const.min_count_bit_for_found) {
-                    // Saving with 2bit to the right offset for proper parsing
                     instance->generic.data = (instance->decoder.decode_data >> 2);
                     instance->generic.data_count_bit = instance->decoder.decode_count_bit;
 
@@ -388,7 +343,6 @@ void subghz_protocol_decoder_hollarm_feed(void* context, bool level, volatile ui
                                       ((instance->generic.data >> 8) & 0xFF);
 
                     if(bytesum != (instance->generic.data & 0xFF)) {
-                        // Check if the key is valid by verifying the sum
                         instance->generic.data = 0;
                         instance->generic.data_count_bit = 0;
                         instance->decoder.decode_data = 0;
@@ -412,21 +366,17 @@ void subghz_protocol_decoder_hollarm_feed(void* context, bool level, volatile ui
     }
 }
 
-/** 
- * Get button name.
- * @param btn Button number, 4 bit
- */
 static const char* subghz_protocol_hollarm_get_button_name(uint8_t btn) {
     const char* name_btn[16] = {
         "Unknown",
-        "Disarm", // B (2)
-        "Arm", // A (1)
+        "Disarm",
+        "Arm",
         "0x3",
-        "Ringtone/Alarm", // C (3)
+        "Ringtone/Alarm",
         "0x5",
         "0x6",
         "0x7",
-        "Ring", // D (4)
+        "Ring",
         "Settings mode",
         "Exit settings",
         "Vibro sens. setting",
@@ -465,18 +415,15 @@ void subghz_protocol_decoder_hollarm_get_string(void* context, FuriString* outpu
     furi_assert(context);
     SubGhzProtocolDecoderHollarm* instance = context;
 
-    // Parse serial
     subghz_protocol_hollarm_remote_controller(&instance->generic);
-    // Get byte sum
+
     uint8_t bytesum =
         ((instance->generic.data >> 32) & 0xFF) + ((instance->generic.data >> 24) & 0xFF) +
         ((instance->generic.data >> 16) & 0xFF) + ((instance->generic.data >> 8) & 0xFF);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

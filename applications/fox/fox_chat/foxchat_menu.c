@@ -78,14 +78,6 @@ static bool chat_fetch_messages(App* app) {
             }
             if(strncmp(msg.line, "DISCORDMSG:", 11) == 0 &&
                app->chat_message_count < FOX_CHAT_MESSAGE_MAX) {
-                /* "<HH:MM>|<content>" - split on the first '|' (see
-                   discord.cpp's doRead() for why that delimiter, not
-                   ':', is safe here). content is usually itself
-                   "<device_name>: <text>" for anything posted through
-                   this bridge (see chat_message_submitted() below) -
-                   chat_list_view.c/chat_detail_view.c bold that embedded
-                   name when rendering it, rather than this function
-                   needing to split it out here too. */
                 const char* rest = msg.line + 11;
                 const char* pipe = strchr(rest, '|');
                 ChatMessage* cm = &app->chat_messages[app->chat_message_count];
@@ -97,8 +89,6 @@ static bool chat_fetch_messages(App* app) {
                     strncpy(cm->text, pipe + 1, sizeof(cm->text) - 1);
                     cm->text[sizeof(cm->text) - 1] = '\0';
                 } else {
-                    /* Shouldn't happen with current firmware - tolerate
-                       it rather than dropping the message. */
                     strncpy(cm->time, "--:--", sizeof(cm->time) - 1);
                     cm->time[sizeof(cm->time) - 1] = '\0';
                     strncpy(cm->text, rest, sizeof(cm->text) - 1);
@@ -107,8 +97,6 @@ static bool chat_fetch_messages(App* app) {
                 app->chat_message_count++;
                 continue;
             }
-            /* Unrecognized line - ignore and keep reading, same
-               tolerant behavior as before this rewrite. */
         }
         if(notinit && foxchat_auto_provision(app)) continue;
         break;
@@ -149,10 +137,6 @@ void chat_message_submitted(App* app) {
         return;
     }
 
-    /* Save the typed message before attempting the send.  If the send
-       fails for any reason (no response, rate limit, etc.) we restore
-       it into text_input_buffer and jump back to the text input so the
-       user doesn't have to retype their (possibly long) message. */
     strncpy(app->saved_message, app->text_input_buffer, FOX_TEXT_INPUT_BUFFER_MAX - 1);
     app->saved_message[FOX_TEXT_INPUT_BUFFER_MAX - 1] = '\0';
 
@@ -188,7 +172,7 @@ void chat_message_submitted(App* app) {
     }
 
     if(posted && chat_fetch_messages(app)) {
-        app->saved_message[0] = '\0'; /* clear saved message on success */
+        app->saved_message[0] = '\0';
         chat_list_view_show(app);
     } else {
         strncpy(app->text_input_buffer, app->saved_message, FOX_TEXT_INPUT_BUFFER_MAX - 1);

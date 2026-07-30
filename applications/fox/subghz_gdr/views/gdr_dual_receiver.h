@@ -1,4 +1,3 @@
-// views/gdr_dual_receiver.h
 #pragma once
 
 #include "../helpers/gdr_types.h"
@@ -56,4 +55,4 @@ uint16_t gdr_view_dual_receiver_get_idx_menu(GDRDualReceiver* receiver);
 void gdr_view_dual_receiver_set_idx_menu(GDRDualReceiver* receiver, uint16_t idx);
 void gdr_view_dual_receiver_delete_item(GDRDualReceiver* receiver, uint16_t idx);
 
-#endif // ENABLE_DUAL_RX_SCENE
+#endif

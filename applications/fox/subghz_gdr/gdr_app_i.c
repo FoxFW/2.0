@@ -1,4 +1,3 @@
-// gdr_app_i.c
 #include "gdr_app_i.h"
 #include "protocols/protocol_items.h"
 #include <loader/firmware_api/firmware_api.h>

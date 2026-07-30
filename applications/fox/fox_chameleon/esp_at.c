@@ -44,14 +44,6 @@ static void esp_at_emit_line(EspAt* esp_at, const char* text, size_t length) {
     furi_message_queue_put(esp_at->msg_queue, &msg, 0);
 }
 
-/* The Fox ESP32 Firmware's protocol is entirely line-based - every
-   response, including NOTIFY:<hex>, ends in a plain '\n' with no
-   embedded raw bytes. That is a deliberate design choice on the
-   firmware side (see fox_esp32_firmware's README), specifically so this
-   side never needs the raw-byte, declared-length parsing ESP-AT's
-   +NOTIFY: frames required - a genuine simplification versus the
-   version of this file that used to talk to real ESP-AT, not just
-   fewer lines of code. */
 static int32_t esp_at_worker(void* context) {
     EspAt* esp_at = context;
 
@@ -71,8 +63,6 @@ static int32_t esp_at_worker(void* context) {
         } else if(line_len < ESP_AT_LINE_MAX - 1) {
             line[line_len++] = (char)byte;
         } else {
-            /* Line longer than the buffer: flush what's been collected
-               so far rather than silently drop it, then keep going. */
             esp_at_emit_line(esp_at, line, line_len);
             line_len = 0;
             line[line_len++] = (char)byte;
@@ -87,14 +77,6 @@ static FuriHalBus esp_at_bus_for_serial(FuriHalSerialId serial_id) {
 }
 
 EspAt* esp_at_alloc(FuriHalSerialId serial_id, uint32_t baud_rate) {
-    /* Flipper's own Expansion Modules service is enabled by default at
-       boot, listening on USART (13/14) unless reconfigured, and its own
-       header is explicit that any app wanting real serial access must
-       call expansion_disable() before furi_hal_serial_control_acquire().
-       expansion_disable()/expansion_enable() are both no-ops if the
-       service wasn't enabled on this serial_id in the first place (e.g.
-       LPUART, which isn't the default listen port), so this is safe to
-       do unconditionally. */
     Expansion* expansion = furi_record_open(RECORD_EXPANSION);
     expansion_disable(expansion);
 
@@ -132,13 +114,8 @@ void esp_at_free(EspAt* esp_at) {
     furi_thread_join(esp_at->worker);
     furi_thread_free(esp_at->worker);
 
-    /* Stopping the receive interrupt explicitly, before deinit/release,
-       isn't optional: flipperdevices/flipperzero-firmware PR #4246 fixed
-       a real crash in Flipper's own Expansion service caused by tearing
-       down a serial handle without stopping async RX first, and Fox
-       ESP32 Detector (a companion app to this one) hit the same class of
-       bug - reported as a NULL pointer dereference - from freeing its
-       receive buffer before this call existed. */
+    /* Stop async rx before deinit/release, free stream buffers last -
+       wrong order here is a known Flipper firmware bug class (PR #4246). */
     furi_hal_serial_async_rx_stop(esp_at->serial);
 
     if(esp_at->serial_owned) {
@@ -146,9 +123,6 @@ void esp_at_free(EspAt* esp_at) {
     }
     furi_hal_serial_control_release(esp_at->serial);
 
-    /* Per expansion.h: expansion_enable() MUST be called right after
-       furi_hal_serial_control_release(), to restore the user's own
-       Expansion Modules setting now that this app is done with the UART. */
     expansion_enable(esp_at->expansion);
     furi_record_close(RECORD_EXPANSION);
 

@@ -6,17 +6,11 @@
 #include <lib/subghz/blocks/generic.h>
 #include <lib/subghz/blocks/math.h>
 
-/*
- * Help
- * https://datasheetspdf.com/pdf-file/532079/Aslic/AX5326-4/1
- *
- */
-
 #define TAG "SubGhzProtocolSmc5326"
 
-#define DIP_P 0b11 //(+)
-#define DIP_O 0b10 //(0)
-#define DIP_N 0b00 //(-)
+#define DIP_P 0b11
+#define DIP_O 0b10
+#define DIP_N 0b00
 
 #define DIP_PATTERN "%c%c%c%c%c%c%c%c"
 #define SHOW_DIP_P(dip, check_dip)                         \
@@ -115,11 +109,6 @@ void subghz_protocol_encoder_smc5326_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderSMC5326 instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_smc5326_get_upload(SubGhzProtocolEncoderSMC5326* instance) {
     furi_assert(instance);
 
@@ -132,24 +121,20 @@ static bool subghz_protocol_encoder_smc5326_get_upload(SubGhzProtocolEncoderSMC5
         instance->encoder.size_upload = size_upload;
     }
 
-    //Send key data
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)instance->te * 3);
             instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)instance->te);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)instance->te);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)instance->te * 3);
         }
     }
 
-    //Send Stop bit
     instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)instance->te);
-    //Send PT_GUARD
+
     instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)instance->te * 25);
 
     return true;
@@ -178,7 +163,7 @@ SubGhzProtocolStatus
             ret = SubGhzProtocolStatusErrorParserTe;
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -244,7 +229,6 @@ void subghz_protocol_decoder_smc5326_feed(void* context, bool level, uint32_t du
     case SMC5326DecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_smc5326_const.te_short * 24) <
                         subghz_protocol_smc5326_const.te_delta * 12)) {
-            //Found Preambula
             instance->decoder.parser_step = SMC5326DecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -252,7 +236,7 @@ void subghz_protocol_decoder_smc5326_feed(void* context, bool level, uint32_t du
         }
         break;
     case SMC5326DecoderStepSaveDuration:
-        //save duration
+
         if(level) {
             instance->decoder.te_last = duration;
             instance->te += duration;

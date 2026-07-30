@@ -97,42 +97,30 @@ void subghz_protocol_encoder_somfy_telis_free(void* context) {
     free(instance);
 }
 
-/**
- * Defines the button value for the current btn_id
- * Basic set | 0x1 | 0x2 | 0x4 | 0x8 |
- * @return Button code
- */
 static uint8_t subghz_protocol_somfy_telis_get_btn_code(void);
 
 static bool subghz_protocol_somfy_telis_gen_data(
     SubGhzProtocolEncoderSomfyTelis* instance,
     uint8_t btn,
     bool new_remote) {
-    // If we doing a clone we will use its data
     uint64_t data = instance->generic.data ^ (instance->generic.data >> 8);
     if(!new_remote) {
-        instance->generic.btn = (data >> 44) & 0xF; // ctrl
+        instance->generic.btn = (data >> 44) & 0xF;
         btn = instance->generic.btn;
-        instance->generic.cnt = (data >> 24) & 0xFFFF; // rolling code
-        instance->generic.serial = data & 0xFFFFFF; // address
+        instance->generic.cnt = (data >> 24) & 0xFFFF;
+        instance->generic.serial = data & 0xFFFFFF;
     }
 
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
-        // subghz_custom_btn_set_original(btn);
     }
 
     btn = subghz_protocol_somfy_telis_get_btn_code();
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&btn))
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", btn);
 
-    // Check for OFEX (overflow experimental) mode
     if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
-        // standart counter mode. PULL data from subghz_block_generic_global variables
         if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
-            // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
             if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
                 instance->generic.cnt = 0;
             } else {
@@ -202,119 +190,101 @@ bool subghz_protocol_somfy_telis_create_data(
     return res;
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderSomfyTelis instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_somfy_telis_get_upload(
     SubGhzProtocolEncoderSomfyTelis* instance,
     uint8_t btn) {
     furi_assert(instance);
 
-    // Gen new key
     if(!subghz_protocol_somfy_telis_gen_data(instance, btn, false)) {
         return false;
     }
 
     size_t index = 0;
 
-    //Send header
-    //Wake up
-    instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)9415); // 1
-    instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)89565); // 0
-    //Hardware sync
+    instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)9415);
+    instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)89565);
+
     for(uint8_t i = 0; i < 2; ++i) {
         instance->encoder.upload[index++] = level_duration_make(
-            true, (uint32_t)subghz_protocol_somfy_telis_const.te_short * 4); // 1
+            true, (uint32_t)subghz_protocol_somfy_telis_const.te_short * 4);
         instance->encoder.upload[index++] = level_duration_make(
-            false, (uint32_t)subghz_protocol_somfy_telis_const.te_short * 4); // 0
+            false, (uint32_t)subghz_protocol_somfy_telis_const.te_short * 4);
     }
-    //Software sync
-    instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)4550); // 1
-    instance->encoder.upload[index++] =
-        level_duration_make(false, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 0
 
-    //Send key data MSB manchester
+    instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)4550);
+    instance->encoder.upload[index++] =
+        level_duration_make(false, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
 
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
             if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_LOW) {
-                instance->encoder.upload[index - 1].duration *= 2; // 00
+                instance->encoder.upload[index - 1].duration *= 2;
                 instance->encoder.upload[index++] = level_duration_make(
-                    true, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 1
+                    true, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
             } else {
                 instance->encoder.upload[index++] = level_duration_make(
-                    false, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 0
+                    false, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
                 instance->encoder.upload[index++] = level_duration_make(
-                    true, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 1
+                    true, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
             }
-
         } else {
             if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_HIGH) {
-                instance->encoder.upload[index - 1].duration *= 2; // 11
+                instance->encoder.upload[index - 1].duration *= 2;
                 instance->encoder.upload[index++] = level_duration_make(
-                    false, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 0
+                    false, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
             } else {
                 instance->encoder.upload[index++] = level_duration_make(
-                    true, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 1
+                    true, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
                 instance->encoder.upload[index++] = level_duration_make(
-                    false, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 0
+                    false, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
             }
         }
     }
 
-    //Inter-frame silence
     if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_LOW) {
         instance->encoder.upload[index - 1].duration += (uint32_t)30415;
     } else {
         instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)30415);
     }
 
-    //Retransmission
     for(uint8_t i = 0; i < 2; i++) {
-        //Hardware sync
         for(uint8_t i = 0; i < 7; ++i) {
             instance->encoder.upload[index++] = level_duration_make(
-                true, (uint32_t)subghz_protocol_somfy_telis_const.te_short * 4); // 1
+                true, (uint32_t)subghz_protocol_somfy_telis_const.te_short * 4);
             instance->encoder.upload[index++] = level_duration_make(
-                false, (uint32_t)subghz_protocol_somfy_telis_const.te_short * 4); // 0
+                false, (uint32_t)subghz_protocol_somfy_telis_const.te_short * 4);
         }
-        //Software sync
-        instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)4550); // 1
-        instance->encoder.upload[index++] =
-            level_duration_make(false, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 0
 
-        //Send key data MSB manchester
+        instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)4550);
+        instance->encoder.upload[index++] =
+            level_duration_make(false, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
 
         for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
             if(bit_read(instance->generic.data, i - 1)) {
                 if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_LOW) {
-                    instance->encoder.upload[index - 1].duration *= 2; // 00
+                    instance->encoder.upload[index - 1].duration *= 2;
                     instance->encoder.upload[index++] = level_duration_make(
-                        true, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 1
+                        true, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
                 } else {
                     instance->encoder.upload[index++] = level_duration_make(
-                        false, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 0
+                        false, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
                     instance->encoder.upload[index++] = level_duration_make(
-                        true, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 1
+                        true, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
                 }
-
             } else {
                 if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_HIGH) {
-                    instance->encoder.upload[index - 1].duration *= 2; // 11
+                    instance->encoder.upload[index - 1].duration *= 2;
                     instance->encoder.upload[index++] = level_duration_make(
-                        false, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 0
+                        false, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
                 } else {
                     instance->encoder.upload[index++] = level_duration_make(
-                        true, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 1
+                        true, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
                     instance->encoder.upload[index++] = level_duration_make(
-                        false, (uint32_t)subghz_protocol_somfy_telis_const.te_short); // 0
+                        false, (uint32_t)subghz_protocol_somfy_telis_const.te_short);
                 }
             }
         }
 
-        //Inter-frame silence
         if(instance->encoder.upload[index - 1].level == LEVEL_DURATION_LEVEL_LOW) {
             instance->encoder.upload[index - 1].duration += (uint32_t)30415;
         } else {
@@ -345,7 +315,6 @@ SubGhzProtocolStatus
             break;
         }
 
-        // Optional value
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -421,11 +390,6 @@ void subghz_protocol_decoder_somfy_telis_reset(void* context) {
         NULL);
 }
 
-/** 
- * Сhecksum calculation.
- * @param data Вata for checksum calculation
- * @return CRC
- */
 static uint8_t subghz_protocol_somfy_telis_crc(uint64_t data) {
     uint8_t crc = 0;
     data &= 0xFFF0FFFFFFFFFF;
@@ -500,7 +464,6 @@ void subghz_protocol_decoder_somfy_telis_feed(void* context, bool level, uint32_
                              subghz_protocol_somfy_telis_const.te_delta)) {
                 if(instance->decoder.decode_count_bit ==
                    subghz_protocol_somfy_telis_const.min_count_bit_for_found) {
-                    //check crc
                     uint64_t data_tmp = instance->decoder.decode_data ^
                                         (instance->decoder.decode_data >> 8);
                     if(((data_tmp >> 40) & 0xF) == subghz_protocol_somfy_telis_crc(data_tmp)) {
@@ -553,89 +516,16 @@ void subghz_protocol_decoder_somfy_telis_feed(void* context, bool level, uint32_
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_somfy_telis_check_remote_controller(SubGhzBlockGeneric* instance) {
-    //https://pushstack.wordpress.com/somfy-rts-protocol/
-    /*
- *                                                  604 us
- *                                                  /
- *  | 2416us | 2416us | 2416us | 2416us | 4550 us |  | 67648 us |  30415 us  |
- *  
- *  +--------+        +--------+        +---...---+
- *  +        +--------+        +--------+         +--+XXXX...XXX+-----...-----
- *  
- *  |              hw. sync.            |   soft.    |          | Inter-frame
- *  |                                   |   sync.    |   data   |     gap
- *  
- * 
- *     encrypt              |           decrypt
- *  
- *  package 56 bit    cnt    key  btn|crc    cnt     serial
- *  0xA7232323312222 - 0   => A7    8 0   | 00 00 | 12 13 00
- *  0xA7222223312222 - 1   => A7    8 5   | 00 01 | 12 13 00
- *  0xA7212123312222 - 2   => A7    8 6   | 00 02 | 12 13 00
- * 
- * Key: “Encryption Key”, Most significant 4-bit are always 0xA, Least Significant bits is 
- *      a linear counter. In the Smoove Origin this counter is increased together with the 
- *      rolling code. But leaving this on a constant value also works. Gerardwr notes that 
- *      for some other types of remotes the MSB is not constant.
- * Btn: 4-bit Control codes, this indicates the button that is pressed
- * CRC: 4-bit Checksum.
- * Ctn: 16-bit rolling code (big-endian) increased with every button press.
- * Serial: 24-bit identifier of sending device (little-endian)
- * 
- * 
- *      Decrypt
- *  
- *      uint8_t frame[7];
- *      for (i=1; i < 7; i++) {
- *          frame[i] = frame[i] ^ frame[i-1];
- *      }
- *      or
- *      uint64 Decrypt = frame ^ (frame>>8);
- * 
- *      Btn
- *
- *     Value  Button(s)       Description
- *      0x1     My          Stop or move to favourite position
- *      0x2     Up          Move up
- *      0x3     My + Up     Set upper motor limit in initial programming mode
- *      0x4     Down        Move down
- *      0x5     My + Down   Set lower motor limit in initial programming mode
- *      0x6     Up + Down   Change motor limit and initial programming mode
- *      0x8     Prog        Used for (de-)registering remotes, see below
- *      0x9     Sun + Flag  Enable sun and wind detector (SUN and FLAG symbol on the Telis Soliris RC)
- *      0xA     Flag        Disable sun detector (FLAG symbol on the Telis Soliris RC)
- * 
- *      CRC
- * 
- *      uint8_t frame[7];
- *      for (i=0; i < 7; i++) {
- *          cksum = cksum ^ frame[i] ^ (frame[i] >> 4);
- *      }
- *      cksum = cksum & 0xf;
- *
- */
-
     uint64_t data = instance->data ^ (instance->data >> 8);
-    instance->btn = (data >> 44) & 0xF; // ctrl
-    instance->cnt = (data >> 24) & 0xFFFF; // rolling code
-    instance->serial = data & 0xFFFFFF; // address
+    instance->btn = (data >> 44) & 0xF;
+    instance->cnt = (data >> 24) & 0xFFFF;
+    instance->serial = data & 0xFFFFFF;
 
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
-        // subghz_custom_btn_set_original(instance->btn);
     }
-    // subghz_custom_btn_set_max(3);
 }
 
-/** 
- * Get button name.
- * @param btn Button number, 4 bit
- */
 static const char* subghz_protocol_somfy_telis_get_name_button(uint8_t btn) {
     const char* name_btn[16] = {
         "Unknown",
@@ -688,9 +578,7 @@ static uint8_t subghz_protocol_somfy_telis_get_btn_code(void) {
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -757,7 +645,6 @@ void subghz_protocol_decoder_somfy_telis_get_string(void* context, FuriString* o
 
     subghz_protocol_somfy_telis_check_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.cnt_is_available = true;
     subghz_block_generic_global.cnt_length_bit = 16;
     subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -765,7 +652,6 @@ void subghz_protocol_decoder_somfy_telis_get_string(void* context, FuriString* o
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

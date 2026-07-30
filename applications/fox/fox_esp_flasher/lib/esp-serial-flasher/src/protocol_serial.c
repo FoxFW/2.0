@@ -92,7 +92,6 @@ esp_loader_error_t loader_flash_begin_cmd(uint32_t offset,
     return send_cmd(&cmd_config);
 }
 
-
 esp_loader_error_t loader_flash_data_cmd(const uint8_t *data, uint32_t size)
 {
     data_command_t data_cmd = {
@@ -116,7 +115,6 @@ esp_loader_error_t loader_flash_data_cmd(const uint8_t *data, uint32_t size)
     return send_cmd(&cmd_config);
 }
 
-
 esp_loader_error_t loader_flash_end_cmd(bool stay_in_loader)
 {
     flash_end_command_t end_cmd = {
@@ -136,7 +134,6 @@ esp_loader_error_t loader_flash_end_cmd(bool stay_in_loader)
 
     return send_cmd(&cmd_config);
 }
-
 
 esp_loader_error_t loader_flash_read_rom_cmd(const uint32_t address, uint8_t *data)
 {
@@ -161,7 +158,6 @@ esp_loader_error_t loader_flash_read_rom_cmd(const uint32_t address, uint8_t *da
     return send_cmd(&cmd_config);
 }
 
-
 esp_loader_error_t loader_flash_read_stub_cmd(const uint32_t address, const uint32_t size,
         const uint32_t size_per_packet)
 {
@@ -185,7 +181,6 @@ esp_loader_error_t loader_flash_read_stub_cmd(const uint32_t address, const uint
 
     return send_cmd(&cmd_config);
 }
-
 
 esp_loader_error_t loader_flash_erase_cmd(void)
 {
@@ -253,7 +248,6 @@ esp_loader_error_t loader_sync_cmd(void)
     return send_cmd(&cmd_config);
 }
 
-
 esp_loader_error_t loader_spi_attach_cmd(uint32_t config)
 {
     spi_attach_command_t attach_cmd = {
@@ -274,7 +268,6 @@ esp_loader_error_t loader_spi_attach_cmd(uint32_t config)
 
     return send_cmd(&cmd_config);
 }
-
 
 esp_loader_error_t loader_md5_cmd(uint32_t address, uint32_t size, uint8_t *md5_out)
 {
@@ -301,7 +294,6 @@ esp_loader_error_t loader_md5_cmd(uint32_t address, uint32_t size, uint8_t *md5_
     return send_cmd(&cmd_config);
 }
 
-
 esp_loader_error_t loader_spi_parameters(uint32_t total_size)
 {
     write_spi_command_t spi_cmd = {
@@ -327,11 +319,9 @@ esp_loader_error_t loader_spi_parameters(uint32_t total_size)
     return send_cmd(&cmd_config);
 }
 
-
 #ifndef SERIAL_FLASHER_INTERFACE_SDIO
 esp_loader_error_t loader_mem_begin_cmd(uint32_t offset, uint32_t size, uint32_t blocks_to_write, uint32_t block_size)
 {
-
     mem_begin_command_t mem_begin_cmd = {
         .common = {
             .direction = WRITE_DIRECTION,
@@ -354,7 +344,6 @@ esp_loader_error_t loader_mem_begin_cmd(uint32_t offset, uint32_t size, uint32_t
 
     return send_cmd(&cmd_config);
 }
-
 
 esp_loader_error_t loader_mem_data_cmd(const uint8_t *data, uint32_t size)
 {
@@ -379,7 +368,6 @@ esp_loader_error_t loader_mem_data_cmd(const uint8_t *data, uint32_t size)
     return send_cmd(&cmd_config);
 }
 
-
 esp_loader_error_t loader_mem_end_cmd(uint32_t entrypoint)
 {
     mem_end_command_t end_cmd = {
@@ -399,8 +387,7 @@ esp_loader_error_t loader_mem_end_cmd(uint32_t entrypoint)
 
     return send_cmd(&cmd_config);
 }
-#endif /* SERIAL_FLASHER_INTERFACE_SDIO */
-
+#endif
 
 esp_loader_error_t loader_write_reg_cmd(uint32_t address, uint32_t value,
                                         uint32_t mask, uint32_t delay_us)
@@ -426,7 +413,6 @@ esp_loader_error_t loader_write_reg_cmd(uint32_t address, uint32_t value,
     return send_cmd(&cmd_config);
 }
 
-
 esp_loader_error_t loader_read_reg_cmd(uint32_t address, uint32_t *reg)
 {
     read_reg_command_t read_cmd = {
@@ -448,7 +434,6 @@ esp_loader_error_t loader_read_reg_cmd(uint32_t address, uint32_t *reg)
     return send_cmd(&cmd_config);
 }
 
-
 esp_loader_error_t loader_change_baudrate_cmd(uint32_t new_baudrate, uint32_t old_baudrate)
 {
     change_baudrate_command_t baudrate_cmd = {
@@ -469,7 +454,6 @@ esp_loader_error_t loader_change_baudrate_cmd(uint32_t new_baudrate, uint32_t ol
 
     return send_cmd(&cmd_config);
 }
-
 
 esp_loader_error_t loader_get_security_info_cmd(get_security_info_response_data_t *response,
         uint32_t *response_recv_size)
@@ -493,7 +477,6 @@ esp_loader_error_t loader_get_security_info_cmd(get_security_info_response_data_
 
     return send_cmd(&cmd_config);
 }
-
 
 __attribute__ ((weak)) void loader_port_debug_print(const char *str)
 {

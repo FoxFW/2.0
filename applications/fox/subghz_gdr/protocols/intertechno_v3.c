@@ -100,30 +100,23 @@ void subghz_protocol_encoder_intertechno_v3_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderIntertechno_V3 instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_intertechno_v3_get_upload(
     SubGhzProtocolEncoderIntertechno_V3* instance) {
     furi_assert(instance);
     size_t index = 0;
 
-    //Send header
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_intertechno_v3_const.te_short);
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_intertechno_v3_const.te_short * 38);
-    //Send sync
+
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_intertechno_v3_const.te_short);
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_intertechno_v3_const.te_short * 10);
-    //Send key data
+
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if((instance->generic.data_count_bit == INTERTECHNO_V3_DIMMING_COUNT_BIT) && (i == 9)) {
-            //send bit dimm
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_intertechno_v3_const.te_short);
             instance->encoder.upload[index++] = level_duration_make(
@@ -133,7 +126,6 @@ static bool subghz_protocol_encoder_intertechno_v3_get_upload(
             instance->encoder.upload[index++] = level_duration_make(
                 false, (uint32_t)subghz_protocol_intertechno_v3_const.te_short);
         } else if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_intertechno_v3_const.te_short);
             instance->encoder.upload[index++] =
@@ -143,7 +135,6 @@ static bool subghz_protocol_encoder_intertechno_v3_get_upload(
             instance->encoder.upload[index++] = level_duration_make(
                 false, (uint32_t)subghz_protocol_intertechno_v3_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_intertechno_v3_const.te_short);
             instance->encoder.upload[index++] = level_duration_make(
@@ -176,7 +167,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_intertechno_v3_deserialize(
             ret = SubGhzProtocolStatusErrorValueBitCount;
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -193,7 +184,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_intertechno_v3_deserialize(
 void subghz_protocol_encoder_intertechno_v3_stop(void* context) {
     SubGhzProtocolEncoderIntertechno_V3* instance = context;
     instance->encoder.is_running = false;
-    instance->encoder.front = 0; // reset position
+    instance->encoder.front = 0;
 }
 
 LevelDuration subghz_protocol_encoder_intertechno_v3_yield(void* context) {
@@ -276,7 +267,7 @@ void subghz_protocol_decoder_intertechno_v3_feed(void* context, bool level, uint
         break;
 
     case IntertechnoV3DecoderStepSaveDuration:
-        if(!level) { //save interval
+        if(!level) {
             if(duration >= (subghz_protocol_intertechno_v3_const.te_short * 11)) {
                 instance->decoder.parser_step = IntertechnoV3DecoderStepStartSync;
                 if((instance->decoder.decode_count_bit ==
@@ -298,7 +289,6 @@ void subghz_protocol_decoder_intertechno_v3_feed(void* context, bool level, uint
         break;
     case IntertechnoV3DecoderStepCheckDuration:
         if(level) {
-            //Add 0 bit
             if((DURATION_DIFF(
                     instance->decoder.te_last, subghz_protocol_intertechno_v3_const.te_short) <
                 subghz_protocol_intertechno_v3_const.te_delta) &&
@@ -307,7 +297,6 @@ void subghz_protocol_decoder_intertechno_v3_feed(void* context, bool level, uint
                 subghz_protocol_blocks_add_bit(&instance->decoder, 0);
                 instance->decoder.parser_step = IntertechnoV3DecoderStepEndDuration;
             } else if(
-                //Add 1 bit
                 (DURATION_DIFF(
                      instance->decoder.te_last, subghz_protocol_intertechno_v3_const.te_long) <
                  subghz_protocol_intertechno_v3_const.te_delta * 2) &&
@@ -315,9 +304,7 @@ void subghz_protocol_decoder_intertechno_v3_feed(void* context, bool level, uint
                  subghz_protocol_intertechno_v3_const.te_delta)) {
                 subghz_protocol_blocks_add_bit(&instance->decoder, 1);
                 instance->decoder.parser_step = IntertechnoV3DecoderStepEndDuration;
-
             } else if(
-                //Add dimm_state
                 (DURATION_DIFF(
                      instance->decoder.te_last, subghz_protocol_intertechno_v3_const.te_short) <
                  subghz_protocol_intertechno_v3_const.te_delta * 2) &&
@@ -326,7 +313,6 @@ void subghz_protocol_decoder_intertechno_v3_feed(void* context, bool level, uint
                 (instance->decoder.decode_count_bit == 27)) {
                 subghz_protocol_blocks_add_bit(&instance->decoder, 0);
                 instance->decoder.parser_step = IntertechnoV3DecoderStepEndDuration;
-
             } else
                 instance->decoder.parser_step = IntertechnoV3DecoderStepReset;
         } else {
@@ -347,36 +333,7 @@ void subghz_protocol_decoder_intertechno_v3_feed(void* context, bool level, uint
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_intertechno_v3_check_remote_controller(SubGhzBlockGeneric* instance) {
-    /*
- *  A frame is either 32 or 36 bits:
- *     
- *               _
- *   start bit: | |__________ (T,10T)
- *          _   _
- *   '0':  | |_| |_____  (T,T,T,5T)
- *          _       _
- *   '1':  | |_____| |_  (T,5T,T,T)
- *          _   _
- *   dimm: | |_| |_     (T,T,T,T)
- * 
- *              _
- *   stop bit: | |____...____ (T,38T)
- * 
- *  if frame 32 bits
- *                     SSSSSSSSSSSSSSSSSSSSSSSSSS all_ch  on/off  ~ch
- *  Key:0x3F86C59F  => 00111111100001101100010110   0       1     1111
- * 
- *  if frame 36 bits
- *                     SSSSSSSSSSSSSSSSSSSSSSSSSS  all_ch dimm  ~ch   dimm_level
- *  Key:0x42D2E8856 => 01000010110100101110100010   0      X    0101  0110
- * 
- */
-
     if(instance->data_count_bit == subghz_protocol_intertechno_v3_const.min_count_bit_for_found) {
         instance->serial = (instance->data >> 6) & 0x3FFFFFF;
         if((instance->data >> 5) & 0x1) {
@@ -444,9 +401,7 @@ void subghz_protocol_decoder_intertechno_v3_get_string(void* context, FuriString
 
     subghz_protocol_intertechno_v3_check_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.current_btn = instance->generic.btn;
-    //
 
     furi_string_cat_printf(
         output,

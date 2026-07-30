@@ -1,14 +1,14 @@
 <div align="center">
-  <h1>🦊 FoxFW v2.0</h1>
-  <p><em>A custom Flipper Zero firmware built for power users.</em></p>
+  <h1> FoxFW v2.0</h1>
+  <p><em>A custom Flipper Zero firmware built for automotive research and advanced ESP32 manipulation.</em></p>
   <p>
-    <a href="https://foxfw.github.io/2.0/">📖 Full User Guide</a>
+    <a href="https://foxfw.github.io/2.0/">Full User Guide</a>
     &nbsp;·&nbsp;
-    <a href="https://foxfw.github.io/2.0/screenshots/screenshots.html">⚡ SCREENSHOTS!</a>
+    <a href="https://foxfw.github.io/2.0/screenshots/screenshots.html">SCREENSHOTS!</a>
     &nbsp;·&nbsp;
-    <a href="mailto:foxcustomfirmware@gmail.com">📧 Support</a>
+    <a href="mailto:foxcustomfirmware@gmail.com">Support</a>
     &nbsp;·&nbsp;
-    <a href="https://www.github.com/SamMichaelINC/FoxFW">📁 View Legacy v1.0</a>
+    <a href="https://www.github.com/SamMichaelINC/FoxFW">View Legacy v1.0</a>
   </p>
 </div>
 
@@ -18,40 +18,64 @@
 
 FoxFW is a fully custom Flipper Zero firmware that extends the official release
 with deeper security tools, a smarter file browser, enhanced Sub-GHz analysis,
-and a polished system-wide experience. It is designed around three goals:
-**security**, **usability**, and **deeper RF tooling**. I've used a fresh push for this version because you dont need to know that it took me 126 tries (and 56 versions) to get the Web Flasher to work. 
+a full suite of ESP32 companion apps, and a polished system-wide experience.
+It is designed around three goals: **security**, **usability**, and **deeper
+RF tooling**. I've used a fresh push for this version because you dont need to
+know that it took me 126 tries (and 56 versions) to get the Web Flasher to work.
 
 ---
 
-## ✨ Highlights
+## Highlights
 
 | Feature | Description |
 |---|---|
-| 📡 **Sub-GHz** | Completely overhauled Sub-GHz app with all new features like Modulation Analyzer, RF Jammer and Garage Door Remote all included! |
-| 🔐 **PIN Lock System** | Configurable attempt limits, auto-lock timer, and an On Exceed lock action |
-| 🔌 **Disconnect on Lock** | Individually toggle BLE, GPIO, and USB disconnection when the screen locks |
-| 📁 **Fox File Browser** | SD card browser with Favorites, firmware install, and app launch — replaces the stock Archive |
-| 📡 **Modulation Analyzer** | FoxFW-exclusive: find what modulation an unknown device uses, then open the Receiver pre-configured for it |
-| 🌊 **Waterfall Display** | Scrolling signal history alongside the live RSSI view — great for spotting intermittent bursts |
-| ✂️ **RAW Waveform Editor** | Trim Sub-GHz RAW captures in-app without leaving the device |
-| 🔘 **Protocol Filters** | Enable/disable individual Sub-GHz protocols — fewer active protocols = faster, more accurate decoding |
-| 🔤 **Bounce-Scroll Text** | System-wide: labels too long to fit bounce left and right rather than truncating — works in every menu |
-| 🖼️ **Custom Wallpaper** | 128×64 XBM image support; a default is auto-generated from firmware if your wallpaper.xbm is missing |
-| 🧙 **First-Boot Wizard** | Guided setup for device name and PIN on every fresh install |
-
----
-<div align="center">
-
-  
-[<img src="https://img.youtube.com/vi/u-cc7IC2_9I/hqdefault.jpg" width="100%" height="500"/>](https://www.youtube.com/embed/u-cc7IC2_9I)
-  
-<a href="https://www.youtube.com/embed/u-cc7IC2_9I">Watch our video!</a>
-
-</div>
+| **Sub-GHz** | Completely overhauled Sub-GHz app with all new features like Modulation Analyzer, RF Jammer and Garage Door Remote all included! |
+| **Fox ESP32 App Suite** | A full suite of companion apps that turn a wired ESP32 into a WiFi/BLE/HTTP extension of your Flipper — see below |
+| **PIN Lock System** | Configurable attempt limits, auto-lock timer, and an On Exceed lock action |
+| **Disconnect on Lock** | Individually toggle BLE, GPIO, and USB disconnection when the screen locks |
+| **Fox File Browser** | SD card browser with Favorites, firmware install, and app launch — replaces the stock Archive |
+| **Modulation Analyzer** | FoxFW-exclusive: find what modulation an unknown device uses, then open the Receiver pre-configured for it |
+| **Waterfall Display** | Scrolling signal history alongside the live RSSI view — great for spotting intermittent bursts |
+| **RAW Waveform Editor** | Trim Sub-GHz RAW captures in-app without leaving the device |
+| **Protocol Filters** | Enable/disable individual Sub-GHz protocols — fewer active protocols = faster, more accurate decoding |
+| **Bounce-Scroll Text** | System-wide: labels too long to fit bounce left and right rather than truncating — works in every menu |
+| **Custom Wallpaper** | 128×64 XBM image support; a default is auto-generated from firmware if your wallpaper.xbm is missing |
+| **First-Boot Wizard** | Guided setup for device name and PIN on every fresh install |
 
 ---
 
-## 🚗 Automotive & RF Research
+## Fox ESP32 App Suite
+
+Wire a cheap ESP32 dev board to your Flipper's GPIO header (four jumper
+wires — no special adapter) and these apps turn it into a WiFi, Bluetooth,
+and internet extension of your Flipper. All of it runs on top of a separate
+companion firmware, **Fox ESP32 Firmware**, flashed once to the ESP32 itself.
+
+| App | What it does |
+|---|---|
+| **Fox ESP32 Commander** | The main control hub — WiFi recon and attacks, BLE scanning and tag detection, an HTTP/WebSocket bridge, the FoxScript engine, and a raw Terminal |
+| **Fox ESP32 Detector** | Diagnostic tool — scans every GPIO pin pair and baud rate to identify a connected ESP32 and confirm your wiring |
+| **Fox ESP32 Flasher** | Flash Fox ESP32 Firmware onto a connected board directly from the Flipper — no PC, no browser, no files to download |
+| **Fox Update Downloader** | Checks GitHub for newer FoxFW and Fox ESP32 Firmware releases, downloads them over the ESP32 bridge, and hands off to install |
+| **Fox ESP32 Terminal** | A focused live-terminal companion — streaming console, quick command send, and per-session logs saved to your SD card |
+| **Fox Chat** | Post to and read from a Discord channel through the ESP32's internet connection |
+| **Fox Portal** | A configurable, consent-based lead-capture WiFi captive portal with QR join and auto-detected field logging |
+| **Fox Chameleon** | BLE bridge between the Flipper and a Chameleon Ultra, relayed over the ESP32's BLE stack |
+
+> **Legal notice:** WiFi/BLE reconnaissance and attack commands are gated
+> behind a single Attacks toggle intended for authorized security testing and
+> research only. Know your local telecommunications regulations before
+> transmitting anything.
+
+Source code, releases, and full board wiring for the ESP32 side live in a
+separate repository: **[github.com/FoxFW/Fox_ESP32_FW](https://github.com/FoxFW/Fox_ESP32_FW)**.
+The complete walkthrough for every app above — menus, commands, and board
+compatibility — is in `FoxESP32_Help.html`, also linked from the
+[Full User Guide](https://foxfw.github.io/2.0/).
+
+---
+
+## Automotive & RF Research
 
 FoxFW is primarily intended for **automotive security research**, including key fob
 analysis, signal capture, tyre-pressure sensor monitoring, and remote-access
@@ -63,7 +87,7 @@ and 868 MHz bands commonly used in automotive applications.
 > own or have explicit authorisation to test. Always comply with your local
 > radio and telecommunications regulations.
 
-### 🚙 Automotive Protocols
+### Automotive Protocols
 
 | Manufacturer | Protocol | Frequency | Mod | Encoder | Decoder | CRC |
 |---|---|---|---|:---:|:---:|:---:|
@@ -94,7 +118,7 @@ and 868 MHz bands commonly used in automotive applications.
 | Scher-Khan | Magic Code PRO1 / PRO2 | 433 MHz | FM | ✓ | ✓ | ✓ |
 | Sheriff | Sheriff CFM ZX750 / ZX930 | 433 MHz | AM | ✓ | ✓ | — |
 
-### 🏠 Gate & Access Control Protocols
+### Gate & Access Control Protocols
 
 | Protocol | Frequency | Mod | Encoder | Decoder | CRC |
 |---|---|---|:---:|:---:|:---:|
@@ -117,7 +141,7 @@ and 868 MHz bands commonly used in automotive applications.
 | Marantec | 433 MHz | AM | ✓ | ✓ | ✓ |
 | Marantec24 | 433 MHz | AM | ✓ | ✓ | ✓ |
 
-### 📡 General RF Protocols
+### General RF Protocols
 
 | Protocol | Frequency | Mod | Encoder | Decoder | CRC |
 |---|---|---|:---:|:---:|:---:|
@@ -152,22 +176,23 @@ and 868 MHz bands commonly used in automotive applications.
 
 ---
 
-## 📖 Full User Guide
+## Full User Guide
 
 The complete guide covers every feature in detail — first-boot setup, all Fox
-Settings options, the Fox File Browser, the Sub-GHz toolset, firmware updates,
-and lockout recovery.
+Settings options, the Fox File Browser, the Sub-GHz toolset, the Fox ESP32
+App Suite, firmware updates, and lockout recovery.
 
 **[→ Open the Full User Guide](https://foxfw.github.io/2.0/)**
 
 *(The guide is an HTML file hosted on GitHub Pages. You can also find it in
-this repository as `FoxFW_Help.html` and open it locally in any browser.)*
+this repository as `FoxFW_Help.html`, and the ESP32-specific guide as
+`FoxESP32_Help.html` — open either locally in any browser.)*
 
 ---
 
-## 🚀 Installing FoxFW
+## Installing FoxFW
 
-### ⚡ Via Web Installer (recommended)
+### Via Web Installer (recommended)
 
 Install FoxFW directly from your browser — no software required.
 
@@ -198,12 +223,22 @@ Install FoxFW directly from your browser — no software required.
 3. Navigate to the `.fuf` file, press OK, and select **Install**.
 4. The updater launches and the device restarts to apply the update.
 
+### Via Fox Update Downloader (already have an ESP32 wired up?)
+
+If you already have an ESP32 running Fox ESP32 Firmware connected to your
+Flipper's GPIO header, **Fox Update Downloader** can check GitHub and install
+a new FoxFW release entirely on-device — no PC or SD card swap needed.
+
+1. Open **Fox Update Downloader** and select **Fox Custom Firmware**.
+2. If an update is available, press **Download**, then **Install** once it finishes.
+3. The device restarts automatically to apply it. Not ready yet? Press **Later** — the download stays on your SD card and a **Restart** button installs it whenever you come back.
+
 > **After an update:** The Fox Setup Wizard runs once on the first boot.
 > Your PIN, name, settings, and saved files are all preserved.
 
 ---
 
-## 🔑 Desktop Quick Reference
+## Desktop Quick Reference
 
 | Button | Action |
 |---|---|
@@ -220,21 +255,22 @@ Configure the Favorite slots in **App Menu → Settings → Fox Settings → Fav
 
 ---
 
-## 🔒 Locked Out?
+## Locked Out?
 
 If you have exhausted your PIN attempts and cannot access the device, email us:
 
-**📧 foxcustomfirmware@gmail.com**
+**foxcustomfirmware@gmail.com**
 
 Include a description of what happened and how you became locked out.
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
-FoxFW_Help.html     ← Complete user guide (open in any browser)
-README.md           ← This file
+FoxFW_Help.html      ← Complete user guide (open in any browser)
+FoxESP32_Help.html   ← Fox ESP32 App Suite guide (open in any browser)
+README.md            ← This file
 ```
 
 ---

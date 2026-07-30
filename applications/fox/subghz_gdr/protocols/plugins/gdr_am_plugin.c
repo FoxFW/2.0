@@ -21,7 +21,7 @@
 #include "../somfy_keytis.h"
 #include "../somfy_telis.h"
 
-#define GDR_AM_PROTOCOL(symbol) 
+#define GDR_AM_PROTOCOL(symbol)
 #include "gdr_am_protocols_list.inc"
 #undef GDR_AM_PROTOCOL
 

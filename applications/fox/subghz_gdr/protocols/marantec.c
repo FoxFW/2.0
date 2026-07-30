@@ -119,10 +119,6 @@ static LevelDuration
     return level_duration_make(data.level, data.duration);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderMarantec instance
- */
 static void subghz_protocol_encoder_marantec_get_upload(SubGhzProtocolEncoderMarantec* instance) {
     furi_assert(instance);
     size_t index = 0;
@@ -179,23 +175,7 @@ uint8_t subghz_protocol_marantec_crc8(uint8_t* data, size_t len) {
     return crc;
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_marantec_remote_controller(SubGhzBlockGeneric* instance) {
-    // Key samples
-    // 1307EDF6486C5 = 000 100110000 01111110110111110110 0100 10000110 11000101
-    // 1303EFAFD8683 = 000 100110000 00111110111110101111 1101 10000110 10000011
-
-    // From unittests
-    // 1300710DF869F
-
-    // const serial button serial crc
-    // 130   7EDF6  4      86     C5
-    // 130   3EFAF  D      86     83
-    // 130   0710D  F      86     9F
-
     instance->btn = (instance->data >> 16) & 0xF;
     instance->serial = ((instance->data >> 12) & 0xFFFFFF00) | ((instance->data >> 8) & 0xFF);
 }
@@ -213,7 +193,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -284,7 +264,6 @@ void subghz_protocol_decoder_marantec_feed(void* context, bool level, volatile u
     case MarantecDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_marantec_const.te_long * 5) <
                         subghz_protocol_marantec_const.te_delta * 8)) {
-            //Found header marantec
             instance->decoder.parser_step = MarantecDecoderStepDecoderData;
             instance->decoder.decode_data = 1;
             instance->decoder.decode_count_bit = 1;
@@ -393,11 +372,9 @@ void subghz_protocol_decoder_marantec_get_string(void* context, FuriString* outp
     uint8_t crc = subghz_protocol_marantec_crc8(tdata, sizeof(tdata));
     bool crc_ok = (crc == (instance->generic.data & 0xFF));
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

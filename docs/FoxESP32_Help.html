@@ -288,8 +288,9 @@
       Fox ESP32 Firmware turns a cheap ESP32 dev board into a WiFi/Bluetooth
       companion for your Flipper Zero — recon, gated attacks, item-tracker
       detection, a Discord bridge, a lead-capture captive portal, an embedded
-      scripting layer, and a FlipperHTTP-compatible internet bridge, all
-      talked to over a simple wired UART connection.
+      scripting layer, and an internet bridge that speaks real FlipperHTTP
+      (jblanked/FlipperHTTP) for its core commands, all talked to over a
+      simple wired UART connection.
     </p>
     <div class="support-note" style="margin:18px auto 0;">
       🔧 <strong>New here?</strong> Start at <a href="#hardware">Hardware Setup</a> to
@@ -333,6 +334,11 @@
     <ol start="6">
       <li><a href="#chat">Fox Chat</a></li>
       <li><a href="#portal">Fox Portal</a></li>
+      <li><a href="#update-downloader">Fox Update Downloader</a>
+        <ul class="sub">
+          <li><a href="#update-board-select">Selecting your ESP32 board</a></li>
+        </ul>
+      </li>
       <li><a href="#wifi-icon">Status Bar WiFi Icon</a></li>
       <li><a href="#commands">Full Command Reference</a>
         <ul class="sub">
@@ -363,9 +369,9 @@
     connection (no BLE pairing, no WiFi bridge between the two devices —
     just four wires). Your Flipper sends it plain-text commands one line at
     a time; the ESP32 does the actual WiFi/Bluetooth/internet work and
-    reports back. Four companion Flipper Zero apps give you a menu-driven
-    interface to the firmware so you never have to type raw commands by
-    hand — though you always can, via the Terminal.
+    reports back. A suite of companion Flipper Zero apps gives you a
+    menu-driven interface to the firmware so you never have to type raw
+    commands by hand — though you always can, via the Terminal.
   </p>
   <div class="box warn">
     <strong>For authorized security testing and research only.</strong>
@@ -376,7 +382,7 @@
     transmitting anything.
   </div>
 
-  <p><strong>The five pieces of the project:</strong></p>
+  <p><strong>The eight pieces of the project:</strong></p>
   <div class="mod-grid" style="grid-template-columns: 1fr 1fr;">
     <div class="mod-card">
       <div class="mname">Fox ESP32 Firmware</div>
@@ -401,7 +407,22 @@
     <div class="mod-card">
       <div class="mname">Fox Portal</div>
       <div class="mtype">Flipper app</div>
-      <div class="muse">A configurable, consent-based lead-capture WiFi captive portal with QR join and CSV logging.</div>
+      <div class="muse">A configurable, consent-based lead-capture WiFi captive portal with QR join and auto-detected field logging.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">Fox ESP32 Flasher</div>
+      <div class="mtype">Flipper app</div>
+      <div class="muse">Flash Fox ESP32 Firmware onto a connected board directly from the Flipper — no PC required.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">Fox ESP32 Terminal</div>
+      <div class="mtype">Flipper app</div>
+      <div class="muse">A focused live-terminal companion — streaming console, quick command send, and per-session SD-card logs.</div>
+    </div>
+    <div class="mod-card">
+      <div class="mname">Fox Update Downloader</div>
+      <div class="mtype">Flipper app</div>
+      <div class="muse">Checks GitHub for newer FoxFW2.0 and Fox ESP32 Firmware releases, downloads them over the ESP32 bridge, and hands off to install — see <a href="#update-downloader" style="color:inherit;">Chapter 8</a>.</div>
     </div>
   </div>
 
@@ -412,9 +433,9 @@
     <li><strong>MAC address tools</strong> — randomize, clone a specific address, clone the selected AP's address, or reset to the factory MAC. Software-only, no extra hardware.</li>
     <li><strong>Bluetooth LE tools</strong> — a general BLE bridge (built for a Chameleon Ultra but usable for general scan/connect/notify work), a gated multi-vendor pairing-popup spam tool, and non-gated item-tracker detection (Apple Find My, Samsung SmartTag, Tile).</li>
     <li><strong>FoxChat</strong> — post messages to a Discord channel and read the most recent ones back, straight from your Flipper's screen, with basic outgoing content filtering.</li>
-    <li><strong>FoxPortal</strong> — stand up an open WiFi network with a custom enquiry-form landing page, log submissions to a dated CSV, and hand out a join QR code — fully reconfigurable fields/copy/HTML without a reflash.</li>
+    <li><strong>FoxPortal</strong> — stand up an open WiFi network with a custom enquiry-form landing page, auto-detect whatever fields the form submits, log them to a per-session text file, and hand out a join QR code — fully reconfigurable copy/HTML without a reflash.</li>
     <li><strong>FoxScript</strong> — a small embedded scripting language (14 native modules covering WiFi, HTTP, BLE, GPIO, storage, and more) for automating multi-step actions without a computer involved.</li>
-    <li><strong>A FlipperHTTP-compatible internet bridge</strong> — bracket-command GET/POST/PUT/PATCH/DELETE (including binary-safe base64 variants), a WebSocket client, and simple JSON field extraction — usable directly from Terminal or by other Flipper apps that already speak FlipperHTTP.</li>
+    <li><strong>A real FlipperHTTP-compatible internet bridge</strong> — GET/POST/PUT/PATCH/DELETE (including binary-safe base64 variants), a WebSocket client, and simple JSON field extraction — usable directly from Terminal, or by other Flipper apps built on the real jblanked/FlipperHTTP client library (verified against its actual source, and against a bundled app's own request/response parsing, not just its documentation). See <a href="#cmd-http-ref" style="color:inherit;">HTTP &amp; internet bridge</a> for exactly what's covered and the couple of things that deliberately aren't.</li>
     <li><strong>Optional hardware add-ons</strong> — RFID (PN532), Sub-GHz (CC1101), IR, and GPS support, each gated behind a build-time flag for boards that have the extra breakout wired up.</li>
   </ul>
   <div class="back-top"><a href="#top">↑ Back to top</a></div>
@@ -957,14 +978,19 @@
   <!-- SETTINGS + TERMINAL -->
   <h3 id="cmd-settings">Settings &amp; Terminal</h3>
   <div class="setting">
-    <div class="name">Settings — Attacks: ON/OFF</div>
+    <div class="name">Settings — Attacks: ON/OFF, Expert Mode: ON/OFF</div>
     <div class="desc">
-      A single arrow-adjustable row. Changes apply immediately over serial —
-      there's no separate save step. This screen always queries the
-      firmware's real, persisted value when you open it, so it never drifts
-      out of sync with what the ESP32 actually has stored. This is different
-      from Connect Settings (pin/baud override), which only appears from the
-      not-detected Retry screen.
+      Two arrow-adjustable rows. Left/Right on the highlighted row toggles it;
+      a small <code>&lt;</code> <code>&gt;</code> pair appears inside the box
+      to remind you which direction to press. Changes apply immediately over
+      serial — there's no separate save step. Attacks adds WiFi/BLE attacks
+      to the relevant menus when turned on. Expert Mode adds a
+      <strong>Terminal Command</strong> item to the main menu for sending a
+      single raw command without opening the full Terminal. This screen
+      always queries the firmware's real, persisted value when you open it,
+      so it never drifts out of sync with what the ESP32 actually has
+      stored. This is different from Connect Settings (pin/baud override),
+      which only appears from the not-detected Retry screen.
     </div>
   </div>
   <div class="setting">
@@ -1014,11 +1040,16 @@
     <div class="name">Read Messages</div>
     <div class="desc">
       Fetches the most recent messages and shows them as a scrollable list of
-      two-line buttons — select one to see the full text and the exact time
-      it was sent. Wherever a message has that <code>DeviceName: </code>
-      prefix (i.e. anything posted through Fox Chat, from any Flipper), the
-      device name renders in <strong>bold</strong> with the rest of the
-      message following normally.
+      two-line buttons — select one to see the full text and when it was
+      sent. Wherever a message has that <code>DeviceName: </code> prefix
+      (i.e. anything posted through Fox Chat, from any Flipper), the device
+      name renders in <strong>bold</strong> with the rest of the message
+      following normally. The ESP32 probes an IP-geolocation service for
+      your local UTC offset the first time it connects to WiFi, then
+      converts every message's timestamp to that local time automatically —
+      no setup needed. The date is only shown alongside the time if the
+      message wasn't sent today; if the ESP32 hasn't been able to determine
+      your timezone yet, times fall back to plain UTC (labelled accordingly).
     </div>
   </div>
   <div class="setting">
@@ -1070,7 +1101,7 @@
   <p>
     Stands up an open WiFi network with a small enquiry-form landing page —
     anyone who joins sees your page, fills it in, and gets a confirmation
-    screen, with every submission logged to a dated CSV file. Unlike a
+    screen, with every submission logged to a text file. Unlike a
     typical "evil portal," this one is built for <strong>consent-based
     lead capture</strong>: the visitor is knowingly opting in and the
     confirmation page shows them exactly what was recorded, not a credential
@@ -1078,31 +1109,38 @@
   </p>
 
   <div class="menu-tree">Fox Portal
-├── Start
-├── Stop
-├── Edit Input Names
+├── Start (or Stop, once running)
+├── View Saved Results
 └── Show QR</div>
 
   <div class="setting">
-    <div class="name">Start</div>
+    <div class="name">Start / Stop</div>
     <div class="desc">
-      Prompts for an SSID (leave blank to use the default). Before starting,
-      it re-reads your input names and page files fresh from the SD card
-      every single time, so any edits you've made — from the app itself or
-      by hand on a computer — are always picked up. The portal then goes
-      live as an open WiFi network with a captive-portal redirect.
+      The menu only ever shows the one that applies — <strong>Start</strong>
+      when the portal is off, <strong>Stop</strong> once it's running —
+      swapping automatically as soon as the ESP32 confirms the change.
+      Start prompts for an SSID, pre-filled with whichever one you used
+      last (or the built-in default, "Fox Portal Demo", the very first
+      time) and pre-selected — press Save to reuse it as-is, or just start
+      typing to replace it. Before starting, it re-reads your page files
+      fresh from the SD card every single time, so any edits
+      you've made — from the app itself or by hand on a computer — are
+      always picked up. The portal then goes live as an open WiFi network
+      with a captive-portal redirect: joining devices are automatically
+      redirected to the enquiry-form page rather than just showing "no
+      internet access." Stop shuts down the WiFi network and web server.
     </div>
   </div>
   <div class="setting">
-    <div class="name">Stop</div>
-    <div class="desc">Shuts down the WiFi network and web server.</div>
-  </div>
-  <div class="setting">
-    <div class="name">Edit Input Names</div>
+    <div class="name">View Saved Results</div>
     <div class="desc">
-      Add or remove the field names your form collects, right from the
-      Flipper's screen — no computer needed. At least one field is always
-      required; the list can never be emptied entirely.
+      Shows everything captured so far, straight from <code>portal.txt</code>
+      on your SD card. You don't need to select this to actually get your
+      results onto the Flipper — see "Submission logging" below for how that
+      happens automatically. This screen just displays what's already there
+      (scroll with Up/Down; if the file has grown large, only the most recent
+      portion is shown on-screen, with a note at the top — the full history
+      always remains in the file itself).
     </div>
   </div>
   <div class="setting">
@@ -1114,7 +1152,7 @@
     </div>
   </div>
 
-  <h3>Customizing the pages — start.html, finish.html, inputnames.txt</h3>
+  <h3>Customizing the pages — start.html, finish.html, portal.cfg</h3>
   <p>
     These three plain files live on your <strong>Flipper's own SD card</strong>
     and are the real source of truth for what visitors see — nothing here is
@@ -1125,16 +1163,17 @@
     <tr><th>File</th><th>Path</th><th>What it controls</th></tr>
     <tr><td><code>start.html</code></td><td rowspan="3"><code>/ext/apps_data/fox_portal/</code></td><td>The enquiry-form page visitors see first</td></tr>
     <tr><td><code>finish.html</code></td><td>The confirmation page after submitting</td></tr>
-    <tr><td><code>inputnames.txt</code></td><td>One field name per line — doubles as the CSV column headers</td></tr>
+    <tr><td><code>portal.cfg</code></td><td>Just one line: the last-used (or default) SSID, pre-filled into the Start prompt next time</td></tr>
   </table>
   <p>
     Open and edit these directly — via qFlipper's file browser, the Flipper
-    Mobile App, or by pulling the SD card into a computer. In
-    <code>start.html</code>, each form field needs
-    <code>&lt;input name="&lt;fieldname&gt;"&gt;</code> matching a line in
-    <code>inputnames.txt</code>. In <code>finish.html</code>, use
-    <code>{{FIELD:&lt;fieldname&gt;}}</code> anywhere you want to echo back
-    what the visitor submitted for that field.
+    Mobile App, or by pulling the SD card into a computer. Add or rename
+    fields in <code>start.html</code> by editing its
+    <code>&lt;input name="&lt;fieldname&gt;"&gt;</code> tags directly —
+    whatever names actually get submitted are auto-detected and logged, so
+    there's no separate field list to keep in sync. In
+    <code>finish.html</code>, use <code>{{FIELD:&lt;fieldname&gt;}}</code>
+    anywhere you want to echo back what the visitor submitted for that field.
   </p>
   <div class="box tip">
     <strong>Starter templates are included automatically.</strong> A ready-made
@@ -1143,14 +1182,9 @@
     — is bundled into the firmware and deployed to
     <code>/ext/apps_data/fox_portal/</code> on your SD card during the
     standard qFlipper install. No manual copying required. Edit the files
-    from there to customise your portal.
-  </div>
-  <div class="box warn">
-    <strong>Field names must match.</strong> If you rename a field in
-    <code>inputnames.txt</code> without updating <code>start.html</code>'s
-    matching <code>name="..."</code> attribute, nothing crashes — that
-    submission's cell for the mismatched field just logs empty, and
-    everything else you did capture is still saved.
+    from there to customise your portal. The first time Fox Portal runs,
+    <code>portal.cfg</code> is created the same way if it isn't already
+    there, seeded with the built-in default SSID ("Fox Portal Demo").
   </div>
   <p>
     Each HTML file has a 1024-byte size limit once flattened to a single
@@ -1161,20 +1195,159 @@
 
   <h3>Submission logging</h3>
   <p>
-    Every submission is appended to a CSV file on the ESP32, named after the
-    day it was captured (using your Flipper's own clock, since the ESP32
-    has no clock of its own). Every configured field gets a column on every
-    row, even if a particular visitor's page didn't collect it that time —
-    a missing value just logs as an empty cell rather than dropping the row.
+    Every submission is appended as its own self-describing line —
+    <code>SSID=...;fieldname=value;fieldname=value...</code> — to a text
+    file on the ESP32 named for that portal session's start time, so each
+    time you run Start gets a fresh file. Whatever fields a visitor's page
+    actually submits are the fields that get logged for that line; there's
+    no fixed column list, so different sessions can collect different
+    fields without anything lining up wrong.
   </p>
+  <p>
+    Those session log files only ever live on the ESP32 <em>temporarily</em>.
+    Loading the Fox Portal app immediately triggers a transfer of anything
+    waiting there into <code>portal.txt</code> on your Flipper's SD card
+    (<code>/ext/apps_data/fox_portal/portal.txt</code>), clearing it from
+    the ESP32 to free that flash up for new submissions. From then on,
+    while you stay on Fox Portal's menu, it automatically checks again
+    every <strong>5 seconds</strong> and pulls over anything new — you don't
+    need to back out and re-open the app, or select View Saved Results, for
+    a submission to make it across; leave the menu open and it shows up
+    within a few seconds. Nothing queued just means a quiet no-op. Use
+    <strong>View Saved Results</strong> to read back what's accumulated in
+    <code>portal.txt</code> so far.
+  </p>
+  <div class="box tip">
+    <strong>This hand-off is verified before anything is deleted.</strong>
+    Every row the ESP32 sends is numbered and counted
+    (<code>LOGLINE:&lt;seq&gt;:...</code>, cross-checked against
+    <code>LOGFILE:</code>/<code>LOGFILEEND:</code>/<code>LOGDONE:</code>
+    totals). The Flipper stages the data on its SD card and checks every
+    number lines up <em>before</em> writing it into <code>portal.txt</code> -
+    and only after that write succeeds does it send
+    <code>WIFIFOXPORTAL:EXPORTCONFIRM</code>, which is the one and only thing
+    that tells the ESP32 it can delete its copy. If anything drops or
+    doesn't add up along the way, nothing is written and nothing is
+    deleted - the same data just gets resent automatically on the next
+    sync, whether that's opening the menu or the 5-second auto-check. The
+    only edge case that can still happen is a
+    <em>duplicate</em> row already safely on your SD card, if the very last
+    confirmation step itself doesn't get through - never a row that
+    disappears without a trace. If that ever happens, Fox Portal's action
+    log says so explicitly rather than staying quiet about it.
+  </div>
+  <div class="box tip">
+    <strong>Very long rows are marked, not mangled.</strong> If a row (SSID
+    plus every configured field's value) would run longer than a single
+    reply can safely carry, the ESP32 shortens just that row and appends
+    <code>...[TRUNCATED-TOO-LONG]</code> before sending it - the row still
+    exports and still counts normally, so it never breaks the
+    verification above. You'd only ever see this with several fields set
+    to unusually long values; if you spot it in <code>portal.txt</code>,
+    that submission's later fields were cut off and it's worth trimming
+    your field lengths going forward.
+  </div>
 
   <div class="back-top"><a href="#top">↑ Back to top</a></div>
 </section>
 
 
-<!-- ══════════════════ 8 · WIFI ICON ══════════════════ -->
-<section class="section" id="wifi-icon">
+<!-- ══════════════════ 8 · UPDATE DOWNLOADER ══════════════════ -->
+<section class="section" id="update-downloader">
   <div class="chapter-label">Chapter 8</div>
+  <h2>Fox Update Downloader</h2>
+  <p>
+    Checks GitHub for newer releases of both FoxFW and Fox ESP32 Firmware,
+    downloads whichever one you pick, and hands off straight to install —
+    no PC, no browser, no manual file copying. Because the Flipper itself has
+    no internet connection of its own, this app reaches GitHub over your
+    already-wired ESP32 the same way Fox ESP32 Commander does — it needs the
+    same UART wiring and a WiFi network for the ESP32 to join.
+  </p>
+
+  <div class="menu-tree">Fox Update Downloader
+├── Fox Custom Firmware   <span style="color:#888">(Flipper Zero)</span>
+└── Fox ESP32 Firmware    <span style="color:#888">(ESP32 S2, S3, C3, C5, C6)</span></div>
+
+  <h3>Checking for an update</h3>
+  <p>
+    Pick a row and the app connects to your ESP32, asks it to fetch the
+    latest release from GitHub, and shows a progress screen while it compares
+    versions. You'll land on one of three outcomes:
+  </p>
+  <div class="setting">
+    <div class="name">Up to date</div>
+    <div class="desc">Your installed version already matches the latest release. Press OK to return to the menu.</div>
+  </div>
+  <div class="setting">
+    <div class="name">Update available</div>
+    <div class="desc">Shows the current version alongside the new one. <strong>Not now</strong> backs out without downloading anything; <strong>Download</strong> starts the transfer.</div>
+  </div>
+  <div class="setting">
+    <div class="name">Check failed</div>
+    <div class="desc">No WiFi connection, no ESP32 detected, or GitHub couldn't be reached. Press OK and try again once the underlying issue is sorted — Fox ESP32 Detector can help confirm your wiring is the problem or not.</div>
+  </div>
+
+  <h3 id="update-board-select">Selecting your ESP32 board</h3>
+  <p>
+    Choosing <strong>Fox ESP32 Firmware</strong> adds one extra screen before
+    the check begins: <strong>Select Board</strong>. Use Left/Right to cycle
+    through the six supported targets — ESP32 Classic, ESP32-S2, ESP32-S3,
+    ESP32-C3, ESP32-C5, ESP32-C6 — then Down and OK on <strong>Continue</strong>.
+    This tells the app which three files to fetch (bootloader, partition
+    table, and firmware image are downloaded separately for this flow) and
+    which board profile to hand to the flasher afterwards.
+  </p>
+  <div class="box warn">
+    <strong>Pick the board that matches your actual chip.</strong> Same rule
+    as the Web Flasher's chip-mismatch protection — flashing the wrong
+    board's image won't boot. If you're not sure which chip you have, check
+    the silkscreen on your dev board or the listing you bought it from.
+  </div>
+
+  <h3>Downloading</h3>
+  <p>
+    A progress screen shows the file currently being fetched by name, a
+    percentage, and a running <code>KB / KB</code> total — for the ESP32
+    flow this cycles through all three files in turn (bootloader → partition
+    table → firmware) under one combined progress bar. Press Back at any
+    point to cancel; anything already written to your SD card is cleaned up
+    automatically rather than left as a partial, unusable file.
+  </p>
+  <div class="box info">
+    <strong>Stalled or interrupted transfers retry automatically</strong> —
+    up to three attempts per file before giving up and reporting a failure,
+    so a brief WiFi hiccup mid-download usually resolves itself without you
+    needing to do anything.
+  </div>
+
+  <h3>Installing</h3>
+  <p>
+    Once the download finishes you'll see <strong>Downloaded</strong> with
+    two options: <strong>Install</strong> hands off immediately, or
+    <strong>Later</strong> keeps the file on your SD card and returns you to
+    the menu without installing. Choosing Later shows a
+    <strong>Not Installed</strong> screen with <strong>Menu</strong> (just
+    go back) and <strong>Restart</strong> (install the already-downloaded
+    copy right now) — so you never have to download the same release twice
+    just because you weren't ready to install the first time.
+  </p>
+  <div class="setting">
+    <div class="name">Installing Fox Custom Firmware</div>
+    <div class="desc">Hands off to the Flipper's own built-in firmware updater — the device restarts automatically to apply it, exactly like installing a <code>.fuf</code> from the Fox File Browser. See the FoxFW guide's <em>Installing Firmware Updates</em> chapter for what happens next (the Fox Setup Wizard runs once on first boot).</div>
+  </div>
+  <div class="setting">
+    <div class="name">Installing Fox ESP32 Firmware</div>
+    <div class="desc">Hands off to Fox ESP32 Flasher with the board and downloaded files already selected — it writes the bootloader, partition table, and firmware in one pass with its own progress bar, then resets the ESP32 automatically. You don't need to re-pick the board or the files yourself.</div>
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 9 · WIFI ICON ══════════════════ -->
+<section class="section" id="wifi-icon">
+  <div class="chapter-label">Chapter 9</div>
   <h2>Status Bar WiFi Icon</h2>
   <p>
     Your Flipper's own desktop status bar shows a small WiFi icon,
@@ -1207,9 +1380,9 @@
 </section>
 
 
-<!-- ══════════════════ 9 · FULL COMMAND REFERENCE ══════════════════ -->
+<!-- ══════════════════ 10 · FULL COMMAND REFERENCE ══════════════════ -->
 <section class="section" id="commands">
-  <div class="chapter-label">Chapter 9</div>
+  <div class="chapter-label">Chapter 10</div>
   <h2>Full Command Reference</h2>
   <p>
     Every command the firmware understands, sent over serial at
@@ -1323,42 +1496,73 @@
 
   <h3 id="cmd-http-ref">HTTP &amp; internet bridge</h3>
   <p>
-    Bracket-style commands, compatible with the FlipperHTTP command grammar
-    used by other Flipper WiFi apps.
+    Bracket-style commands. The GET/POST/PUT/PATCH/DELETE, WiFi, PING,
+    LIST, IP/ADDRESS, and PARSE commands below reproduce the real
+    <a href="https://github.com/jblanked/FlipperHTTP" style="color:inherit;">jblanked/FlipperHTTP</a>
+    wire protocol on purpose — verified against that project's own
+    firmware source and against a bundled app's actual request/response
+    parsing code, not just its documentation — so any Flipper app built
+    on the standard <code>flipper_http.c</code> client should work
+    against this board without modification. <code>[GET]</code>/
+    <code>[GET/HTTP]</code>/<code>[POST/HTTP]</code>/<code>[PUT/HTTP]</code>/
+    <code>[DELETE/HTTP]</code> all reply with the same shape a real
+    FlipperHTTP board uses:
+  </p>
+  <pre class="cmd-block">[GET/SUCCESS]{"Status-Code":200,"Content-Length":128}
+&lt;response body, raw - may span more than one physical line&gt;
+
+[GET/END]</pre>
+  <p>
+    — a status/length header line, the body (sent as-is; any real
+    newlines it contains become extra physical lines, exactly like the
+    official firmware), a blank line, then a method-specific terminator:
+    <code>[GET/END]</code>, <code>[POST/END]</code>,
+    <code>[PUT/END]</code>, or <code>[DELETE/END]</code>. Keep reading
+    until that line shows up rather than stopping after the first one.
+    Note that <code>[GET/HTTP]</code> replies with <code>[GET/SUCCESS]</code>
+    too (not <code>[GET/HTTP/SUCCESS]</code>) — the real protocol tags by
+    HTTP method, not by which bracket command triggered the request, so
+    a client can't tell the two apart and neither can this firmware.
+    <code>[PATCH/HTTP]</code> is a Fox-only extension (real FlipperHTTP
+    doesn't define PATCH) and uses its own <code>[PATCH/SUCCESS]</code> /
+    <code>[PATCH/END]</code> pair.
   </p>
   <table>
     <tr><th>Command</th><th>What it does</th></tr>
     <tr><td><code>[PING]</code></td><td>Replies <code>[PONG]</code></td></tr>
-    <tr><td><code>[LIST]</code></td><td>Lists every bracket command the firmware supports</td></tr>
+    <tr><td><code>[LIST]</code></td><td>Lists every bracket command the firmware supports, both Fox's own multi-line listing and the exact single-line reply real FlipperHTTP clients send</td></tr>
     <tr><td><code>[REBOOT]</code></td><td>Restarts the board</td></tr>
     <tr><td><code>[VERSION]</code></td><td>Firmware version string</td></tr>
-    <tr><td><code>[WIFI/SCAN]</code></td><td>Scans, replies with a JSON array of <code>{ssid, rssi, secure}</code></td></tr>
-    <tr><td><code>[WIFI/SAVE]{"ssid":"x","password":"y"}</code></td><td>Saves credentials (password optional, for open networks)</td></tr>
+    <tr><td><code>[WIFI/SCAN]</code></td><td>Replies <code>[GET/SUCCESS]</code> / <code>{"networks":["ssid1",...],"details":[{"ssid","rssi","secure"},...]}</code> / <code>[GET/END]</code> — <code>networks</code> is the exact key real clients (e.g. FlipWiFi's own scan parser) read; <code>details</code> is a Fox-only extra with the richer per-network data</td></tr>
+    <tr><td><code>[WIFI/SAVE]{"ssid":"x","password":"y"}</code></td><td>Saves credentials (password optional, for open networks); replies with both Fox's own <code>[WIFI/SAVE/SUCCESS]</code> and the real-spec <code>[SUCCESS] Wifi settings saved.</code> line real clients check for</td></tr>
     <tr><td><code>[WIFI/CONNECT]</code></td><td>Tries saved networks in order</td></tr>
     <tr><td><code>[WIFI/CONNECT]{"ssid":"x"}</code></td><td>Connects using a saved network's saved password</td></tr>
-    <tr><td><code>[WIFI/CONNECT]{"ssid":"x","password":"y"}</code></td><td>Connects directly, no prior save needed</td></tr>
-    <tr><td><code>[WIFI/DISCONNECT]</code></td><td>Disconnects</td></tr>
-    <tr><td><code>[WIFI/LIST]</code></td><td>Lists saved SSIDs (never passwords)</td></tr>
-    <tr><td><code>[WIFI/IP]</code></td><td>Your public IP, via a request to api.ipify.org</td></tr>
+    <tr><td><code>[WIFI/CONNECT]{"ssid":"x","password":"y"}</code></td><td>Connects directly, no prior save needed; success replies with both <code>[WIFI/CONNECT/SUCCESS]&lt;ssid&gt;</code> and <code>[SUCCESS] Connected to Wifi.</code></td></tr>
+    <tr><td><code>[WIFI/DISCONNECT]</code></td><td>Disconnects; replies <code>[DISCONNECTED] WiFi has been disconnected.</code> (the exact real-spec line)</td></tr>
+    <tr><td><code>[WIFI/LIST]</code></td><td>Lists saved SSIDs only, never passwords — <strong>a deliberate deviation</strong> from real FlipperHTTP, which dumps the whole saved-credentials file (including cleartext passwords) unframed; leaking saved WiFi passwords over an exposed serial line wasn't a tradeoff worth making just for byte-parity on a feature most apps don't use</td></tr>
+    <tr><td><code>[WIFI/IP]</code></td><td>Your public IP — does a GET to <code>https://httpbin.org/get</code> and replies with the parsed <code>"origin"</code> field, framed like a GET (<code>[GET/SUCCESS]</code> / origin / <code>[GET/END]</code>); matches the real protocol's exact endpoint and field name</td></tr>
     <tr><td><code>[WIFI/SSID]</code></td><td>SSID of the currently connected network</td></tr>
     <tr><td><code>[WIFI/STATUS]</code></td><td>true/false — connected or not</td></tr>
-    <tr><td><code>[IP/ADDRESS]</code></td><td>Local IP address</td></tr>
-    <tr><td><code>[WIFI/AP]{"ssid":"x","password":"y"}</code></td><td>Starts a WiFi access point (password 8+ characters, or omit for open)</td></tr>
+    <tr><td><code>[IP/ADDRESS]</code></td><td>Local IP address, bare (no tag) — matches real FlipperHTTP exactly</td></tr>
+    <tr><td><code>[WIFI/AP]{"ssid":"x","password":"y"}</code></td><td>Starts a WiFi access point (password 8+ characters, or omit for open), replies immediately with the AP's IP — <strong>not</strong> real FlipperHTTP's blocking <code>[AP/CONNECTED]</code>/bridge-until-<code>[AP/DISCONNECTED]</code> loop (some apps, e.g. FlipWiFi's AP feature, expect that specific blocking flow and won't work here — Fox Portal's own captive-portal AP mode covers the same ground better anyway)</td></tr>
     <tr><td><code>[GET]&lt;url&gt;</code></td><td>Simple GET, returns the response body</td></tr>
     <tr><td><code>[GET/HTTP]{"url":"...","headers":{...}}</code></td><td>GET with custom headers</td></tr>
     <tr><td><code>[POST/HTTP]</code> / <code>[PUT/HTTP]</code> / <code>[PATCH/HTTP]</code> / <code>[DELETE/HTTP]</code></td><td><code>{"url":"...","payload":"...","headers":{...}}</code></td></tr>
-    <tr><td><code>[GET/BYTES]&lt;url&gt;</code></td><td>Base64-encoded response body — binary-safe</td></tr>
-    <tr><td><code>[POST/BYTES]{"url":"...","payload_b64":"..."}</code></td><td>Base64-encoded request/response — binary-safe</td></tr>
+    <tr><td><code>[GET/BYTES]&lt;url&gt;</code></td><td>Base64-encoded response body — binary-safe, but a Fox-only encoding; real FlipperHTTP streams raw bytes over the wire instead, so this one isn't compatible with third-party clients yet</td></tr>
+    <tr><td><code>[POST/BYTES]{"url":"...","payload_b64":"..."}</code></td><td>Base64-encoded request/response — same caveat as <code>[GET/BYTES]</code></td></tr>
     <tr><td><code>[SOCKET/START]{"url":"wss://host:port/path"}</code></td><td>Opens a WebSocket connection</td></tr>
     <tr><td><code>[SOCKET/SEND]&lt;text&gt;</code></td><td>Sends a text frame on the open socket</td></tr>
-    <tr><td><code>[SOCKET/STOP]</code></td><td>Closes the socket</td></tr>
-    <tr><td><code>[PARSE]{"json":"...","key":"..."}</code></td><td>Extracts one flat field from a JSON object</td></tr>
-    <tr><td><code>[PARSE/ARRAY]{"json":"[...]","index":N}</code></td><td>Extracts the Nth element of a JSON array</td></tr>
+    <tr><td><code>[SOCKET/STOP]</code></td><td>Closes the socket; replies with both Fox's own <code>[SOCKET/STOP/SUCCESS]</code> and the real-spec <code>[SOCKET/STOPPED]</code></td></tr>
+    <tr><td><code>[PARSE]{"json":"...","key":"..."}</code></td><td>Extracts one flat field from a JSON object, replies with just the bare value (no tag) — matches real FlipperHTTP's <code>[PARSE]</code> exactly</td></tr>
+    <tr><td><code>[PARSE/ARRAY]{"json":"[...]","index":N}</code></td><td>Extracts the Nth element of a JSON array, same bare-value reply</td></tr>
     <tr><td><code>[LED/ON]</code> / <code>[LED/OFF]</code></td><td>Controls the status LED</td></tr>
   </table>
-  <p>Async WebSocket traffic arrives as <code>[SOCKET/CONNECTED]</code>, <code>[SOCKET/DISCONNECTED]</code>, <code>[SOCKET/MSG]&lt;text&gt;</code> (or <code>[SOCKET/MSG/BIN]&lt;base64&gt;</code>), and <code>[SOCKET/ERROR]</code>. Every response follows the shape <code>[COMMAND/SUCCESS]&lt;data&gt;</code> or <code>[ERROR] &lt;message&gt;</code>.</p>
+  <p>Async WebSocket traffic arrives as <code>[SOCKET/CONNECTED]</code>, <code>[SOCKET/DISCONNECTED]</code>, <code>[SOCKET/MSG]&lt;text&gt;</code> (or <code>[SOCKET/MSG/BIN]&lt;base64&gt;</code>), and <code>[SOCKET/ERROR]</code>. Everything not covered above still follows Fox's own long-standing shape, <code>[COMMAND/SUCCESS]&lt;data&gt;</code> or <code>[ERROR] &lt;message&gt;</code>.</p>
   <div class="box warn">
     HTTPS requests do not validate the server's certificate (<code>setInsecure()</code> — no root CA store). Fine for casual API calls; don't route sensitive credentials through it.
+  </div>
+  <div class="box warn">
+    Known gaps against real FlipperHTTP, kept deliberately rather than missed: <code>[WIFI/LIST]</code> doesn't leak saved passwords (see above), <code>[WIFI/AP]</code> doesn't implement the blocking AP-bridge loop some apps expect, and <code>[GET/BYTES]</code>/<code>[POST/BYTES]</code> are still base64 rather than raw-byte streaming. Deauth-style commands some third-party apps ship their own buttons for (e.g. FlipWiFi's <code>[DEAUTH]</code>) aren't part of the real FlipperHTTP protocol either — use Fox ESP32 Commander's own WiFi Attacks menu for that instead.
   </div>
 
   <h3 id="cmd-script-ref">FoxScript</h3>
@@ -1425,7 +1629,8 @@ repeat (3) {
   <table>
     <tr><td><code>WIFIFOXPORTAL:START:&lt;ssid&gt;:&lt;date&gt;</code></td><td>Starts the portal (both arguments can be left blank)</td></tr>
     <tr><td><code>WIFIFOXPORTAL:STOP</code></td><td>Stops the access point, DNS redirect, and web server</td></tr>
-    <tr><td><code>WIFIFOXPORTAL:FIELDS:&lt;name&gt;,&lt;name&gt;,...</code></td><td>Sets the form's field names (also becomes the CSV column headers)</td></tr>
+    <tr><td><code>WIFIFOXPORTAL:EXPORTLOG</code></td><td>Streams every queued submission back as sequence-numbered <code>LOGFILE:&lt;name&gt;:&lt;count&gt;</code> / <code>LOGLINE:&lt;seq&gt;:&lt;content&gt;</code> / <code>LOGFILEEND:&lt;name&gt;:&lt;count&gt;</code> lines ending in <code>LOGDONE:&lt;files&gt;:&lt;lines&gt;</code> (or just <code>LOGEMPTY</code> if nothing's queued). Deletes nothing by itself. Fox Portal's own menu calls this for you - see "Submission logging" in Chapter 7.</td></tr>
+    <tr><td><code>WIFIFOXPORTAL:EXPORTCONFIRM</code></td><td>Deletes exactly the files most recently sent by <code>EXPORTLOG</code>, replies <code>OK</code>. The Flipper app only sends this after verifying every count/sequence number above and safely writing the data to its own SD card - see the verification note in Chapter 7.</td></tr>
     <tr><td><code>WIFIFOXPORTAL:SETTITLE:&lt;text&gt;</code></td><td>Sets the page heading (built-in default page only)</td></tr>
     <tr><td><code>WIFIFOXPORTAL:SETINTRO:&lt;text&gt;</code></td><td>Sets the intro paragraph (built-in default page only)</td></tr>
     <tr><td><code>WIFIFOXPORTAL:SETNOTE:&lt;text&gt;</code></td><td>Sets the closing note on the confirmation page (built-in default only)</td></tr>
@@ -1482,9 +1687,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 10 · SAFETY, LEGAL, ATTACKS TOGGLE ══════════════════ -->
+<!-- ══════════════════ 11 · SAFETY, LEGAL, ATTACKS TOGGLE ══════════════════ -->
 <section class="section" id="safety">
-  <div class="chapter-label">Chapter 10</div>
+  <div class="chapter-label">Chapter 11</div>
   <h2>Safety, Legal &amp; the Attacks Toggle</h2>
 
   <div class="box warn">
@@ -1552,9 +1757,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 11 · KNOWN LIMITATIONS ══════════════════ -->
+<!-- ══════════════════ 12 · KNOWN LIMITATIONS ══════════════════ -->
 <section class="section" id="limitations">
-  <div class="chapter-label">Chapter 11</div>
+  <div class="chapter-label">Chapter 12</div>
   <h2>Known Limitations</h2>
   <p>
     An honest list of rough edges, so nothing here catches you by surprise.
@@ -1604,9 +1809,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 12 · SUPPORT & TROUBLESHOOTING ══════════════════ -->
+<!-- ══════════════════ 13 · SUPPORT & TROUBLESHOOTING ══════════════════ -->
 <section class="section" id="support">
-  <div class="chapter-label">Chapter 12</div>
+  <div class="chapter-label">Chapter 13</div>
   <h2>Support &amp; Troubleshooting</h2>
 
   <h3>Nothing responds / apps say "not detected"</h3>
@@ -1662,7 +1867,6 @@ repeat (3) {
   <h3>Fox Portal issues</h3>
   <table>
     <tr><th>Symptom</th><th>Likely cause / fix</th></tr>
-    <tr><td>A submitted field shows up empty in the CSV</td><td>The field name in <code>start.html</code>'s <code>name="..."</code> attribute doesn't match a line in <code>inputnames.txt</code> — make them match exactly.</td></tr>
     <tr><td>Page looks like a plain generic form, not your custom design</td><td><code>start.html</code>/<code>finish.html</code> were empty or missing when Start ran — the ESP32 fell back to its built-in default page. The files are auto-installed to <code>/ext/apps_data/fox_portal/</code> on a standard qFlipper install; if they're missing, re-install the firmware.</td></tr>
     <tr><td>Edits to start.html don't show up</td><td>Every Start re-reads all three files fresh, so this shouldn't happen — double check you saved to <code>/ext/apps_data/fox_portal/</code> specifically and re-ran Start (not just Show QR).</td></tr>
   </table>

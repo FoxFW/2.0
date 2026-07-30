@@ -1,4 +1,3 @@
-// scenes/gdr_scene_emulate.c
 #include "../gdr_app_i.h"
 
 #ifdef ENABLE_EMULATE_FEATURE
@@ -14,7 +13,6 @@
 #define TAG "GDRSceneEmulate"
 
 #define EMULATE_PLUGIN_PATH APP_ASSETS_PATH("plugins/gdr_emulate_plugin.fal")
-
 
 static bool host_radio_init(void* app) {
     return gdr_radio_init((GDRApp*)app);
@@ -77,7 +75,6 @@ static const GDREmulateHostApi gdr_emulate_host_api = {
     .storage_delete_temp = host_storage_delete_temp,
 };
 
-// Plugin load / unload
 static void emulate_plugin_unload(GDRApp* app) {
     furi_check(app);
 
@@ -189,4 +186,4 @@ void gdr_scene_emulate_on_exit(void* context) {
     emulate_plugin_unload(app);
 }
 
-#endif // ENABLE_EMULATE_FEATURE
+#endif

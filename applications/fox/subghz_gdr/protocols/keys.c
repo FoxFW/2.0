@@ -12,7 +12,7 @@ uint64_t kia_v5_key = 0;
 
 void gdr_keys_load(SubGhzEnvironment* environment) {
     SubGhzKeystore* keystore = subghz_environment_get_keystore(environment);
-    // Load keys from secure keystore
+
             for
                 M_EACH(manufacture_code, *subghz_keystore_get_data(keystore), SubGhzKeyArray_t) {
                     switch(manufacture_code->type) {

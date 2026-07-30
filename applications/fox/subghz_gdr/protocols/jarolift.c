@@ -77,20 +77,10 @@ const SubGhzProtocol subghz_protocol_jarolift = {
     .encoder = &subghz_protocol_jarolift_encoder,
 };
 
-//
-// Encoder
-//
-
-// Pre define function
 static void subghz_protocol_jarolift_remote_controller(
     SubGhzBlockGeneric* instance,
     SubGhzKeystore* keystore);
 
-/**
- * Defines the button value for the current btn_id
- * Basic set | 0x1 | 0x2 | 0x4 | 0x8 |
- * @return Button code
- */
 static uint8_t subghz_protocol_jarolift_get_btn_code(void);
 
 void* subghz_protocol_encoder_jarolift_alloc(SubGhzEnvironment* environment) {
@@ -138,29 +128,18 @@ LevelDuration subghz_protocol_encoder_jarolift_yield(void* context) {
     return ret;
 }
 
-/** 
- * Key generation from simple data
- * @param instance Pointer to a SubGhzProtocolEncoderJarolift* instance
- * @param btn Button number, 4 bit
- */
 static bool
     subghz_protocol_jarolift_gen_data(SubGhzProtocolEncoderJarolift* instance, uint8_t btn) {
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
-    // subghz_custom_btn_set_original(btn);
     }
 
     btn = subghz_protocol_jarolift_get_btn_code();
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&btn))
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", btn);
 
-    // Check for OFEX (overflow experimental) mode
     if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
-        // standart counter mode. PULL data from subghz_block_generic_global variables
         if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
-            // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
             if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
                 instance->generic.cnt = 0;
             } else {
@@ -177,7 +156,6 @@ static bool
         }
     }
 
-    //(instance->generic.seed >> 8) = 8 bit grouping channel 0-7
     uint32_t hop_decrypted = (uint64_t)((instance->generic.seed >> 8) & 0xFF) << 24 |
                              ((instance->generic.serial & 0xFF) << 16) |
                              (instance->generic.cnt & 0xFFFF);
@@ -186,7 +164,6 @@ static bool
     for
         M_EACH(manufacture_code, *subghz_keystore_get_data(instance->keystore), SubGhzKeyArray_t) {
             if(manufacture_code->type == KEELOQ_LEARNING_NORMAL_JAROLIFT) {
-                // Normal Learning
                 uint64_t man = subghz_protocol_keeloq_common_normal_learning(
                     instance->generic.serial, manufacture_code->key);
                 hop_encrypted = subghz_protocol_keeloq_common_encrypt(hop_decrypted, man);
@@ -194,7 +171,6 @@ static bool
             }
         }
 
-    // If we got some issue, return false
     if(hop_encrypted == 0) {
         return false;
     }
@@ -202,7 +178,7 @@ static bool
                    hop_encrypted;
 
     instance->generic.data = subghz_protocol_blocks_reverse_key(fix, 64);
-    //(instance->generic.seed & 0xFF) = 8 bit for grouping 8-16
+
     instance->generic.data_2 =
         subghz_protocol_blocks_reverse_key((instance->generic.seed & 0xFF), 8);
 
@@ -224,9 +200,6 @@ bool subghz_protocol_jarolift_create_data(
     instance->generic.seed = 0x0100;
     instance->generic.data_count_bit = 72;
 
-    // Encode data
-
-    //(instance->generic.seed >> 8) = 8 bit grouping channel 0-7
     uint32_t hop_decrypted = (uint64_t)((instance->generic.seed >> 8) & 0xFF) << 24 |
                              ((instance->generic.serial & 0xFF) << 16) |
                              (instance->generic.cnt & 0xFFFF);
@@ -235,7 +208,6 @@ bool subghz_protocol_jarolift_create_data(
     for
         M_EACH(manufacture_code, *subghz_keystore_get_data(instance->keystore), SubGhzKeyArray_t) {
             if(manufacture_code->type == KEELOQ_LEARNING_NORMAL_JAROLIFT) {
-                // Normal Learning
                 uint64_t man = subghz_protocol_keeloq_common_normal_learning(
                     instance->generic.serial, manufacture_code->key);
                 hop_encrypted = subghz_protocol_keeloq_common_encrypt(hop_decrypted, man);
@@ -247,11 +219,10 @@ bool subghz_protocol_jarolift_create_data(
                    ((uint64_t)(instance->generic.serial & 0xFFFFFFF) << 32) | hop_encrypted;
 
     instance->generic.data = subghz_protocol_blocks_reverse_key(fix, 64);
-    //(instance->generic.seed & 0xFF) = 8 bit for grouping 8-16
+
     instance->generic.data_2 =
         subghz_protocol_blocks_reverse_key((instance->generic.seed & 0xFF), 8);
 
-    // Encode complete, now serialize
     SubGhzProtocolStatus res =
         subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
 
@@ -274,33 +245,24 @@ bool subghz_protocol_jarolift_create_data(
     return res == SubGhzProtocolStatusOk;
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderJarolift instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_jarolift_get_upload(
     SubGhzProtocolEncoderJarolift* instance,
     uint8_t btn) {
     furi_assert(instance);
 
-    // Gen new key
     if(!subghz_protocol_jarolift_gen_data(instance, btn)) {
         return false;
     }
 
     size_t index = 0;
 
-    // Start 14k us delay
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_jarolift_const.te_long * 18);
 
-    // First header bit
     instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)1500);
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_jarolift_const.te_short);
 
-    // Finish header
     for(uint8_t i = 8; i > 0; i--) {
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_jarolift_const.te_short);
@@ -308,19 +270,15 @@ static bool subghz_protocol_encoder_jarolift_get_upload(
             level_duration_make(false, (uint32_t)subghz_protocol_jarolift_const.te_short);
     }
 
-    // After header
-    instance->encoder.upload[index - 1].duration = (uint32_t)3800; // Adjust last low duration
+    instance->encoder.upload[index - 1].duration = (uint32_t)3800;
 
-    // Send key fix
     for(uint8_t i = 64; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_jarolift_const.te_short);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_jarolift_const.te_long);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_jarolift_const.te_long);
             instance->encoder.upload[index++] =
@@ -328,16 +286,13 @@ static bool subghz_protocol_encoder_jarolift_get_upload(
         }
     }
 
-    // Send grouping byte
     for(uint8_t i = 8; i > 0; i--) {
         if(bit_read(instance->generic.data_2, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_jarolift_const.te_short);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_jarolift_const.te_long);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_jarolift_const.te_long);
             instance->encoder.upload[index++] =
@@ -345,7 +300,6 @@ static bool subghz_protocol_encoder_jarolift_get_upload(
         }
     }
 
-    // Set upload size after generating upload, fix it later
     instance->encoder.size_upload = index;
 
     return true;
@@ -363,7 +317,6 @@ SubGhzProtocolStatus
             break;
         }
 
-        // Optional value
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -415,9 +368,6 @@ SubGhzProtocolStatus
     return res;
 }
 
-//
-// Decoder
-//
 void* subghz_protocol_decoder_jarolift_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderJarolift* instance = malloc(sizeof(SubGhzProtocolDecoderJarolift));
     instance->base.protocol = &subghz_protocol_jarolift;
@@ -459,7 +409,6 @@ void subghz_protocol_decoder_jarolift_feed(void* context, bool level, uint32_t d
         if((!level) && (instance->header_count == 8) &&
            (DURATION_DIFF(duration, subghz_protocol_jarolift_const.te_long * 5) <
             subghz_protocol_jarolift_const.te_delta * 6)) {
-            // Found gap after header - 4000us +- 996us
             instance->decoder.parser_step = JaroliftDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -500,7 +449,6 @@ void subghz_protocol_decoder_jarolift_feed(void* context, bool level, uint32_t d
                 instance->decoder.parser_step = JaroliftDecoderStepSaveDuration;
             } else {
                 if(duration >= ((uint32_t)subghz_protocol_jarolift_const.te_long * 3)) {
-                    // Add endbit
                     if((DURATION_DIFF(
                             instance->decoder.te_last, subghz_protocol_jarolift_const.te_long) <
                         subghz_protocol_jarolift_const.te_delta)) {
@@ -537,10 +485,6 @@ void subghz_protocol_decoder_jarolift_feed(void* context, bool level, uint32_t d
     }
 }
 
-/** 
- * Get button name.
- * @param btn Button number, 4 bit
- */
 static const char* subghz_protocol_jarolift_get_button_name(uint8_t btn) {
     const char* btn_name;
     switch(btn) {
@@ -563,23 +507,9 @@ static const char* subghz_protocol_jarolift_get_button_name(uint8_t btn) {
     return btn_name;
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- * @param data Input encrypted data
- * @param keystore Pointer to a SubGhzKeystore* instance
- */
 static void subghz_protocol_jarolift_remote_controller(
     SubGhzBlockGeneric* instance,
     SubGhzKeystore* keystore) {
-    // Jarolift Decoder
-    // 01.2026 - @xMasterX (MMX) & d82k & Steffen (@bastelbudenbuben de)
-
-    // Key samples (reversed)
-    // 0x821EB600EAC2EAD4 - Btn Up - cnt 0059 group 0100
-    // 0x821EB6007D9BD66A - Btn Up - cnt 005A group 0100
-    // 0x821EB600A029FA0E - Btn Up - cnt 005B group 0100
-
     uint32_t group = subghz_protocol_blocks_reverse_key(instance->data_2, 8);
     uint64_t key = subghz_protocol_blocks_reverse_key(instance->data, 64);
     bool ret = false;
@@ -603,11 +533,9 @@ static void subghz_protocol_jarolift_remote_controller(
         instance->btn = (key >> 60) & 0xF;
         instance->seed = ((decrypt >> 24) << 8) | (group >> 8);
         instance->cnt = decrypt & 0xFFFF;
-        // Save original button for later use
+
         if(subghz_custom_btn_get_original() == 0) {
-            // subghz_custom_btn_set_original(instance->btn);
         }
-        // subghz_custom_btn_set_max(3);
     } else {
         instance->btn = 0;
         instance->serial = 0;
@@ -691,9 +619,7 @@ static uint8_t subghz_protocol_jarolift_get_btn_code(void) {
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -759,7 +685,6 @@ void subghz_protocol_decoder_jarolift_get_string(void* context, FuriString* outp
     SubGhzProtocolDecoderJarolift* instance = context;
     subghz_protocol_jarolift_remote_controller(&instance->generic, instance->keystore);
 
-    // push protocol data to global variable
     subghz_block_generic_global.cnt_is_available = true;
     subghz_block_generic_global.cnt_length_bit = 16;
     subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -767,7 +692,6 @@ void subghz_protocol_decoder_jarolift_get_string(void* context, FuriString* outp
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

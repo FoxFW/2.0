@@ -76,7 +76,7 @@ void* subghz_protocol_encoder_nice_flo_alloc(SubGhzEnvironment* environment) {
     instance->generic.protocol_name = instance->base.protocol->name;
 
     instance->encoder.repeat = 3;
-    instance->encoder.size_upload = 52; //max 24bit*2 + 2 (start, stop)
+    instance->encoder.size_upload = 52;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
     instance->encoder.is_running = false;
     return instance;
@@ -89,11 +89,6 @@ void subghz_protocol_encoder_nice_flo_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderNiceFlo instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_nice_flo_get_upload(SubGhzProtocolEncoderNiceFlo* instance) {
     furi_assert(instance);
     size_t index = 0;
@@ -104,22 +99,20 @@ static bool subghz_protocol_encoder_nice_flo_get_upload(SubGhzProtocolEncoderNic
     } else {
         instance->encoder.size_upload = size_upload;
     }
-    //Send header
+
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_nice_flo_const.te_short * 36);
-    //Send start bit
+
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_nice_flo_const.te_short);
-    //Send key data
+
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_nice_flo_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_nice_flo_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_nice_flo_const.te_short);
             instance->encoder.upload[index++] =
@@ -147,7 +140,7 @@ SubGhzProtocolStatus
             ret = SubGhzProtocolStatusErrorValueBitCount;
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -212,7 +205,6 @@ void subghz_protocol_decoder_nice_flo_feed(void* context, bool level, uint32_t d
     case NiceFloDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_nice_flo_const.te_short * 36) <
                         subghz_protocol_nice_flo_const.te_delta * 36)) {
-            //Found header Nice Flo
             instance->decoder.parser_step = NiceFloDecoderStepFoundStartBit;
         }
         break;
@@ -222,7 +214,6 @@ void subghz_protocol_decoder_nice_flo_feed(void* context, bool level, uint32_t d
         } else if(
             DURATION_DIFF(duration, subghz_protocol_nice_flo_const.te_short) <
             subghz_protocol_nice_flo_const.te_delta) {
-            //Found start bit Nice Flo
             instance->decoder.parser_step = NiceFloDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -231,7 +222,7 @@ void subghz_protocol_decoder_nice_flo_feed(void* context, bool level, uint32_t d
         }
         break;
     case NiceFloDecoderStepSaveDuration:
-        if(!level) { //save interval
+        if(!level) {
             if(duration >= (subghz_protocol_nice_flo_const.te_short * 4)) {
                 instance->decoder.parser_step = NiceFloDecoderStepFoundStartBit;
                 if(instance->decoder.decode_count_bit >=

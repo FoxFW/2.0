@@ -91,12 +91,6 @@ const SubGhzProtocol subghz_protocol_faac_slh = {
     .encoder = &subghz_protocol_faac_slh_encoder,
 };
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- * @param keystore Pointer to a SubGhzKeystore* instance
- * @param manufacture_name
- */
 static void subghz_protocol_faac_slh_check_remote_controller(
     SubGhzBlockGeneric* instance,
     SubGhzKeystore* keystore,
@@ -124,19 +118,14 @@ void subghz_protocol_encoder_faac_slh_free(void* context) {
 }
 
 static bool subghz_protocol_faac_slh_gen_data(SubGhzProtocolEncoderFaacSLH* instance) {
-    // override button if we change it with signal settings button editor
-    // else work as standart
     if(subghz_block_generic_global_button_override_get(&instance->generic.btn)) {
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", instance->generic.btn);
     } else {
-        // TODO: Stupid bypass for custom button, remake later
         if(subghz_custom_btn_get_original() == 0) {
-            // subghz_custom_btn_set_original(0xF);
         }
 
         uint8_t custom_btn_id = subghz_custom_btn_get();
 
-        // If we are using UP button - generate programming mode key and send it, otherwise - send regular key if possible
         if((custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) &&
            !(!allow_zero_seed && (instance->generic.seed == 0x0))) {
             uint8_t data_tmp = 0;
@@ -145,11 +134,8 @@ static bool subghz_protocol_faac_slh_gen_data(SubGhzProtocolEncoderFaacSLH* inst
             data_prg[0] = 0x00;
 
             if(allow_zero_seed || (instance->generic.seed != 0x0)) {
-                // check OFEX mode
                 if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
-                    // standart counter mode. PULL data from subghz_block_generic_global variables
                     if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
-                        // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
                         if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) >
                            0xFFFFF) {
                             instance->generic.cnt = 0;
@@ -158,17 +144,13 @@ static bool subghz_protocol_faac_slh_gen_data(SubGhzProtocolEncoderFaacSLH* inst
                         }
                     }
                 } else {
-                    // TODO: OFEX mode
                     instance->generic.cnt += 1;
                 }
 
                 if(temp_counter_backup != 0x0) {
-                    // check OFEX mode
                     if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
-                        // standart counter mode. PULL data from subghz_block_generic_global variables
                         if(!subghz_block_generic_global_counter_override_get(
                                &temp_counter_backup)) {
-                            // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
                             if((temp_counter_backup + furi_hal_subghz_get_rolling_counter_mult()) >
                                0xFFFFF) {
                                 temp_counter_backup = 0;
@@ -177,7 +159,6 @@ static bool subghz_protocol_faac_slh_gen_data(SubGhzProtocolEncoderFaacSLH* inst
                             }
                         }
                     } else {
-                        // todo OFEX mode
                         temp_counter_backup += 1;
                     }
                 }
@@ -211,21 +192,19 @@ static bool subghz_protocol_faac_slh_gen_data(SubGhzProtocolEncoderFaacSLH* inst
             uint32_t enc_prg_2 = data_prg[3] << 24 | data_prg[2] << 16 | data_prg[1] << 8 |
                                  data_prg[0];
             instance->generic.data = (uint64_t)enc_prg_1 << 32 | enc_prg_2;
-            //FURI_LOG_D(TAG, "New Prog Mode Key Generated: %016llX\r", instance->generic.data);
 
             return true;
         } else {
             if(!allow_zero_seed && (instance->generic.seed == 0x0)) {
-                // Do not generate new data, send data from buffer
                 return true;
             }
-            // If we are in prog mode and regular Send button is used - Do not generate new data, send data from buffer
+
             if((faac_prog_mode == true) && (instance->generic.serial == 0x0) &&
                (instance->generic.btn == 0x0) && (temp_fix_backup == 0x0)) {
                 return true;
             }
         }
-        // Restore main remote data when we exit programming mode
+
         if((instance->generic.serial == 0x0) && (instance->generic.btn == 0x0) &&
            (temp_fix_backup != 0x0) && !faac_prog_mode) {
             instance->generic.serial = temp_fix_backup >> 4;
@@ -247,11 +226,8 @@ static bool subghz_protocol_faac_slh_gen_data(SubGhzProtocolEncoderFaacSLH* inst
     }
 
     if(allow_zero_seed || (instance->generic.seed != 0x0)) {
-        // check OFEX mode
         if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
-            // standart counter mode. PULL data from subghz_block_generic_global variables
             if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
-                // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
                 if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) >
                    0xFFFFF) {
                     instance->generic.cnt = 0;
@@ -260,7 +236,6 @@ static bool subghz_protocol_faac_slh_gen_data(SubGhzProtocolEncoderFaacSLH* inst
                 }
             }
         } else {
-            // OFEX mode
             if(instance->generic.cnt < 0xFFFFF) {
                 if((instance->generic.cnt + 0xFFFFF) > 0xFFFFF) {
                     instance->generic.cnt = 0;
@@ -288,7 +263,7 @@ static bool subghz_protocol_faac_slh_gen_data(SubGhzProtocolEncoderFaacSLH* inst
             if(res == 0) {
                 switch(manufacture_code->type) {
                 case KEELOQ_LEARNING_FAAC:
-                    //FAAC Learning
+
                     man = subghz_protocol_keeloq_common_faac_learning(
                         instance->generic.seed, manufacture_code->key);
                     hop = subghz_protocol_keeloq_common_encrypt(decrypt, man);
@@ -313,7 +288,7 @@ bool subghz_protocol_faac_slh_create_data(
     const char* manufacture_name,
     SubGhzRadioPreset* preset) {
     furi_assert(context);
-    // OwO
+
     SubGhzProtocolEncoderFaacSLH* instance = context;
     instance->generic.serial = serial;
     instance->generic.btn = btn;
@@ -330,11 +305,6 @@ bool subghz_protocol_faac_slh_create_data(
     return res;
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderFaacSLH instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_faac_slh_get_upload(SubGhzProtocolEncoderFaacSLH* instance) {
     furi_assert(instance);
 
@@ -348,22 +318,18 @@ static bool subghz_protocol_encoder_faac_slh_get_upload(SubGhzProtocolEncoderFaa
         instance->encoder.size_upload = size_upload;
     }
 
-    //Send header
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_faac_slh_const.te_long * 2);
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_faac_slh_const.te_long * 2);
 
-    //Send key data
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_faac_slh_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_faac_slh_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_faac_slh_const.te_short);
             instance->encoder.upload[index++] =
@@ -405,7 +371,6 @@ SubGhzProtocolStatus
         subghz_protocol_faac_slh_check_remote_controller(
             &instance->generic, instance->keystore, &instance->manufacture_name);
 
-        // Optional value
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -490,7 +455,6 @@ void subghz_protocol_decoder_faac_slh_feed(void* context, bool level, uint32_t d
     case FaacSLHDecoderStepFoundPreambula:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_faac_slh_const.te_long * 2) <
                         subghz_protocol_faac_slh_const.te_delta * 3)) {
-            //Found Preambula
             instance->decoder.parser_step = FaacSLHDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -518,7 +482,6 @@ void subghz_protocol_decoder_faac_slh_feed(void* context, bool level, uint32_t d
                 instance->decoder.te_last = duration;
                 instance->decoder.parser_step = FaacSLHDecoderStepCheckDuration;
             }
-
         } else {
             instance->decoder.parser_step = FaacSLHDecoderStepReset;
         }
@@ -548,12 +511,6 @@ void subghz_protocol_decoder_faac_slh_feed(void* context, bool level, uint32_t d
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- * @param keystore Pointer to a SubGhzKeystore* instance
- * @param manifacture_name Manufacturer name
- */
 static void subghz_protocol_faac_slh_check_remote_controller(
     SubGhzBlockGeneric* instance,
     SubGhzKeystore* keystore,
@@ -563,12 +520,8 @@ static void subghz_protocol_faac_slh_check_remote_controller(
     uint32_t decrypt = 0;
     uint64_t man;
 
-    // TODO: Stupid bypass for custom button, remake later
     if(subghz_custom_btn_get_original() == 0) {
-        // subghz_custom_btn_set_original(0xF);
     }
-
-    // subghz_custom_btn_set_max(1);
 
     uint8_t data_tmp = 0;
     uint8_t data_prg[8];
@@ -583,7 +536,7 @@ static void subghz_protocol_faac_slh_check_remote_controller(
 
     if(((data_prg[7] == 0x52) && (data_prg[6] == 0x0F) && (data_prg[0] == 0x00))) {
         faac_prog_mode = true;
-        // ProgMode ON
+
         for(uint8_t i = data_prg[1] & 0xF; i != 0; i--) {
             data_tmp = data_prg[2];
 
@@ -620,7 +573,7 @@ static void subghz_protocol_faac_slh_check_remote_controller(
         M_EACH(manufacture_code, *subghz_keystore_get_data(keystore), SubGhzKeyArray_t) {
             switch(manufacture_code->type) {
             case KEELOQ_LEARNING_FAAC:
-                // FAAC Learning
+
                 man = subghz_protocol_keeloq_common_faac_learning(
                     instance->seed, manufacture_code->key);
                 decrypt = subghz_protocol_keeloq_common_decrypt(code_hop, man);
@@ -629,7 +582,7 @@ static void subghz_protocol_faac_slh_check_remote_controller(
             }
         }
     instance->cnt = decrypt & 0xFFFFF;
-    // Backup counter in case when we need to use programming mode
+
     if(code_fix != 0x0) {
         temp_counter_backup = instance->cnt;
     }
@@ -649,7 +602,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_faac_slh_serialize(
     furi_assert(context);
     SubGhzProtocolDecoderFaacSLH* instance = context;
 
-    // Reset seed leftover from previous decoded signal
     instance->generic.seed = 0x0;
     temp_fix_backup = 0x0;
 
@@ -743,11 +695,10 @@ void subghz_protocol_decoder_faac_slh_get_string(void* context, FuriString* outp
             instance->generic.seed,
             (uint8_t)(instance->generic.cnt & 0xFF));
     } else if((allow_zero_seed == false) && (instance->generic.seed == 0x0)) {
-        // push protocol data to global variable
         subghz_block_generic_global.btn_is_available = true;
         subghz_block_generic_global.current_btn = instance->generic.btn;
         subghz_block_generic_global.btn_length_bit = 4;
-        //
+
         furi_string_cat_printf(
             output,
             "%s %dbit\r\n"
@@ -764,7 +715,6 @@ void subghz_protocol_decoder_faac_slh_get_string(void* context, FuriString* outp
             instance->generic.btn,
             instance->generic.serial);
     } else {
-        // push protocol data to global variable
         subghz_block_generic_global.cnt_is_available = true;
         subghz_block_generic_global.cnt_length_bit = 20;
         subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -772,7 +722,6 @@ void subghz_protocol_decoder_faac_slh_get_string(void* context, FuriString* outp
         subghz_block_generic_global.btn_is_available = true;
         subghz_block_generic_global.current_btn = instance->generic.btn;
         subghz_block_generic_global.btn_length_bit = 4;
-        //
 
         furi_string_cat_printf(
             output,

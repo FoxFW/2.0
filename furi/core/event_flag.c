@@ -24,6 +24,13 @@ FuriEventFlag* furi_event_flag_alloc(void) {
 
     FuriEventFlag* instance = malloc(sizeof(FuriEventFlag));
 
+    /* xEventGroupCreateStatic only zeroes sizeof(StaticEventGroup_t) bytes.
+     * FuriEventLoopLink follows the container and is NOT covered; zero it
+     * explicitly so furi_event_flag_set/clear/wait notify calls are safe on
+     * recycled heap allocations. */
+    instance->event_loop_link.item_in  = NULL;
+    instance->event_loop_link.item_out = NULL;
+
     furi_check(xEventGroupCreateStatic(&instance->container) == (EventGroupHandle_t)instance);
 
     return instance;

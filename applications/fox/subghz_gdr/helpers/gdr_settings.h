@@ -1,4 +1,3 @@
-// helpers/gdr_settings.h
 #pragma once
 
 #include <stdint.h>

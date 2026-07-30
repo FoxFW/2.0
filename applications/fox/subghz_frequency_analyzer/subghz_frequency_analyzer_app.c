@@ -1,10 +1,3 @@
-/**
- * @file subghz_frequency_analyzer_app.c
- * Visual layout matches the original stock implementation exactly.
- * Icons I_MHz_25x11/I_Volup_8x6/I_Voldwn_6x6 are not FAP-exported;
- * replaced with text labels at the same coordinates.
- */
-
 #include <furi.h>
 #include <furi_hal.h>
 #include <gui/gui.h>
@@ -32,7 +25,7 @@
 #define LAST_SETTINGS_VERSION 3
 #define FA_TRIGGER_KEY        "FATrigger"
 #define FA_FEEDBACK_KEY       "FeedbackLevel"
-#define FA_PRESET_KEY         "FAPresetIndex"  /* uint32 — shared with main app */
+#define FA_PRESET_KEY         "FAPresetIndex"
 #define FA_TRIGGER_DEFAULT    (-93.0f)
 
 #define SETTLE_MS    2u
@@ -46,7 +39,6 @@ extern const uint8_t subghz_device_cc1101_preset_2fsk_dev47_6khz_async_regs[];
 extern const uint8_t subghz_device_cc1101_preset_msk_99_97kb_async_regs[];
 extern const uint8_t subghz_device_cc1101_preset_gfsk_9_99kb_async_regs[];
 
-/* fa_preset_names/regs removed — use subghz_setting APIs for dynamic preset count */
 #define FA_MOD_FILTER_PATH "/ext/subghz/modulation_filter.save"
 static uint8_t fa_mod_filter[64];
 static bool    fa_mod_filter_loaded = false;
@@ -79,7 +71,6 @@ static uint32_t round_int(uint32_t value, uint8_t n) {
 
 typedef enum { FeedbackMute=0, FeedbackSound, FeedbackAll, FeedbackVibro, FeedbackCount } FeedbackLevel;
 typedef enum { FAScreenSetMod = 0, FAScreenMain, FAScreenConfig } FAScreen;
-/* Cycle: Mute(⊘) → Sound(🔊) → Sound+Vibrate → Vibrate → Mute */
 
 typedef struct {
     Gui*              gui;
@@ -106,24 +97,19 @@ typedef struct {
     FeedbackLevel     feedback;
     uint32_t          frequency_to_save;
     bool              exit_requested;
-    bool              ok_result_selected; /* true = relaunch to Receiver */
+    bool              ok_result_selected;
     FAScreen          screen;
-    uint8_t           preset_count;  /* dynamic — subghz_setting_get_preset_count() */
+    uint8_t           preset_count;
     uint8_t           preset_idx;
 } FreqAnalyzerApp;
 
-/* Read the saved trigger and feedback level from last_subghz.settings.
- * Uses flipper_format's "rewind on miss" pattern exactly as the main app
- * does in subghz_last_settings.c — safe to call on a fresh file that
- * doesn't yet have these keys (rewind_on_miss means they'll just keep
- * the default values). */
 static void fa_load_settings(FreqAnalyzerApp* app) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     FlipperFormat* ff = flipper_format_file_alloc(storage);
     if(flipper_format_file_open_existing(ff, LAST_SETTINGS_PATH)) {
         uint32_t version = 0;
         FuriString* type = furi_string_alloc();
-        /* Only read if the file matches our expected format */
+
         if(flipper_format_read_header(ff, type, &version) &&
            furi_string_equal_str(type, LAST_SETTINGS_TYPE) &&
            version == LAST_SETTINGS_VERSION) {
@@ -136,7 +122,7 @@ static void fa_load_settings(FreqAnalyzerApp* app) {
             if(flipper_format_read_uint32(ff, FA_FEEDBACK_KEY, &fb, 1)) {
                 app->feedback = (FeedbackLevel)(fb < (uint32_t)FeedbackCount ? fb : 0);
             }
-            /* Read shared modulation — written by both FA and the main SubGhz app */
+
             flipper_format_rewind(ff);
             uint32_t pi = 0;
             if(flipper_format_read_uint32(ff, FA_PRESET_KEY, &pi, 1)) {
@@ -149,20 +135,13 @@ static void fa_load_settings(FreqAnalyzerApp* app) {
     furi_record_close(RECORD_STORAGE);
 }
 
-/* Write only FATrigger and FeedbackLevel back into last_subghz.settings,
- * preserving every other key exactly as-is (read-modify-write via a
- * temp file + atomic rename). */
 static void fa_save_settings(FreqAnalyzerApp* app) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     FlipperFormat* ff = flipper_format_file_alloc(storage);
     bool ok = false;
     do {
         if(!flipper_format_file_open_existing(ff, LAST_SETTINGS_PATH)) break;
-        /* Update each key in-place.  If the key is absent from the file,
-         * flipper_format_update_* returns false with the cursor already at
-         * EOF — write_* then appends correctly.  Do NOT rewind before the
-         * fallback write; that would put the cursor at position 0 and
-         * overwrite the file header.  Only rewind between key searches. */
+
         if(!flipper_format_update_float(ff, FA_TRIGGER_KEY, &app->trigger, 1)) {
             (void)flipper_format_write_float(ff, FA_TRIGGER_KEY, &app->trigger, 1);
         }
@@ -172,7 +151,7 @@ static void fa_save_settings(FreqAnalyzerApp* app) {
             (void)flipper_format_write_uint32(ff, FA_FEEDBACK_KEY, &fb, 1);
         }
         flipper_format_rewind(ff);
-        /* Save modulation index — shared with main SubGhz Config via FAPresetIndex */
+
         uint32_t pi = (uint32_t)app->preset_idx;
         if(!flipper_format_update_uint32(ff, FA_PRESET_KEY, &pi, 1)) {
             (void)flipper_format_write_uint32(ff, FA_PRESET_KEY, &pi, 1);
@@ -203,15 +182,12 @@ static int32_t worker_fn(void* ctx) {
     furi_hal_subghz_load_registers(
         subghz_setting_get_preset_data(app->setting, app->preset_idx));
 
-    /* Warmup counter: ignore first few readings after OK so the RSSI
-     * noise floor settles and doesn't produce instant false detections. */
-    uint8_t warmup_remaining = 15; /* ~15 × SETTLE_MS × freq_count ≈ 500ms */
+    uint8_t warmup_remaining = 15;
 
     while(!app->worker_should_exit) {
-        /* Wait on SetMod screen — don't scan until user clicks Continue */
         if(app->screen == FAScreenSetMod) {
             furi_delay_ms(50);
-            warmup_remaining = 15; /* reset warmup each time we re-enter scan */
+            warmup_remaining = 15;
             continue;
         }
 
@@ -234,11 +210,10 @@ static int32_t worker_fn(void* ctx) {
             if(app->worker_should_exit) break;
         }
 
-        /* Discard readings during warmup — RSSI not yet stable */
         if(warmup_remaining > 0) {
             warmup_remaining--;
             furi_mutex_acquire(app->mutex, FuriWaitForever);
-            app->current_rssi = -100.0f; /* show safe/low value in UI */
+            app->current_rssi = -100.0f;
             furi_mutex_release(app->mutex);
             continue;
         }
@@ -252,10 +227,6 @@ static int32_t worker_fn(void* ctx) {
             app->locked_rssi = best_rssi;
             if(best_rssi >= app->rssi_last) app->rssi_last = best_rssi;
             if(!was_locked) {
-                /* First lock on this signal — play feedback per user setting.
-                 * sequence_success plays BOTH sound and vibro, so it can't
-                 * be used for FeedbackSound (sound-only). Build a custom
-                 * sound-only sequence using the low-level message primitives. */
                 if(app->feedback == FeedbackSound) {
                     static const NotificationSequence seq_sound_only = {
                         &message_note_c5,
@@ -272,7 +243,6 @@ static int32_t worker_fn(void* ctx) {
             }
         } else {
             if(was_locked) {
-                /* Update history on unlock */
                 uint32_t nf = app->locked_freq;
                 bool in_arr = false;
                 for(uint8_t i = 0; i < MAX_HISTORY; i++) {
@@ -314,16 +284,12 @@ static int32_t worker_fn(void* ctx) {
     return 0;
 }
 
-/* Draw a compact feedback-mode icon at (x,y) in a ~10x7 pixel area.
- * Replaces the "S+"/"S-"/"--" text labels that were cut off and unclear. */
 static void draw_feedback_icon(Canvas* canvas, uint8_t x, uint8_t y, FeedbackLevel level) {
     canvas_set_color(canvas, ColorBlack);
     if(level == FeedbackMute) {
-        /* ⊘ — circle with diagonal line */
         canvas_draw_circle(canvas, x+4, y+3, 3);
         canvas_draw_line(canvas, x+1, y+6, x+7, y+0);
     } else if(level == FeedbackVibro) {
-        /* ~ wave — two humps of a sine wave to suggest vibration */
         canvas_draw_dot(canvas, x+0, y+3);
         canvas_draw_line(canvas, x+1, y+2, x+2, y+1);
         canvas_draw_line(canvas, x+3, y+1, x+4, y+2);
@@ -333,14 +299,12 @@ static void draw_feedback_icon(Canvas* canvas, uint8_t x, uint8_t y, FeedbackLev
         canvas_draw_line(canvas, x+7, y+5, x+8, y+4);
         canvas_draw_dot(canvas, x+9, y+3);
     } else {
-        /* Speaker shape — shared by FeedbackSound and FeedbackAll */
-        canvas_draw_box(canvas, x+0, y+2, 3, 3); /* body */
-        canvas_draw_line(canvas, x+3, y+1, x+5, y+0); /* cone top */
-        canvas_draw_line(canvas, x+3, y+4, x+5, y+6); /* cone bottom */
-        canvas_draw_line(canvas, x+5, y+0, x+5, y+6); /* cone right */
-        canvas_draw_line(canvas, x+4, y+1, x+4, y+5); /* cone fill */
+        canvas_draw_box(canvas, x+0, y+2, 3, 3);
+        canvas_draw_line(canvas, x+3, y+1, x+5, y+0);
+        canvas_draw_line(canvas, x+3, y+4, x+5, y+6);
+        canvas_draw_line(canvas, x+5, y+0, x+5, y+6);
+        canvas_draw_line(canvas, x+4, y+1, x+4, y+5);
         if(level == FeedbackAll) {
-            /* Add sound wave arc to right of speaker */
             canvas_draw_line(canvas, x+7, y+1, x+8, y+2);
             canvas_draw_line(canvas, x+8, y+2, x+8, y+4);
             canvas_draw_line(canvas, x+8, y+4, x+7, y+5);
@@ -403,14 +367,13 @@ static void draw_cb(Canvas* canvas, void* ctx) {
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
 
-    /* ── Startup modulation selection screen ─────────────────────────── */
     if(app->screen == FAScreenSetMod) {
         canvas_set_font(canvas, FontPrimary);
         canvas_draw_str_aligned(canvas, 64, 6, AlignCenter, AlignTop, "Set Modulation");
         canvas_set_font(canvas, FontSecondary);
         canvas_draw_str_aligned(canvas, 64, 20, AlignCenter, AlignTop,
             "Modulation for frequency scan:");
-        /* Left / name / right */
+
         canvas_draw_str(canvas, 4, 40, "<");
         canvas_draw_str_aligned(canvas, 64, 40, AlignCenter, AlignTop,
             subghz_setting_get_preset_name(app->setting, app->preset_idx));
@@ -439,7 +402,6 @@ static void draw_cb(Canvas* canvas, void* ctx) {
     }
     canvas_draw_str(canvas, 8, 26, buf);
 
-    /* "MHz" text — replaces I_MHz_25x11 icon (not FAP-exported) */
     canvas_set_color(canvas, ColorBlack);
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str(canvas, 96, 25, "MHz");
@@ -452,31 +414,28 @@ static void draw_cb(Canvas* canvas, void* ctx) {
 
     elements_button_left(canvas, "T-");
     elements_button_right(canvas, "+T");
-    /* Modulation name: y=8 sits above the frequency block,
-     * clearing the "MHz" label which starts at y=18. */
+
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 127, 8, AlignRight, AlignTop,
                             subghz_setting_get_preset_name(app->setting, app->preset_idx));
 
     if(app->screen == FAScreenConfig) {
-        /* Full-screen black overlay — covers modulation name and all main
-         * display content so nothing bleeds through the config popup. */
         canvas_set_color(canvas, ColorBlack);
         canvas_draw_box(canvas, 0, 0, 128, 64);
-        /* White border inset by 4px on sides, 6px top/bottom */
+
         canvas_set_color(canvas, ColorWhite);
         canvas_draw_frame(canvas, 4, 6, 120, 52);
-        /* Header */
+
         canvas_set_font(canvas, FontSecondary);
         canvas_draw_str_aligned(canvas, 64, 9, AlignCenter, AlignTop, "Modulation Config");
-        /* Modulation name centred */
+
         canvas_set_font(canvas, FontPrimary);
         canvas_draw_str_aligned(canvas, 64, 30, AlignCenter, AlignCenter,
                                 subghz_setting_get_preset_name(app->setting, app->preset_idx));
-        /* Side arrows at same height as mod name */
+
         canvas_draw_str(canvas, 8,  34, "<");
         canvas_draw_str(canvas, 116, 34, ">");
-        /* OK button */
+
         canvas_set_color(canvas, ColorWhite);
         canvas_draw_rframe(canvas, 44, 49, 40, 11, 3);
         canvas_draw_str_aligned(canvas, 64, 54, AlignCenter, AlignCenter, "[OK] Apply");
@@ -497,7 +456,6 @@ static FreqAnalyzerApp* app_alloc(void) {
     app->trigger  = RSSI_MIN;
     app->feedback = FeedbackMute;
 
-    /* Register viewport BEFORE slow SD-card read — fixes startup flicker */
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
     app->gui         = furi_record_open(RECORD_GUI);
     app->view_port   = view_port_alloc();
@@ -511,17 +469,14 @@ static FreqAnalyzerApp* app_alloc(void) {
     subghz_setting_load(app->setting, SETTING_FILE_PATH);
     app->freq_count = subghz_setting_get_frequency_count(app->setting);
 
-    /* Load persisted trigger and feedback from last_subghz.settings --
-     * these are the exact same fields the stock app persists (FATrigger,
-     * FeedbackLevel), so they're shared correctly across both paths. */
     app->preset_count = (uint8_t)subghz_setting_get_preset_count(app->setting);
     fa_load_mod_filter();
     app->preset_idx = 0;
     while(fa_mod_filter_loaded && fa_mod_filter[app->preset_idx] == 0x00
           && app->preset_idx < app->preset_count - 1u)
         app->preset_idx++;
-    fa_load_settings(app); /* may update preset_idx from saved setting */
-    app->screen = FAScreenSetMod; /* always start at modulation selection */
+    fa_load_settings(app);
+    app->screen = FAScreenSetMod;
 
     app->worker_thread = furi_thread_alloc_ex("FreqAnalWorker", 1024, worker_fn, app);
     furi_thread_start(app->worker_thread);
@@ -548,7 +503,6 @@ int32_t subghz_frequency_analyzer_app(void* p) {
 
     FreqAnalyzerApp* app = app_alloc();
 
-    /* Drain any phantom button-presses from app launch */
     InputEvent drain;
     while(furi_message_queue_get(app->input_queue, &drain, 0) == FuriStatusOk) {}
 
@@ -560,8 +514,6 @@ int32_t subghz_frequency_analyzer_app(void* p) {
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
                 app->screen = FAScreenMain;
                 furi_mutex_release(app->mutex);
-
-            /* ── SetMod screen: Left/Right cycle, OK enters main screen ── */
             } else if(app->screen == FAScreenSetMod && event.key == InputKeyLeft
                       && event.type == InputTypeShort) {
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
@@ -584,41 +536,34 @@ int32_t subghz_frequency_analyzer_app(void* p) {
                 furi_hal_subghz_rx();
                 furi_mutex_release(app->mutex);
                 fa_save_settings(app);
-
             } else if(event.key == InputKeyBack) {
                 app->exit_requested = true;
-
             } else if(app->screen == FAScreenConfig && event.key == InputKeyLeft
                       && event.type == InputTypeShort) {
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
                 app->preset_idx = fa_next_enabled(app->preset_idx, -1, app->preset_count);
                 furi_mutex_release(app->mutex);
-
             } else if(app->screen == FAScreenConfig && event.key == InputKeyRight
                       && event.type == InputTypeShort) {
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
                 app->preset_idx = fa_next_enabled(app->preset_idx, 1, app->preset_count);
                 furi_mutex_release(app->mutex);
-
             } else if(event.key == InputKeyLeft &&
                       (event.type == InputTypePress || event.type == InputTypeRepeat)) {
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
                 app->trigger -= TRIGGER_STEP;
                 if(app->trigger < RSSI_MIN) app->trigger = RSSI_MIN;
                 furi_mutex_release(app->mutex);
-
             } else if(event.key == InputKeyRight &&
                       (event.type == InputTypePress || event.type == InputTypeRepeat)) {
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
                 app->trigger += TRIGGER_STEP;
                 if(app->trigger > RSSI_MAX) app->trigger = RSSI_MAX;
                 furi_mutex_release(app->mutex);
-
             } else if(event.key == InputKeyUp && event.type == InputTypePress) {
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
                 app->feedback = (FeedbackLevel)((app->feedback + 1) % FeedbackCount);
                 furi_mutex_release(app->mutex);
-
             } else if(event.key == InputKeyDown &&
                       (event.type == InputTypePress || event.type == InputTypeRepeat)) {
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
@@ -627,17 +572,13 @@ int32_t subghz_frequency_analyzer_app(void* p) {
                     app->selected_index = (app->selected_index + 1) % app->history_len;
                 }
                 furi_mutex_release(app->mutex);
-
             } else if(event.key == InputKeyOk && event.type == InputTypeLong
                       && app->screen == FAScreenMain) {
-                /* Long OK: open config */
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
                 app->screen = FAScreenConfig;
                 furi_mutex_release(app->mutex);
-
             } else if(event.key == InputKeyOk && app->screen == FAScreenConfig
                       && (event.type == InputTypeShort || event.type == InputTypeLong)) {
-                /* OK in config: apply modulation and return to main */
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
                 app->screen = FAScreenMain;
                 furi_hal_subghz_idle();
@@ -647,7 +588,6 @@ int32_t subghz_frequency_analyzer_app(void* p) {
                     furi_hal_subghz_set_frequency_and_path(app->current_freq);
                 furi_hal_subghz_rx();
                 furi_mutex_release(app->mutex);
-
             } else if(event.key == InputKeyOk &&
                       (event.type == InputTypeShort || event.type == InputTypeLong)) {
                 furi_mutex_acquire(app->mutex, FuriWaitForever);
@@ -660,12 +600,8 @@ int32_t subghz_frequency_analyzer_app(void* p) {
                 if(cand > 0) {
                     fa_save_settings(app);
                     write_freq_to_settings(cand);
-                    /* Queue SubGHz to open the Receiver, already tuned to
-                     * the selected frequency (same "read" deep-link used
-                     * by the original app-internal FA on OK). */
+
                     if(return_marker[0]) {
-                        /* Write "read" into .focus_menu so subghz.c
-                         * sees open_receiver=true on restart. */
                         Storage* ws = furi_record_open(RECORD_STORAGE);
                         File* wf = storage_file_alloc(ws);
                         if(storage_file_open(wf, "/ext/subghz/.focus_menu",
@@ -686,12 +622,7 @@ int32_t subghz_frequency_analyzer_app(void* p) {
 
     fa_save_settings(app);
 
-
-    /* Conditional return to SubGHz */
     if(return_marker[0]) {
-        /* If OK was pressed with a result, .focus_menu already has "read"
-         * written by the OK handler — just launch SubGHz. If Back was
-         * pressed, write the normal menu-focus marker. */
         Storage* s = furi_record_open(RECORD_STORAGE);
         File* f = storage_file_alloc(s);
         bool ok = false;
@@ -699,20 +630,14 @@ int32_t subghz_frequency_analyzer_app(void* p) {
             ok = storage_file_open(f, "/ext/subghz/.focus_menu", FSAM_WRITE, FSOM_CREATE_ALWAYS);
             if(ok) storage_file_write(f, return_marker, strlen(return_marker));
         } else {
-            ok = true; /* "read" marker already written by OK handler */
+            ok = true;
         }
         storage_file_close(f);
         storage_file_free(f); furi_record_close(RECORD_STORAGE);
         Loader* loader = furi_record_open(RECORD_LOADER);
         loader_enqueue_launch(loader, "subghz", NULL, LoaderDeferredLaunchFlagNone);
         furi_record_close(RECORD_LOADER);
-
-        /* The loader's spinner is already showing (set in the
-         * EnqueueLaunch handler before api_lock_unlock returned).
-         * No delay needed — just exit immediately so SubGHz starts
-         * as fast as possible. */
     }
-
 
     app_free(app);
     return 0;

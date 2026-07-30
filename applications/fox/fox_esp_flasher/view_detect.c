@@ -6,8 +6,8 @@ static FlasherApp* s_app = NULL;
 typedef struct {
     bool probing;
     bool found;
-    uint8_t dots;       /* 0-3, animated while probing */
-    uint8_t selected;   /* 0 = Settings, 1 = Retry (not-found mode) */
+    uint8_t dots;
+    uint8_t selected;
 } DetectModel;
 
 #define BOX_X 4
@@ -38,25 +38,23 @@ static void detect_draw(Canvas* canvas, void* model_ptr) {
     canvas_draw_str_aligned(canvas, 64, 4, AlignCenter, AlignTop, "Fox ESP Flasher");
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 64, 17, AlignCenter, AlignTop, "ESP32 not detected.");
-    canvas_draw_str_aligned(canvas, 64, 27, AlignCenter, AlignTop, "Connect ESP32 via UART,");
-    canvas_draw_str_aligned(canvas, 64, 36, AlignCenter, AlignTop, "then press Retry.");
+    canvas_draw_str_aligned(canvas, 64, 27, AlignCenter, AlignTop, "Connect ESP32 via UART.");
+    canvas_draw_str_aligned(canvas, 64, 36, AlignCenter, AlignTop, "Retrying automatically.");
 
-    const char* labels[2] = {"Settings", "Retry"};
+    const char* labels[2] = {"Retry", "Skip >"};
     for(uint8_t i = 0; i < 2; i++) {
         uint8_t bx = k_box_x[i];
         uint8_t by = 44;
-        canvas_set_color(canvas, ColorBlack);
         if(m->selected == i) {
-            canvas_draw_rbox(canvas, bx, by, BOX_W, BOX_H, BOX_R);
-            canvas_set_color(canvas, ColorWhite);
+            flasher_draw_ok_button(canvas, bx, by, BOX_W, BOX_H, BOX_R, labels[i]);
         } else {
+            canvas_set_color(canvas, ColorBlack);
             canvas_draw_rframe(canvas, bx, by, BOX_W, BOX_H, BOX_R);
-            canvas_draw_rframe(canvas, bx + 2, by + 2, BOX_W - 4, BOX_H - 4, BOX_R - 2);
+            canvas_set_font(canvas, FontSecondary);
+            canvas_draw_str_aligned(canvas, bx + BOX_W / 2, by + BOX_H / 2,
+                                    AlignCenter, AlignCenter, labels[i]);
+            canvas_set_color(canvas, ColorBlack);
         }
-        canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str_aligned(canvas, bx + BOX_W / 2, by + BOX_H / 2,
-                                AlignCenter, AlignCenter, labels[i]);
-        canvas_set_color(canvas, ColorBlack);
     }
 }
 
@@ -85,11 +83,10 @@ static bool detect_input(InputEvent* event, void* context) {
         uint8_t sel = 0;
         with_view_model(app->detect_view, DetectModel* m, { sel = m->selected; }, false);
         if(sel == 0) {
-            app->current_view = FlasherViewConnect;
-            view_dispatcher_switch_to_view(app->view_dispatcher, FlasherViewConnect);
-        } else {
             view_detect_set_probing(app->detect_view, true);
             view_dispatcher_send_custom_event(app->view_dispatcher, 99);
+        } else {
+            view_dispatcher_send_custom_event(app->view_dispatcher, FlasherEventDetectSkip);
         }
         return true;
     }
@@ -111,7 +108,7 @@ View* view_detect_alloc(FlasherApp* app) {
         m->probing  = true;
         m->found    = false;
         m->dots     = 0;
-        m->selected = 1; /* default to Retry */
+        m->selected = 0;
     }, false);
     return v;
 }

@@ -8,16 +8,9 @@
 
 #include <lib/subghz/blocks/custom_btn_i.h>
 
-/*
- * Help
- * https://phreakerclub.com/447
- *
- */
-
 #define TAG "SubGhzProtocolPrinceton"
 
-#define PRINCETON_GUARD_TIME_DEFALUT 30 //GUARD_TIME = PRINCETON_GUARD_TIME_DEFALUT * TE
-// Guard Time value should be between 15 -> 72 otherwise default value will be used
+#define PRINCETON_GUARD_TIME_DEFALUT 30
 
 static const SubGhzBlockConst subghz_protocol_princeton_const = {
     .te_short = 390,
@@ -94,7 +87,7 @@ void* subghz_protocol_encoder_princeton_alloc(SubGhzEnvironment* environment) {
     instance->generic.protocol_name = instance->base.protocol->name;
 
     instance->encoder.repeat = 3;
-    instance->encoder.size_upload = 52; //max 24bit*2 + 2 (start, stop)
+    instance->encoder.size_upload = 52;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
     instance->encoder.is_running = false;
     return instance;
@@ -107,15 +100,12 @@ void subghz_protocol_encoder_princeton_free(void* context) {
     free(instance);
 }
 
-// Get custom button code
 static uint8_t subghz_protocol_princeton_get_btn_code(void) {
     uint8_t custom_btn_id = subghz_custom_btn_get();
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -134,7 +124,7 @@ static uint8_t subghz_protocol_princeton_get_btn_code(void) {
         case 0xF:
             btn = 0x2;
             break;
-        // Second encoding type
+
         case 0x30:
             btn = 0xC0;
             break;
@@ -168,7 +158,7 @@ static uint8_t subghz_protocol_princeton_get_btn_code(void) {
         case 0xF:
             btn = 0x1;
             break;
-        // Second encoding type
+
         case 0x30:
             btn = 0xF3;
             break;
@@ -202,7 +192,7 @@ static uint8_t subghz_protocol_princeton_get_btn_code(void) {
         case 0xF:
             btn = 0x4;
             break;
-        // Second encoding type
+
         case 0x30:
             btn = 0xFC;
             break;
@@ -245,24 +235,15 @@ static uint8_t subghz_protocol_princeton_get_btn_code(void) {
     return btn;
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderPrinceton instance
- * @return true On success
- */
 static bool
     subghz_protocol_encoder_princeton_get_upload(SubGhzProtocolEncoderPrinceton* instance) {
     furi_assert(instance);
 
-    // Generate new key using custom or default button
     instance->generic.btn = subghz_protocol_princeton_get_btn_code();
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&instance->generic.btn))
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", instance->generic.btn);
 
-    // Reconstruction of the data
-    // If we have 8bit button code move serial to left by 8 bits (and 4 if 4 bits)
     if(instance->generic.btn == 0x30 || instance->generic.btn == 0xC0) {
         instance->generic.data =
             ((uint64_t)instance->generic.serial << 8 | (uint64_t)instance->generic.btn);
@@ -283,44 +264,31 @@ static bool
         instance->encoder.size_upload = size_upload;
     }
 
-    //Send key data
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)instance->te * 3);
             instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)instance->te);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)instance->te);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)instance->te * 3);
         }
     }
 
-    //Send Stop bit
     instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)instance->te);
-    //Send PT_GUARD_TIME
+
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)instance->te * instance->guard_time);
 
     return true;
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_princeton_check_remote_controller(SubGhzBlockGeneric* instance) {
-    // Parse button modes for second encoding type (and serial is smaller)
-    // Button code is 8bit and has fixed values of one of these
-    // Exclude button code for each type from serial number before parsing
     if((instance->data & 0xFF) == 0x30 || (instance->data & 0xFF) == 0xC0) {
-        // Save serial and button code
         instance->serial = instance->data >> 8;
         instance->btn = instance->data & 0xFF;
     } else if((instance->data & 0xFF) == 0x03 || (instance->data & 0xFF) == 0x0C) {
-        // Fix for button code 0x03 and 0x0C having zero at the beggining
         instance->serial = instance->data >> 8;
         instance->btn = (instance->data & 0xFF) | 0xF0;
     } else {
@@ -328,11 +296,8 @@ static void subghz_protocol_princeton_check_remote_controller(SubGhzBlockGeneric
         instance->btn = instance->data & 0xF;
     }
 
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
-        // subghz_custom_btn_set_original(instance->btn);
     }
-    // subghz_custom_btn_set_max(4);
 }
 
 SubGhzProtocolStatus
@@ -358,12 +323,11 @@ SubGhzProtocolStatus
             ret = SubGhzProtocolStatusErrorParserTe;
             break;
         }
-        // Optional value
+
         if(!flipper_format_read_uint32(
                flipper_format, "Guard_time", (uint32_t*)&instance->guard_time, 1)) {
             instance->guard_time = PRINCETON_GUARD_TIME_DEFALUT;
         } else {
-            // Guard Time value should be between 15 -> 72 otherwise default value will be used
             if((instance->guard_time < 15) || (instance->guard_time > 72)) {
                 instance->guard_time = PRINCETON_GUARD_TIME_DEFALUT;
             }
@@ -372,7 +336,6 @@ SubGhzProtocolStatus
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
-        // Get button and serial before calling get_upload
         subghz_protocol_princeton_check_remote_controller(&instance->generic);
 
         if(!subghz_protocol_encoder_princeton_get_upload(instance)) {
@@ -450,7 +413,6 @@ void subghz_protocol_decoder_princeton_feed(void* context, bool level, uint32_t 
     case PrincetonDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_princeton_const.te_short * 36) <
                         subghz_protocol_princeton_const.te_delta * 36)) {
-            //Found Preambula
             instance->decoder.parser_step = PrincetonDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -459,7 +421,7 @@ void subghz_protocol_decoder_princeton_feed(void* context, bool level, uint32_t 
         }
         break;
     case PrincetonDecoderStepSaveDuration:
-        //save duration
+
         if(level) {
             instance->decoder.te_last = duration;
             instance->te += duration;
@@ -479,7 +441,7 @@ void subghz_protocol_decoder_princeton_feed(void* context, bool level, uint32_t 
                         instance->generic.data = instance->decoder.decode_data;
                         instance->generic.data_count_bit = instance->decoder.decode_count_bit;
                         instance->guard_time = roundf((float)duration / instance->te);
-                        // Guard Time value should be between 15 -> 72 otherwise default value will be used
+
                         if((instance->guard_time < 15) || (instance->guard_time > 72)) {
                             instance->guard_time = PRINCETON_GUARD_TIME_DEFALUT;
                         }
@@ -576,12 +538,10 @@ SubGhzProtocolStatus
                flipper_format, "Guard_time", (uint32_t*)&instance->guard_time, 1)) {
             instance->guard_time = PRINCETON_GUARD_TIME_DEFALUT;
         } else {
-            // Guard Time value should be between 15 -> 72 otherwise default value will be used
             if((instance->guard_time < 15) || (instance->guard_time > 72)) {
                 instance->guard_time = PRINCETON_GUARD_TIME_DEFALUT;
             }
         }
-
     } while(false);
 
     return ret;
@@ -594,10 +554,8 @@ void subghz_protocol_decoder_princeton_get_string(void* context, FuriString* out
     uint32_t data_rev = subghz_protocol_blocks_reverse_key(
         instance->generic.data, instance->generic.data_count_bit);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
-    //
 
     if(instance->generic.btn == 0x30 || instance->generic.btn == 0xC0 ||
        instance->generic.btn == 0xF3 || instance->generic.btn == 0xFC) {

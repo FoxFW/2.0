@@ -488,7 +488,7 @@ static void desktop_wifi_status_timer_callback(void* context) {
 }
 
 
-#define FOX_ESP32_WIFI_RECHECK_MS        60000
+#define FOX_ESP32_WIFI_RECHECK_MS        15000
 #define FOX_ESP32_WIFI_PROBE_TIMEOUT_MS  500
 #define FOX_ESP32_WIFI_PROBE_BAUD        115200
 
@@ -521,8 +521,21 @@ static int fox_wifi_probe_pins(FuriHalSerialId serial_id) {
 
     FuriHalSerialHandle* handle = furi_hal_serial_control_acquire(serial_id);
     if(handle == NULL) {
-        /* Already owned by a running Fox app - back off, don't contend. */
-        expansion_enable(expansion);
+        /* Already owned by a running Fox app - back off, don't contend.
+         *
+         * Do NOT call expansion_enable() here. We only land in this branch
+         * when something else currently owns the port, which means that
+         * something already called expansion_disable() itself and expects
+         * it to stay disabled for the rest of its own session (fox_esp_flasher
+         * disables it once at open and doesn't re-enable until close). Our
+         * own expansion_disable() call just above was therefore already a
+         * no-op (state was Disabled already) -- calling expansion_enable()
+         * here would flip shared global expansion state back on and
+         * re-register the module hot-plug-detect callback on whatever port
+         * the user's Expansion settings point at, out from under whatever
+         * app currently owns the serial port, mid-session. This was likely
+         * corrupting active ESP32 flashes once a minute regardless of which
+         * app was running. */
         furi_record_close(RECORD_EXPANSION);
         return -1;
     }
@@ -552,11 +565,31 @@ static int fox_wifi_probe_pins(FuriHalSerialId serial_id) {
         if(byte == '\n') {
             if(line_len > 0 && line[line_len - 1] == '\r') line_len--;
             line[line_len] = '\0';
-            if(strcmp(line, "true") == 0) {
+
+            /* Our own firmware's [WIFI/STATUS] handler
+               (http_bridge.cpp) replies with the tag and value
+               concatenated on one line - "[WIFI/STATUS/SUCCESS]true",
+               not a bare "true" on its own line. Comparing the raw
+               line against "true"/"false" therefore never matched,
+               this probe silently timed out (-2) every single cycle
+               regardless of the real WiFi state, and the recheck
+               thread below wrote "0" once a minute even while
+               genuinely connected - exactly the "icon flips to
+               disconnected after a while" bug. Strip a leading
+               "[...]" tag, if present, before comparing so this
+               works against both our own tagged reply and a bare
+               "true"/"false" (what a real FlipperHTTP-spec device
+               would send for this same query). */
+            const char* val = line;
+            if(val[0] == '[') {
+                const char* close = strchr(val, ']');
+                if(close != NULL) val = close + 1;
+            }
+            if(strcmp(val, "true") == 0) {
                 result = 1;
                 break;
             }
-            if(strcmp(line, "false") == 0) {
+            if(strcmp(val, "false") == 0) {
                 result = 0;
                 break;
             }
@@ -598,20 +631,36 @@ static void fox_wifi_status_write_raw(Storage* storage, bool connected) {
 static int32_t desktop_wifi_recheck_thread(void* context) {
     Desktop* desktop = context;
 
+    /* Probe immediately on the first pass, THEN settle into the normal
+       once-a-minute cadence below - previously this slept a full
+       FOX_ESP32_WIFI_RECHECK_MS before ever checking once, so on a
+       fresh boot the icon just showed whatever the flag file happened
+       to already say (stale from before the reset, or the default
+       "disconnected" if the file didn't exist yet) for up to a minute
+       even when the ESP32 was already connected the whole time. This
+       is a rare-but-real case: Flipper resets/reflashes while the
+       ESP32 stays powered and associated. Wanting the icon right "from
+       the start" means this first check can't wait for the delay at
+       the bottom of the loop. */
+    bool first_pass = true;
     while(true) {
-        furi_delay_ms(FOX_ESP32_WIFI_RECHECK_MS);
+        if(!first_pass) {
+            furi_delay_ms(FOX_ESP32_WIFI_RECHECK_MS);
+        }
+        first_pass = false;
 
         int result_usart = fox_wifi_probe_pins(FuriHalSerialIdUsart);
         int result = result_usart;
-        if(result_usart < 0) {
-            int result_lpuart = fox_wifi_probe_pins(FuriHalSerialIdLpuart);
-            if(result_lpuart >= 0) {
-                result = result_lpuart;
-            } else if(result_usart == -1 || result_lpuart == -1) {
-                result = -1;
-            } else {
-                result = -2;
-            }
+        if(result_usart == -2) {
+            /* Only fall back to the alt pin pair when USART genuinely had
+             * nothing answer (-2) -- NOT when it was busy (-1). -1 means a
+             * running app currently owns the serial port and we must back
+             * off completely this cycle; trying LPUART next would still run
+             * a full expansion_disable()/acquire()/expansion_enable() cycle
+             * (see fox_wifi_probe_pins) while that app is mid-session, for
+             * no benefit, since the whole point of probing at all is to
+             * self-correct the icon while nothing else is using the UART. */
+            result = fox_wifi_probe_pins(FuriHalSerialIdLpuart);
         }
 
         if(result != -1) {
@@ -896,6 +945,8 @@ static void desktop_apply_settings(Desktop* desktop) {
 
     desktop_clock_reconfigure(desktop);
     desktop_load_wallpaper(desktop);
+
+    view_port_enabled_set(desktop->wifi_icon_viewport, !desktop->settings.wifi_icon_hidden);
 
     {
         Power* power = furi_record_open(RECORD_POWER);

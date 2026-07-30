@@ -1,6 +1,7 @@
 #include "http_menu.h"
 
 #include <stdio.h>
+#include <string.h>
 
 typedef enum {
     MenuHttpGet,
@@ -25,6 +26,50 @@ void http_menu_select(App* app, uint32_t index) {
     }
 }
 
+static void http_drain_and_log(App* app, const char* end_tag, uint32_t first_timeout_ms) {
+    EspAtMsg msg;
+    if(!esp_at_receive(app->esp_at, &msg, first_timeout_ms)) {
+        app_log(app, "No response.");
+        app_render_log(app);
+        return;
+    }
+
+    if(strncmp(msg.line, "[ERROR]", 7) == 0) {
+        app_log(app, "%s", msg.line);
+        app_render_log(app);
+        return;
+    }
+
+    if(strstr(msg.line, "/SUCCESS]{") != NULL) {
+        app_log(app, "%s", msg.line);
+        if(!esp_at_receive(app->esp_at, &msg, 3000)) {
+            app_render_log(app);
+            return;
+        }
+    }
+
+    FuriString* full = furi_string_alloc();
+    bool done = false;
+    for(size_t guard = 0; !done && guard < 200; guard++) {
+        if(strcmp(msg.line, end_tag) == 0) {
+            done = true;
+            break;
+        }
+        if(furi_string_size(full) > 0) furi_string_cat(full, "\n");
+        furi_string_cat(full, msg.line);
+
+        if(!esp_at_receive(app->esp_at, &msg, 3000)) break;
+    }
+
+    if(furi_string_size(full) > 0) {
+        app_log_raw(app, furi_string_get_cstr(full));
+    } else {
+        app_log(app, "(empty response)");
+    }
+    furi_string_free(full);
+    app_render_log(app);
+}
+
 void http_get_url_submitted(App* app) {
     if(app->text_input_buffer[0] == '\0') {
         app_log(app, "No URL entered.");
@@ -38,13 +83,7 @@ void http_get_url_submitted(App* app) {
 
     app_log(app, "GET %s...", app->text_input_buffer);
     app_render_log(app);
-    EspAtMsg msg;
-    if(esp_at_receive(app->esp_at, &msg, 10000)) {
-        app_log(app, "%s", msg.line);
-    } else {
-        app_log(app, "No response.");
-    }
-    app_render_log(app);
+    http_drain_and_log(app, "[GET/END]", 10000);
 }
 
 void http_post_url_submitted(App* app) {
@@ -67,11 +106,5 @@ void http_post_body_submitted(App* app) {
 
     app_log(app, "POST %s...", url);
     app_render_log(app);
-    EspAtMsg msg;
-    if(esp_at_receive(app->esp_at, &msg, 10000)) {
-        app_log(app, "%s", msg.line);
-    } else {
-        app_log(app, "No response.");
-    }
-    app_render_log(app);
+    http_drain_and_log(app, "[POST/END]", 10000);
 }

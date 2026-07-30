@@ -23,6 +23,13 @@ FuriMutex* furi_mutex_alloc(FuriMutexType type) {
 
     FuriMutex* instance = malloc(sizeof(FuriMutex));
 
+    /* xSemaphoreCreate*Static only zeroes sizeof(StaticSemaphore_t) bytes.
+     * FuriEventLoopLink follows the container and is NOT covered; zero it
+     * explicitly so furi_mutex_acquire/release notify calls are safe on
+     * recycled heap allocations. */
+    instance->event_loop_link.item_in  = NULL;
+    instance->event_loop_link.item_out = NULL;
+
     SemaphoreHandle_t hMutex;
 
     if(type == FuriMutexTypeNormal) {

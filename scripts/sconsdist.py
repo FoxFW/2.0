@@ -276,6 +276,22 @@ class Main(App):
                 tar.add(
                     bundle_dir, arcname=bundle_dir_name, filter=tar_sanitizer_filter
                 )
+
+            with tarfile.open(
+                join(
+                    self.output_dir_path,
+                    bundle_tar := f"{self.DIST_FILE_PREFIX}{bundle_dir_name}.tar",
+                ),
+                "w",
+                format=FLIPPER_TAR_FORMAT,
+            ) as tar:
+                self.note_dist_component(
+                    "update", "tar", self.get_dist_path(bundle_tar)
+                )
+
+                tar.add(
+                    bundle_dir, arcname=bundle_dir_name, filter=tar_sanitizer_filter
+                )
         return bundle_result
 
 

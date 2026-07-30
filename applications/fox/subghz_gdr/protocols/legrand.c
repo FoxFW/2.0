@@ -95,11 +95,6 @@ void subghz_protocol_encoder_legrand_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderLegrand instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_legrand_get_upload(SubGhzProtocolEncoderLegrand* instance) {
     furi_assert(instance);
 
@@ -111,18 +106,14 @@ static bool subghz_protocol_encoder_legrand_get_upload(SubGhzProtocolEncoderLegr
 
     size_t index = 0;
 
-    // Send sync
     instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)instance->te * 16);
 
-    // Send key data
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            // send bit 1
             instance->encoder.upload[index++] = level_duration_make(false, (uint32_t)instance->te);
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)instance->te * 3);
         } else {
-            // send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)instance->te * 3);
             instance->encoder.upload[index++] = level_duration_make(true, (uint32_t)instance->te);
@@ -155,7 +146,7 @@ SubGhzProtocolStatus
             ret = SubGhzProtocolStatusErrorParserTe;
             break;
         }
-        // optional parameter
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -232,17 +223,16 @@ void subghz_protocol_decoder_legrand_feed(void* context, bool level, uint32_t du
             if(DURATION_DIFF(duration, subghz_protocol_legrand_const.te_short) <
                subghz_protocol_legrand_const.te_delta) {
                 subghz_protocol_blocks_add_bit(&instance->decoder, 0);
-                instance->te += duration * 4; // long low that is part of sync, then short high
+                instance->te += duration * 4;
             }
 
             if(DURATION_DIFF(duration, subghz_protocol_legrand_const.te_long) <
                subghz_protocol_legrand_const.te_delta * 3) {
                 subghz_protocol_blocks_add_bit(&instance->decoder, 1);
-                instance->te += duration / 3 * 4; // short low that is part of sync, then long high
+                instance->te += duration / 3 * 4;
             }
 
             if(instance->decoder.decode_count_bit > 0) {
-                // advance to the next step if either short or long is found
                 instance->decoder.parser_step = LegrandDecoderStepSaveDuration;
                 break;
             }
@@ -289,8 +279,6 @@ void subghz_protocol_decoder_legrand_feed(void* context, bool level, uint32_t du
                     break;
                 }
 
-                // enough bits for a packet found, save it only if there was a previous packet
-                // with the same data
                 if(instance->last_data && (instance->last_data == instance->decoder.decode_data)) {
                     instance->te /= instance->decoder.decode_count_bit * 4;
 
@@ -302,8 +290,6 @@ void subghz_protocol_decoder_legrand_feed(void* context, bool level, uint32_t du
                     }
                 }
                 instance->last_data = instance->decoder.decode_data;
-                // fallthrough to reset, the next bit is expected to be a sync
-                // it also takes care of resetting the decoder state
             }
         }
 

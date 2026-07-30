@@ -1,4 +1,3 @@
-// scenes/gdr_scene_timing_tuner.c
 #include "../gdr_app_i.h"
 #ifdef ENABLE_TIMING_TUNER_SCENE
 #include "../protocols/protocol_items.h"
@@ -13,17 +12,14 @@
 #define SUBGHZ_RAW_THRESHOLD_MIN -90.0f
 
 typedef struct {
-    // Ring buffer for timing capture
     int32_t samples[MAX_TIMING_SAMPLES];
-    size_t write_idx; // Next write position
-    size_t sample_count; // Total samples captured (may exceed MAX)
-    bool buffer_wrapped; // True if we've wrapped around
+    size_t write_idx;
+    size_t sample_count;
+    bool buffer_wrapped;
 
-    // Timing statistics
     size_t short_count;
     size_t long_count;
 
-    // Calculated stats
     int32_t avg_short;
     int32_t avg_long;
     int32_t min_short;
@@ -31,11 +27,9 @@ typedef struct {
     int32_t min_long;
     int32_t max_long;
 
-    // Protocol match info
     const char* matched_protocol;
     const GDRProtocolTiming* timing_info;
 
-    // State
     bool is_receiving;
     bool has_match;
     uint16_t animation_frame;
@@ -43,7 +37,6 @@ typedef struct {
     uint8_t scroll_offset;
     uint8_t total_lines;
 
-    // App reference for callback
     GDRApp* app;
 } TimingTunerContext;
 
@@ -83,19 +76,15 @@ static void calculate_timing_stats(TimingTunerContext* ctx) {
         int32_t te_long = (int32_t)ctx->timing_info->te_long;
         int32_t te_delta = (int32_t)ctx->timing_info->te_delta;
 
-        // Threshold halfway between expected short and long
         threshold = (te_short + te_long) / 2;
 
-        // Valid pulse range - use 2x delta as bounds
         min_valid = te_short - (te_delta * 2);
         if(min_valid < 100) min_valid = 100;
         max_valid = te_long + (te_delta * 2);
 
         FURI_LOG_I(
             TAG, "Protocol timing: threshold=%ld valid=%ld-%ld", threshold, min_valid, max_valid);
-
     } else {
-        // No protocol info - use reasonable defaults
         threshold = 400;
         min_valid = 100;
         max_valid = 1200;
@@ -108,12 +97,10 @@ static void calculate_timing_stats(TimingTunerContext* ctx) {
             max_valid);
     }
 
-    // Analyze all samples in the ring buffer
     for(size_t i = 0; i < num_samples; i++) {
         int32_t dur = ctx->samples[i];
         if(dur < 0) dur = -dur;
 
-        // Filter out noise and gaps
         if(dur < min_valid || dur > max_valid) continue;
 
         if(dur < threshold) {
@@ -129,7 +116,6 @@ static void calculate_timing_stats(TimingTunerContext* ctx) {
         }
     }
 
-    // Calculate averages
     if(ctx->short_count > 0) {
         ctx->avg_short = (int32_t)(short_sum / (int64_t)ctx->short_count);
     } else {
@@ -146,7 +132,6 @@ static void calculate_timing_stats(TimingTunerContext* ctx) {
         ctx->max_long = 0;
     }
 
-    // Log results
     FURI_LOG_I(
         TAG,
         "MEASURED SHORT: avg=%ld min=%ld max=%ld n=%zu",
@@ -192,7 +177,6 @@ static void timing_tuner_draw_listening(Canvas* canvas, TimingTunerContext* ctx)
     }
 
     {
-        //RSSI Signal Bar
         uint8_t spacer = 0;
         for(uint8_t i = 1; i < (uint8_t)(ctx->rssi - SUBGHZ_RAW_THRESHOLD_MIN); i++) {
             if(i % 5) {
@@ -367,7 +351,6 @@ static bool
             return false;
         }
     } else {
-        // No timing reference
         switch(line_idx) {
         case 0:
             snprintf(buf, buf_size, "NO PROTOCOL REFERENCE");
@@ -431,9 +414,9 @@ static bool
 
 static uint8_t count_result_lines(TimingTunerContext* ctx) {
     if(ctx->timing_info) {
-        return 30; // Lines 0-29
+        return 30;
     } else {
-        return 18; // Lines 0-17
+        return 18;
     }
 }
 
@@ -451,11 +434,9 @@ static void timing_tuner_draw_results(Canvas* canvas, TimingTunerContext* ctx) {
         ctx->scroll_offset = max_scroll;
     }
 
-    // Draw header (protocol name)
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 0, AlignCenter, AlignTop, ctx->matched_protocol);
 
-    // Draw content lines
     canvas_set_font(canvas, FontSecondary);
     uint8_t y = 10;
     for(uint8_t i = 0; i < VISIBLE_LINES; i++) {
@@ -466,7 +447,6 @@ static void timing_tuner_draw_results(Canvas* canvas, TimingTunerContext* ctx) {
         y += LINE_HEIGHT;
     }
 
-    // Scroll indicators
     if(total_lines > VISIBLE_LINES) {
         if(ctx->scroll_offset > 0) {
             canvas_draw_str_aligned(canvas, 126, 14, AlignRight, AlignTop, "^");
@@ -589,7 +569,6 @@ static void timing_tuner_pair_callback(void* context, bool level, uint32_t durat
     TimingTunerContext* ctx = g_timing_ctx;
 
     if(ctx && !ctx->has_match) {
-        // Ring buffer - always write, wrap around if needed
         ctx->samples[ctx->write_idx] = level ? (int32_t)duration : -(int32_t)duration;
         ctx->write_idx++;
         ctx->sample_count++;
@@ -701,7 +680,7 @@ bool gdr_scene_timing_tuner_on_event(void* context, SceneManagerEvent event) {
             if(app->txrx->radio_device) {
                 g_timing_ctx->rssi = subghz_devices_get_rssi(app->txrx->radio_device);
             }
-            // Blink the light like the SubGHZ app
+
             notification_message(app->notifications, &sequence_blink_cyan_10);
         }
         view_commit_model(app->view_about, true);

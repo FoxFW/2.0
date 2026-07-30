@@ -6,13 +6,6 @@
 #include <lib/subghz/blocks/generic.h>
 #include <lib/subghz/blocks/math.h>
 
-/*
- * Help
- * https://pdf1.alldatasheet.com/datasheet-pdf/view/82103/HOLTEK/HT640.html
- * https://fccid.io/OJM-CMD-HHLR-XXXA
- *
- */
-
 #define TAG "SubGhzProtocolHoltek"
 
 #define HOLTEK_HEADER_MASK 0xF000000000
@@ -100,11 +93,6 @@ void subghz_protocol_encoder_holtek_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderHoltek instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_holtek_get_upload(SubGhzProtocolEncoderHoltek* instance) {
     furi_assert(instance);
 
@@ -117,22 +105,19 @@ static bool subghz_protocol_encoder_holtek_get_upload(SubGhzProtocolEncoderHolte
         instance->encoder.size_upload = size_upload;
     }
 
-    //Send header
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_holtek_const.te_short * 36);
-    //Send start bit
+
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_holtek_const.te_short);
-    //Send key data
+
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_holtek_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_holtek_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_holtek_const.te_short);
             instance->encoder.upload[index++] =
@@ -155,7 +140,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -220,14 +205,12 @@ void subghz_protocol_decoder_holtek_feed(void* context, bool level, uint32_t dur
     case HoltekDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_holtek_const.te_short * 36) <
                         subghz_protocol_holtek_const.te_delta * 36)) {
-            //Found Preambula
             instance->decoder.parser_step = HoltekDecoderStepFoundStartBit;
         }
         break;
     case HoltekDecoderStepFoundStartBit:
         if((level) && (DURATION_DIFF(duration, subghz_protocol_holtek_const.te_short) <
                        subghz_protocol_holtek_const.te_delta)) {
-            //Found StartBit
             instance->decoder.parser_step = HoltekDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -236,7 +219,7 @@ void subghz_protocol_decoder_holtek_feed(void* context, bool level, uint32_t dur
         }
         break;
     case HoltekDecoderStepSaveDuration:
-        //save duration
+
         if(!level) {
             if(duration >= ((uint32_t)subghz_protocol_holtek_const.te_short * 10 +
                             subghz_protocol_holtek_const.te_delta)) {
@@ -288,10 +271,6 @@ void subghz_protocol_decoder_holtek_feed(void* context, bool level, uint32_t dur
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_holtek_check_remote_controller(SubGhzBlockGeneric* instance) {
     if((instance->data & HOLTEK_HEADER_MASK) == HOLTEK_HEADER) {
         instance->serial =
@@ -344,11 +323,9 @@ void subghz_protocol_decoder_holtek_get_string(void* context, FuriString* output
     SubGhzProtocolDecoderHoltek* instance = context;
     subghz_protocol_holtek_check_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

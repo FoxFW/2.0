@@ -1,8 +1,3 @@
-/*
- * Sub-GHz RAW Edit — a tiny waveform editor for Flipper Zero RAW .sub captures.
- * https://github.com/Lechnio/SubGHz-RAW-Edit
- */
-
 #include <furi.h>
 #include <gui/gui.h>
 #include <input/input.h>
@@ -19,7 +14,6 @@
 #include <lib/subghz/environment.h>
 #include <lib/subghz/transmitter.h>
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,9 +23,6 @@
 #define SYNTH_YIELD_CAP 4096
 #define DUR_CLAMP 32000
 
-/* Path of the most recently saved file during an editing session.
- * Set by write_selection() on success; read by subghz_raw_edit_app()
- * to point .focus_file at the saved edit rather than the original. */
 static char g_last_saved_path[256] = {0};
 #define LOAD_HEAP_RESERVE 12288
 
@@ -122,7 +113,7 @@ typedef struct
     bool has_undo;
 
     FuriMutex *mutex;
-    char last_saved_path[256]; /* path of most recently saved file */
+    char last_saved_path[256];
 } App;
 
 static inline int32_t iabs32(int32_t v)
@@ -241,9 +232,6 @@ static void recompute_activity(App *a)
         if (s1 < a->view_start || s0 > a->view_end)
             continue;
 
-        /* The first sample has no transition before it; when it is a leading gap
-         * (a synthesized frame's leading guard) counting it as an edge paints a
-         * lone 1px bar before the silence. Skip it so the gap reads as blank. */
         if (i == 0 && a->sd.data[i] < 0)
             continue;
 
@@ -384,13 +372,6 @@ static void auto_detect(App *a)
         return;
     }
 
-    /* Extend B into the trailing inter-frame gap so the auto-selected frame
-     * keeps the end-of-frame silence that decoders (KeeLoq, ...) require to
-     * finalize a frame. Without it the selection ends on the last bit and the
-     * saved capture won't decode (it had to be widened by hand). Any positive
-     * extension is enough: write_selection emits the whole gap sample once the
-     * marker lands inside it. Limit it to GAP_KEEP_MAX_US so the marker/view
-     * stay tidy and never reach into the next frame. */
     int32_t gap_keep = best_gap;
     if (gap_keep > GAP_KEEP_MAX_US)
         gap_keep = GAP_KEEP_MAX_US;
@@ -490,22 +471,9 @@ static void *safe_realloc(void *ptr, size_t size)
     return realloc(ptr, size);
 }
 
-/* Decoded protocols are synthesized by the firmware's own SubGhz encoder: the
- * key file is deserialized into a transmitter and we collect the level/duration
- * upload it would send on air. Every protocol the firmware supports works with
- * no per-protocol code here. Rolling codes (KeeLoq, Nice Flor-S, ...) increment
- * and re-encrypt their counter inside the encoder, so the synthesized frame is
- * the NEXT counter value, not a byte-for-byte replay; the manufacturer keystores
- * (system + user) are loaded so that encryption works. */
-
 static bool synthesize_via_transmitter(
     Storage *storage, const char *path, const char *protocol, SubData *sd)
 {
-    /* STUBBED for FAP build: subghz_environment_* / subghz_transmitter_*
-     * are internal SubGhz-app symbols, not exported to dynamically loaded
-     * FAPs (causes "Missing Imports" at launch). Decoded-protocol frames
-     * cannot be synthesized standalone; RAW files are unaffected since
-     * they never call into this path. */
     UNUSED(storage);
     UNUSED(path);
     UNUSED(protocol);
@@ -513,9 +481,6 @@ static bool synthesize_via_transmitter(
     return false;
 }
 
-/* Snap each pulse to the nearest multiple of a base unit Te, removing timing
- * jitter and cumulative drift. Te is found by an iterative least-squares fit
- * |dur| ~ m*Te; gaps and noise (outside the data window) are left alone. */
 static bool g_normalize_jitter = false;
 
 #define JITTER_DATA_MIN_US 60
@@ -613,11 +578,6 @@ static bool load_sub(Storage *storage, const char *path, SubData *sd)
 
     uint64_t fsize = storage_file_size(f);
 
-    /* Predict sample count from file weight. Measured RAW .sub captures run
-     * ~4.4-5.4 bytes per sample (number text + sign + space), so fsize/4 is a
-     * tight upper bound: well under the old fsize/2 (~2x) over-allocation, yet
-     * still above the real count so normal captures aren't truncated. Decoded
-     * files are tiny; synthesize_via_transmitter grows the buffer as it yields. */
     size_t est = (size_t)(fsize / 4) + 64;
     if (est > MAX_SAMPLES)
         est = MAX_SAMPLES;
@@ -832,8 +792,6 @@ static size_t count_sub_samples(
         return raw_count;
     }
 
-    /* Decoded protocol: the frame length isn't predictable from the file alone,
-     * so synthesize it once via the firmware encoder and count the samples. */
     if (protocol[0] && strcmp(protocol, "RAW") != 0)
     {
         SubData tmp;
@@ -978,9 +936,6 @@ static bool write_selection(Storage *st, App *a, const char *savename)
         return false;
     }
 
-    /* A synthesized frame is exact - keep its leading guard (a low gap) and
-     * trailing guard verbatim. The trims below would strip the leading silence
-     * (making preamble-less protocols like Princeton undecodable) so skip them. */
     if (!a->sd.synthesized)
     {
         while (i0 < i1 && a->sd.data[i0] < 0)
@@ -1014,9 +969,7 @@ static bool write_selection(Storage *st, App *a, const char *savename)
         snprintf(a->status, sizeof(a->status), "Write failed");
         return false;
     }
-    /* Record the path that was just successfully opened for writing,
-     * so the exit handler can point focus_file at the saved edit rather
-     * than the original file the user entered with. */
+
     snprintf(a->last_saved_path, sizeof(a->last_saved_path), "%s", furi_string_get_cstr(path));
 
     char hdr[192];
@@ -1881,7 +1834,6 @@ cleanup:
     free(app);
 }
 
-/* Called with a path arg from SubGHz "Edit RAW", bypasses the file-browser dialog. */
 static void run_editor_with_path(Storage *storage, DialogsApp *dialogs, const char *path)
 {
     App *app = safe_malloc(sizeof(App));
@@ -2274,11 +2226,6 @@ static uint32_t submenu_back_cb(void *context)
 
 int32_t subghz_raw_edit_app(void *p)
 {
-    /* When launched from SubGHz via the Loader service, p is the absolute
-     * path of the .sub file to edit ("Edit RAW" menu item). We open that
-     * file directly and skip the standalone menu entirely. When launched
-     * from the Apps menu normally, p is NULL/empty and we fall through to
-     * the regular menu below. */
     const char *direct_path = (p && ((const char *)p)[0] != '\0') ? (const char *)p : NULL;
 
     if (direct_path)
@@ -2287,24 +2234,6 @@ int32_t subghz_raw_edit_app(void *p)
         DialogsApp *dialogs = furi_record_open(RECORD_DIALOGS);
         run_editor_with_path(storage, dialogs, direct_path);
 
-        /* Launched FROM SubGHz (not the standalone Apps-list flow below) —
-         * queue SubGHz to relaunch the instant this FAP's thread exits, so
-         * the user gets a round trip back to the exact file/screen rather
-         * than landing on the Desktop.
-         *
-         * Using a marker FILE rather than reusing direct_path as the
-         * relaunch args, even though the file path itself is "proven" —
-         * the actual risk is having BOTH legs of the round trip use args
-         * at all. SubGHz→FAP with args (the file path) is the original,
-         * confirmed-working pattern; the leg that broke for the
-         * Frequency/Modulation Analyzer FAPs was specifically the RETURN
-         * leg using args too (the earlier confirmed-working test used
-         * NULL args for that leg). Matching that same safe pattern here:
-         * outbound uses args, return goes through a marker file instead. */
-        /* Write "rawreturn:<path>" — subghz.c strips the prefix and uses
-         * full allocation (not raw_send_only) on return, giving "More".
-         * If the user saved an edit, use the new file path; otherwise
-         * use the original. g_last_saved_path is set by write_selection(). */
         const char *return_path = (g_last_saved_path[0] != '\0')
             ? g_last_saved_path : direct_path;
         const char *rr_prefix = "rawreturn:";
@@ -2316,7 +2245,7 @@ int32_t subghz_raw_edit_app(void *p)
         }
         storage_file_close(raw_edit_marker);
         storage_file_free(raw_edit_marker);
-        g_last_saved_path[0] = '\0'; /* clear for next session */
+        g_last_saved_path[0] = '\0';
 
         furi_record_close(RECORD_DIALOGS);
         furi_record_close(RECORD_STORAGE);

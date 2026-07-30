@@ -16,16 +16,23 @@ typedef enum {
     DesktopSettingsWallpaper          = 1,
     DesktopSettingsMenuStyle          = 2,
     DesktopSettingsChangeName         = 3,
-    DesktopSettingsFavoriteLeftShort  = 6,
-    DesktopSettingsFavoriteLeftLong   = 7,
-    DesktopSettingsFavoriteRightShort = 8,
-    DesktopSettingsFavoriteRightLong  = 9,
-    DesktopSettingsFavoriteOkLong     = 10,
+    /* 4 = Battery View (inline callback, no sub-scene) */
+    /* 5 = Show Clock  (inline callback, no sub-scene) */
+    DesktopSettingsWifiIcon           = 6,  /* inline callback, no sub-scene */
+    DesktopSettingsFavoriteLeftShort  = 7,
+    DesktopSettingsFavoriteLeftLong   = 8,
+    DesktopSettingsFavoriteRightShort = 9,
+    DesktopSettingsFavoriteRightLong  = 10,
+    DesktopSettingsFavoriteOkLong     = 11,
 } DesktopSettingsEntry;
 
 #define CLOCK_ENABLE_COUNT 2
 static const char* const clock_enable_text[CLOCK_ENABLE_COUNT]  = {"OFF", "ON"};
 static const uint32_t    clock_enable_value[CLOCK_ENABLE_COUNT] = {0, 1};
+
+/* wifi_icon_hidden: 0 = show (ON), 1 = hide (OFF) — index maps directly */
+#define WIFI_ICON_COUNT 2
+static const char* const wifi_icon_text[WIFI_ICON_COUNT] = {"ON", "OFF"};
 
 #define MENU_STYLE_COUNT 2
 static const char* const menu_style_text[MENU_STYLE_COUNT] = {"Classic", "Default"};
@@ -72,6 +79,13 @@ static void desktop_settings_scene_start_clock_enable_changed(VariableItem* item
     app->settings.display_clock = index;
 }
 
+static void desktop_settings_scene_start_wifi_icon_changed(VariableItem* item) {
+    DesktopSettingsApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, wifi_icon_text[index]);
+    app->settings.wifi_icon_hidden = index; /* 0=ON(show), 1=OFF(hide) */
+}
+
 void desktop_settings_scene_start_on_enter(void* context) {
     DesktopSettingsApp* app = context;
     VariableItemList* list = app->variable_item_list;
@@ -108,6 +122,12 @@ void desktop_settings_scene_start_on_enter(void* context) {
         value_index_uint32(app->settings.display_clock, clock_enable_value, CLOCK_ENABLE_COUNT);
     variable_item_set_current_value_index(item, value_index);
     variable_item_set_current_value_text(item, clock_enable_text[value_index]);
+
+    item = variable_item_list_add(
+        list, "WiFi Status Icon", WIFI_ICON_COUNT,
+        desktop_settings_scene_start_wifi_icon_changed, app);
+    variable_item_set_current_value_index(item, app->settings.wifi_icon_hidden);
+    variable_item_set_current_value_text(item, wifi_icon_text[app->settings.wifi_icon_hidden]);
 
     variable_item_list_add(list, "Favourite - Left Short",  0, NULL, NULL);
     variable_item_list_add(list, "Favourite - Left Long",   0, NULL, NULL);
@@ -152,31 +172,31 @@ bool desktop_settings_scene_start_on_event(void* context, SceneManagerEvent even
         case DesktopSettingsChangeName:
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneChangeName);
             break;
-        case DesktopSettingsFavoriteLeftShort:
+        case DesktopSettingsFavoriteLeftShort:  /* = 7 */
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppLeftShort);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteLeftLong:
+        case DesktopSettingsFavoriteLeftLong:   /* = 8 */
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppLeftLong);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteRightShort:
+        case DesktopSettingsFavoriteRightShort: /* = 9 */
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppRightShort);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteRightLong:
+        case DesktopSettingsFavoriteRightLong:  /* = 10 */
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppRightLong);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteOkLong:
+        case DesktopSettingsFavoriteOkLong:     /* = 11 */
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppOkLong);

@@ -13,8 +13,6 @@
  * limitations under the License.
  */
 
-// auto-generated stubs from esp-flasher-stub v0.3.0
-
 #include "esp_stubs.h"
 
 static bool stub_running = false;
@@ -46,10 +44,8 @@ _Static_assert(ESP_MAX_CHIP == 10, "Stub order matches target_chip_t enumeration
 #endif
 
 const esp_stub_t esp_stub[ESP_MAX_CHIP] = {
-    // placeholder
     {},
 
-    // esp32.json
     {
         .header = {
             .entrypoint = 1074274996,
@@ -68,7 +64,6 @@ const esp_stub_t esp_stub[ESP_MAX_CHIP] = {
         },
     },
 
-    // esp32s2.json
     {
         .header = {
             .entrypoint = 1073913140,
@@ -87,7 +82,6 @@ const esp_stub_t esp_stub[ESP_MAX_CHIP] = {
         },
     },
 
-    // esp32c3.json
     {
         .header = {
             .entrypoint = 1077411840,
@@ -106,7 +100,6 @@ const esp_stub_t esp_stub[ESP_MAX_CHIP] = {
         },
     },
 
-    // esp32s3.json
     {
         .header = {
             .entrypoint = 1077391268,
@@ -125,7 +118,6 @@ const esp_stub_t esp_stub[ESP_MAX_CHIP] = {
         },
     },
 
-    // esp32c2.json
     {
         .header = {
             .entrypoint = 1077411840,
@@ -144,10 +136,8 @@ const esp_stub_t esp_stub[ESP_MAX_CHIP] = {
         },
     },
 
-    // placeholder
     {},
 
-    // esp32h2.json
     {
         .header = {
             .entrypoint = 1082130432,
@@ -166,7 +156,6 @@ const esp_stub_t esp_stub[ESP_MAX_CHIP] = {
         },
     },
 
-    // esp32c6.json
     {
         .header = {
             .entrypoint = 1082130432,
@@ -185,9 +174,7 @@ const esp_stub_t esp_stub[ESP_MAX_CHIP] = {
         },
     },
 
-    // placeholder
     {},
-
 };
 
 #endif

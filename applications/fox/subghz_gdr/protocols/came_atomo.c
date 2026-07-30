@@ -11,7 +11,6 @@
 
 #define TAG "SubGhzProtocoCameAtomo"
 
-//variable used to bypass CounterMode settings if user just change Counter or Button
 static bool bypass = false;
 
 static const SubGhzBlockConst subghz_protocol_came_atomo_const = {
@@ -78,11 +77,6 @@ const SubGhzProtocol subghz_protocol_came_atomo = {
 
 static void subghz_protocol_came_atomo_remote_controller(SubGhzBlockGeneric* instance);
 
-/**
- * Defines the button value for the current btn_id
- * Basic set | 0x0 | 0x2 | 0x4 | 0x6 |
- * @return Button code
- */
 static uint8_t subghz_protocol_came_atomo_get_btn_code(void);
 
 void* subghz_protocol_encoder_came_atomo_alloc(SubGhzEnvironment* environment) {
@@ -93,7 +87,7 @@ void* subghz_protocol_encoder_came_atomo_alloc(SubGhzEnvironment* environment) {
     instance->generic.protocol_name = instance->base.protocol->name;
 
     instance->encoder.repeat = 1;
-    instance->encoder.size_upload = 900; //actual size 766+
+    instance->encoder.size_upload = 900;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
     instance->encoder.is_running = false;
     return instance;
@@ -174,10 +168,6 @@ bool subghz_protocol_came_atomo_create_data(
            subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderCameAtomo instance
- */
 static void subghz_protocol_encoder_came_atomo_get_upload(
     SubGhzProtocolEncoderCameAtomo* instance,
     uint8_t btn) {
@@ -190,18 +180,15 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
 
     uint8_t pack[8] = {};
 
-    // if we change counter/button in SignalSettings menu then we must bypass counter_modes, just gen and save signal file.
     if(subghz_block_generic_global.cnt_need_override ||
        subghz_block_generic_global.btn_need_override)
         bypass = true;
 
     if(came_atomo_counter_mode == 0 || bypass) {
-        // Check for OFEX (overflow experimental) mode
         if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF || bypass) {
             bypass = false;
-            // standart counter mode. PULL data from subghz_block_generic_global variables
+
             if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
-                // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
                 if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
                     instance->generic.cnt = 0;
                 } else {
@@ -209,7 +196,6 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
                 }
             }
         } else {
-            //OFFEX mode
             if((instance->generic.cnt + 0x1) > 0xFFFF) {
                 instance->generic.cnt = 0;
             } else if(instance->generic.cnt >= 0x1 && instance->generic.cnt != 0xFFFE) {
@@ -219,8 +205,6 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
             }
         }
     } else if(came_atomo_counter_mode == 1) {
-        // Mode 1
-        // 0000 / 0001 / FFFE / FFFF
         if((instance->generic.cnt + 0x1) > 0xFFFF) {
             instance->generic.cnt = 0;
         } else if(instance->generic.cnt >= 0x1 && instance->generic.cnt != 0xFFFE) {
@@ -229,8 +213,6 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
             instance->generic.cnt++;
         }
     } else if(came_atomo_counter_mode == 2) {
-        // Mode 2
-        // 0x807B / 0x807C / 0x007B / 0x007C
         if(instance->generic.cnt != 0x807B && instance->generic.cnt != 0x807C &&
            instance->generic.cnt != 0x007B) {
             instance->generic.cnt = 0x807B;
@@ -240,13 +222,7 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
             instance->generic.cnt++;
         }
     } else {
-        // Mode 3 - Freeze counter
     }
-
-    // Save original button for later use
-    // if(subghz_custom_btn_get_original() == 0) {
-    //             // // subghz_custom_btn_set_original(btn);
-    // }
 
     btn = subghz_protocol_came_atomo_get_btn_code();
 
@@ -260,20 +236,16 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
         btn = 0x6;
     }
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&btn))
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", btn);
 
-    //Send header
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_came_atomo_const.te_long * 15);
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_came_atomo_const.te_long * 60);
 
-    // Btn counter 0x0 - 0x7F
     pack[0] = 0;
     for(uint8_t i = 0; i < 8; i++) {
-        //pack[0] = (instance->generic.data_2 >> 56);
         pack[1] = (instance->generic.cnt >> 8);
         pack[2] = (instance->generic.cnt & 0xFF);
         pack[3] = ((instance->generic.data_2 >> 32) & 0xFF);
@@ -282,33 +254,27 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
         pack[6] = ((instance->generic.data_2 >> 8) & 0xFF);
         pack[7] = (btn << 4);
 
-        /* if(pack[0] == 0x7F) {
-            pack[0] = 0;
-        } else {
-            pack[0] += (i + 1);
-        }
-        */
         switch(i) {
         case 0:
-            pack[0] = 10; // 0A
+            pack[0] = 10;
             break;
         case 1:
             pack[0] = 30;
             break;
         case 2:
-            pack[0] = 125; // 7D
+            pack[0] = 125;
             break;
         case 3:
-            pack[0] = 126; // 7E
+            pack[0] = 126;
             break;
         case 4:
-            pack[0] = 127; // 7F
+            pack[0] = 127;
             break;
         case 5:
-            pack[0] = 0; // 00
+            pack[0] = 0;
             break;
         case 6:
-            pack[0] = 1; // 01
+            pack[0] = 1;
             break;
         case 7:
             pack[0] = 3;
@@ -317,7 +283,6 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
         default:
             break;
         }
-        // 10 50 125 126 127 0 1 2
 
         atomo_encrypt(pack);
         uint32_t hi = pack[0] << 24 | pack[1] << 16 | pack[2] << 8 | pack[3];
@@ -350,7 +315,7 @@ static void subghz_protocol_encoder_came_atomo_get_upload(
         if(level_duration_get_level(instance->encoder.upload[index])) {
             index++;
         }
-        //Send pause
+
         instance->encoder.upload[index++] =
             level_duration_make(false, (uint32_t)subghz_protocol_came_atomo_const.te_delta * 272);
     }
@@ -387,7 +352,6 @@ SubGhzProtocolStatus
             break;
         }
 
-        // Optional value
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -482,12 +446,11 @@ void subghz_protocol_decoder_came_atomo_feed(void* context, bool level, uint32_t
     ManchesterEvent event = ManchesterEventReset;
     switch(instance->decoder.parser_step) {
     case CameAtomoDecoderStepReset:
-        // There are two known options for the header: 72K us (TOP42R, TOP44R) or 12k us (found on TOP44RBN)
+
         if((!level) && ((DURATION_DIFF(duration, subghz_protocol_came_atomo_const.te_long * 10) <
                          subghz_protocol_came_atomo_const.te_delta * 20) ||
                         (DURATION_DIFF(duration, subghz_protocol_came_atomo_const.te_long * 60) <
                          subghz_protocol_came_atomo_const.te_delta * 40))) {
-            //Found header CAME
             instance->decoder.parser_step = CameAtomoDecoderStepDecoderData;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 1;
@@ -563,76 +526,7 @@ void subghz_protocol_decoder_came_atomo_feed(void* context, bool level, uint32_t
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- * @param file_name Full path to rainbow table the file
- */
 static void subghz_protocol_came_atomo_remote_controller(SubGhzBlockGeneric* instance) {
-    /*
-    * ***SkorP ver.***
-    * 0x1fafef3ed0f7d9ef
-    * 0x185fcc1531ee86e7
-    * 0x184fa96912c567ff
-    * 0x187f8a42f3dc38f7
-    * 0x186f63915492a5cd
-    * 0x181f40bab58bfac5
-    * 0x180f25c696a01bdd
-    * 0x183f06ed77b944d5
-    * 0x182ef661d83d21a9
-    * 0x18ded54a39247ea1
-    * 0x18ceb0361a0f9fb9
-    * 0x18fe931dfb16c0b1
-    * 0x18ee7ace5c585d8b
-    * ........ 
-    * transmission consists of 99 parcels with increasing counter while holding down the button
-    * with each new press, the counter in the encrypted part increases
-    * 
-    * 0x1FAFF13ED0F7D9EF
-    * 0x1FAFF11ED0F7D9EF
-    * 0x1FAFF10ED0F7D9EF
-    * 0x1FAFF0FED0F7D9EF
-    * 0x1FAFF0EED0F7D9EF
-    * 0x1FAFF0DED0F7D9EF
-    * 0x1FAFF0CED0F7D9EF
-    * 0x1FAFF0BED0F7D9EF
-    * 0x1FAFF0AED0F7D9EF 
-    * 
-    *                   where     0x1FAF - parcel counter, 0хF0A - button press counter,
-    *                           0xED0F7D9E - serial number, 0хF -  key
-    * 0x1FAF parcel counter - 1 in the parcel queue ^ 0x185F =  0x07F0
-    * 0x185f ^ 0x185F = 0x0000
-    * 0x184f ^ 0x185F = 0x0010
-    * 0x187f ^ 0x185F = 0x0020
-    * .....
-    * 0x182e ^ 0x185F = 0x0071 
-    * 0x18de ^ 0x185F = 0x0081
-    * .....
-    * 0x1e43 ^ 0x185F = 0x061C
-    *                           where the last nibble is incremented every 8 samples
-    * 
-    * Decode
-    * 
-    * 0x1cf6931dfb16c0b1 => 0x1cf6
-    * 0x1cf6 ^ 0x185F = 0x04A9
-    * 0x04A9 => 0x04A = 74 (dec)
-    * 74+1 % 32(atomo_magic_xor) = 11
-    * GET atomo_magic_xor[11] = 0xXXXXXXXXXXXXXXXX
-    * 0x931dfb16c0b1 ^ 0xXXXXXXXXXXXXXXXX =  0xEF3ED0F7D9EF
-    * 0xEF3 ED0F7D9E F  => 0xEF3 - CNT, 0xED0F7D9E - SN, 0xF - key
-    * 
-    *  ***Actual***
-    * Button hold-cycle counter (8-bit, from 0 to 0x7F) should DO full cycle or half cycle keeping values like zero
-    * 0x1FF08D9924984115 - received data
-    * 0x00F7266DB67BEEA0 - inverted data
-    * 0x0501FD0000A08300 - decrypted data, 
-    * where: 0x05 - Button hold-cycle counter (8-bit, from 0 to 0x7F)
-    *        0x01FD - Parcel counter (normal 16-bit counter)
-    *        0x0000A083 - Serial number (32-bit)
-    *        0x0 - Button code (4-bit, 0x0 - #1 left-up; 0x2 - #2 right-up; 0x4 - #3 left-down;  0x6 - #4 right-down)
-    *        0x0 - Last zero nibble
-    * */
-
     instance->data ^= 0xFFFFFFFFFFFFFFFF;
     instance->data <<= 4;
 
@@ -667,11 +561,8 @@ static void subghz_protocol_came_atomo_remote_controller(SubGhzBlockGeneric* ins
     uint32_t lo = pack[4] << 24 | pack[5] << 16 | pack[6] << 8 | pack[7];
     instance->data_2 = (uint64_t)hi << 32 | lo;
 
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
-        // subghz_custom_btn_set_original(instance->btn);
     }
-    // subghz_custom_btn_set_max(3);
 }
 
 void atomo_encrypt(uint8_t* buff) {
@@ -720,9 +611,7 @@ static uint8_t subghz_protocol_came_atomo_get_btn_code(void) {
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -838,7 +727,6 @@ void subghz_protocol_decoder_came_atomo_get_string(void* context, FuriString* ou
     uint32_t code_found_hi = instance->generic.data >> 32;
     uint32_t code_found_lo = instance->generic.data & 0x00000000ffffffff;
 
-    // push protocol data to global variable
     subghz_block_generic_global.cnt_is_available = true;
     subghz_block_generic_global.cnt_length_bit = 16;
     subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -846,8 +734,6 @@ void subghz_protocol_decoder_came_atomo_get_string(void* context, FuriString* ou
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-
-    //
 
     furi_string_cat_printf(
         output,

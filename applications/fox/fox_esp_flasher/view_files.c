@@ -4,7 +4,8 @@
 static FlasherApp* s_app = NULL;
 
 typedef struct {
-    uint8_t selected; /* 0-3 (0-2 = files, 3 = Install) */
+    uint8_t selected;
+    uint8_t offset;
 } FilesModel;
 
 typedef enum {
@@ -15,13 +16,13 @@ typedef enum {
     FileRowCount,
 } FileRow;
 
-#define BOX_X 4
-#define BOX_W 120
-#define BOX_H 14
-#define BOX_R 3
+#define BOX_X  4
+#define BOX_W  120
+#define BOX_H  22
+#define BOX_R  4
 
-static const uint8_t k_box_y[FileRowCount] = {10, 26, 42, 52};
-static const char* k_row_label[3] = {"Bootloader", "Partitions", "Firmware"};
+static const uint8_t k_slot_y[2] = {15, 40};
+static const char* const k_row_label[3] = {"Bootloader", "Partitions", "Firmware"};
 
 static const char* fname(const char* path) {
     if(!path || path[0] == '\0') return "(not set)";
@@ -36,39 +37,36 @@ static void files_draw(Canvas* canvas, void* model_ptr) {
 
     canvas_clear(canvas);
     canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str_aligned(canvas, 64, 1, AlignCenter, AlignTop, "Select .bin Files");
+    canvas_draw_str_aligned(canvas, 64, 2, AlignCenter, AlignTop, "Select .bin Files");
 
     const char* paths[3] = {app->file_bootloader, app->file_partitions, app->file_firmware};
-    bool all_set = (app->files_selected & 0x07) == 0x07;
 
-    for(uint8_t row = 0; row < (uint8_t)FileRowCount; row++) {
+    for(uint8_t slot = 0; slot < 2; slot++) {
+        uint8_t row = m->offset + slot;
+        if(row >= (uint8_t)FileRowCount) break;
+
         bool sel = (m->selected == row);
-        uint8_t y = k_box_y[row];
-        uint8_t h = (row == FileRowInstall) ? BOX_H + 2 : BOX_H;
+        uint8_t y  = k_slot_y[slot];
+
+        if(row == FileRowInstall) {
+            flasher_draw_ok_button(canvas, BOX_X, y, BOX_W, BOX_H, BOX_R, "INSTALL");
+            continue;
+        }
 
         canvas_set_color(canvas, ColorBlack);
         if(sel) {
-            canvas_draw_rbox(canvas, BOX_X, y, BOX_W, h, BOX_R);
+            canvas_draw_rbox(canvas, BOX_X, y, BOX_W, BOX_H, BOX_R);
             canvas_set_color(canvas, ColorWhite);
         } else {
-            canvas_draw_rframe(canvas, BOX_X, y, BOX_W, h, BOX_R);
-            canvas_draw_rframe(canvas, BOX_X + 2, y + 2, BOX_W - 4, h - 4, BOX_R - 1);
+            canvas_draw_rframe(canvas, BOX_X, y, BOX_W, BOX_H, BOX_R);
         }
 
-        uint8_t ty = y + h / 2;
+        canvas_set_font(canvas, FontPrimary);
+        canvas_draw_str_aligned(canvas, 64, y + 8, AlignCenter, AlignCenter, k_row_label[row]);
         canvas_set_font(canvas, FontSecondary);
-
-        if(row < 3) {
-            char text[40];
-            const char* fn = fname(paths[row]);
-            char fn_short[17];
-            snprintf(fn_short, sizeof(fn_short), "%s", fn);
-            snprintf(text, sizeof(text), "%s: %s", k_row_label[row], fn_short);
-            canvas_draw_str_aligned(canvas, 64, ty, AlignCenter, AlignCenter, text);
-        } else {
-            const char* label = all_set ? "Install" : "Install (select all files)";
-            canvas_draw_str_aligned(canvas, 64, ty, AlignCenter, AlignCenter, label);
-        }
+        char fn_short[19];
+        snprintf(fn_short, sizeof(fn_short), "%s", fname(paths[row]));
+        canvas_draw_str_aligned(canvas, 64, y + 17, AlignCenter, AlignCenter, fn_short);
         canvas_set_color(canvas, ColorBlack);
     }
 }
@@ -80,13 +78,18 @@ static bool files_input(InputEvent* event, void* context) {
     switch(event->key) {
     case InputKeyUp:
         with_view_model(app->files_view, FilesModel* m, {
-            m->selected = (m->selected == 0) ? (uint8_t)(FileRowCount - 1)
-                                              : m->selected - 1;
+            if(m->selected > 0) {
+                m->selected--;
+                if(m->selected < m->offset) m->offset = m->selected;
+            }
         }, true);
         return true;
     case InputKeyDown:
         with_view_model(app->files_view, FilesModel* m, {
-            m->selected = (m->selected + 1) % FileRowCount;
+            if(m->selected < (uint8_t)(FileRowCount - 1)) {
+                m->selected++;
+                if(m->selected >= m->offset + 2) m->offset = m->selected - 1;
+            }
         }, true);
         return true;
     case InputKeyOk: {
@@ -107,7 +110,7 @@ static bool files_input(InputEvent* event, void* context) {
         char* dest = (sel == FileRowBoot) ? app->file_bootloader
                    : (sel == FileRowPart) ? app->file_partitions
                                           : app->file_firmware;
-        FuriString* path_str = furi_string_alloc_set(EXT_PATH(""));
+        FuriString* path_str = furi_string_alloc_set(FLASHER_DATA_DIR);
 
         if(dialog_file_browser_show(app->dialogs, path_str, path_str, &opts)) {
             snprintf(dest, FLASHER_PATH_LEN, "%s", furi_string_get_cstr(path_str));
@@ -131,7 +134,7 @@ View* view_files_alloc(FlasherApp* app) {
     view_set_input_callback(v, files_input);
     view_set_context(v, app);
     view_allocate_model(v, ViewModelTypeLocking, sizeof(FilesModel));
-    with_view_model(v, FilesModel* m, { m->selected = 0; }, false);
+    with_view_model(v, FilesModel* m, { m->selected = 0; m->offset = 0; }, false);
     return v;
 }
 
@@ -142,4 +145,11 @@ void view_files_free(View* v) {
 
 void view_files_refresh(View* v) {
     with_view_model(v, FilesModel* m, { UNUSED(m); }, true);
+}
+
+void view_files_select_install(View* v) {
+    with_view_model(v, FilesModel* m, {
+        m->selected = FileRowInstall;
+        m->offset = 2;
+    }, true);
 }

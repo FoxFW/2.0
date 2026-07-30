@@ -1,6 +1,7 @@
 #include "app.h"
 #include "fox_esp32_commander_icons.h"
 #include "wifi_menu.h"
+#include "saved_wifi.h"
 #include "ble_menu.h"
 #include "tags_menu.h"
 #include "scripts_menu.h"
@@ -35,7 +36,15 @@ static const uint32_t baud_options[] = {115200};
 #define BAUD_OPTION_DEFAULT_INDEX 0
 
 #define FOX_TERMINAL_LOG_MAX_CHARS 4000
-#define FOX_COMMANDER_EVENT_SPLASH_DONE 0
+#define FOX_COMMANDER_EVENT_SPLASH_DONE   0
+#define FOX_CHAT_EVENT_SERIAL_BUSY_TICK   1
+#define FOX_CHAT_EVENT_SERIAL_DO_RETRY    2
+
+typedef enum {
+    ProbeResultOk,
+    ProbeResultSerialBusy,
+    ProbeResultNotFound,
+} ProbeResult;
 
 void app_log(App* app, const char* fmt, ...) {
     char buffer[128];
@@ -46,6 +55,18 @@ void app_log(App* app, const char* fmt, ...) {
 
     if(furi_string_size(app->log) > 0) furi_string_cat(app->log, "\n");
     furi_string_cat(app->log, buffer);
+
+    if(furi_string_size(app->log) > FOX_TERMINAL_LOG_MAX_CHARS) {
+        size_t excess = furi_string_size(app->log) - FOX_TERMINAL_LOG_MAX_CHARS;
+        size_t cut = furi_string_search_char(app->log, '\n', excess);
+        cut = (cut == FURI_STRING_FAILURE) ? excess : (cut + 1);
+        furi_string_right(app->log, cut);
+    }
+}
+
+void app_log_raw(App* app, const char* text) {
+    if(furi_string_size(app->log) > 0) furi_string_cat(app->log, "\n");
+    furi_string_cat(app->log, text);
 
     if(furi_string_size(app->log) > FOX_TERMINAL_LOG_MAX_CHARS) {
         size_t excess = furi_string_size(app->log) - FOX_TERMINAL_LOG_MAX_CHARS;
@@ -87,6 +108,9 @@ void app_switch_to_menu(App* app, MenuContext ctx) {
     case MenuContextWifiRecon:
     case MenuContextWifiAttacks:
         wifi_render_menu(app, ctx);
+        break;
+    case MenuContextWifiSavedAction:
+        wifi_saved_action_render_menu(app);
         break;
     case MenuContextWifiHttp:
         http_render_menu(app);
@@ -144,6 +168,9 @@ static void text_input_result_callback(void* context) {
     case TextInputPurposeTerminalCommand:
         terminal_command_submitted(app);
         break;
+    case TextInputPurposeSavedWifiEditPassword:
+        wifi_saved_edit_password_submitted(app);
+        break;
     default:
         break;
     }
@@ -160,6 +187,9 @@ void app_menu_item_callback(void* context, uint32_t index) {
     case MenuContextWifiRecon:
     case MenuContextWifiAttacks:
         wifi_menu_select(app, app->menu_context, index);
+        break;
+    case MenuContextWifiSavedAction:
+        wifi_saved_action_select(app, index);
         break;
     case MenuContextWifiHttp:
         http_menu_select(app, index);
@@ -321,7 +351,7 @@ static bool terminal_input_cb(InputEvent* event, void* context) {
         return true;
     case InputKeyBack:
     case InputKeyLeft:
-        return false; /* navigation_callback returns to the menu */
+        return false;
     default:
         return false;
     }
@@ -352,9 +382,20 @@ static void main_render_menu(App* app) {
 
 static void main_menu_select(App* app, uint32_t index) {
     switch((MenuMainIndex)index) {
-    case MenuMainWifi:
+    case MenuMainWifi: {
+        esp_at_send(app->esp_at, "WIFIFOXPORTAL:STATUS");
+        EspAtMsg portal_msg;
+        bool portal_running = false;
+        if(esp_at_receive(app->esp_at, &portal_msg, 1500)) {
+            portal_running = strncmp(portal_msg.line, "FOXPORTAL:RUNNING:", 18) == 0;
+        }
+        if(portal_running) {
+            message_view_show_portal_running(app);
+            break;
+        }
         app_switch_to_menu(app, MenuContextWifi);
         break;
+    }
     case MenuMainBluetooth:
         app_switch_to_menu(app, MenuContextBluetooth);
         break;
@@ -365,12 +406,7 @@ static void main_menu_select(App* app, uint32_t index) {
         app_switch_to_menu(app, MenuContextScripts);
         break;
     case MenuMainSettings:
-        /* Switch to the Settings view first (it renders the last-known
-           attacks_enabled state immediately, same default-then-refresh
-           feel as everywhere else in this app), then run the blocking
-           SETTINGS query and force one more redraw once it lands -
-           otherwise the Menu screen just sits frozen for up to 1.5s
-           after the click, before Settings appears at all. */
+
         app->current_view = FoxCommanderViewSettings;
         view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewSettings);
         settings_view_refresh(app);
@@ -385,12 +421,6 @@ static void main_menu_select(App* app, uint32_t index) {
     }
 }
 
-/* Expert Mode's free-typed raw command - sent to the firmware exactly
-   as typed, then straight to Terminal to watch for the reply, same
-   "send, log, switch to Terminal, block for one reply line" shape as
-   http_get_url_submitted() in http_menu.c. Kept here rather than its
-   own module since it's a single simple action with no state of its
-   own beyond the shared text_input_buffer. */
 static void terminal_command_submitted(App* app) {
     if(app->text_input_buffer[0] == '\0') {
         app_log(app, "No command entered.");
@@ -418,6 +448,8 @@ static MenuContext menu_parent_context(MenuContext ctx) {
     case MenuContextWifiAttacks:
     case MenuContextWifiHttp:
         return MenuContextWifi;
+    case MenuContextWifiSavedAction:
+        return MenuContextWifiConnection;
     case MenuContextScriptActions:
         return MenuContextScripts;
     default:
@@ -425,9 +457,9 @@ static MenuContext menu_parent_context(MenuContext ctx) {
     }
 }
 
-static bool app_probe_uart(App* app, size_t pin_index, size_t baud_index) {
+static ProbeResult app_probe_uart(App* app, size_t pin_index, size_t baud_index) {
     app->esp_at = esp_at_alloc(pin_options[pin_index].serial_id, baud_options[baud_index]);
-    if(app->esp_at == NULL) return false;
+    if(app->esp_at == NULL) return ProbeResultSerialBusy;
 
     esp_at_send(app->esp_at, "info");
     bool ok = app_expect_line(app, "Fox ESP32 Firmware", 1500);
@@ -435,7 +467,7 @@ static bool app_probe_uart(App* app, size_t pin_index, size_t baud_index) {
     if(!ok) {
         esp_at_free(app->esp_at);
         app->esp_at = NULL;
-        return false;
+        return ProbeResultNotFound;
     }
 
     app->pin_option_index = pin_index;
@@ -448,14 +480,25 @@ static bool app_probe_uart(App* app, size_t pin_index, size_t baud_index) {
         app->has_ble = false;
     }
 
-    return true;
+    return ProbeResultOk;
+}
+
+static void app_goto_post_detect_menu(App* app) {
+    if(app->launch_wifi_connection) {
+        app->launch_wifi_connection = false;
+        app_switch_to_menu(app, MenuContextWifiConnection);
+    } else {
+        app_switch_to_menu(app, MenuContextMain);
+    }
 }
 
 static void action_check_esp32(App* app) {
     message_view_show_detecting(app);
 
+    bool any_busy = false;
     for(size_t i = 0; i < PIN_OPTION_COUNT; i++) {
-        if(app_probe_uart(app, i, BAUD_OPTION_DEFAULT_INDEX)) {
+        ProbeResult r = app_probe_uart(app, i, BAUD_OPTION_DEFAULT_INDEX);
+        if(r == ProbeResultOk) {
             app->esp32_detected = true;
             app_log(app, "Fox ESP32 Firmware detected");
             app_log(
@@ -463,12 +506,19 @@ static void action_check_esp32(App* app) {
                 "on %s @ %lu",
                 pin_options[i].label,
                 (unsigned long)baud_options[BAUD_OPTION_DEFAULT_INDEX]);
-            app_switch_to_menu(app, MenuContextMain);
+            app_goto_post_detect_menu(app);
             return;
         }
+        if(r == ProbeResultSerialBusy) any_busy = true;
     }
 
-    message_view_show_not_detected(app);
+    if(any_busy) {
+        app->serial_busy_countdown = 3;
+        message_view_show_serial_busy(app);
+        furi_timer_start(app->serial_busy_timer, 1000);
+    } else {
+        message_view_show_not_detected(app);
+    }
 }
 
 void app_retry_detection(App* app) {
@@ -497,7 +547,8 @@ uint32_t app_baud_option_value(size_t index) {
 bool app_probe_uart_selected(App* app) {
     message_view_show_detecting(app);
 
-    if(app_probe_uart(app, app->pin_option_index, app->baud_option_index)) {
+    ProbeResult r = app_probe_uart(app, app->pin_option_index, app->baud_option_index);
+    if(r == ProbeResultOk) {
         app->esp32_detected = true;
         app_log(app, "Fox ESP32 Firmware detected");
         app_log(
@@ -505,8 +556,15 @@ bool app_probe_uart_selected(App* app) {
             "on %s @ %lu",
             pin_options[app->pin_option_index].label,
             (unsigned long)baud_options[app->baud_option_index]);
-        app_switch_to_menu(app, MenuContextMain);
+        app_goto_post_detect_menu(app);
         return true;
+    }
+
+    if(r == ProbeResultSerialBusy) {
+        app->serial_busy_countdown = 3;
+        message_view_show_serial_busy(app);
+        furi_timer_start(app->serial_busy_timer, 1000);
+        return false;
     }
 
     message_view_show_not_detected(app);
@@ -518,10 +576,56 @@ static void fox_splash_done_cb(void* context) {
     view_dispatcher_send_custom_event(app->view_dispatcher, FOX_COMMANDER_EVENT_SPLASH_DONE);
 }
 
+static void serial_busy_timer_cb(void* context) {
+    App* app = context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, FOX_CHAT_EVENT_SERIAL_BUSY_TICK);
+}
+
+static void serial_retry_timer_cb(void* context) {
+    App* app = context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, FOX_CHAT_EVENT_SERIAL_DO_RETRY);
+}
+
 static bool custom_event_callback(void* context, uint32_t event) {
     App* app = context;
     if(event == FOX_COMMANDER_EVENT_SPLASH_DONE) {
         action_check_esp32(app);
+        return true;
+    }
+    if(event == FOX_CHAT_EVENT_SERIAL_BUSY_TICK) {
+        if(app->serial_busy_countdown > 0) {
+            app->serial_busy_countdown--;
+            if(app->serial_busy_countdown == 0) {
+                furi_timer_stop(app->serial_busy_timer);
+                app->message_view_serial_retrying = true;
+            }
+            with_view_model(app->message_view, uint8_t * _m, { UNUSED(_m); }, true);
+            if(app->serial_busy_countdown == 0) {
+                furi_timer_start(app->serial_retry_timer, 500);
+            }
+        }
+        return true;
+    }
+    if(event == FOX_CHAT_EVENT_SERIAL_DO_RETRY) {
+        bool found = false;
+        for(size_t i = 0; i < PIN_OPTION_COUNT; i++) {
+            ProbeResult r = app_probe_uart(app, i, BAUD_OPTION_DEFAULT_INDEX);
+            if(r == ProbeResultOk) {
+                app->esp32_detected = true;
+                app->message_view_serial_busy     = false;
+                app->message_view_serial_retrying = false;
+                app_log(app, "Fox ESP32 Firmware detected");
+                app_log(
+                    app,
+                    "on %s @ %lu",
+                    pin_options[i].label,
+                    (unsigned long)baud_options[BAUD_OPTION_DEFAULT_INDEX]);
+                app_goto_post_detect_menu(app);
+                found = true;
+                break;
+            }
+        }
+        if(!found) message_view_show_serial_retry_failed(app);
         return true;
     }
     return false;
@@ -535,6 +639,11 @@ static bool navigation_callback(void* context) {
             view_dispatcher_stop(app->view_dispatcher);
             return true;
         }
+        if(app->menu_context == MenuContextWifiSavedAction && app->saved_wifi_count > 0) {
+            app->current_view = FoxCommanderViewSavedWifiList;
+            view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewSavedWifiList);
+            return true;
+        }
         app_switch_to_menu(app, menu_parent_context(app->menu_context));
         return true;
     }
@@ -542,6 +651,7 @@ static bool navigation_callback(void* context) {
     if(app->current_view == FoxCommanderViewTerminal ||
        app->current_view == FoxCommanderViewNetworkList ||
        app->current_view == FoxCommanderViewStationList ||
+       app->current_view == FoxCommanderViewSavedWifiList ||
        app->current_view == FoxCommanderViewTextInput) {
         app_switch_to_menu(app, app->menu_return_context);
         return true;
@@ -562,7 +672,7 @@ static bool navigation_callback(void* context) {
     return true;
 }
 
-static App* app_alloc(void) {
+static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
     App* app = malloc(sizeof(App));
     memset(app, 0, sizeof(App));
 
@@ -572,7 +682,8 @@ static App* app_alloc(void) {
     app->pending_http_url = furi_string_alloc();
     app->baud_option_index = BAUD_OPTION_DEFAULT_INDEX;
     app->attacks_enabled = false;
-    app_expert_mode_load(app); /* local-only setting, no firmware round trip - see settings_view.h */
+    app->launch_wifi_connection = wifi_connection_target;
+    app_expert_mode_load(app);
 
     app->gui = furi_record_open(RECORD_GUI);
     app->view_dispatcher = view_dispatcher_alloc();
@@ -603,6 +714,7 @@ static App* app_alloc(void) {
 
     app->network_list_view = wifi_network_list_view_alloc(app);
     app->station_list_view = wifi_station_list_view_alloc(app);
+    app->saved_wifi_list_view = wifi_saved_list_view_alloc(app);
     app->settings_view = settings_view_alloc(app);
     app->connect_settings_view = connect_settings_view_alloc(app);
 
@@ -619,6 +731,8 @@ static App* app_alloc(void) {
     view_dispatcher_add_view(
         app->view_dispatcher, FoxCommanderViewStationList, app->station_list_view);
     view_dispatcher_add_view(
+        app->view_dispatcher, FoxCommanderViewSavedWifiList, app->saved_wifi_list_view);
+    view_dispatcher_add_view(
         app->view_dispatcher, FoxCommanderViewTextInput, text_input_get_view(app->text_input));
     view_dispatcher_add_view(
         app->view_dispatcher, FoxCommanderViewSettings, app->settings_view);
@@ -627,14 +741,26 @@ static App* app_alloc(void) {
 
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    app->current_view = FoxCommanderViewSplash;
-    view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewSplash);
-    fox_splash_start(app->splash);
+    app->serial_busy_timer  = furi_timer_alloc(serial_busy_timer_cb,  FuriTimerTypePeriodic, app);
+    app->serial_retry_timer = furi_timer_alloc(serial_retry_timer_cb, FuriTimerTypeOnce,     app);
+
+    if(skip_splash) {
+        action_check_esp32(app);
+    } else {
+        app->current_view = FoxCommanderViewSplash;
+        view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewSplash);
+        fox_splash_start(app->splash);
+    }
 
     return app;
 }
 
 static void app_free(App* app) {
+    furi_timer_stop(app->serial_busy_timer);
+    furi_timer_free(app->serial_busy_timer);
+    furi_timer_stop(app->serial_retry_timer);
+    furi_timer_free(app->serial_retry_timer);
+
     if(app->esp_at != NULL) esp_at_free(app->esp_at);
 
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewSplash);
@@ -643,6 +769,7 @@ static void app_free(App* app) {
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewTerminal);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewNetworkList);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewStationList);
+    view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewSavedWifiList);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewTextInput);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewSettings);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewConnectSettings);
@@ -653,6 +780,7 @@ static void app_free(App* app) {
     s_terminal_view_app = NULL;
     wifi_network_list_view_free(app->network_list_view);
     wifi_station_list_view_free(app->station_list_view);
+    wifi_saved_list_view_free(app->saved_wifi_list_view);
     settings_view_free(app->settings_view);
     connect_settings_view_free(app->connect_settings_view);
     text_input_free(app->text_input);
@@ -668,8 +796,11 @@ static void app_free(App* app) {
 }
 
 int32_t fox_esp32_commander_main(void* p) {
-    UNUSED(p);
-    App* app = app_alloc();
+    const char* arg = (const char*)p;
+    bool wifi_connection_target = (arg != NULL && strcmp(arg, "SKIPSPLASH_WIFICONN") == 0);
+    bool skip_splash =
+        wifi_connection_target || (arg != NULL && strcmp(arg, "SKIPSPLASH") == 0);
+    App* app = app_alloc(skip_splash, wifi_connection_target);
     view_dispatcher_run(app->view_dispatcher);
     app_free(app);
     return 0;

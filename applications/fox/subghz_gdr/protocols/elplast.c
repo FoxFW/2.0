@@ -87,22 +87,15 @@ void subghz_protocol_encoder_elplast_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderElplast instance
- */
 static void subghz_protocol_encoder_elplast_get_upload(SubGhzProtocolEncoderElplast* instance) {
     furi_assert(instance);
     size_t index = 0;
 
-    // Send key and GAP
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            // Send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_elplast_const.te_long);
             if(i == 1) {
-                //Send gap if bit was last
                 instance->encoder.upload[index++] = level_duration_make(
                     false, (uint32_t)subghz_protocol_elplast_const.te_long * 8);
             } else {
@@ -110,11 +103,9 @@ static void subghz_protocol_encoder_elplast_get_upload(SubGhzProtocolEncoderElpl
                     level_duration_make(false, (uint32_t)subghz_protocol_elplast_const.te_short);
             }
         } else {
-            // Send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_elplast_const.te_short);
             if(i == 1) {
-                //Send gap if bit was last
                 instance->encoder.upload[index++] = level_duration_make(
                     false, (uint32_t)subghz_protocol_elplast_const.te_long * 8);
             } else {
@@ -141,7 +132,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -199,18 +190,10 @@ void subghz_protocol_decoder_elplast_feed(void* context, bool level, volatile ui
     furi_assert(context);
     SubGhzProtocolDecoderElplast* instance = context;
 
-    // Elplast/P-11B/3BK/E.C.A Decoder
-    // 2025.09 - @xMasterX (MMX)
-
-    // Key samples
-    // 00110010110000001010 = 32C0A
-    // 00110010110010000010 = 32C82
-
     switch(instance->decoder.parser_step) {
     case ElplastDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_elplast_const.te_long * 8) <
                         subghz_protocol_elplast_const.te_delta * 13)) {
-            //Found GAP
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
             instance->decoder.parser_step = ElplastDecoderStepSaveDuration;
@@ -226,14 +209,12 @@ void subghz_protocol_decoder_elplast_feed(void* context, bool level, volatile ui
         break;
     case ElplastDecoderStepCheckDuration:
         if(!level) {
-            // Bit 1 is long and short timing = 1550us HIGH (te_last) and 230us LOW
             if((DURATION_DIFF(instance->decoder.te_last, subghz_protocol_elplast_const.te_long) <
                 subghz_protocol_elplast_const.te_delta) &&
                (DURATION_DIFF(duration, subghz_protocol_elplast_const.te_short) <
                 subghz_protocol_elplast_const.te_delta)) {
                 subghz_protocol_blocks_add_bit(&instance->decoder, 1);
                 instance->decoder.parser_step = ElplastDecoderStepSaveDuration;
-                // Bit 0 is short and long timing = 230us HIGH (te_last) and 1550us LOW
             } else if(
                 (DURATION_DIFF(instance->decoder.te_last, subghz_protocol_elplast_const.te_short) <
                  subghz_protocol_elplast_const.te_delta) &&
@@ -242,10 +223,8 @@ void subghz_protocol_decoder_elplast_feed(void* context, bool level, volatile ui
                 subghz_protocol_blocks_add_bit(&instance->decoder, 0);
                 instance->decoder.parser_step = ElplastDecoderStepSaveDuration;
             } else if(
-                // End of the key
                 DURATION_DIFF(duration, subghz_protocol_elplast_const.te_long * 8) <
                 subghz_protocol_elplast_const.te_delta * 13) {
-                //Found next GAP and add bit 0 or 1 (only bit 0 was found on the remotes)
                 if((DURATION_DIFF(
                         instance->decoder.te_last, subghz_protocol_elplast_const.te_long) <
                     subghz_protocol_elplast_const.te_delta)) {
@@ -256,7 +235,7 @@ void subghz_protocol_decoder_elplast_feed(void* context, bool level, volatile ui
                     subghz_protocol_elplast_const.te_delta)) {
                     subghz_protocol_blocks_add_bit(&instance->decoder, 0);
                 }
-                // If got 18 bits key reading is finished
+
                 if(instance->decoder.decode_count_bit ==
                    subghz_protocol_elplast_const.min_count_bit_for_found) {
                     instance->generic.data = instance->decoder.decode_data;

@@ -96,11 +96,6 @@ void subghz_protocol_encoder_ansonic_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderAnsonic instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_ansonic_get_upload(SubGhzProtocolEncoderAnsonic* instance) {
     furi_assert(instance);
     size_t index = 0;
@@ -111,22 +106,20 @@ static bool subghz_protocol_encoder_ansonic_get_upload(SubGhzProtocolEncoderAnso
     } else {
         instance->encoder.size_upload = size_upload;
     }
-    //Send header
+
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_ansonic_const.te_short * 35);
-    //Send start bit
+
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_ansonic_const.te_short);
-    //Send key data
+
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_ansonic_const.te_short);
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_ansonic_const.te_long);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_ansonic_const.te_long);
             instance->encoder.upload[index++] =
@@ -150,7 +143,7 @@ SubGhzProtocolStatus
             FURI_LOG_E(TAG, "Deserialize error");
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -215,7 +208,6 @@ void subghz_protocol_decoder_ansonic_feed(void* context, bool level, uint32_t du
     case AnsonicDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_ansonic_const.te_short * 35) <
                         subghz_protocol_ansonic_const.te_delta * 35)) {
-            //Found header Ansonic
             instance->decoder.parser_step = AnsonicDecoderStepFoundStartBit;
         }
         break;
@@ -225,7 +217,6 @@ void subghz_protocol_decoder_ansonic_feed(void* context, bool level, uint32_t du
         } else if(
             DURATION_DIFF(duration, subghz_protocol_ansonic_const.te_short) <
             subghz_protocol_ansonic_const.te_delta) {
-            //Found start bit Ansonic
             instance->decoder.parser_step = AnsonicDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -234,7 +225,7 @@ void subghz_protocol_decoder_ansonic_feed(void* context, bool level, uint32_t du
         }
         break;
     case AnsonicDecoderStepSaveDuration:
-        if(!level) { //save interval
+        if(!level) {
             if(duration >= (subghz_protocol_ansonic_const.te_short * 4)) {
                 instance->decoder.parser_step = AnsonicDecoderStepFoundStartBit;
                 if(instance->decoder.decode_count_bit >=
@@ -279,18 +270,7 @@ void subghz_protocol_decoder_ansonic_feed(void* context, bool level, uint32_t du
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_ansonic_check_remote_controller(SubGhzBlockGeneric* instance) {
-    /*
- *        12345678(10) k   9                    
- * AAA => 10101010 1   01  0
- *
- * 1...10 - DIP
- * k- KEY
- */
     instance->cnt = instance->data & 0xFFF;
     instance->btn = ((instance->data >> 1) & 0x3);
 }
@@ -324,11 +304,9 @@ void subghz_protocol_decoder_ansonic_get_string(void* context, FuriString* outpu
     SubGhzProtocolDecoderAnsonic* instance = context;
     subghz_protocol_ansonic_check_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 2;
-    //
 
     furi_string_cat_printf(
         output,

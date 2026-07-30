@@ -1,4 +1,3 @@
-// views/gdr_receiver.h
 #pragma once
 
 #include <gui/view.h>

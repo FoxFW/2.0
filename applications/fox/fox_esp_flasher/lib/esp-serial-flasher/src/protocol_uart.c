@@ -49,7 +49,6 @@ esp_loader_error_t loader_run_stub(target_chip_t target)
     esp_loader_error_t err;
     const esp_stub_t *stub = &esp_stub[target];
 
-    // Download segments
     for (uint32_t seg = 0; seg < sizeof(stub->segments) / sizeof(stub->segments[0]); seg++) {
         err = esp_loader_mem_start(stub->segments[seg].addr, stub->segments[seg].size, ESP_RAM_BLOCK);
         if (err != ESP_LOADER_SUCCESS) {
@@ -74,7 +73,6 @@ esp_loader_error_t loader_run_stub(target_chip_t target)
         return err;
     }
 
-    // stub loader sends a custom SLIP packet of the sequence OHAI
     uint8_t buff[4];
     size_t recv_size = 0;
     err = SLIP_receive_packet(buff, sizeof(buff) / sizeof(buff[0]), &recv_size);
@@ -118,7 +116,6 @@ static esp_loader_error_t check_response(const send_cmd_config *config)
     common_response_t *response = (common_response_t *)&buf[0];
     command_t command = ((const command_common_t *)config->cmd)->command;
 
-    // If the command has fixed response data size, require all of it to be received
     uint32_t minimum_packet_recv = sizeof(common_response_t) + sizeof(response_status_t);
     if (config->resp_data_recv_size == NULL) {
         minimum_packet_recv += config->resp_data_size;

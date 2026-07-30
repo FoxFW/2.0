@@ -90,15 +90,12 @@ void subghz_protocol_encoder_gangqi_free(void* context) {
     free(instance);
 }
 
-// Get custom button code
 static uint8_t subghz_protocol_gangqi_get_btn_code(void) {
     uint8_t custom_btn_id = subghz_custom_btn_get();
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -159,17 +156,11 @@ static uint8_t subghz_protocol_gangqi_get_btn_code(void) {
     return btn;
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderGangQi instance
- */
 static void subghz_protocol_encoder_gangqi_get_upload(SubGhzProtocolEncoderGangQi* instance) {
     furi_assert(instance);
 
-    // Generate new key using custom or default button
     instance->generic.btn = subghz_protocol_gangqi_get_btn_code();
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&instance->generic.btn))
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", instance->generic.btn);
 
@@ -184,14 +175,11 @@ static void subghz_protocol_encoder_gangqi_get_upload(SubGhzProtocolEncoderGangQ
 
     size_t index = 0;
 
-    // Send key and GAP between parcels
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            // Send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_gangqi_const.te_long);
             if(i == 1) {
-                //Send gap if bit was last
                 instance->encoder.upload[index++] = level_duration_make(
                     false,
                     (uint32_t)subghz_protocol_gangqi_const.te_short * 4 +
@@ -201,11 +189,9 @@ static void subghz_protocol_encoder_gangqi_get_upload(SubGhzProtocolEncoderGangQ
                     level_duration_make(false, (uint32_t)subghz_protocol_gangqi_const.te_short);
             }
         } else {
-            // Send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_gangqi_const.te_short);
             if(i == 1) {
-                //Send gap if bit was last
                 instance->encoder.upload[index++] = level_duration_make(
                     false,
                     (uint32_t)subghz_protocol_gangqi_const.te_short * 4 +
@@ -221,27 +207,9 @@ static void subghz_protocol_encoder_gangqi_get_upload(SubGhzProtocolEncoderGangQ
     return;
 }
 
-/** 
- * Analysis of received data and parsing serial number
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_gangqi_remote_controller(SubGhzBlockGeneric* instance) {
     instance->btn = (instance->data >> 10) & 0xF;
     instance->serial = (instance->data & 0xFFFFF0000) >> 16;
-
-    // Save original button for later use
-    // if(subghz_custom_btn_get_original() == 0) {
-    //     subghz_custom_btn_set_original(instance->btn);
-    // }
-        // subghz_custom_btn_set_max(3);
-
-    // GangQi Decoder
-    // 09.2024 - @xMasterX (MMX) (last update - bytesum calculation at 02.2025)
-    // Thanks @Skorpionm for support!
-    // Thanks @Drone1950 and @mishamyte (who spent 2 weeks on this) for making this work properly
-
-    // Example of correct bytesum calculation
-    // 0xC8 - serial_high - serial_low - constant_and_button
 }
 
 SubGhzProtocolStatus
@@ -257,7 +225,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -334,7 +302,6 @@ void subghz_protocol_decoder_gangqi_feed(void* context, bool level, volatile uin
     case GangQiDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_gangqi_const.te_long * 2) <
                         subghz_protocol_gangqi_const.te_delta * 3)) {
-            //Found GAP
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
             instance->decoder.parser_step = GangQiDecoderStepSaveDuration;
@@ -350,14 +317,12 @@ void subghz_protocol_decoder_gangqi_feed(void* context, bool level, volatile uin
         break;
     case GangQiDecoderStepCheckDuration:
         if(!level) {
-            // Bit 0 is short and long timing
             if((DURATION_DIFF(instance->decoder.te_last, subghz_protocol_gangqi_const.te_short) <
                 subghz_protocol_gangqi_const.te_delta) &&
                (DURATION_DIFF(duration, subghz_protocol_gangqi_const.te_long) <
                 subghz_protocol_gangqi_const.te_delta)) {
                 subghz_protocol_blocks_add_bit(&instance->decoder, 0);
                 instance->decoder.parser_step = GangQiDecoderStepSaveDuration;
-                // Bit 1 is long and short timing
             } else if(
                 (DURATION_DIFF(instance->decoder.te_last, subghz_protocol_gangqi_const.te_long) <
                  subghz_protocol_gangqi_const.te_delta) &&
@@ -366,10 +331,8 @@ void subghz_protocol_decoder_gangqi_feed(void* context, bool level, volatile uin
                 subghz_protocol_blocks_add_bit(&instance->decoder, 1);
                 instance->decoder.parser_step = GangQiDecoderStepSaveDuration;
             } else if(
-                // End of the key
                 (DURATION_DIFF(duration, subghz_protocol_gangqi_const.te_long * 2) <
                  subghz_protocol_gangqi_const.te_delta * 3)) {
-                //Found next GAP and add bit 0 or 1 (only bit 0 was found on the remotes)
                 if((DURATION_DIFF(
                         instance->decoder.te_last, subghz_protocol_gangqi_const.te_short) <
                     subghz_protocol_gangqi_const.te_delta)) {
@@ -379,7 +342,7 @@ void subghz_protocol_decoder_gangqi_feed(void* context, bool level, volatile uin
                     subghz_protocol_gangqi_const.te_delta)) {
                     subghz_protocol_blocks_add_bit(&instance->decoder, 1);
                 }
-                // If got 34 bits key reading is finished
+
                 if(instance->decoder.decode_count_bit ==
                    subghz_protocol_gangqi_const.min_count_bit_for_found) {
                     instance->generic.data = instance->decoder.decode_data;
@@ -400,10 +363,6 @@ void subghz_protocol_decoder_gangqi_feed(void* context, bool level, volatile uin
     }
 }
 
-/** 
- * Get button name.
- * @param btn Button number, 4 bit
- */
 static const char* subghz_protocol_gangqi_get_button_name(uint8_t btn) {
     const char* name_btn[16] = {
         "Unknown",
@@ -413,14 +372,14 @@ static const char* subghz_protocol_gangqi_get_button_name(uint8_t btn) {
         "Vibro sens. setting",
         "Settings mode",
         "Ringtone setting",
-        "Ring", // D
+        "Ring",
         "0x8",
         "0x9",
         "0xA",
-        "Alarm", // C
+        "Alarm",
         "0xC",
-        "Arm", // A
-        "Disarm", // B
+        "Arm",
+        "Disarm",
         "0xF"};
     return btn <= 0xf ? name_btn[btn] : name_btn[0];
 }
@@ -453,23 +412,19 @@ void subghz_protocol_decoder_gangqi_get_string(void* context, FuriString* output
     furi_assert(context);
     SubGhzProtocolDecoderGangQi* instance = context;
 
-    // Parse serial
     subghz_protocol_gangqi_remote_controller(&instance->generic);
 
-    // Get byte sum
     uint16_t serial = (uint16_t)((instance->generic.data >> 18) & 0xFFFF);
     uint8_t const_and_button = (uint8_t)(0xD0 | instance->generic.btn);
     uint8_t serial_high = (uint8_t)(serial >> 8);
     uint8_t serial_low = (uint8_t)(serial & 0xFF);
-    // Type 1 is what original remotes use, type 2 is "backdoor" sum that receiver accepts too
+
     uint8_t sum_type1 = (uint8_t)(0xC8 - serial_high - serial_low - const_and_button);
     uint8_t sum_type2 = (uint8_t)(0x02 + serial_high + serial_low + const_and_button);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

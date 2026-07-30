@@ -1,4 +1,3 @@
-// helpers/gdr_rx_chain.c
 #include "gdr_rx_chain.h"
 
 #if defined(ENABLE_DUAL_RX_SCENE) || defined(ENABLE_SHIELD_RX_SCENE)
@@ -187,7 +186,6 @@ void gdr_rx_chain_free(GDRRxChain* chain) {
         return;
     }
 
-    // Make sure RX is stopped before tearing anything down.
     gdr_rx_chain_stop(chain);
 
     if(chain->receiver) {
@@ -244,7 +242,6 @@ bool gdr_rx_chain_acquire_device(
     chain->is_external = radio_device_loader_is_external(chain->device);
 
     if(type == SubGhzRadioDeviceTypeExternalCC1101 && !chain->is_external) {
-
         FURI_LOG_E(TAG, "[%c] External requested but unavailable", chain->label);
         radio_device_loader_end(chain->device);
         chain->device = NULL;
@@ -700,4 +697,4 @@ float gdr_rx_chain_get_rssi(GDRRxChain* chain) {
     return subghz_devices_get_rssi(chain->device);
 }
 
-#endif // ENABLE_DUAL_RX_SCENE || ENABLE_SHIELD_RX_SCENE
+#endif

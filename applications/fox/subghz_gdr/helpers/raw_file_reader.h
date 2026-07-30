@@ -26,4 +26,4 @@ bool raw_file_reader_open(RawFileReader* reader, const char* file_path);
 void raw_file_reader_close(RawFileReader* reader);
 bool raw_file_reader_get_next(RawFileReader* reader, bool* level, uint32_t* duration);
 bool raw_file_reader_is_finished(RawFileReader* reader);
-#endif // ENABLE_SUB_DECODE_SCENE
+#endif

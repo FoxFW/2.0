@@ -11,11 +11,6 @@
 
 #define CHAMELEON_DUMP_BLOCK_COUNT 64
 
-/* Caps the in-memory Terminal transcript (app->log) - the SD copy at
-   app->terminal_log_path is never trimmed, only this RAM copy the
-   Terminal view actually renders from, purely to bound memory use on a
-   Flipper over a long session (e.g. a full dictionary search can emit a
-   couple hundred "tried N/M" lines on its own). */
 #define FOX_TERMINAL_LOG_MAX_CHARS 4000
 
 static void action_check_esp32(App* app);
@@ -29,9 +24,6 @@ typedef struct {
     const char* label;
 } PinOption;
 
-/* 15/16 (LPUART) is offered alongside the more common 13/14 (USART) pair
-   per Flipper's own documented "two hardware UARTs" - see README.md for
-   the caveat on FuriHalBusLPUART1 specifically. */
 static const PinOption pin_options[] = {
     {FuriHalSerialIdUsart, "13/14 (USART)"},
     {FuriHalSerialIdLpuart, "15/16 (LPUART)"},
@@ -41,13 +33,8 @@ static const PinOption pin_options[] = {
 static const uint32_t baud_options[] =
     {9600, 19200, 38400, 57600, 74880, 115200, 230400, 460800, 921600};
 #define BAUD_OPTION_COUNT (sizeof(baud_options) / sizeof(baud_options[0]))
-#define BAUD_OPTION_DEFAULT_INDEX 5 /* 115200, Fox ESP32 Firmware's stock default */
+#define BAUD_OPTION_DEFAULT_INDEX 5
 
-/* Largest real response this app decodes today is a 16-byte block read
-   (26-byte frame); this leaves a healthy margin without needing
-   ESP_AT_LINE_MAX (esp_at.h) to grow to accommodate it hex-encoded -
-   "NOTIFY:" (7 chars) + 48 bytes hex-encoded (96 chars) = 103, safely
-   under that 128-byte line limit. */
 #define CHAMELEON_RESPONSE_BUFFER_MAX 48
 
 static void hex_encode(const uint8_t* data, size_t length, FuriString* out) {
@@ -71,12 +58,6 @@ static size_t hex_decode(const char* hex, uint8_t* out, size_t out_capacity) {
     return byte_count;
 }
 
-/* Parses one BLESCAN result line, e.g.:
-     FOUND:d0:94:de:71:58:fc type:RANDOM(1) rssi:-81 name:ChameleonUltra
-   into its MAC, RSSI, and name fields. Returns false (and touches
-   nothing) if line isn't a FOUND: line or is missing a field this app
-   actually uses - malformed input is simply not a candidate, not
-   something to guess at. */
 static bool parse_found_line(
     const char* line,
     char* mac_out,
@@ -106,22 +87,10 @@ static bool parse_found_line(
     return true;
 }
 
-/* Low-level: clears just the in-memory transcript. Only
-   app_terminal_start_session() below calls this now - individual actions
-   used to call it directly (wiping the screen on every button press),
-   which is exactly what the user asked to stop: the Terminal now persists
-   everything for the whole session, appending rather than resetting. */
 static void app_log_reset(App* app) {
     furi_string_reset(app->log);
 }
 
-/* Appends one line to the SD copy of the current Terminal session -
-   opened, written, and closed again on every call rather than kept open
-   for the session's duration, specifically so the file on disk is always
-   fully up to date even if the app crashes or is yanked off mid-session,
-   per the user's "so this file will be up to date if the app suddenly
-   closes" requirement. A no-op if no session is active yet (
-   terminal_log_path empty) - see app_terminal_start_session(). */
 static void app_terminal_log_line(App* app, const char* line) {
     if(furi_string_size(app->terminal_log_path) == 0) return;
 
@@ -137,15 +106,6 @@ static void app_terminal_log_line(App* app, const char* line) {
     furi_record_close(RECORD_STORAGE);
 }
 
-/* Starts a new Terminal session: clears the on-screen transcript and
-   points app->terminal_log_path at a freshly dated file under
-   FOX_CHAMELEON_LOG_DIR, which app_log() (below) will create on its very
-   first write via FSOM_OPEN_APPEND. Called from action_start() (the
-   ESP32 Firmware AT/OK bring-up), from app_alloc() when the
-   launch-time auto-probe finds a working default, and again from
-   action_connect() (each fresh Chameleon Ultra connect attempt) - see
-   the comments at those call sites for why each gets its own
-   session/file rather than just app launch getting one. */
 static void app_terminal_start_session(App* app) {
     app_log_reset(app);
     app->terminal_scroll = 0;
@@ -192,22 +152,11 @@ static void app_log(App* app, const char* fmt, ...) {
 }
 
 static void app_render_log(App* app) {
-    /* SIZE_MAX here just means "as far down as it goes" - terminal_draw_cb()
-       clamps this against the real wrapped-line count on the very next
-       draw. This is what makes "everything new I do just takes us back to
-       this same page with the new stuff appended down the bottom" true
-       even if the user had scrolled up to read history first. */
     app->terminal_scroll = (size_t)-1;
     app->current_view = FoxChameleonViewTerminal;
     view_dispatcher_switch_to_view(app->view_dispatcher, FoxChameleonViewTerminal);
 }
 
-/* config.txt is a flat key=value file, one pair per line:
-     mac=AA:BB:CC:DD:EE:FF
-     service=6e400001-b5a3-f393-e0a9-e50e24dcca9e
-     write_char=6e400002-b5a3-f393-e0a9-e50e24dcca9e
-     notify_char=6e400003-b5a3-f393-e0a9-e50e24dcca9e
-   See README.md for where these UUIDs come from. */
 static void app_load_config(App* app) {
     furi_string_reset(app->chameleon_mac);
     furi_string_reset(app->gatt_service_uuid);
@@ -261,16 +210,6 @@ static bool app_expect_ok(App* app, uint32_t timeout_ms) {
     return false;
 }
 
-/* Waits for a NOTIFY:<hex> line and decodes it into decode_buffer,
-   which parsed->data will point into afterward - decode_buffer must be
-   supplied and kept alive by the caller for as long as parsed is used,
-   not owned by this function. An earlier version of this function used
-   a local buffer for that decode and returned a ChameleonFrame pointing
-   into it - undefined behavior the moment this function returned, only
-   going unnoticed because nothing happened to run between that return
-   and the caller reading parsed->data. Fixed by moving the buffer to
-   the caller's own stack frame, where its lifetime actually matches
-   parsed's. */
 static bool app_await_chameleon_response(
     App* app,
     uint8_t* decode_buffer,
@@ -287,11 +226,6 @@ static bool app_await_chameleon_response(
         if(strncmp(msg.line, "NOTIFY:", 7) == 0) {
             size_t decoded_len = hex_decode(msg.line + 7, decode_buffer, decode_buffer_capacity);
             if(decoded_len == 0) {
-                /* Either an odd number of hex digits, an invalid hex
-                   character, or more bytes than decode_buffer_capacity -
-                   log the raw line so a UART framing/corruption problem
-                   is distinguishable from a real protocol bug just by
-                   reading the log afterward. */
                 app_log(app, "Malformed response frame");
                 app_log(app, "hex decode failed, raw line:");
                 app_log(app, "%.100s", msg.line);
@@ -317,12 +251,6 @@ static bool app_await_chameleon_response(
     return false;
 }
 
-/* Shared write-then-wait sequence: hex-encodes a pre-built Chameleon
-   frame, sends it as BLEWRITE:<hex>, waits for OK, then waits for the
-   resulting NOTIFY:<hex>. Every action that talks to the Chameleon goes
-   through this. decode_buffer/decode_buffer_capacity are forwarded to
-   app_await_chameleon_response() - see its comment for why the caller
-   owns that buffer rather than this function. */
 static bool app_write_command_and_await(
     App* app,
     const uint8_t* frame,
@@ -346,30 +274,9 @@ static bool app_write_command_and_await(
     return app_await_chameleon_response(app, decode_buffer, decode_buffer_capacity, parsed, 4000);
 }
 
-/* Runs at launch, and again whenever the user presses Retry on the
-   failure screen. Plain AT answered with a plain OK is specific enough
-   to tell a real, responsive Fox ESP32 Firmware module apart from
-   silence or nothing connected at all. Until this succeeds once (or is
-   deliberately skipped - see the Skip button below), the submenu is
-   never reachable. */
 #define RAW_CAPTURE_DIR "/ext/apps_data/fox_chameleon/debug"
 #define RAW_CAPTURE_ROW_LEN 16
 
-/* Drains whatever esp_at_raw_capture_start() has been collecting since
-   it was last called, and writes it as a hex dump (offset, hex bytes,
-   printable-ASCII sidebar) to RAW_CAPTURE_DIR/filename on the SD card.
-   Unlike the on-screen log, this shows every byte that arrived - not
-   just the lines the parser recognized - which is the point: it exists
-   to answer "what did this UART actually send back", not "what did our
-   parser make of it". */
-/* storage_common_mkdir() creating only the deepest folder in one call is
-   not something this codebase had actually confirmed handles missing
-   parent directories - and /ext/apps_data/fox_chameleon/ itself is never
-   created anywhere else in this app (config.txt is only ever read, never
-   written), so on a fresh SD card that parent folder may not exist yet
-   at all. This walks the path and creates every level in order, which
-   works regardless of whether the single-call version is recursive, and
-   is a no-op (safe to call repeatedly) for levels that already exist. */
 static void ensure_dir_path(Storage* storage, const char* path) {
     char buffer[128];
     strncpy(buffer, path, sizeof(buffer) - 1);
@@ -385,11 +292,6 @@ static void ensure_dir_path(Storage* storage, const char* path) {
     storage_common_mkdir(storage, buffer);
 }
 
-/* Fills in service/write_char/notify_char with the confirmed-working
-   NUS defaults (see app.h) wherever config.txt didn't already specify
-   its own - called once at startup, right after app_load_config(), so
-   BLESVC/BLECHAR always have something real to try even on a config.txt
-   that's never been touched. */
 static void app_ensure_config_defaults(App* app) {
     if(furi_string_size(app->gatt_service_uuid) == 0) {
         furi_string_set(app->gatt_service_uuid, FOX_CHAMELEON_DEFAULT_SERVICE_UUID);
@@ -402,14 +304,6 @@ static void app_ensure_config_defaults(App* app) {
     }
 }
 
-/* Writes the app's current mac/service/write_char/notify_char to
-   config.txt, creating /ext/apps_data/fox_chameleon/ first if it
-   doesn't exist yet - this is what makes config.txt something the app
-   maintains, rather than something the user is expected to hand-create
-   before first use. Called once at startup (so a fresh install gets a
-   fully populated file immediately, defaults included) and again
-   whenever a MAC is discovered or chosen via the candidate list in
-   action_scan_for_chameleons(). */
 static void app_save_config(App* app) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     ensure_dir_path(storage, FOX_CHAMELEON_CONFIG_DIR);
@@ -550,27 +444,12 @@ static void check_button_callback(GuiButtonType result, InputType type, void* co
     if(result == GuiButtonTypeCenter) {
         action_check_esp32(app);
     } else if(result == GuiButtonTypeLeft) {
-        /* Deliberately overrides a check that didn't pass, for cases
-           where the ESP32 may genuinely be receiving commands without
-           being able to reply on this wiring (see README - a real,
-           evidenced possibility for some boards, not just a hopeful
-           guess) - Connect and other actions will still each report
-           their own real success or failure and still write a raw
-           capture dump, so proceeding here doesn't hide anything, it
-           just stops assuming silence during the startup check means
-           nothing else is worth trying. */
         app->esp32_detected = true;
         app->current_view = FoxChameleonViewMenu;
         view_dispatcher_switch_to_view(app->view_dispatcher, FoxChameleonViewMenu);
     }
 }
 
-/* The BLECONN -> BLESVC -> BLECHAR sequence, reusable regardless of
-   whether mac came from a saved config.txt or was just chosen from a
-   scan. service/write_char/notify_char are guaranteed non-empty by
-   app_ensure_config_defaults() (called once at startup), so unlike an
-   earlier version of this function, there's no missing-config case to
-   handle here anymore - it's always got something real to try. */
 static bool action_connect_with_mac(App* app, const char* mac) {
     FuriString* cmd = furi_string_alloc_printf("BLECONN:%s", mac);
     esp_at_send(app->esp_at, furi_string_get_cstr(cmd));
@@ -580,16 +459,6 @@ static bool action_connect_with_mac(App* app, const char* mac) {
     app_log(app, "can take up to 45s...");
     app_render_log(app);
 
-    /* Fox ESP32 Firmware tries BLE_ADDR_TYPE_PUBLIC then
-       BLE_ADDR_TYPE_RANDOM in sequence (fox_esp32_firmware's BLECONN
-       handler), and real-world reports for this exact BLE library
-       document individual connect() attempts taking up to 30-60 seconds
-       to fail on a marginal link - two such attempts back to back can
-       comfortably exceed a much shorter wait. A real connect that
-       eventually succeeded once showed up as a clean timeout here -
-       zero bytes at all in connect_raw.txt, not an ERROR - because an
-       earlier, shorter timeout gave up before the firmware had
-       finished trying. */
     app->ble_connected = app_expect_ok(app, 45000);
 
     if(!app->ble_connected) {
@@ -631,24 +500,12 @@ static bool action_connect_with_mac(App* app, const char* mac) {
         log_dump_result(app, dumped, "connect_raw.txt");
         app->ble_connected = false;
     }
-    /* render_main_menu() here matters now, not just cosmetically - it's
-       what reveals (on success) or keeps hidden (on failure) the whole
-       Get/Read/Dump command block, which render_main_menu() now only
-       shows while ble_connected is true. */
+
     render_main_menu(app);
     app_render_log(app);
     return app->ble_connected;
 }
 
-/* View's draw callback signature only gives access to the tiny model
-   allocated for it, not the context set via view_set_context() - only
-   the input callback gets that. Fox File Browser's Favourites view
-   (ffb.c) hits the same constraint and works around it with exactly
-   this pattern: a static pointer set once at app_alloc() time, read
-   from inside the draw callback. The model itself is a throwaway
-   uint8_t, touched only to ask the view system to redraw - the real
-   data (candidates/candidate_selected/candidate_scroll) lives on App,
-   reached through this pointer instead. */
 static App* s_candidate_view_app = NULL;
 
 #define CANDIDATE_ROW_HEADER_H 14
@@ -699,9 +556,6 @@ static void candidate_draw_cb(Canvas* canvas, void* model) {
         canvas_set_color(canvas, ColorBlack);
     }
 
-    /* Scroll indicator on the right edge, only drawn when there's
-       actually more than fits on screen - same geometry as Fox File
-       Browser's ffv_draw_scroll(). */
     if(app->candidate_count > CANDIDATE_ROW_VIS) {
         int available_h = 64 - CANDIDATE_ROW_HEADER_H;
         int bar_h = (int)(available_h * CANDIDATE_ROW_VIS / app->candidate_count);
@@ -712,8 +566,6 @@ static void candidate_draw_cb(Canvas* canvas, void* model) {
     }
 }
 
-/* Shared by both the "exactly one candidate" auto-path and the
-   "user picked one from the list" path in candidate_input_cb() below. */
 static void candidate_select(App* app, size_t index) {
     if(index >= app->candidate_count) return;
     furi_string_set(app->chameleon_mac, app->candidates[index].mac);
@@ -759,18 +611,12 @@ static bool candidate_input_cb(InputEvent* event, void* context) {
         return true;
     case InputKeyBack:
     case InputKeyLeft:
-        return false; /* navigation_callback sends this back to the menu */
+        return false;
     default:
         return false;
     }
 }
 
-/* --- Terminal: the persistent, scrollable log/status view. ---
-   Same "static App* pointer set once, read from the draw callback"
-   pattern as candidate_draw_cb() above, for the same reason - the draw
-   callback only gets the tiny throwaway model allocated for it, not the
-   context set via view_set_context() (only the input callback gets
-   that). */
 static App* s_terminal_view_app = NULL;
 
 #define TERMINAL_HEADER_H         10
@@ -778,14 +624,6 @@ static App* s_terminal_view_app = NULL;
 #define TERMINAL_MEASURE_BUF_MAX  136
 #define TERMINAL_HIDE_BTN_H       11
 
-/* How many characters conservatively fit in max_width, using 'W' (a wide
-   glyph) as the worst case. This trades a little unused right margin for
-   a wrapping implementation simple enough to be confident is correct
-   without a real device to test it on - see the top-level project notes
-   on "verify first" and not guessing at unfamiliar APIs; pixel-perfect
-   greedy word-wrap against canvas_string_width() per character was the
-   first draft of this and was a lot more code for a benefit that doesn't
-   matter on a screen this small. */
 static size_t terminal_chars_per_line(Canvas* canvas, int32_t max_width) {
     uint16_t w = canvas_string_width(canvas, "W");
     if(w == 0) w = 6;
@@ -798,19 +636,6 @@ typedef struct {
     uint16_t length;
 } TerminalWrapLine;
 
-/* Wraps `text` (app->log's underlying buffer, '\n'-separated logical
-   lines) into `out`, each entry an {offset,length} slice into `text`
-   itself - no copies. Each logical line is chopped into chars_per_line-
-   sized chunks, preferring to break on the last space within a chunk
-   (skipping that space) so words aren't split when a nearby space is
-   available; a chunk with no space at all (e.g. a raw hex dump line) is
-   hard-broken at exactly chars_per_line. An empty logical line still
-   produces one empty row, so blank app_log() separators remain visible
-   as blank rows rather than disappearing. If wrapping would produce more
-   rows than out_capacity, the OLDEST rows are the ones left off (the
-   loop simply stops appending once out_capacity is hit) - the tail
-   (newest content, what app_render_log() scrolls to by default) always
-   makes it in. */
 static size_t terminal_wrap_log(
     const char* text,
     size_t text_len,
@@ -860,14 +685,6 @@ static size_t terminal_wrap_log(
     return count;
 }
 
-/* Small hand-drawn left-pointing arrow (a shaft plus a two-line
-   arrowhead) - vector primitives rather than a text glyph or icon
-   asset, so it doesn't depend on a Unicode arrow being present in this
-   app's fonts, or on bundled icon resources this app doesn't currently
-   link against. (x, y) is the arrow's tip (leftmost point), vertically
-   centered on y. Every stroke is drawn twice, offset by 1px, to fake a
-   bolder line - canvas_draw_line() has no width parameter of its own.
-   Occupies roughly a 9x8px box from the tip. */
 #define TERMINAL_BACK_ARROW_W 9
 static void terminal_draw_back_arrow(Canvas* canvas, int32_t x, int32_t y) {
     for(int32_t dy = 0; dy < 2; dy++) {
@@ -884,12 +701,6 @@ static void terminal_draw_cb(Canvas* canvas, void* model) {
 
     canvas_clear(canvas);
 
-    /* Permanent black header - the whole point is that the instant one
-       of these pages comes up mid-command, its look alone tells the user
-       "this is just info, Back will dismiss it", per the user's own
-       request. "TERMINAL" is the only thing on this row now (the old
-       "<- to Hide" text moved to the bottom-right button below), so it's
-       centered rather than left-aligned. */
     canvas_set_color(canvas, ColorBlack);
     canvas_draw_box(canvas, 0, 0, 128, TERMINAL_HEADER_H);
     canvas_set_color(canvas, ColorWhite);
@@ -901,7 +712,7 @@ static void terminal_draw_cb(Canvas* canvas, void* model) {
     const char* text = furi_string_get_cstr(app->log);
     size_t text_len = furi_string_size(app->log);
 
-    int32_t max_width = 122; /* leaves room for the scrollbar on the right */
+    int32_t max_width = 122;
     size_t chars_per_line = terminal_chars_per_line(canvas, max_width);
 
     static TerminalWrapLine lines[TERMINAL_MAX_WRAPPED_LINES];
@@ -928,11 +739,6 @@ static void terminal_draw_cb(Canvas* canvas, void* model) {
         canvas_draw_str(canvas, 2, y, buf);
     }
 
-    /* Scrollbar with a position dot - same visual language as
-       candidate_draw_cb()'s scroll indicator above and Fox File
-       Browser's ffv_draw_scroll(), just spanning the whole content area
-       instead of two rows. Only drawn when there's actually more than
-       fits on screen. */
     if(total > visible_rows) {
         int32_t bar_x = 126;
         int32_t bar_top = (int32_t)content_top;
@@ -946,26 +752,12 @@ static void terminal_draw_cb(Canvas* canvas, void* model) {
         canvas_draw_box(canvas, bar_x - 1, dot_y, 3, dot_h);
     }
 
-    /* Bottom-right "Hide" button - drawn last, on top of the text rows
-       and clear of the scrollbar (which occupies x >= 125), per the
-       user's request to move "<- to Hide" out of the header. The white
-       fill first clears whatever text pixels might otherwise be
-       underneath before the border/icon/label are drawn - the user
-       confirmed by eye that the wrapped log text never actually reaches
-       this corner in practice, but clearing first makes that robust
-       either way.
-
-       Width is measured from the actual "Hide" text rather than a fixed
-       guess, same approach terminal_chars_per_line() already uses for
-       wrapping - this is what guarantees a real, consistent gap between
-       the arrow icon and the label instead of them touching, regardless
-       of the exact pixel width FontSecondary renders "Hide" at. */
     {
         canvas_set_font(canvas, FontSecondary);
         uint16_t hide_text_w = canvas_string_width(canvas, "Hide");
 
         int32_t pad = 3;
-        int32_t icon_gap = 4; /* space between the arrow and "Hide" */
+        int32_t icon_gap = 4;
         int32_t btn_w = pad + TERMINAL_BACK_ARROW_W + icon_gap + (int32_t)hide_text_w + pad;
 
         int32_t btn_x2 = 124;
@@ -995,28 +787,18 @@ static bool terminal_input_cb(InputEvent* event, void* context) {
         with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
         return true;
     case InputKeyDown:
-        /* Over-incrementing past the real max is harmless -
-           terminal_draw_cb() clamps it against the actual wrapped-line
-           count on the very next draw, same trick app_render_log() uses
-           with SIZE_MAX to mean "scroll to bottom". */
+
         app->terminal_scroll++;
         with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
         return true;
     case InputKeyBack:
     case InputKeyLeft:
-        return false; /* navigation_callback hides the Terminal */
+        return false;
     default:
         return false;
     }
 }
 
-/* Runs BLESCAN, keeps only results whose advertised name contains
-   "Chameleon", and either connects automatically (exactly one match),
-   shows the selectable two-line list above (more than one), or reports
-   nothing found (zero). Whichever MAC is settled on - automatic or
-   chosen - is saved to config.txt before connecting, which is what
-   makes config.txt something this app maintains rather than something
-   the user has to prepare by hand. */
 static void action_scan_for_chameleons(App* app) {
     app_log(app, "Scanning for Chameleon");
     app_log(app, "Ultra devices nearby...");
@@ -1026,8 +808,7 @@ static void action_scan_for_chameleons(App* app) {
 
     app->candidate_count = 0;
     EspAtMsg msg;
-    /* fox_esp32_firmware's BLE_SCAN_SECONDS is 5; this leaves margin for
-       the FOUND: lines themselves to arrive and be processed. */
+
     uint32_t deadline = furi_get_tick() + 8000;
     while(furi_get_tick() < deadline) {
         uint32_t remaining = deadline - furi_get_tick();
@@ -1067,16 +848,6 @@ static void action_scan_for_chameleons(App* app) {
     view_dispatcher_switch_to_view(app->view_dispatcher, FoxChameleonViewCandidateMenu);
 }
 
-/* Sends BLEDISC and waits briefly, but only if a Chameleon Ultra is
-   currently connected - shared by Connect to C.U and Search for C.U
-   below, both of which need a clean slate before trying a new link.
-   Real-hardware behavior for sending BLECONN while already connected to
-   a different device was never confirmed against the Fox ESP32
-   Firmware, so disconnecting first is this project's own defensive choice, not a
-   verified requirement. render_main_menu() re-hides the Get/Read/Dump
-   command block the instant ble_connected flips false, rather than
-   leaving it visible-but-guaranteed-to-fail until some other action
-   happens to redraw the menu. */
 static void action_disconnect_current_cu_if_any(App* app) {
     if(!app->ble_connected) return;
     esp_at_send(app->esp_at, "BLEDISC");
@@ -1086,27 +857,10 @@ static void action_disconnect_current_cu_if_any(App* app) {
 }
 
 static void action_connect(App* app) {
-    /* Fresh Terminal session per the user's spec: "dateandtime connection
-       started" - a new dated log file, and the on-screen scrollback
-       starts clean for this connect attempt (see
-       app_terminal_start_session() for the other places this happens -
-       app_alloc()'s launch-time auto-probe and action_start(), i.e. the
-       ESP32 Firmware bring-up phase, each of which gets its
-       own session/file too). Everything from here on (BLEINIT, BLECONN,
-       BLESVC, BLECHAR, every subsequent menu command run against this
-       connection) just appends. Only reached from the main menu's
-       "Connect" item, which only shows while ble_initialized is false -
-       see MenuIndex's comment in app.h - so this always represents a
-       genuinely fresh BLE session, never a re-run against an
-       already-initialized one. */
     app_terminal_start_session(app);
     app_log(app, "Starting BLE link");
     app_render_log(app);
 
-    /* Restarted here, not left running continuously since Start was
-       pressed, so the dump at the end of this function reflects only
-       this Connect attempt's traffic - not stale bytes from the AT
-       check or an earlier failed Connect press. */
     esp_at_raw_capture_start(app->esp_at);
 
     esp_at_send(app->esp_at, "AT");
@@ -1135,11 +889,6 @@ static void action_connect(App* app) {
     action_scan_for_chameleons(app);
 }
 
-/* "Connect to C.U" in the Connection submenu - reconnects using whatever
-   MAC is currently saved in config.txt, without re-running BLEINIT
-   (already done - that's what makes this item reachable at all, see
-   MenuIndex's comment in app.h). Does NOT fall back to scanning if no
-   MAC is saved; Search for C.U is the explicit way to do that. */
 static void action_reconnect_saved(App* app) {
     if(furi_string_size(app->chameleon_mac) == 0) {
         app_log(app, "No saved Chameleon Ultra");
@@ -1153,25 +902,11 @@ static void action_reconnect_saved(App* app) {
     action_connect_with_mac(app, furi_string_get_cstr(app->chameleon_mac));
 }
 
-/* "Search for C.U" in the Connection submenu - re-runs the same BLESCAN
-   flow as the initial Connect (auto-connects on exactly one match,
-   otherwise shows the selectable list; see action_scan_for_chameleons()).
-   With only one Chameleon Ultra nearby, this ends up doing the same
-   thing as Connect to C.U above - expected, per the user's own
-   description of these two items, not a bug. */
 static void action_search_for_cu(App* app) {
     action_disconnect_current_cu_if_any(app);
     action_scan_for_chameleons(app);
 }
 
-/* "Disconnect BLE" in the Connection submenu - turns BLE off for this
-   session: BLEDISC if still connected, then clears ble_connected and
-   ble_initialized so item 0 on the main menu reverts to "Connect".
-   Deliberately does NOT free the esp_at/UART session - the ESP32 stays
-   claimed, so pressing Connect afterward works immediately with no need
-   to revisit Settings or press Start again. Full teardown + exiting the
-   app entirely is the separate "Disconnect GPIO & Exit" item at the bottom
-   of the main menu - see action_disconnect_and_quit(). */
 static void action_disconnect_ble(App* app) {
     action_disconnect_current_cu_if_any(app);
 
@@ -1208,17 +943,7 @@ static void connection_submenu_callback(void* context, uint32_t index) {
     }
 }
 
-/* "Disconnect GPIO & Exit" at the bottom of the main menu - the one action in
-   this app that actually exits: BLEDISC if connected, frees the whole
-   esp_at/UART session, then stops the view dispatcher, which unwinds
-   fox_chameleon_main() straight through app_free() and back to the
-   Flipper's app list. Distinct from Disconnect BLE above, which only
-   ever resets BLE state and keeps the app (and the ESP32 claim) running. */
 static void action_disconnect_and_quit(App* app) {
-    /* app_log() already writes each line straight to the SD log file as
-       it's called (see app_terminal_log_line()), so this is captured
-       there even though nothing ever renders it on screen again - the
-       app is about to close. */
     app_log(app, "Disconnecting and closing");
     app_log(app, "Fox Chameleon...");
 
@@ -1234,9 +959,6 @@ static void action_disconnect_and_quit(App* app) {
     view_dispatcher_stop(app->view_dispatcher);
 }
 
-/* Sends a zero-argument Chameleon command built by `builder`, then waits
-   for and displays its response through `formatter`. Every read-only
-   diagnostic and scan command in the main menu goes through this. */
 static void action_chameleon_command_ex(
     App* app,
     size_t (*builder)(uint8_t*, size_t),
@@ -1299,9 +1021,6 @@ static void format_response_as_uid_block(const ChameleonFrame* frame, char* out,
     chameleon_format_uid_block(frame->data, out, out_capacity);
 }
 
-/* Slot switching needs a parameter, so it doesn't fit the builder-
-   function-pointer signature action_chameleon_command_ex() uses; this is
-   otherwise the same write/await/format sequence. */
 static void action_set_active_slot(App* app, uint8_t slot) {
     if(!app->ble_connected) {
         app_log(app, "Not connected");
@@ -1335,17 +1054,6 @@ static void action_set_active_slot(App* app, uint8_t slot) {
     app_render_log(app);
 }
 
-/* Switches to reader mode, scans for a card, then tries each key from
-   the Flipper's own NFC dictionaries against sector 0 key A using
-   MF1_READ_ONE_BLOCK - which authenticates and reads in the same round
-   trip. A wrong key gets an empty response body rather than 16 bytes of
-   data: that's the documented general rule for this protocol ("if the
-   response status is different than [the success values], the response
-   data is empty"), and it's what this function checks for success,
-   rather than the response's status code. The exact numeric value the
-   firmware uses for its auth-succeeded status was not confirmed from
-   source for this project - see FEATURES.md - so this deliberately
-   avoids depending on it. */
 static void action_read_card_with_dictionary(App* app) {
     if(!app->ble_connected) {
         app_log(app, "Not connected");
@@ -1459,10 +1167,6 @@ static void action_read_card_with_dictionary(App* app) {
     app_render_log(app);
 }
 
-/* Reads all 64 blocks of the active slot's Mifare Classic 1K emulation
-   memory (16 bytes each, one block per round trip - see the comment on
-   chameleon_build_mf1_read_emu_block()) and writes them in order to
-   FOX_CHAMELEON_DUMP_FILE, overwriting whatever was there before. */
 static void action_dump_slot_to_sd(App* app) {
     if(!app->ble_connected) {
         app_log(app, "Not connected");
@@ -1471,10 +1175,7 @@ static void action_dump_slot_to_sd(App* app) {
     }
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
-    /* See ensure_dir_path() above action_check_esp32() - a single
-       storage_common_mkdir() call only creates the deepest folder, and
-       the fox_chameleon parent directory is never created anywhere else
-       in this app. */
+
     ensure_dir_path(storage, FOX_CHAMELEON_DUMP_DIR);
     File* file = storage_file_alloc(storage);
 
@@ -1550,11 +1251,7 @@ static void submenu_callback(void* context, uint32_t index) {
     App* app = context;
     switch(index) {
     case MenuIndexConnect:
-        /* Same slot, two meanings - keyed on ble_initialized, not
-           ble_connected, so it doesn't flip back to "Connect" (and risk
-           an unwanted auto-reconnect) just because the current Chameleon
-           Ultra got disconnected while BLE itself is still up. See
-           app.h's comment on MenuIndex and render_main_menu() below. */
+
         if(app->ble_initialized) {
             action_open_connection_menu(app);
         } else {
@@ -1626,28 +1323,6 @@ static void submenu_callback(void* context, uint32_t index) {
     }
 }
 
-/* Builds/rebuilds the main menu's item list from current state. Called
-   once at startup (not yet initialized, so item 0 reads "Connect", and
-   ble_connected is false, so only item 0 and Disconnect GPIO & Exit show) and
-   again every time ble_initialized or ble_connected changes
-   (action_connect(), action_disconnect_ble(),
-   action_disconnect_current_cu_if_any(), action_connect_with_mac()).
-
-   Item 0's label is keyed on ble_initialized specifically - "Connect"
-   before BLE is up, "Connection" (opening the Connection submenu) once
-   it is, regardless of whether a specific Chameleon Ultra is currently
-   linked - which is exactly what keeps this item from silently
-   reverting to "Connect" (and risking an unwanted auto-reconnect) right
-   after a disconnect. See MenuIndex's comment in app.h.
-
-   Everything else (Get firmware version ... Dump slot to SD) is keyed
-   on ble_connected: those all require an actual linked Chameleon Ultra
-   to do anything useful, so they're hidden entirely while disconnected
-   rather than left visible-but-guaranteed-to-say-"Not connected". Only
-   item 0 and Disconnect GPIO & Exit are ever shown while disconnected.
-
-   submenu_reset() doesn't support editing a single row in place, so the
-   whole list is rebuilt from scratch each time this runs. */
 static void render_main_menu(App* app) {
     submenu_reset(app->submenu);
     submenu_set_header(app->submenu, "Fox Chameleon");
@@ -1714,33 +1389,14 @@ static void render_main_menu(App* app) {
         app);
 }
 
-/* Claims the chosen UART only now, not at app launch - so picking the
-   wrong pins and pressing Start is recoverable (Back returns to
-   Settings) rather than something only fixable by relaunching. */
 static void action_start(App* app) {
-    /* New Terminal session here too, not just at Connect - this is the
-       ESP32 Firmware bring-up phase (the AT/OK check), and its
-       own dated log file is what lets a "couldn't claim the UART" or
-       "no reply to AT" failure be diagnosed from the SD card even if
-       nothing ever gets as far as a Chameleon Connect attempt. */
     app_terminal_start_session(app);
 
-    /* Pressing Start a second time (Back from a failed attempt, then
-       trying different Pins/Baud) must not leak the previous claim -
-       esp_at_alloc() would otherwise contend with our own still-open
-       handle and fail every time after the first. */
     if(app->esp_at != NULL) {
         esp_at_free(app->esp_at);
         app->esp_at = NULL;
     }
-    /* A fresh esp_at claim means a fresh ESP32-side session as far as
-       this app is concerned - BLEINIT (if it ever ran) doesn't survive
-       whatever just happened to the old UART handle, so both flags reset
-       here too, not just esp_at itself. In practice Start can only be
-       pressed while ble_initialized is already false (getting back to
-       Settings at all requires !esp32_detected, which is never true once
-       BLE has been initialized), but resetting explicitly here keeps
-       that guarantee from being an unstated assumption. */
+
     app->ble_initialized = false;
     app->ble_connected = false;
 
@@ -1760,22 +1416,6 @@ static void action_start(App* app) {
     action_check_esp32(app);
 }
 
-/* --- Settings: custom View (not a Submenu) for the Pins/Baud/Start
-   screen. ---
-   Same "static App* pointer set once, read from the draw callback"
-   pattern used by candidate_draw_cb()/terminal_draw_cb() above, for the
-   same reason (the draw callback only gets the throwaway model, not the
-   context set via view_set_context()).
-
-   Rebuilt as a custom view specifically so Left/Right can adjust the
-   Pins/Baud value directly on whichever row is selected - the previous
-   Submenu-based version needed an OK press to cycle each value, which
-   (a) required memorizing that OK does something different here than
-   everywhere else in the app, and (b) had the side effect of resetting
-   the Submenu's selection back to the top of the list after every
-   press. Neither happens here: Up/Down moves the row selection,
-   Left/Right adjusts Pins/Baud in place, OK only does something on the
-   Start row. */
 static App* s_settings_view_app = NULL;
 
 #define SETTINGS_ROW_COUNT 3
@@ -1851,9 +1491,7 @@ static bool settings_input_cb(InputEvent* event, void* context) {
                                                                       (app->baud_option_index - 1);
             with_view_model(app->settings_view, uint8_t * _m, { UNUSED(_m); }, true);
         }
-        /* Consumed either way (including on the Start row, where it's a
-           no-op) - Left is a value-adjust key on this screen now, not a
-           navigation key, so it should never fall through. */
+
         return true;
     case InputKeyRight:
         if(app->settings_selected == SettingsIndexPins) {
@@ -1870,7 +1508,7 @@ static bool settings_input_cb(InputEvent* event, void* context) {
         }
         return true;
     case InputKeyBack:
-        return false; /* navigation_callback exits the app from here */
+        return false;
     default:
         return false;
     }
@@ -1887,15 +1525,6 @@ static bool navigation_callback(void* context) {
         return true;
     }
 
-    /* Message (the no-ESP32-response Retry/Skip screen) and Terminal (
-       everything else - the actual log/status pages) share one Back rule:
-       once esp32_detected, Back always returns to the main menu - "so
-       that when these info pages come up the user knows that pressing
-       back will get them back to where they were". Before esp32_detected
-       (only possible on Message pre-Retry/Skip, or on Terminal while the
-       very first "Checking for ESP32..." AT check is still in flight),
-       Back instead goes to Settings, since there's no menu to return to
-       yet and adjusting Pins/Baud + Start again is the way forward. */
     if(app->current_view == FoxChameleonViewMessage ||
        app->current_view == FoxChameleonViewTerminal) {
         if(app->esp32_detected) {
@@ -1912,16 +1541,6 @@ static bool navigation_callback(void* context) {
     return true;
 }
 
-/* Tries AT/OK on the given pin pair at the Fox ESP32 Firmware's stock
-   115200 baud - used once at launch, before the Settings screen is ever
-   shown, so a default wiring/baud doesn't force the user through a
-   screen they don't need (see app_alloc() below). A shorter timeout
-   than action_check_esp32()'s normal 2500ms - a real ESP32 that's
-   actually wired up on this pin pair responds close to instantly, so
-   this only costs real time on the pin pair that ISN'T connected.
-   Leaves esp_at claimed (and pin_option_index/baud_option_index
-   updated to match) on success; frees it and leaves both untouched on
-   failure, so a second attempt with the other pin pair starts clean. */
 static bool app_probe_default_uart(App* app, size_t pin_index) {
     app->esp_at =
         esp_at_alloc(pin_options[pin_index].serial_id, baud_options[BAUD_OPTION_DEFAULT_INDEX]);
@@ -1955,12 +1574,7 @@ static App* app_alloc(void) {
 
     app_load_config(app);
     app_ensure_config_defaults(app);
-    /* Ensures config.txt exists and is fully populated from the very
-       first launch, defaults included - this is what makes it
-       something the app maintains rather than something the user is
-       expected to create by hand before first use. mac= may still be
-       empty at this point; it gets filled in and re-saved the first
-       time Connect actually finds or is given one. */
+
     app_save_config(app);
 
     app->gui = furi_record_open(RECORD_GUI);
@@ -1968,8 +1582,6 @@ static App* app_alloc(void) {
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
     view_dispatcher_set_navigation_event_callback(app->view_dispatcher, navigation_callback);
 
-    /* Settings - see settings_draw_cb()/settings_input_cb() above for
-       why this is a custom View, not a Submenu. */
     app->settings_view = view_alloc();
     view_set_draw_callback(app->settings_view, settings_draw_cb);
     view_set_input_callback(app->settings_view, settings_input_cb);
@@ -2009,17 +1621,6 @@ static App* app_alloc(void) {
         submenu_add_item(app->slot_submenu, slot_label, i, slot_submenu_callback, app);
     }
 
-    /* Populated on demand by action_scan_for_chameleons() - empty at
-       allocation time, since which (if any) Chameleon Ultras are
-       nearby isn't known until a scan actually runs. A custom View, not
-       a Submenu - see candidate_draw_cb()'s comment for why (two-line
-       rows, matching Fox File Browser's Favourites list). The model
-       allocated here is a throwaway uint8_t, touched only via
-       with_view_model() to ask for a redraw - the real state
-       (candidates/candidate_selected/candidate_scroll) lives on App,
-       reached from the draw callback through s_candidate_view_app since
-       draw callbacks don't receive the context set below the way input
-       callbacks do. */
     app->candidate_view = view_alloc();
     view_set_draw_callback(app->candidate_view, candidate_draw_cb);
     view_set_input_callback(app->candidate_view, candidate_input_cb);
@@ -2027,9 +1628,6 @@ static App* app_alloc(void) {
     view_allocate_model(app->candidate_view, ViewModelTypeLocking, sizeof(uint8_t));
     s_candidate_view_app = app;
 
-    /* Terminal - same custom-View pattern as candidate_view above, for
-       the same reason (needs its own header/scroll drawing a Submenu or
-       Widget can't do). See terminal_draw_cb()/terminal_input_cb(). */
     app->terminal_view = view_alloc();
     view_set_draw_callback(app->terminal_view, terminal_draw_cb);
     view_set_input_callback(app->terminal_view, terminal_input_cb);
@@ -2057,19 +1655,8 @@ static App* app_alloc(void) {
     view_dispatcher_add_view(
         app->view_dispatcher, FoxChameleonViewTerminal, app->terminal_view);
 
-    /* Takes a ViewDispatcherType, not a GuiLayer - an easy mix-up since
-       older examples online still show GuiLayerFullscreen here. */
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    /* Auto-probe the two supported pin pairs at the Fox ESP32 Firmware's
-       stock baud (115200) before ever showing the Settings screen - this
-       is what lets a default wiring/baud skip that screen altogether
-       per the user's request; Settings is only needed as a fallback
-       when neither responds (non-default wiring or baud). This runs
-       synchronously here, before view_dispatcher_run() starts the GUI's
-       render loop in fox_chameleon_main() - the screen simply doesn't
-       show anything until this resolves, up to ~3s in the worst case
-       (both attempts timing out). */
     if(app_probe_default_uart(app, 0) || app_probe_default_uart(app, 1)) {
         esp_at_raw_capture_start(app->esp_at);
         app_terminal_start_session(app);
@@ -2083,9 +1670,6 @@ static App* app_alloc(void) {
         app->current_view = FoxChameleonViewMenu;
         view_dispatcher_switch_to_view(app->view_dispatcher, FoxChameleonViewMenu);
     } else {
-        /* Lands on Settings - the UART isn't claimed at this point,
-           since neither default probe succeeded (see action_start() for
-           where it's claimed once the user picks Pins/Baud manually). */
         app->current_view = FoxChameleonViewSettings;
         view_dispatcher_switch_to_view(app->view_dispatcher, FoxChameleonViewSettings);
     }

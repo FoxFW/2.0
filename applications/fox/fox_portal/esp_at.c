@@ -63,8 +63,6 @@ static int32_t esp_at_worker(void* context) {
         } else if(line_len < ESP_AT_LINE_MAX - 1) {
             line[line_len++] = (char)byte;
         } else {
-            /* Line longer than the buffer: flush what's been collected
-               so far rather than silently drop it, then keep going. */
             esp_at_emit_line(esp_at, line, line_len);
             line_len = 0;
             line[line_len++] = (char)byte;
@@ -116,13 +114,8 @@ void esp_at_free(EspAt* esp_at) {
     furi_thread_join(esp_at->worker);
     furi_thread_free(esp_at->worker);
 
-    /* Stopping the receive interrupt explicitly, before deinit/release,
-       isn't optional: flipperdevices/flipperzero-firmware PR #4246 fixed
-       a real crash in Flipper's own Expansion service caused by tearing
-       down a serial handle without stopping async RX first, and Fox
-       ESP32 Detector (a companion app to this one) hit the same class of
-       bug - reported as a NULL pointer dereference - from freeing its
-       receive buffer before this call existed. */
+    /* Stop async rx before deinit/release, free stream buffers last -
+       wrong order here is a known Flipper firmware bug class (PR #4246). */
     furi_hal_serial_async_rx_stop(esp_at->serial);
 
     if(esp_at->serial_owned) {

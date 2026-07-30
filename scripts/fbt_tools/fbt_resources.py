@@ -24,7 +24,8 @@ def __generate_resources_dist_entries(env):
             )
 
     # Deploy apps' resources too
-    for app in env["APPBUILD"].apps:
+    all_apps = env["APPBUILD"].apps + env["APPBUILD"].get_ext_apps()
+    for app in all_apps:
         if not app.resources:
             continue
         apps_resource_dir = app._appdir.Dir(app.resources)

@@ -78,15 +78,12 @@ const SubGhzProtocol subghz_protocol_beninca_arc = {
     .encoder = &subghz_protocol_beninca_arc_encoder,
 };
 
-// Get custom button code
 static uint8_t subghz_protocol_beninca_arc_get_btn_code(void) {
     uint8_t custom_btn_id = subghz_custom_btn_get();
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -163,10 +160,6 @@ static void reverse_bits_in_bytes(uint8_t* data, uint8_t len) {
 
 static uint64_t
     subghz_protocol_beninca_arc_decrypt(SubGhzBlockGeneric* generic, SubGhzKeystore* keystore) {
-    // Beninca ARC Decoder
-    // 01.2026 - @xMasterX (MMX) & @zero-mega
-
-    // Decrypt data
     uint8_t encrypted_data[16];
 
     for(uint8_t i = 0; i < 8; i++) {
@@ -183,33 +176,20 @@ static uint64_t
     furi_hal_crypto_aes128_ecb_decrypt(aes_key, encrypted_data, decrypted);
     memcpy(encrypted_data, decrypted, 16);
 
-    // Serial number of remote
     generic->serial = ((uint32_t)encrypted_data[0] << 24) | ((uint32_t)encrypted_data[1] << 16) |
                       ((uint32_t)encrypted_data[2] << 8) | encrypted_data[3];
 
-    // Button code
     generic->btn = encrypted_data[4];
 
-    // Middle bytes contains mini counter that is increased while button is held
-    // its value mostly stored in encrypted_data[9] but might be in other bytes as well
-    // In order to support all variants we read all middle bytes as uint64_t
-    // In case you have the remote with ARC rolling code please share RAW recording where you hold button for 15+ sec with us to improve this part!
     uint64_t middle_bytes = 0;
     middle_bytes = ((uint64_t)encrypted_data[5] << 32) | ((uint64_t)encrypted_data[6] << 24) |
                    ((uint64_t)encrypted_data[7] << 16) | ((uint64_t)encrypted_data[8] << 8) |
                    encrypted_data[9];
 
-    // 32-bit counter
     generic->cnt = ((uint32_t)encrypted_data[10] << 24) | ((uint32_t)encrypted_data[11] << 16) |
                    ((uint32_t)encrypted_data[12] << 8) | encrypted_data[13];
-    // Fixed constant value AA 55
-    generic->seed = ((uint16_t)encrypted_data[14] << 8) | encrypted_data[15];
 
-    // Save original button for later use
-    // if(subghz_custom_btn_get_original() == 0) {
-    //     subghz_custom_btn_set_original(generic->btn);
-    // }
-        // subghz_custom_btn_set_max(2);
+    generic->seed = ((uint16_t)encrypted_data[14] << 8) | encrypted_data[15];
 
     return middle_bytes;
 }
@@ -218,9 +198,6 @@ static void subghz_protocol_beninca_arc_encrypt(
     SubGhzBlockGeneric* generic,
     SubGhzKeystore* keystore,
     uint64_t middle_bytes) {
-    // Beninca ARC Encoder
-    // 01.2026 - @xMasterX (MMX) & @zero-mega
-    // Encrypt data
     uint8_t plaintext[16];
 
     plaintext[0] = (generic->serial >> 24) & 0xFF;
@@ -290,42 +267,37 @@ static void subghz_protocol_beninca_arc_encoder_get_upload(
     furi_assert(instance);
     size_t index_local = *index;
 
-    // First part of data 64 bits
     for(uint8_t i = 64; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            // Send bit 1
             instance->encoder.upload[index_local++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_beninca_arc_const.te_short);
             instance->encoder.upload[index_local++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_beninca_arc_const.te_long);
         } else {
-            // Send bit 0
             instance->encoder.upload[index_local++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_beninca_arc_const.te_long);
             instance->encoder.upload[index_local++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_beninca_arc_const.te_short);
         }
     }
-    // Second part of data 64 bits - total 128bits data
+
     for(uint8_t i = 64; i > 0; i--) {
         if(bit_read(instance->generic.data_2, i - 1)) {
-            // Send bit 1
             instance->encoder.upload[index_local++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_beninca_arc_const.te_short);
             instance->encoder.upload[index_local++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_beninca_arc_const.te_long);
         } else {
-            // Send bit 0
             instance->encoder.upload[index_local++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_beninca_arc_const.te_long);
             instance->encoder.upload[index_local++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_beninca_arc_const.te_short);
         }
     }
-    // Add stop bit
+
     instance->encoder.upload[index_local++] =
         level_duration_make(true, (uint32_t)subghz_protocol_beninca_arc_const.te_short);
-    // Add gap between packets
+
     instance->encoder.upload[index_local++] =
         level_duration_make(false, (uint32_t)subghz_protocol_beninca_arc_const.te_long * 15);
 
@@ -336,12 +308,8 @@ static void subghz_protocol_beninca_arc_encoder_prepare_packets(
     SubGhzProtocolEncoderBenincaARC* instance) {
     furi_assert(instance);
 
-    // Counter increment
-    // check OFEX mode
     if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
-        // standart counter mode. PULL data from subghz_block_generic_global variables
         if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
-            // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
             if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFFFFFF) {
                 instance->generic.cnt = 0;
             } else {
@@ -349,25 +317,22 @@ static void subghz_protocol_beninca_arc_encoder_prepare_packets(
             }
         }
     } else {
-        // TODO: OFEX mode
         instance->generic.cnt += 1;
     }
-    // Index for upload array
+
     size_t index = 0;
-    // Generate new key using custom or default button
+
     instance->generic.btn = subghz_protocol_beninca_arc_get_btn_code();
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&instance->generic.btn))
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", instance->generic.btn);
 
-    // Make 3 packets with different mini counter values - 2, 4, 6
     for(uint8_t i = 0; i < 3; i++) {
         subghz_protocol_beninca_arc_encrypt(
             &instance->generic, instance->keystore, (uint64_t)((i + 1) * 2));
         subghz_protocol_beninca_arc_encoder_get_upload(instance, &index);
     }
-    // Set final size of upload array
+
     instance->encoder.size_upload = index;
 }
 
@@ -379,12 +344,12 @@ bool subghz_protocol_beninca_arc_create_data(
     uint32_t cnt,
     SubGhzRadioPreset* preset) {
     furi_assert(context);
-    // UwU
+
     SubGhzProtocolEncoderBenincaARC* instance = context;
     instance->generic.serial = serial;
-    instance->generic.btn = btn; // 02 / 04
+    instance->generic.btn = btn;
     instance->generic.cnt = cnt;
-    instance->generic.seed = 0xAA55; // Fixed value constant
+    instance->generic.seed = 0xAA55;
     instance->generic.data_count_bit = 128;
 
     subghz_protocol_beninca_arc_encrypt(&instance->generic, instance->keystore, 0x1);
@@ -423,7 +388,6 @@ SubGhzProtocolStatus
             break;
         }
 
-        // Optional value
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -442,7 +406,6 @@ SubGhzProtocolStatus
             instance->generic.data_2 = instance->generic.data_2 << 8 | key_data[i];
         }
 
-        // TODO: if minicounter having larger value use it instead of fixed values
         subghz_protocol_beninca_arc_decrypt(&instance->generic, instance->keystore);
 
         subghz_protocol_beninca_arc_encoder_prepare_packets(instance);
@@ -524,29 +487,26 @@ void subghz_protocol_decoder_beninca_arc_feed(void* context, bool level, uint32_
     case BenincaARCDecoderStart:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_beninca_arc_const.te_long * 16) <
                         subghz_protocol_beninca_arc_const.te_delta * 15)) {
-            // GAP (9300 +- 2325 us) found switch to next state
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
             instance->decoder.parser_step = BenincaARCDecoderHighLevel;
             break;
         }
-        // No GAP so stay in current state
+
         break;
     case BenincaARCDecoderHighLevel:
         if(level) {
             instance->decoder.te_last = duration;
             instance->decoder.parser_step = BenincaARCDecoderLowLevel;
-            // Check if we have collected enough bits
+
             if((instance->decoder.decode_count_bit ==
                 (subghz_protocol_beninca_arc_const.min_count_bit_for_found / 2)) &&
                (instance->decoder.decode_data != 0)) {
-                // Half data captured 64 bits
                 instance->generic.data = instance->decoder.decode_data;
                 instance->decoder.decode_data = 0;
             } else if(
                 instance->decoder.decode_count_bit ==
                 subghz_protocol_beninca_arc_const.min_count_bit_for_found) {
-                // Full data captured 128 bits
                 instance->generic.data_2 = instance->decoder.decode_data;
                 instance->generic.data_count_bit = instance->decoder.decode_count_bit;
                 instance->decoder.parser_step = BenincaARCDecoderStart;
@@ -563,7 +523,6 @@ void subghz_protocol_decoder_beninca_arc_feed(void* context, bool level, uint32_
         break;
     case BenincaARCDecoderLowLevel:
         if(!level) {
-            // Bit 1 is short and long timing = 300us HIGH (te_last) and 600us LOW
             if((DURATION_DIFF(
                     instance->decoder.te_last, subghz_protocol_beninca_arc_const.te_short) <
                 subghz_protocol_beninca_arc_const.te_delta) &&
@@ -571,7 +530,6 @@ void subghz_protocol_decoder_beninca_arc_feed(void* context, bool level, uint32_
                 subghz_protocol_beninca_arc_const.te_delta)) {
                 subghz_protocol_blocks_add_bit(&instance->decoder, 1);
                 instance->decoder.parser_step = BenincaARCDecoderHighLevel;
-                // Bit 0 is long and short timing = 600us HIGH (te_last) and 300us LOW
             } else if(
                 (DURATION_DIFF(
                      instance->decoder.te_last, subghz_protocol_beninca_arc_const.te_long) <
@@ -665,7 +623,6 @@ void subghz_protocol_decoder_beninca_arc_get_string(void* context, FuriString* o
     uint64_t middle_bytes_dec =
         subghz_protocol_beninca_arc_decrypt(&instance->generic, instance->keystore);
 
-    // push protocol data to global variable
     subghz_block_generic_global.cnt_is_available = true;
     subghz_block_generic_global.cnt_length_bit = 32;
     subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -673,7 +630,6 @@ void subghz_protocol_decoder_beninca_arc_get_string(void* context, FuriString* o
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 8;
-    //
 
     furi_string_printf(
         output,

@@ -29,6 +29,13 @@ FuriMessageQueue* furi_message_queue_alloc(uint32_t msg_count, uint32_t msg_size
 
     FuriMessageQueue* instance = malloc(sizeof(FuriMessageQueue) + msg_count * msg_size);
 
+    /* xQueueCreateStatic only zeroes sizeof(StaticQueue_t) bytes.
+     * FuriEventLoopLink follows the container and is NOT covered; zero it
+     * explicitly so furi_message_queue_put/get notify calls are safe on
+     * recycled heap allocations. */
+    instance->event_loop_link.item_in  = NULL;
+    instance->event_loop_link.item_out = NULL;
+
     // 3 things happens here:
     // - create queue
     // - check results

@@ -90,11 +90,6 @@ void subghz_protocol_encoder_nero_sketch_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderNeroSketch instance
- * @return true On success
- */
 static bool
     subghz_protocol_encoder_nero_sketch_get_upload(SubGhzProtocolEncoderNeroSketch* instance) {
     furi_assert(instance);
@@ -108,7 +103,6 @@ static bool
         instance->encoder.size_upload = size_upload;
     }
 
-    //Send header
     for(uint8_t i = 0; i < 47; i++) {
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_nero_sketch_const.te_short);
@@ -116,22 +110,18 @@ static bool
             level_duration_make(false, (uint32_t)subghz_protocol_nero_sketch_const.te_short);
     }
 
-    //Send start bit
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_nero_sketch_const.te_short * 4);
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_nero_sketch_const.te_short);
 
-    //Send key data
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_nero_sketch_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_nero_sketch_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_nero_sketch_const.te_short);
             instance->encoder.upload[index++] =
@@ -139,7 +129,6 @@ static bool
         }
     }
 
-    //Send stop bit
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_nero_sketch_const.te_short * 3);
     instance->encoder.upload[index++] =
@@ -161,7 +150,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -247,14 +236,12 @@ void subghz_protocol_decoder_nero_sketch_feed(void* context, bool level, uint32_
             if(DURATION_DIFF(
                    instance->decoder.te_last, subghz_protocol_nero_sketch_const.te_short) <
                subghz_protocol_nero_sketch_const.te_delta) {
-                // Found header
                 instance->header_count++;
                 break;
             } else if(
                 DURATION_DIFF(
                     instance->decoder.te_last, subghz_protocol_nero_sketch_const.te_short * 4) <
                 subghz_protocol_nero_sketch_const.te_delta) {
-                // Found start bit
                 if(instance->header_count > 40) {
                     instance->decoder.parser_step = NeroSketchDecoderStepSaveDuration;
                     instance->decoder.decode_data = 0;
@@ -273,7 +260,6 @@ void subghz_protocol_decoder_nero_sketch_feed(void* context, bool level, uint32_
         if(level) {
             if(duration >= (subghz_protocol_nero_sketch_const.te_short * 2 +
                             subghz_protocol_nero_sketch_const.te_delta * 2)) {
-                //Found stop bit
                 instance->decoder.parser_step = NeroSketchDecoderStepReset;
                 if(instance->decoder.decode_count_bit ==
                    subghz_protocol_nero_sketch_const.min_count_bit_for_found) {
@@ -289,7 +275,6 @@ void subghz_protocol_decoder_nero_sketch_feed(void* context, bool level, uint32_
                 instance->decoder.te_last = duration;
                 instance->decoder.parser_step = NeroSketchDecoderStepCheckDuration;
             }
-
         } else {
             instance->decoder.parser_step = NeroSketchDecoderStepReset;
         }

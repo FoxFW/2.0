@@ -1,4 +1,3 @@
-// scenes/gdr_scene_dual_receiver.c
 #include "../gdr_app_i.h"
 
 #ifdef ENABLE_DUAL_RX_SCENE
@@ -391,4 +390,4 @@ void gdr_scene_dual_receiver_view_callback(GDRCustomEvent event, void* context) 
 
 #else
 
-#endif // ENABLE_DUAL_RX_SCENE
+#endif

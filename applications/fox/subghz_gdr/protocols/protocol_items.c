@@ -51,8 +51,6 @@ GDRProtocolRegistryFilter gdr_get_protocol_registry_filter_for_preset(
         return GDRProtocolRegistryFilterAM;
     }
 
-    // MDMCFG2[6:4] stores the CC1101 modulation format.
-    // ASK/OOK maps to our AM decoder set; the FSK-family formats map to FM.
     switch(mdmcfg2 & GDR_CC1101_MOD_FORMAT_MASK) {
     case GDR_CC1101_MOD_FORMAT_ASK_OOK:
         return GDRProtocolRegistryFilterAM;
@@ -73,9 +71,8 @@ const char*
 }
 
 #ifdef ENABLE_TIMING_TUNER_SCENE
-// Protocol timing definitions - mirrors the SubGhzBlockConst in each protocol
+
 static const GDRProtocolTiming protocol_timings[] = {
-    // Star Line: PWM 250/500µs
     {
         .name = "Star Line",
         .te_short = 250,
@@ -83,7 +80,7 @@ static const GDRProtocolTiming protocol_timings[] = {
         .te_delta = 120,
         .min_count_bit = 64,
     },
-    // KeeLoq: PWM 400/800µs
+
     {
         .name = SUBGHZ_PROTOCOL_KEELOQ_NAME,
         .te_short = 400,
@@ -100,7 +97,6 @@ const GDRProtocolTiming* gdr_get_protocol_timing(const char* protocol_name) {
     if(!protocol_name) return NULL;
 
     for(size_t i = 0; i < protocol_timings_count; i++) {
-        // Check for exact match or if the protocol name contains our timing name
         if(strcmp(protocol_name, protocol_timings[i].name) == 0 ||
            strstr(protocol_name, protocol_timings[i].name) != NULL) {
             return &protocol_timings[i];

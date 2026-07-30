@@ -1,4 +1,3 @@
-// gdr_app_i.h
 #pragma once
 
 #include <stddef.h>
@@ -106,9 +105,6 @@ struct GDRApp {
     bool auto_save;
     bool radio_initialized;
 
-    /* Startup loading wheel — shown during gdr_app_alloc() to bridge the gap
-     * between the loader's FAP-load spinner and GDR's first scene appearing.
-     * Dismissed in gdr_scene_start_on_enter(). */
     ViewHolder* startup_holder;
     Loading*    startup_loading;
     GDRSettings settings;

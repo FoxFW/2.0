@@ -82,7 +82,7 @@ void* subghz_protocol_encoder_linear_alloc(SubGhzEnvironment* environment) {
     instance->generic.protocol_name = instance->base.protocol->name;
 
     instance->encoder.repeat = 3;
-    instance->encoder.size_upload = 28; //max 10bit*2 + 2 (start, stop)
+    instance->encoder.size_upload = 28;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
     instance->encoder.is_running = false;
     return instance;
@@ -95,11 +95,6 @@ void subghz_protocol_encoder_linear_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderLinear instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_linear_get_upload(SubGhzProtocolEncoderLinear* instance) {
     furi_assert(instance);
     size_t index = 0;
@@ -111,35 +106,30 @@ static bool subghz_protocol_encoder_linear_get_upload(SubGhzProtocolEncoderLinea
         instance->encoder.size_upload = size_upload;
     }
 
-    //Send key data
     for(uint8_t i = instance->generic.data_count_bit; i > 1; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_linear_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_linear_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_linear_const.te_short);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_linear_const.te_long);
         }
     }
-    //Send end bit
+
     if(bit_read(instance->generic.data, 0)) {
-        //send bit 1
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_linear_const.te_long);
-        //Send gap
+
         instance->encoder.upload[index++] =
             level_duration_make(false, (uint32_t)subghz_protocol_linear_const.te_short * 42);
     } else {
-        //send bit 0
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_linear_const.te_short);
-        //Send gap
+
         instance->encoder.upload[index++] =
             level_duration_make(false, (uint32_t)subghz_protocol_linear_const.te_short * 44);
     }
@@ -160,7 +150,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -224,7 +214,6 @@ void subghz_protocol_decoder_linear_feed(void* context, bool level, uint32_t dur
     case LinearDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_linear_const.te_short * 42) <
                         subghz_protocol_linear_const.te_delta * 15)) {
-            //Found header Linear
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
             instance->decoder.parser_step = LinearDecoderStepSaveDuration;
@@ -239,10 +228,10 @@ void subghz_protocol_decoder_linear_feed(void* context, bool level, uint32_t dur
         }
         break;
     case LinearDecoderStepCheckDuration:
-        if(!level) { //save interval
+        if(!level) {
             if(duration >= (subghz_protocol_linear_const.te_short * 5)) {
                 instance->decoder.parser_step = LinearDecoderStepReset;
-                //checking that the duration matches the guardtime
+
                 if(DURATION_DIFF(duration, subghz_protocol_linear_const.te_short * 42) >
                    subghz_protocol_linear_const.te_delta * 15) {
                     break;
@@ -285,7 +274,6 @@ void subghz_protocol_decoder_linear_feed(void* context, bool level, uint32_t dur
             } else {
                 instance->decoder.parser_step = LinearDecoderStepReset;
             }
-
         } else {
             instance->decoder.parser_step = LinearDecoderStepReset;
         }
@@ -321,9 +309,6 @@ void subghz_protocol_decoder_linear_get_string(void* context, FuriString* output
     furi_assert(context);
     SubGhzProtocolDecoderLinear* instance = context;
 
-    // Protocol is actually implemented wrong way around, bits are inverted.
-    // Instead of fixing it and breaking old saved remotes,
-    // only the display here is inverted (~) to show correct values.
     uint32_t code_found_lo = ~instance->generic.data & 0x00000000000003ff;
 
     uint64_t code_found_reverse = subghz_protocol_blocks_reverse_key(

@@ -29,6 +29,11 @@ static void connect_draw(Canvas* canvas, void* model) {
         bool selected = (row == (size_t)app->connect_selected);
         uint8_t y     = k_box_y[row];
 
+        if(row == ConnectRowRetry && selected) {
+            flasher_draw_ok_button(canvas, BOX_X, y, BOX_W, BOX_H, BOX_R, "Retry");
+            continue;
+        }
+
         char text[40];
         if(row == ConnectRowPins) {
             snprintf(text, sizeof(text), "Pins: %s",
@@ -43,7 +48,6 @@ static void connect_draw(Canvas* canvas, void* model) {
             canvas_set_color(canvas, ColorWhite);
         } else {
             canvas_draw_rframe(canvas, BOX_X, y, BOX_W, BOX_H, BOX_R);
-            canvas_draw_rframe(canvas, BOX_X + 2, y + 2, BOX_W - 4, BOX_H - 4, BOX_R - 2);
         }
 
         uint8_t ty = y + BOX_H / 2;

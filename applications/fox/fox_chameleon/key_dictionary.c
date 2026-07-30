@@ -21,11 +21,6 @@ static bool parse_key_line(const char* line, uint8_t* key) {
     return true;
 }
 
-/* Reads only the first KEY_DICTIONARY_READ_CHUNK bytes of the file, not
-   the whole thing - community dictionaries can run to hundreds of KB,
-   and this app has no need to hold all of that in RAM at once. Any
-   partial line cut off at the chunk boundary is simply not 12 hex
-   characters and is safely rejected by parse_key_line(). */
 static size_t load_file(Storage* storage, const char* path, KeyDictionary* dictionary) {
     File* file = storage_file_alloc(storage);
     size_t loaded = 0;

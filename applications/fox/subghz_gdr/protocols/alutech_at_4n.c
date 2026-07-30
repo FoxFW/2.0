@@ -12,7 +12,6 @@
 #define SUBGHZ_NO_ALUTECH_AT_4N_RAINBOW_TABLE         0xFFFFFFFFFFFFFFFF
 #define SUBGHZ_ALUTECH_AT_4N_RAINBOW_TABLE_SIZE_BYTES 32
 
-//variable used to bypass CounterMode settings if user just change Counter or Button
 static bool bypass = false;
 
 static const SubGhzBlockConst subghz_protocol_alutech_at_4n_const = {
@@ -142,12 +141,6 @@ LevelDuration subghz_protocol_encoder_alutech_at_4n_yield(void* context) {
     return ret;
 }
 
-/**
- * Read bytes from buffer array with rainbow table 
- * @param buffer Pointer to decrypted magic data buffer
- * @param number_alutech_at_4n_magic_data number in the array
- * @return alutech_at_4n_magic_data
- */
 static uint32_t subghz_protocol_alutech_at_4n_get_magic_data_from_buffer(
     uint8_t* buffer,
     uint8_t number_alutech_at_4n_magic_data) {
@@ -192,7 +185,6 @@ static uint8_t subghz_protocol_alutech_at_4n_decrypt_data_crc(uint8_t data) {
 }
 
 static uint64_t subghz_protocol_alutech_at_4n_decrypt(uint64_t data, const char* file_name) {
-    // load and decrypt rainbow table from file to buffer array in RAM
     if(!file_name) return SUBGHZ_NO_ALUTECH_AT_4N_RAINBOW_TABLE;
 
     uint8_t buffer[SUBGHZ_ALUTECH_AT_4N_RAINBOW_TABLE_SIZE_BYTES] = {0};
@@ -239,7 +231,6 @@ static uint64_t subghz_protocol_alutech_at_4n_decrypt(uint64_t data, const char*
 }
 
 static uint64_t subghz_protocol_alutech_at_4n_encrypt(uint64_t data, const char* file_name) {
-    // load and decrypt rainbow table from file to buffer array in RAM
     if(!file_name) return SUBGHZ_NO_ALUTECH_AT_4N_RAINBOW_TABLE;
 
     uint8_t buffer[SUBGHZ_ALUTECH_AT_4N_RAINBOW_TABLE_SIZE_BYTES] = {0};
@@ -296,16 +287,13 @@ static bool subghz_protocol_alutech_at_4n_gen_data(
         instance->generic.serial = (uint32_t)(data >> 24) & 0xFFFFFFFF;
     }
 
-    // if we change counter/button in SignalSettings menu then we must bypass counter_modes, just gen and save signal file.
     if(subghz_block_generic_global.cnt_need_override) bypass = true;
 
     if((alutech_at4n_counter_mode == 0) || bypass) {
-        // Check for OFEX (overflow experimental) mode
         if((furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) || bypass) {
             bypass = false;
-            // standart counter mode. PULL data from subghz_block_generic_global variables
+
             if(!subghz_block_generic_global_counter_override_get(&instance->generic.cnt)) {
-                // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
                 if((instance->generic.cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
                     instance->generic.cnt = 0;
                 } else {
@@ -313,7 +301,6 @@ static bool subghz_protocol_alutech_at_4n_gen_data(
                 }
             }
         } else {
-            //OFFEX mode
             if((instance->generic.cnt + 0x1) > 0xFFFF) {
                 instance->generic.cnt = 0;
             } else if(instance->generic.cnt >= 0x1 && instance->generic.cnt != 0xFFFE) {
@@ -323,8 +310,6 @@ static bool subghz_protocol_alutech_at_4n_gen_data(
             }
         }
     } else if(alutech_at4n_counter_mode == 1) {
-        // Mode 1
-        // 0000 / 0001 / FFFE / FFFF
         if((instance->generic.cnt + 0x1) > 0xFFFF) {
             instance->generic.cnt = 0;
         } else if(instance->generic.cnt >= 0x1 && instance->generic.cnt != 0xFFFE) {
@@ -333,8 +318,6 @@ static bool subghz_protocol_alutech_at_4n_gen_data(
             instance->generic.cnt++;
         }
     } else {
-        // Mode 2
-        // 0x0000 / 0x0001 / 0x0002 / 0x0003 / 0x0004 / 0x0005
         if(instance->generic.cnt >= 0x0005) {
             instance->generic.cnt = 0;
         } else {
@@ -383,86 +366,67 @@ bool subghz_protocol_alutech_at_4n_create_data(
     return true;
 }
 
-/**
- * Defines the button value for the current btn_id
- * Basic set | 0x11 | 0x22 | 0xFF | 0x44 | 0x33 |
- * @return Button code
- */
 static uint8_t subghz_protocol_alutech_at_4n_get_btn_code(void);
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderAlutech instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_alutech_at_4n_get_upload(
     SubGhzProtocolEncoderAlutech_at_4n* instance,
     uint8_t btn) {
     furi_assert(instance);
 
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
-        // subghz_custom_btn_set_original(btn);
     }
 
     btn = subghz_protocol_alutech_at_4n_get_btn_code();
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&btn)) {
         bypass = true;
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", btn);
     }
 
-    // Gen new key
     if(!subghz_protocol_alutech_at_4n_gen_data(instance, btn)) {
         return false;
     }
 
     size_t index = 0;
-    // Send preambula
+
     for(uint8_t i = 0; i < 12; ++i) {
         instance->encoder.upload[index++] =
-            level_duration_make(true, (uint32_t)subghz_protocol_alutech_at_4n_const.te_short); // 1
+            level_duration_make(true, (uint32_t)subghz_protocol_alutech_at_4n_const.te_short);
         instance->encoder.upload[index++] = level_duration_make(
-            false, (uint32_t)subghz_protocol_alutech_at_4n_const.te_short); // 0
+            false, (uint32_t)subghz_protocol_alutech_at_4n_const.te_short);
     }
 
     instance->encoder.upload[index - 1].duration +=
         (uint32_t)subghz_protocol_alutech_at_4n_const.te_short * 9;
 
-    // Send key data
     for(uint8_t i = 64; i > 0; --i) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_alutech_at_4n_const.te_short);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_alutech_at_4n_const.te_long);
         } else {
-            //0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_alutech_at_4n_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_alutech_at_4n_const.te_short);
         }
     }
-    // Send crc
+
     for(uint8_t i = 8; i > 0; --i) {
         if(bit_read(instance->crc, i - 1)) {
-            //1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_alutech_at_4n_const.te_short);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_alutech_at_4n_const.te_long);
         } else {
-            //0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_alutech_at_4n_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_alutech_at_4n_const.te_short);
         }
     }
-    // Inter-frame silence
+
     instance->encoder.upload[index - 1].duration +=
         (uint32_t)subghz_protocol_alutech_at_4n_const.te_long * 20;
 
@@ -495,7 +459,6 @@ SubGhzProtocolStatus subghz_protocol_encoder_alutech_at_4n_deserialize(
             break;
         }
 
-        // Optional value
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -593,7 +556,6 @@ void subghz_protocol_decoder_alutech_at_4n_feed(void* context, bool level, uint3
         if((instance->header_count > 9) &&
            (DURATION_DIFF(duration, subghz_protocol_alutech_at_4n_const.te_short * 10) <
             subghz_protocol_alutech_at_4n_const.te_delta * 10)) {
-            // Found header
             instance->decoder.parser_step = Alutech_at_4nDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -612,7 +574,6 @@ void subghz_protocol_decoder_alutech_at_4n_feed(void* context, bool level, uint3
         if(!level) {
             if(duration >= ((uint32_t)subghz_protocol_alutech_at_4n_const.te_short * 2 +
                             subghz_protocol_alutech_at_4n_const.te_delta)) {
-                //add last bit
                 if(DURATION_DIFF(
                        instance->decoder.te_last, subghz_protocol_alutech_at_4n_const.te_short) <
                    subghz_protocol_alutech_at_4n_const.te_delta) {
@@ -624,7 +585,6 @@ void subghz_protocol_decoder_alutech_at_4n_feed(void* context, bool level, uint3
                     subghz_protocol_blocks_add_bit(&instance->decoder, 0);
                 }
 
-                // Found end TX
                 instance->decoder.parser_step = Alutech_at_4nDecoderStepReset;
                 if(instance->decoder.decode_count_bit ==
                    subghz_protocol_alutech_at_4n_const.min_count_bit_for_found) {
@@ -678,31 +638,10 @@ void subghz_protocol_decoder_alutech_at_4n_feed(void* context, bool level, uint3
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- * @param file_name Full path to rainbow table the file
- */
 static void subghz_protocol_alutech_at_4n_remote_controller(
     SubGhzBlockGeneric* instance,
     uint8_t crc,
     const char* file_name) {
-    /**
- *  Message format 72bit LSB first
- *           data        crc
- *      XXXXXXXXXXXXXXXX  CC
- *  
- *  For analysis, you need to turn the package MSB
- *  in decoded messages format
- * 
- *     crc1 serial  cnt  key
- *      cc SSSSSSSS XXxx BB 
- * 
- *  crc1 is calculated from the lower part of cnt
- *  key 1=0xff, 2=0x11, 3=0x22, 4=0x33, 5=0x44
- * 
- */
-
     bool status = false;
     uint64_t data = subghz_protocol_blocks_reverse_key(instance->data, 64);
     crc = subghz_protocol_blocks_reverse_key(crc, 8);
@@ -725,11 +664,8 @@ static void subghz_protocol_alutech_at_4n_remote_controller(
         instance->serial = 0;
     }
 
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
-        // subghz_custom_btn_set_original(instance->btn);
     }
-    // subghz_custom_btn_set_max(4);
 }
 
 uint8_t subghz_protocol_decoder_alutech_at_4n_get_hash_data(void* context) {
@@ -793,7 +729,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_alutech_at_4n_deserialize(
         } else {
             alutech_at4n_counter_mode = 0;
         }
-
     } while(false);
     return ret;
 }
@@ -803,9 +738,7 @@ static uint8_t subghz_protocol_alutech_at_4n_get_btn_code(void) {
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -904,7 +837,6 @@ void subghz_protocol_decoder_alutech_at_4n_get_string(void* context, FuriString*
     uint32_t code_found_hi = instance->generic.data >> 32;
     uint32_t code_found_lo = instance->generic.data & 0x00000000ffffffff;
 
-    // push protocol data to global variable
     subghz_block_generic_global.cnt_is_available = true;
     subghz_block_generic_global.cnt_length_bit = 16;
     subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -912,7 +844,6 @@ void subghz_protocol_decoder_alutech_at_4n_get_string(void* context, FuriString*
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 8;
-    //
 
     furi_string_cat_printf(
         output,

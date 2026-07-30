@@ -6,12 +6,11 @@
 #include <lib/subghz/blocks/generic.h>
 #include <lib/subghz/blocks/math.h>
 
-// protocol BERNER / ELKA / TEDSEN / TELETASTER
 #define TAG "SubGhzProtocolBett"
 
-#define DIP_P 0b11 //(+)
-#define DIP_O 0b10 //(0)
-#define DIP_N 0b00 //(-)
+#define DIP_P 0b11
+#define DIP_O 0b10
+#define DIP_N 0b00
 
 #define DIP_PATTERN "%c%c%c%c%c%c%c%c%c"
 #define SHOW_DIP_P(dip, check_dip)                         \
@@ -105,11 +104,6 @@ void subghz_protocol_encoder_bett_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderBETT instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_bett_get_upload(SubGhzProtocolEncoderBETT* instance) {
     furi_assert(instance);
     size_t index = 0;
@@ -123,13 +117,11 @@ static bool subghz_protocol_encoder_bett_get_upload(SubGhzProtocolEncoderBETT* i
 
     for(uint8_t i = instance->generic.data_count_bit; i > 1; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_bett_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_bett_const.te_short);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_bett_const.te_short);
             instance->encoder.upload[index++] =
@@ -137,7 +129,6 @@ static bool subghz_protocol_encoder_bett_get_upload(SubGhzProtocolEncoderBETT* i
         }
     }
     if(bit_read(instance->generic.data, 0)) {
-        //send bit 1
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_bett_const.te_long);
         instance->encoder.upload[index++] = level_duration_make(
@@ -145,7 +136,6 @@ static bool subghz_protocol_encoder_bett_get_upload(SubGhzProtocolEncoderBETT* i
             (uint32_t)subghz_protocol_bett_const.te_short +
                 subghz_protocol_bett_const.te_long * 7);
     } else {
-        //send bit 0
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_bett_const.te_short);
         instance->encoder.upload[index++] = level_duration_make(
@@ -169,7 +159,7 @@ SubGhzProtocolStatus
             FURI_LOG_E(TAG, "Deserialize error");
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 

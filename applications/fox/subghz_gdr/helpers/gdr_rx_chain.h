@@ -1,4 +1,3 @@
-// helpers/gdr_rx_chain.h
 #pragma once
 
 #include "gdr_types.h"
@@ -18,7 +17,7 @@
 #include "../protocols/gdr_protocol_plugins.h"
 
 typedef struct {
-    char label; // 'A' or 'B' (display tag)
+    char label;
     const SubGhzDevice* device;
     bool is_external;
 
@@ -32,7 +31,7 @@ typedef struct {
     const SubGhzProtocolRegistry* registry;
     GDRProtocolRegistryFilter filter;
 
-    SubGhzRadioPreset preset; // .name is an owned FuriString
+    SubGhzRadioPreset preset;
     uint8_t* base_preset_data;
     size_t base_preset_data_size;
 
@@ -79,4 +78,4 @@ void gdr_rx_chain_stop(GDRRxChain* chain);
 
 float gdr_rx_chain_get_rssi(GDRRxChain* chain);
 
-#endif // ENABLE_DUAL_RX_SCENE || ENABLE_SHIELD_RX_SCENE
+#endif

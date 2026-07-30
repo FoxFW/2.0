@@ -14,13 +14,18 @@
 #include <string.h>
 #include <subghz/devices/devices.h>
 #include <lib/subghz/subghz_tx_rx_worker.h>
-
-extern const Icon I_fox_64x64;
+#include "fox_rf_jammer_icons.h"
 
 #define TAG            "FoxRFJammer"
 #define FREQ_MIN       300000000UL
 #define FREQ_MAX       928000000UL
 #define TX_BUFFER_SIZE 1024
+
+#define FOX_SPLASH_TICK_MS    40
+#define FOX_SPLASH_HOLD_MS    2000
+#define FOX_SPLASH_FADE_MS    666
+#define FOX_SPLASH_GRID_SIDE  16
+#define FOX_SPLASH_GRID_TOTAL (FOX_SPLASH_GRID_SIDE * FOX_SPLASH_GRID_SIDE)
 
 static FuriHalRegion s_unlocked_region = {
     .country_code = "FTW",
@@ -40,8 +45,6 @@ static const FreqBand s_bands[] = {
 };
 #define NUM_BANDS (sizeof(s_bands) / sizeof(s_bands[0]))
 
-// Char-index in "NNN.NNN" for each of the 6 cursor digit positions
-// Positions 0-2 → chars 0-2, positions 3-5 → chars 4-6 (skip '.' at char 3)
 static const int DIGIT_TO_CHAR[CURSOR_FREQ_DIGITS] = {0, 1, 2, 4, 5, 6};
 
 static void     fox_splash_draw_cb(Canvas* canvas, void* ctx);
@@ -77,38 +80,38 @@ static int32_t fox_tx_thread(void* ctx) {
     uint8_t data[TX_BUFFER_SIZE];
 
     switch(app->method_idx) {
-    case 0:  // Brute 0xFF
+    case 0:
         memset(data, 0xFF, sizeof(data));
         break;
-    case 1:  // Alternating AA/55
+    case 1:
         for(size_t i = 0; i < sizeof(data); i++) data[i] = (i & 1) ? 0x55 : 0xAA;
         break;
-    case 2:  // Sine Wave
+    case 2:
         for(size_t i = 0; i < sizeof(data); i++)
             data[i] = (uint8_t)(127.0f * sinf(2.0f * (float)M_PI * (float)i / (float)sizeof(data)) + 128.0f);
         break;
-    case 3:  // Square Wave
+    case 3:
         for(size_t i = 0; i < sizeof(data); i++) data[i] = (i & 1) ? 0xFF : 0x00;
         break;
-    case 4:  // Sawtooth
+    case 4:
         for(size_t i = 0; i < sizeof(data); i++) data[i] = (uint8_t)(255u * i / sizeof(data));
         break;
-    case 5:  // White Noise
+    case 5:
         for(size_t i = 0; i < sizeof(data); i++) data[i] = (uint8_t)(rand() % 256);
         break;
-    case 6: { // Triangle
+    case 6: {
         size_t half = sizeof(data) / 2;
         for(size_t i = 0; i < sizeof(data); i++)
             data[i] = (i < half) ? (uint8_t)(i * 255u / half)
                                   : (uint8_t)(255u - (i - half) * 255u / half);
         break;
     }
-    case 7:  // Chirp
+    case 7:
         for(size_t i = 0; i < sizeof(data); i++)
             data[i] = (uint8_t)(127.0f * sinf(2.0f * (float)M_PI * (float)i *
                                               (1.0f + (float)i / (float)sizeof(data))));
         break;
-    case 8:  // Gaussian Noise
+    case 8:
         for(size_t i = 0; i < sizeof(data); i++) {
             float u1 = ((float)(rand() + 1)) / ((float)RAND_MAX + 2.0f);
             float u2 = ((float)(rand() + 1)) / ((float)RAND_MAX + 2.0f);
@@ -116,10 +119,10 @@ static int32_t fox_tx_thread(void* ctx) {
             data[i]  = (uint8_t)(127.0f * g + 128.0f);
         }
         break;
-    case 9:  // Burst
+    case 9:
         for(size_t i = 0; i < sizeof(data); i++) data[i] = (i % 10 == 0) ? 0xFF : 0x00;
         break;
-    case 10: // Pure Random (crypto RNG)
+    case 10:
         furi_hal_random_fill_buf(data, sizeof(data));
         break;
     default:
@@ -174,26 +177,55 @@ static void fox_start_tx(FoxRFJammer* app) {
     furi_thread_start(app->tx_thread);
 }
 
+static uint8_t s_splash_block_order[FOX_SPLASH_GRID_TOTAL];
+static uint32_t s_splash_elapsed_ms;
+
+static void fox_splash_shuffle_blocks(void) {
+    for(uint32_t i = 0; i < FOX_SPLASH_GRID_TOTAL; i++) {
+        s_splash_block_order[i] = (uint8_t)i;
+    }
+    uint32_t seed = (uint32_t)furi_get_tick() | 1;
+    for(uint32_t i = FOX_SPLASH_GRID_TOTAL - 1; i > 0; i--) {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        uint32_t j = seed % (i + 1);
+        uint8_t tmp = s_splash_block_order[i];
+        s_splash_block_order[i] = s_splash_block_order[j];
+        s_splash_block_order[j] = tmp;
+    }
+}
+
 static void fox_splash_draw_cb(Canvas* canvas, void* ctx) {
     UNUSED(ctx);
     canvas_clear(canvas);
-    canvas_draw_icon(canvas, 0, 0, &I_fox_64x64);
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str_aligned(canvas, 96, 22, AlignCenter, AlignCenter, "Fox RF");
-    canvas_draw_str_aligned(canvas, 96, 38, AlignCenter, AlignCenter, "Jammer");
+
+    uint8_t icon_w = icon_get_width(&I_fox_64x64);
+    uint8_t icon_h = icon_get_height(&I_fox_64x64);
+    int32_t x = (128 - (int32_t)icon_w) / 2;
+    int32_t y = (64 - (int32_t)icon_h) / 2;
+    canvas_draw_icon(canvas, x, y, &I_fox_64x64);
+
+    if(s_splash_elapsed_ms <= FOX_SPLASH_HOLD_MS) return;
+
+    uint32_t fade_elapsed = s_splash_elapsed_ms - FOX_SPLASH_HOLD_MS;
+    uint32_t revealed =
+        (uint32_t)(((uint64_t)fade_elapsed * FOX_SPLASH_GRID_TOTAL) / FOX_SPLASH_FADE_MS);
+    if(revealed > FOX_SPLASH_GRID_TOTAL) revealed = FOX_SPLASH_GRID_TOTAL;
+
+    uint8_t block_px = (uint8_t)(icon_w / FOX_SPLASH_GRID_SIDE);
+    if(block_px == 0) block_px = 1;
+
+    canvas_set_color(canvas, ColorWhite);
+    for(uint32_t i = 0; i < revealed; i++) {
+        uint8_t block = s_splash_block_order[i];
+        uint8_t bx = block % FOX_SPLASH_GRID_SIDE;
+        uint8_t by = block / FOX_SPLASH_GRID_SIDE;
+        canvas_draw_box(canvas, x + bx * block_px, y + by * block_px, block_px, block_px);
+    }
+    canvas_set_color(canvas, ColorBlack);
 }
 
-// Layout (128×64 px):
-//
-//   Y=0       "Freq:" bold label (pseudo-bold: drawn at x+0 and x+1)
-//   Y=10-20   Frequency digits "NNN.NNN"  (6 cursor positions, underline on selected)
-//   Y=23-33   Mod row  — "Mod:" bold label | preset name | ▲▼ arrows when selected
-//   Y=35-45   Atk row  — "Atk:" bold label | method name | ▲▼ arrows when selected
-//   Y=49-63   [Start] / [STOP] button (elements_button_center)
-//
-// Arrows are the same 5×3 px triangles used by the SubGHz start-grid scroll
-// indicators, centred at x=107 (middle of the right third of the screen).
-//
 static void fox_main_draw_cb(Canvas* canvas, void* ctx) {
     FoxRFJammer* app = (FoxRFJammer*)ctx;
     canvas_clear(canvas);
@@ -202,7 +234,6 @@ static void fox_main_draw_cb(Canvas* canvas, void* ctx) {
     bool in_mod  = (!tx_on && app->cursor_position == CURSOR_MODULATION);
     bool in_atk  = (!tx_on && app->cursor_position == CURSOR_METHOD);
 
-    // Pseudo-bold: draw twice at x=2 and x=3 (1 px right shift)
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 2, 0, AlignLeft, AlignTop, "Freq:");
     canvas_draw_str_aligned(canvas, 3, 0, AlignLeft, AlignTop, "Freq:");
@@ -238,16 +269,15 @@ static void fox_main_draw_cb(Canvas* canvas, void* ctx) {
         canvas_draw_box(canvas, 0, 23, 128, 11);
         canvas_set_color(canvas, ColorWhite);
     }
-    // "Mod:" pseudo-bold, then the preset value
+
     canvas_draw_str_aligned(canvas, 2, 24, AlignLeft, AlignTop, "Mod:");
     canvas_draw_str_aligned(canvas, 3, 24, AlignLeft, AlignTop, "Mod:");
     canvas_draw_str_aligned(canvas, 28, 24, AlignLeft, AlignTop, s_mod_names[app->mod_idx]);
     if(in_mod) {
-        // ▲ tip at y=25, base at y=27 (SubGHz-style 5×3 triangle, cx=107)
         canvas_draw_dot(canvas, 107, 25);
         canvas_draw_line(canvas, 106, 26, 108, 26);
         canvas_draw_line(canvas, 105, 27, 109, 27);
-        // ▼ base at y=29, tip at y=31
+
         canvas_draw_line(canvas, 105, 29, 109, 29);
         canvas_draw_line(canvas, 106, 30, 108, 30);
         canvas_draw_dot(canvas, 107, 31);
@@ -258,16 +288,15 @@ static void fox_main_draw_cb(Canvas* canvas, void* ctx) {
         canvas_draw_box(canvas, 0, 35, 128, 11);
         canvas_set_color(canvas, ColorWhite);
     }
-    // "Atk:" pseudo-bold, then the method value
+
     canvas_draw_str_aligned(canvas, 2, 36, AlignLeft, AlignTop, "Atk:");
     canvas_draw_str_aligned(canvas, 3, 36, AlignLeft, AlignTop, "Atk:");
     canvas_draw_str_aligned(canvas, 28, 36, AlignLeft, AlignTop, s_method_names[app->method_idx]);
     if(in_atk) {
-        // ▲ tip at y=37, base at y=39
         canvas_draw_dot(canvas, 107, 37);
         canvas_draw_line(canvas, 106, 38, 108, 38);
         canvas_draw_line(canvas, 105, 39, 109, 39);
-        // ▼ base at y=41, tip at y=43
+
         canvas_draw_line(canvas, 105, 41, 109, 41);
         canvas_draw_line(canvas, 106, 42, 108, 42);
         canvas_draw_dot(canvas, 107, 43);
@@ -290,8 +319,8 @@ FoxRFJammer* fox_rf_jammer_alloc(void) {
     app->running         = true;
     app->tx_active       = false;
     app->tx_running      = false;
-    app->mod_idx         = 0;   // OOK 650kHz
-    app->method_idx      = 0;   // Brute 0xFF
+    app->mod_idx         = 0;
+    app->method_idx      = 0;
     app->device          = NULL;
     app->subghz_txrx     = NULL;
     app->tx_thread       = NULL;
@@ -346,13 +375,17 @@ int32_t fox_rf_jammer_app(void* p) {
     FoxRFJammer* app = fox_rf_jammer_alloc();
     if(!app) return -1;
 
-    // Splash (2 s)
     view_port_draw_callback_set(app->view_port, fox_splash_draw_cb, app);
-    view_port_update(app->view_port);
-    furi_delay_ms(2000);
+    fox_splash_shuffle_blocks();
+    s_splash_elapsed_ms = 0;
+    uint32_t splash_total_ms = FOX_SPLASH_HOLD_MS + FOX_SPLASH_FADE_MS;
+    while(s_splash_elapsed_ms < splash_total_ms) {
+        view_port_update(app->view_port);
+        furi_delay_ms(FOX_SPLASH_TICK_MS);
+        s_splash_elapsed_ms += FOX_SPLASH_TICK_MS;
+    }
     view_port_draw_callback_set(app->view_port, fox_main_draw_cb, app);
 
-    // Init radio
     app->device = radio_device_loader_set(NULL, SubGhzRadioDeviceTypeExternalCC1101);
     if(!app->device)
         app->device = radio_device_loader_set(NULL, SubGhzRadioDeviceTypeInternal);
@@ -373,34 +406,28 @@ int32_t fox_rf_jammer_app(void* p) {
                 app->tx_active = false;
                 fox_stop_tx(app);
                 view_port_update(app->view_port);
-                // cursor_position is unchanged — returns to last selected field
             }
-            continue;  // consume every key during TX
+            continue;
         }
 
             bool redraw = false;
 
         switch(ev.key) {
-
-        // OK: start jamming
         case InputKeyOk:
             app->tx_active = true;
             fox_start_tx(app);
             redraw = true;
             break;
 
-        // Back: exit app
         case InputKeyBack:
             app->running = false;
             break;
 
-        // Right: advance cursor circularly through freq → mod → atk → freq
         case InputKeyRight:
             app->cursor_position = (app->cursor_position + 1) % (CURSOR_MAX + 1);
             redraw = true;
             break;
 
-        // Left: retreat cursor circularly
         case InputKeyLeft:
             app->cursor_position = (app->cursor_position == 0)
                                        ? CURSOR_MAX
@@ -408,7 +435,6 @@ int32_t fox_rf_jammer_app(void* p) {
             redraw = true;
             break;
 
-        // Up: increment selected freq digit, or cycle mod/atk forward
         case InputKeyUp:
             if(app->cursor_position == CURSOR_MODULATION) {
                 app->mod_idx = (app->mod_idx + 1) % JAM_MOD_COUNT;
@@ -427,7 +453,6 @@ int32_t fox_rf_jammer_app(void* p) {
             redraw = true;
             break;
 
-        // Down: decrement selected freq digit, or cycle mod/atk backward
         case InputKeyDown:
             if(app->cursor_position == CURSOR_MODULATION) {
                 app->mod_idx = (app->mod_idx == 0)

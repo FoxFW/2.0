@@ -15,9 +15,9 @@
 
 #define S_API_PROLOGUE FuriApiLock lock = api_lock_alloc_locked();
 
-#define S_FILE_API_PROLOGUE           \
-    furi_check(file);                 \
-    Storage* storage = file->storage; \
+#define S_FILE_API_PROLOGUE                \
+    furi_check(file);                      \
+    Storage* storage = file->storage;      \
     furi_check(storage);
 
 #define S_API_EPILOGUE                                                               \

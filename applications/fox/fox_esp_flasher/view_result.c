@@ -1,5 +1,3 @@
-/* view_result.c — Success / Error result screen shown after flashing. */
-
 #include "fox_esp_flasher.h"
 
 static FlasherApp* s_app = NULL;
@@ -34,12 +32,7 @@ static void result_draw(Canvas* canvas, void* model_ptr) {
         canvas_draw_str_aligned(canvas, 64, 40, AlignCenter, AlignTop, "then try again.");
     }
 
-    canvas_set_color(canvas, ColorBlack);
-    canvas_draw_rbox(canvas, BTN_X, 50, BTN_W, BTN_H, BTN_R);
-    canvas_set_color(canvas, ColorWhite);
-    canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str_aligned(canvas, 64, 50 + BTN_H / 2, AlignCenter, AlignCenter, "Back to Menu");
-    canvas_set_color(canvas, ColorBlack);
+    flasher_draw_ok_button(canvas, BTN_X, 50, BTN_W, BTN_H, BTN_R, "Continue");
 }
 
 static bool result_input(InputEvent* event, void* context) {
@@ -47,7 +40,8 @@ static bool result_input(InputEvent* event, void* context) {
     if(event->type != InputTypeShort) return false;
 
     if(event->key == InputKeyOk || event->key == InputKeyBack) {
-        view_dispatcher_switch_to_view(app->view_dispatcher, FlasherViewMenu);
+        furi_timer_stop(app->result_dwell_timer);
+        view_dispatcher_send_custom_event(app->view_dispatcher, FlasherEventResultDwellDone);
         return true;
     }
     return false;

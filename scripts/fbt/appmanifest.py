@@ -160,12 +160,9 @@ class AppManager:
                 )
 
         if apptype in AppBuildset.DIST_APP_TYPES:
-            # For distributing .fap's resources, there's "fap_file_assets"
-            for app_property in ("resources",):
-                if kw.get(app_property):
-                    raise FlipperManifestException(
-                        f"App {kw.get('appid')} of type {apptype} cannot have '{app_property}' in manifest"
-                    )
+            # "resources" is allowed for external apps so their SD card data
+            # can be packed into resources.ths and deployed on firmware flash.
+            pass
         else:
             for app_property in (
                 "fap_extbuild",

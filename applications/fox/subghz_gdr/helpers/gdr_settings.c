@@ -1,4 +1,3 @@
-// helpers/gdr_settings.c
 #include "gdr_settings.h"
 #include <storage/storage.h>
 #include <flipper_format/flipper_format.h>
@@ -32,7 +31,6 @@ void gdr_settings_set_defaults(GDRSettings* settings) {
 }
 
 void gdr_settings_load(GDRSettings* settings) {
-    // Set defaults first
     gdr_settings_set_defaults(settings);
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
@@ -67,13 +65,11 @@ void gdr_settings_load(GDRSettings* settings) {
 
         furi_string_free(header);
 
-        // Read frequency
         if(!flipper_format_read_uint32(ff, FF_FREQUENCY, &settings->frequency, 1)) {
             FURI_LOG_W(TAG, "Failed to read frequency, using default");
             settings->frequency = 433920000;
         }
 
-        // Read preset index
         uint32_t preset_temp = 0;
         if(!flipper_format_read_uint32(ff, "PresetIndex", &preset_temp, 1)) {
             FURI_LOG_W(TAG, "Failed to read preset index, using default");
@@ -81,7 +77,6 @@ void gdr_settings_load(GDRSettings* settings) {
         }
         settings->preset_index = (uint8_t)preset_temp;
 
-        // Read auto-save
         uint32_t auto_save_temp = 0;
         if(!flipper_format_read_uint32(ff, "AutoSave", &auto_save_temp, 1)) {
             FURI_LOG_W(TAG, "Failed to read auto-save, using default");
@@ -89,7 +84,6 @@ void gdr_settings_load(GDRSettings* settings) {
         }
         settings->auto_save = (auto_save_temp == 1);
 
-        // Read tx-power
         uint32_t tx_power_temp = 0;
         if(!flipper_format_read_uint32(ff, "TXPower", &tx_power_temp, 1)) {
             FURI_LOG_W(TAG, "Failed to read TXPower, using default");
@@ -97,7 +91,6 @@ void gdr_settings_load(GDRSettings* settings) {
         }
         settings->tx_power = (uint8_t)tx_power_temp;
 
-        // Read hopping
         uint32_t hopping_temp = 0;
         if(!flipper_format_read_uint32(ff, "Hopping", &hopping_temp, 1)) {
             FURI_LOG_W(TAG, "Failed to read hopping, using default");
@@ -170,7 +163,6 @@ void gdr_settings_load(GDRSettings* settings) {
             settings->auto_save,
             settings->hopping_enabled,
             settings->emulate_feature_enabled);
-
     } while(false);
 
     flipper_format_free(ff);
@@ -180,7 +172,6 @@ void gdr_settings_load(GDRSettings* settings) {
 void gdr_settings_save(GDRSettings* settings) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
 
-    // Ensure directory exists
     storage_simply_mkdir(storage, GDR_SETTINGS_DIR);
 
     FlipperFormat* ff = flipper_format_file_alloc(storage);
@@ -256,7 +247,6 @@ void gdr_settings_save(GDRSettings* settings) {
             settings->auto_save,
             settings->hopping_enabled,
             settings->emulate_feature_enabled);
-
     } while(false);
 
     flipper_format_free(ff);

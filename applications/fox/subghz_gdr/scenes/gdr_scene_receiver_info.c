@@ -1,8 +1,7 @@
-// scenes/gdr_scene_receiver_info.c
 #include "../gdr_app_i.h"
 #include "../helpers/gdr_storage.h"
 #include "../helpers/gdr_psa_bf_host.h"
-#include "gdr_icons.h"
+#include "garage_door_remote_icons.h"
 
 #define TAG "GDRReceiverInfo"
 

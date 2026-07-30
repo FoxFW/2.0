@@ -1,4 +1,3 @@
-// scenes/gdr_scene_shield_receiver.c
 #include "../gdr_app_i.h"
 
 #ifdef ENABLE_SHIELD_RX_SCENE
@@ -79,7 +78,6 @@ static int32_t gdr_scene_shield_receiver_tx_offset_hz(const GDRApp* app) {
 }
 
 static int32_t gdr_scene_shield_receiver_resolve_tx_offset(GDRApp* app) {
-
     return gdr_scene_shield_receiver_tx_offset_hz(app);
 }
 
@@ -468,4 +466,4 @@ void gdr_scene_shield_receiver_view_callback(GDRCustomEvent event, void* context
     view_dispatcher_send_custom_event(app->view_dispatcher, event);
 }
 
-#endif // ENABLE_SHIELD_RX_SCENE
+#endif

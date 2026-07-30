@@ -131,11 +131,6 @@ static uint64_t subghz_protocol_chamb_bit_to_code(uint64_t data, uint8_t size) {
     return data_res;
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderChamb_Code instance
- * @return true On success
- */
 static bool
     subghz_protocol_encoder_chamb_code_get_upload(SubGhzProtocolEncoderChamb_Code* instance) {
     furi_assert(instance);
@@ -163,13 +158,11 @@ static bool
     uint8_t upload_hex_data[UPLOAD_HEX_DATA_SIZE] = {0};
     size_t upload_hex_count_bit = 0;
 
-    //insert guard time
     for(uint8_t i = 0; i < 36; i++) {
         subghz_protocol_blocks_set_bit_array(
             0, upload_hex_data, upload_hex_count_bit++, UPLOAD_HEX_DATA_SIZE);
     }
 
-    //insert data
     switch(instance->generic.data_count_bit) {
     case 7:
     case 9:
@@ -223,7 +216,7 @@ SubGhzProtocolStatus
             ret = SubGhzProtocolStatusErrorValueBitCount;
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -232,7 +225,6 @@ SubGhzProtocolStatus
             break;
         }
         instance->encoder.is_running = true;
-
     } while(false);
 
     return ret;
@@ -317,7 +309,7 @@ static bool subghz_protocol_decoder_chamb_code_check_mask_and_parse(
         instance->decoder.decode_count_bit = 8;
         instance->decoder.decode_data &= ~CHAMBERLAIN_8_CODE_MASK;
         instance->decoder.decode_data = instance->decoder.decode_data >> 4 |
-                                        CHAMBERLAIN_CODE_BIT_0 << 8; //DIP 6 no use
+                                        CHAMBERLAIN_CODE_BIT_0 << 8;
     } else if(
         (instance->decoder.decode_data & CHAMBERLAIN_9_CODE_MASK) ==
         CHAMBERLAIN_9_CODE_MASK_CHECK) {
@@ -338,14 +330,12 @@ void subghz_protocol_decoder_chamb_code_feed(void* context, bool level, uint32_t
     case Chamb_CodeDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_chamb_code_const.te_short * 39) <
                         subghz_protocol_chamb_code_const.te_delta * 20)) {
-            //Found header Chamb_Code
             instance->decoder.parser_step = Chamb_CodeDecoderStepFoundStartBit;
         }
         break;
     case Chamb_CodeDecoderStepFoundStartBit:
         if((level) && (DURATION_DIFF(duration, subghz_protocol_chamb_code_const.te_short) <
                        subghz_protocol_chamb_code_const.te_delta)) {
-            //Found start bit Chamb_Code
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
             instance->decoder.decode_data = instance->decoder.decode_data << 4 |
@@ -357,7 +347,7 @@ void subghz_protocol_decoder_chamb_code_feed(void* context, bool level, uint32_t
         }
         break;
     case Chamb_CodeDecoderStepSaveDuration:
-        if(!level) { //save interval
+        if(!level) {
             if(duration > subghz_protocol_chamb_code_const.te_short * 5) {
                 if(instance->decoder.decode_count_bit >=
                    subghz_protocol_chamb_code_const.min_count_bit_for_found) {
@@ -381,7 +371,7 @@ void subghz_protocol_decoder_chamb_code_feed(void* context, bool level, uint32_t
         break;
     case Chamb_CodeDecoderStepCheckDuration:
         if(level) {
-            if((DURATION_DIFF( //Found stop bit Chamb_Code
+            if((DURATION_DIFF(
                     instance->decoder.te_last,
                     subghz_protocol_chamb_code_const.te_short * 3) <
                 subghz_protocol_chamb_code_const.te_delta) &&
@@ -414,7 +404,6 @@ void subghz_protocol_decoder_chamb_code_feed(void* context, bool level, uint32_t
             } else {
                 instance->decoder.parser_step = Chamb_CodeDecoderStepReset;
             }
-
         } else {
             instance->decoder.parser_step = Chamb_CodeDecoderStepReset;
         }

@@ -1,4 +1,3 @@
-// scenes/gdr_scene_dual_receiver_config.c
 #include "../gdr_app_i.h"
 
 #ifdef ENABLE_DUAL_RX_SCENE
@@ -106,7 +105,6 @@ void gdr_scene_dual_receiver_config_on_enter(void* context) {
     uint8_t freq_count = (uint8_t)subghz_setting_get_frequency_count(app->setting);
     uint8_t preset_count = (uint8_t)subghz_setting_get_preset_count(app->setting);
 
-    // Chain A (external)
     item = variable_item_list_add(
         app->variable_item_list, "Ext Freq:", freq_count, gdr_dual_config_set_freq_a, app);
     value_index = gdr_dual_config_freq_index(app, app->dual_freq_a);
@@ -124,7 +122,6 @@ void gdr_scene_dual_receiver_config_on_enter(void* context) {
     variable_item_set_current_value_text(
         item, subghz_setting_get_preset_name(app->setting, app->dual_preset_a));
 
-    // Chain B (internal)
     item = variable_item_list_add(
         app->variable_item_list, "Int Freq:", freq_count, gdr_dual_config_set_freq_b, app);
     value_index = gdr_dual_config_freq_index(app, app->dual_freq_b);
@@ -164,4 +161,4 @@ void gdr_scene_dual_receiver_config_on_exit(void* context) {
     variable_item_list_reset(app->variable_item_list);
 }
 
-#endif // ENABLE_DUAL_RX_SCENE
+#endif

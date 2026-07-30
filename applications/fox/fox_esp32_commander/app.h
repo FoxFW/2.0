@@ -21,6 +21,7 @@ typedef enum {
     FoxCommanderViewSettings,
     FoxCommanderViewStationList,
     FoxCommanderViewConnectSettings,
+    FoxCommanderViewSavedWifiList,
 } FoxCommanderView;
 
 typedef enum {
@@ -30,6 +31,7 @@ typedef enum {
     MenuContextWifiRecon,
     MenuContextWifiAttacks,
     MenuContextWifiHttp,
+    MenuContextWifiSavedAction,
     MenuContextBluetooth,
     MenuContextTagDetect,
     MenuContextScripts,
@@ -56,6 +58,7 @@ typedef enum {
     TextInputPurposeHttpPostUrl,
     TextInputPurposeHttpPostBody,
     TextInputPurposeTerminalCommand,
+    TextInputPurposeSavedWifiEditPassword,
 } TextInputPurpose;
 
 #define FOX_WIFI_NETWORK_MAX 24
@@ -68,6 +71,14 @@ typedef struct {
     bool saved;
     int scan_index;
 } FoxWifiNetwork;
+
+#define FOX_SAVED_WIFI_MAX 8
+#define FOX_WIFI_PASS_MAX  64
+
+typedef struct {
+    char ssid[FOX_WIFI_SSID_MAX];
+    char password[FOX_WIFI_PASS_MAX];
+} FoxSavedWifi;
 
 #define FOX_STATION_MAX     16
 #define FOX_STATION_MAC_MAX 18
@@ -102,9 +113,18 @@ typedef struct {
 
     bool esp32_detected;
     bool has_ble;
+    bool launch_wifi_connection;
     FoxCommanderView current_view;
 
     bool message_view_detecting;
+    bool     message_view_not_detected_focus_left;
+    bool     message_view_serial_busy;
+    bool     message_view_serial_retrying;
+    bool     message_view_serial_retry_failed;
+    bool     message_view_portal_running;
+    uint8_t  serial_busy_countdown;
+    FuriTimer* serial_busy_timer;
+    FuriTimer* serial_retry_timer;
     View* message_view;
 
     MenuContext menu_context;
@@ -148,9 +168,16 @@ typedef struct {
 
     View* connect_settings_view;
     uint8_t connect_settings_selected;
+
+    View* saved_wifi_list_view;
+    FoxSavedWifi saved_wifi[FOX_SAVED_WIFI_MAX];
+    size_t saved_wifi_count;
+    size_t saved_wifi_selected;
+    size_t saved_wifi_scroll;
 } App;
 
 void app_log(App* app, const char* fmt, ...);
+void app_log_raw(App* app, const char* text);
 void app_render_log(App* app);
 bool app_expect_line(App* app, const char* expected, uint32_t timeout_ms);
 void app_switch_to_menu(App* app, MenuContext ctx);

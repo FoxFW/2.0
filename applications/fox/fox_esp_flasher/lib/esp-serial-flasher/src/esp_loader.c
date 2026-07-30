@@ -79,11 +79,6 @@ static uint32_t timeout_per_mb(uint32_t size_bytes, uint32_t time_per_mb)
 
 esp_loader_error_t esp_loader_connect(esp_loader_connect_args_t *connect_args)
 {
-    // if bootloader mode ever give issues, uncomment this function
-    // it shouldnt be needed because we enter bootloader mode before this function is called
-    // this function breaks bootloader mode for the Multi-fucc and Xeon
-    //loader_port_enter_bootloader();
-
     RETURN_ON_ERROR(loader_initialize_conn(connect_args));
 
     RETURN_ON_ERROR(loader_detect_chip(&s_target, &s_reg));
@@ -100,7 +95,7 @@ esp_loader_error_t esp_loader_connect(esp_loader_connect_args_t *connect_args)
         loader_port_start_timer(DEFAULT_TIMEOUT);
         return loader_spi_attach_cmd(spi_config);
     }
-#endif /* SERIAL_FLASHER_INTERFACE_UART || SERIAL_FLASHER_INTERFACE_USB */
+#endif
 
     return ESP_LOADER_SUCCESS;
 }
@@ -155,8 +150,8 @@ esp_loader_error_t esp_loader_connect_secure_download_mode(esp_loader_connect_ar
 
     return ESP_LOADER_SUCCESS;
 }
-#endif /* SERIAL_FLASHER_INTERFACE_UART */
-#endif /* SERIAL_FLASHER_INTERFACE_UART || SERIAL_FLASHER_INTERFACE_USB */
+#endif
+#endif
 
 #ifndef SERIAL_FLASHER_INTERFACE_SPI
 static esp_loader_error_t spi_set_data_lengths(size_t mosi_bits, size_t miso_bits)
@@ -180,8 +175,8 @@ static esp_loader_error_t spi_set_data_lengths_8266(size_t mosi_bits, size_t mis
 
 static esp_loader_error_t spi_flash_command(spi_flash_cmd_t cmd, void *data_tx, size_t tx_size, void *data_rx, size_t rx_size)
 {
-    assert(rx_size <= 32); // Reading more than 32 bits back from a SPI flash operation is unsupported
-    assert(tx_size <= 64); // Writing more than 64 bytes of data with one SPI command is unsupported
+    assert(rx_size <= 32);
+    assert(tx_size <= 64);
 
     uint32_t SPI_USR_CMD  = (1 << 31);
     uint32_t SPI_USR_MISO = (1 << 28);
@@ -189,7 +184,6 @@ static esp_loader_error_t spi_flash_command(spi_flash_cmd_t cmd, void *data_tx, 
     uint32_t SPI_CMD_USR  = (1 << 18);
     uint32_t CMD_LEN_SHIFT = 28;
 
-    // Save SPI configuration
     uint32_t old_spi_usr;
     uint32_t old_spi_usr2;
     RETURN_ON_ERROR( esp_loader_read_register(s_reg->usr, &old_spi_usr) );
@@ -214,7 +208,6 @@ static esp_loader_error_t spi_flash_command(spi_flash_cmd_t cmd, void *data_tx, 
     RETURN_ON_ERROR( esp_loader_write_register(s_reg->usr2, usr_reg_2 ) );
 
     if (tx_size == 0) {
-        // clear data register before we read it
         RETURN_ON_ERROR( esp_loader_write_register(s_reg->w0, 0) );
     } else {
         uint32_t *data = (uint32_t *)data_tx;
@@ -245,7 +238,6 @@ static esp_loader_error_t spi_flash_command(spi_flash_cmd_t cmd, void *data_tx, 
 
     RETURN_ON_ERROR( esp_loader_read_register(s_reg->w0, data_rx) );
 
-    // Restore SPI configuration
     RETURN_ON_ERROR( esp_loader_write_register(s_reg->usr, old_spi_usr) );
     RETURN_ON_ERROR( esp_loader_write_register(s_reg->usr2, old_spi_usr2) );
 
@@ -258,7 +250,6 @@ static uint32_t calc_erase_size(const target_chip_t target, const uint32_t offse
     if (target != ESP8266_CHIP || esp_stub_get_running()) {
         return image_size;
     } else {
-        /* Needed to fix a bug in the ESP8266 ROM */
         const uint32_t sectors_per_block = 16U;
         const uint32_t sector_size = 4096U;
 
@@ -267,8 +258,6 @@ static uint32_t calc_erase_size(const target_chip_t target, const uint32_t offse
 
         uint32_t head_sectors = sectors_per_block - (start_sector % sectors_per_block);
 
-        /* The ROM bug deletes extra num_sectors if we don't cross the block boundary
-           and extra head_sectors if we do */
         if (num_sectors <= head_sectors) {
             return ((num_sectors + 1) / 2) * sector_size;
         } else {
@@ -284,8 +273,6 @@ esp_loader_error_t esp_loader_flash_detect_size(uint32_t *flash_size)
         uint32_t size;
     } size_id_size_pair_t;
 
-    /* There is no rule manufacturers have to follow for assigning these parts of the flash ID,
-       these constants have been taken from esptool source code. */
     static const size_id_size_pair_t size_mapping[] = {
         { 0x12, 256 * 1024 },
         { 0x13, 512 * 1024 },
@@ -316,7 +303,6 @@ esp_loader_error_t esp_loader_flash_detect_size(uint32_t *flash_size)
     RETURN_ON_ERROR( spi_flash_command(SPI_FLASH_READ_ID, NULL, 0, &flash_id, 24) );
     uint8_t size_id = flash_id >> 16;
 
-    // Try finding the size id within supported size ids
     for (size_t i = 0; i < sizeof(size_mapping) / sizeof(size_mapping[0]); i++) {
         if (size_id == size_mapping[i].id) {
             *flash_size = size_mapping[i].size;
@@ -329,7 +315,6 @@ esp_loader_error_t esp_loader_flash_detect_size(uint32_t *flash_size)
 
 static esp_loader_error_t init_flash_params(void)
 {
-    /* Flash size will be known in advance if we're in secure download mode or we already read it*/
     if (s_target_flash_size == 0) {
         if (esp_loader_flash_detect_size(&s_target_flash_size) != ESP_LOADER_SUCCESS) {
             loader_port_debug_print("Flash size detection failed, falling back to default");
@@ -349,7 +334,6 @@ esp_loader_error_t esp_loader_flash_start(uint32_t offset, uint32_t image_size, 
 {
     s_flash_write_size = block_size;
 
-    // Both the address and image size must be aligned to 4 bytes
     if (offset % 4 != 0 || image_size % 4 != 0) {
         return ESP_LOADER_ERROR_INVALID_PARAM;
     }
@@ -370,7 +354,6 @@ esp_loader_error_t esp_loader_flash_start(uint32_t offset, uint32_t image_size, 
     loader_port_start_timer(timeout_per_mb(erase_size, ERASE_FLASH_TIMEOUT_PER_MB));
     return loader_flash_begin_cmd(offset, erase_size, block_size, blocks_to_write, encryption_in_cmd);
 }
-
 
 esp_loader_error_t esp_loader_flash_write(void *payload, uint32_t size)
 {
@@ -402,7 +385,6 @@ esp_loader_error_t esp_loader_flash_write(void *payload, uint32_t size)
     return result;
 }
 
-
 esp_loader_error_t esp_loader_flash_finish(bool reboot)
 {
     loader_port_start_timer(DEFAULT_TIMEOUT);
@@ -418,7 +400,6 @@ esp_loader_error_t esp_loader_flash_erase(void)
         loader_port_start_timer(timeout_per_mb(s_target_flash_size, ERASE_FLASH_TIMEOUT_PER_MB));
         RETURN_ON_ERROR(loader_flash_erase_cmd());
     } else {
-        // erase using flash begin
         uint32_t flash_size = 0;
         RETURN_ON_ERROR(esp_loader_flash_detect_size(&flash_size));
         RETURN_ON_ERROR(esp_loader_flash_start(0, flash_size, ROM_FLASH_BLOCK_SIZE));
@@ -428,7 +409,6 @@ esp_loader_error_t esp_loader_flash_erase(void)
 
 esp_loader_error_t esp_loader_flash_erase_region(uint32_t offset, uint32_t size)
 {
-    // Both offset and size must be aligned to flash sector size.
     if (offset % FLASH_SECTOR_SIZE != 0 || size % FLASH_SECTOR_SIZE != 0) {
         return ESP_LOADER_ERROR_INVALID_PARAM;
     }
@@ -439,7 +419,6 @@ esp_loader_error_t esp_loader_flash_erase_region(uint32_t offset, uint32_t size)
         loader_port_start_timer(timeout_per_mb(size, ERASE_FLASH_TIMEOUT_PER_MB));
         RETURN_ON_ERROR(loader_flash_erase_region_cmd(offset, size));
     } else {
-        // erase using flash begin
         uint32_t flash_size = 0;
         RETURN_ON_ERROR(esp_loader_flash_detect_size(&flash_size));
         if (offset + size > flash_size) {
@@ -449,7 +428,7 @@ esp_loader_error_t esp_loader_flash_erase_region(uint32_t offset, uint32_t size)
     }
     return ESP_LOADER_SUCCESS;
 }
-#endif /* SERIAL_FLASHER_INTERFACE_SPI */
+#endif
 
 #if (defined SERIAL_FLASHER_INTERFACE_UART) || (defined SERIAL_FLASHER_INTERFACE_USB)
 esp_loader_error_t esp_loader_change_transmission_rate_stub(const uint32_t old_transmission_rate,
@@ -463,7 +442,6 @@ esp_loader_error_t esp_loader_change_transmission_rate_stub(const uint32_t old_t
 
     esp_loader_error_t err = loader_change_baudrate_cmd(new_transmission_rate, old_transmission_rate);
 
-    // Wait for the stub to be ready to receive data.
     if (err == ESP_LOADER_SUCCESS) {
         loader_port_delay_ms(25);
     }
@@ -518,7 +496,6 @@ esp_loader_error_t esp_loader_get_security_info(esp_loader_target_security_info_
         (resp.flags & GET_SECURITY_INFO_HARD_DIS_JTAG) != 0;
     security_info->usb_disabled = (resp.flags & GET_SECURITY_INFO_DIS_USB) != 0;
 
-    // If the number of set bits in key_purposes is odd, flash is encrypted
     uint32_t key_purposes_bit_cnt = 0;
     for (size_t byte = 0; byte < sizeof(resp.key_purposes); byte++) {
         key_purposes_bit_cnt += byte_popcnt(resp.key_purposes[byte]);
@@ -535,13 +512,11 @@ esp_loader_error_t esp_loader_get_security_info(esp_loader_target_security_info_
 
 static esp_loader_error_t flash_read_stub(uint8_t *dest, uint32_t address, uint32_t length)
 {
-    uint8_t buf[256]; // Hardcoded for now, decent tradeoff between speed and stack usage
+    uint8_t buf[256];
     size_t recv_size = 0;
     struct MD5Context md5_context;
     MD5Init(&md5_context);
 
-    // The flasher stub requires reads to be aligned to 4 bytes.
-    // The solution is to read more than is needed and discard the unecessary bytes.
     const uint32_t seek_back_len = address % 4;
     address -= seek_back_len;
     length += seek_back_len;
@@ -565,7 +540,6 @@ static esp_loader_error_t flash_read_stub(uint8_t *dest, uint32_t address, uint3
 
         MD5Update(&md5_context, buf, recv_size);
 
-        // Handle seek back and overread.
         uint32_t copy_start = 0;
         uint32_t copy_length = recv_size;
 
@@ -585,7 +559,6 @@ static esp_loader_error_t flash_read_stub(uint8_t *dest, uint32_t address, uint3
 
         remaining -= recv_size;
 
-        // Ack by sending back total received byte count
         const uint32_t bytes_recv = length - remaining;
         loader_port_start_timer(DEFAULT_TIMEOUT);
         RETURN_ON_ERROR(SLIP_send_delimiter());
@@ -617,8 +590,6 @@ esp_loader_error_t esp_loader_flash_read(uint8_t *dest, uint32_t address, uint32
     if (esp_stub_get_running()) {
         RETURN_ON_ERROR(flash_read_stub(dest, address, length));
     } else {
-        // We read from the ROM in 64B chunks, if we want to read anything in the last 64B
-        // we need to ensure that the read is aligned to 64B, so we read more than necessary.
         const uint32_t seek_back_len = address % READ_FLASH_ROM_DATA_SIZE;
         address -= seek_back_len;
         length += seek_back_len;
@@ -647,7 +618,7 @@ esp_loader_error_t esp_loader_flash_read(uint8_t *dest, uint32_t address, uint32
 
     return ESP_LOADER_SUCCESS;
 }
-#endif /* SERIAL_FLASHER_INTERFACE_UART || SERIAL_FLASHER_INTERFACE_USB */
+#endif
 
 esp_loader_error_t esp_loader_mem_start(uint32_t offset, uint32_t size, uint32_t block_size)
 {
@@ -655,7 +626,6 @@ esp_loader_error_t esp_loader_mem_start(uint32_t offset, uint32_t size, uint32_t
     if (esp_stub_get_running()) {
         const esp_stub_t *stub = &esp_stub[s_target];
 
-        // check we're not going to overwrite a running stub with this data
         const uint32_t load_start = offset;
         const uint32_t load_end = offset + size;
         for (uint32_t seg = 0; seg < sizeof(stub->segments) / sizeof(stub->segments[0]); seg++) {
@@ -674,7 +644,6 @@ esp_loader_error_t esp_loader_mem_start(uint32_t offset, uint32_t size, uint32_t
     return loader_mem_begin_cmd(offset, size, blocks_to_write, block_size);
 }
 
-
 esp_loader_error_t esp_loader_mem_write(const void *payload, uint32_t size)
 {
     const uint8_t *data = (const uint8_t *)payload;
@@ -689,7 +658,6 @@ esp_loader_error_t esp_loader_mem_write(const void *payload, uint32_t size)
 
     return result;
 }
-
 
 esp_loader_error_t esp_loader_mem_finish(uint32_t entrypoint)
 {
@@ -731,7 +699,7 @@ esp_loader_error_t esp_loader_change_transmission_rate(uint32_t transmission_rat
 
     return loader_change_baudrate_cmd(transmission_rate, 0);
 }
-#endif /* SERIAL_FLASHER_INTERFACE_SDIO */
+#endif
 
 #if MD5_ENABLED
 static void hexify(const uint8_t raw_md5[16], uint8_t hex_md5_out[32])
@@ -760,7 +728,6 @@ esp_loader_error_t esp_loader_flash_verify_known_md5(uint32_t address,
         return ESP_LOADER_ERROR_IMAGE_SIZE;
     }
 
-    /* Zero termination require 1 byte */
     uint8_t received_md5[MAX(MD5_SIZE_ROM, MD5_SIZE_STUB) + 1] = {0};
 
     loader_port_start_timer(timeout_per_mb(size, MD5_TIMEOUT_PER_MB));
@@ -768,7 +735,6 @@ esp_loader_error_t esp_loader_flash_verify_known_md5(uint32_t address,
     RETURN_ON_ERROR(loader_md5_cmd(address, size, received_md5));
 
     if (esp_stub_get_running()) {
-        // Convert the received MD5 to hex, because stub returns it as 16 raw data bytes
         uint8_t rec_md5_hex[MAX(MD5_SIZE_ROM, MD5_SIZE_STUB) + 1] = {0};
         hexify(received_md5, rec_md5_hex);
         memcpy(received_md5, rec_md5_hex, MD5_SIZE_ROM);
@@ -791,14 +757,14 @@ esp_loader_error_t esp_loader_flash_verify_known_md5(uint32_t address,
 esp_loader_error_t esp_loader_flash_verify(void)
 {
     uint8_t raw_md5[16] = {0};
-    /* Zero termination require 1 byte */
+
     uint8_t hex_md5[MAX(MD5_SIZE_ROM, MD5_SIZE_STUB) + 1] = {0};
     md5_final(raw_md5);
     hexify(raw_md5, hex_md5);
 
     return esp_loader_flash_verify_known_md5(s_start_address, s_image_size, hex_md5);
 }
-#endif /* MD5_ENABLED */
+#endif
 
 void esp_loader_reset_target(void)
 {

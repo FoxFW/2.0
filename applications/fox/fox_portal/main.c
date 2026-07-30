@@ -27,7 +27,18 @@ static const uint32_t baud_options[] = {115200};
 #define BAUD_OPTION_DEFAULT_INDEX 0
 
 #define FOX_TERMINAL_LOG_MAX_CHARS 4000
-#define FOX_COMMANDER_EVENT_SPLASH_DONE 0
+#define FOX_COMMANDER_EVENT_SPLASH_DONE   0
+#define FOX_CHAT_EVENT_SERIAL_BUSY_TICK   1
+#define FOX_CHAT_EVENT_SERIAL_DO_RETRY    2
+#define FOX_PORTAL_EVENT_SYNC_TICK        3
+
+#define FOX_PORTAL_SYNC_INTERVAL_MS 5000
+
+typedef enum {
+    ProbeResultOk,
+    ProbeResultSerialBusy,
+    ProbeResultNotFound,
+} ProbeResult;
 
 void app_log(App* app, const char* fmt, ...) {
     char buffer[128];
@@ -48,6 +59,7 @@ void app_log(App* app, const char* fmt, ...) {
 }
 
 void app_render_log(App* app) {
+    app->showing_results = false;
     app->menu_return_context = app->menu_context;
     app->terminal_scroll = (size_t)-1;
     app->current_view = FoxCommanderViewTerminal;
@@ -74,21 +86,28 @@ void app_switch_to_menu(App* app, MenuContext ctx) {
     case MenuContextFoxPortal:
         foxportal_render_menu(app);
         break;
-    case MenuContextFoxPortalFields:
-        foxportal_fields_render_menu(app);
-        break;
-    case MenuContextFoxPortalFieldDelete:
-        foxportal_field_delete_render_menu(app);
-        break;
     }
     app->current_view = FoxCommanderViewMenu;
     view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewMenu);
 }
 
-void app_show_text_input(App* app, const char* header, TextInputPurpose purpose) {
+void app_show_text_input(App* app, const char* header, TextInputPurpose purpose, const char* prefill) {
     app->menu_return_context = app->menu_context;
     app->text_input_purpose = purpose;
-    app->text_input_buffer[0] = '\0';
+    if(prefill != NULL) {
+        strncpy(app->text_input_buffer, prefill, sizeof(app->text_input_buffer) - 1);
+        app->text_input_buffer[sizeof(app->text_input_buffer) - 1] = '\0';
+    } else {
+        app->text_input_buffer[0] = '\0';
+    }
+
+    text_input_set_result_callback(
+        app->text_input,
+        text_input_result_callback,
+        app,
+        app->text_input_buffer,
+        sizeof(app->text_input_buffer),
+        true);
     text_input_set_header_text(app->text_input, header);
     app->current_view = FoxCommanderViewTextInput;
     view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewTextInput);
@@ -99,9 +118,6 @@ static void text_input_result_callback(void* context) {
     switch(app->text_input_purpose) {
     case TextInputPurposeFoxPortalSsid:
         foxportal_ssid_submitted(app);
-        break;
-    case TextInputPurposeFoxPortalNewFieldName:
-        foxportal_new_field_submitted(app);
         break;
     default:
         break;
@@ -114,23 +130,12 @@ void app_menu_item_callback(void* context, uint32_t index) {
     case MenuContextFoxPortal:
         foxportal_menu_select(app, index);
         break;
-    case MenuContextFoxPortalFields:
-        foxportal_fields_menu_select(app, index);
-        break;
-    case MenuContextFoxPortalFieldDelete:
-        foxportal_field_delete_menu_select(app, index);
-        break;
     }
 }
 
 static MenuContext menu_parent_context(MenuContext ctx) {
-    switch(ctx) {
-    case MenuContextFoxPortalFieldDelete:
-        return MenuContextFoxPortalFields;
-    case MenuContextFoxPortalFields:
-    default:
-        return MenuContextFoxPortal;
-    }
+    UNUSED(ctx);
+    return MenuContextFoxPortal;
 }
 
 static App* s_terminal_view_app = NULL;
@@ -212,11 +217,17 @@ static void terminal_draw_cb(Canvas* canvas, void* model) {
     canvas_set_color(canvas, ColorWhite);
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(
-        canvas, 64, TERMINAL_HEADER_H / 2, AlignCenter, AlignCenter, "TERMINAL");
+        canvas,
+        64,
+        TERMINAL_HEADER_H / 2,
+        AlignCenter,
+        AlignCenter,
+        app->showing_results ? "SAVED RESULTS" : "TERMINAL");
     canvas_set_color(canvas, ColorBlack);
 
-    const char* text = furi_string_get_cstr(app->log);
-    size_t text_len = furi_string_size(app->log);
+    FuriString* source = app->showing_results ? app->results_text : app->log;
+    const char* text = furi_string_get_cstr(source);
+    size_t text_len = furi_string_size(source);
 
     int32_t max_width = 122;
     size_t chars_per_line = terminal_chars_per_line(canvas, max_width);
@@ -275,15 +286,15 @@ static bool terminal_input_cb(InputEvent* event, void* context) {
         return true;
     case InputKeyBack:
     case InputKeyLeft:
-        return false; /* navigation_callback returns to the menu */
+        return false;
     default:
         return false;
     }
 }
 
-static bool app_probe_uart(App* app, size_t pin_index, size_t baud_index) {
+static ProbeResult app_probe_uart(App* app, size_t pin_index, size_t baud_index) {
     app->esp_at = esp_at_alloc(pin_options[pin_index].serial_id, baud_options[baud_index]);
-    if(app->esp_at == NULL) return false;
+    if(app->esp_at == NULL) return ProbeResultSerialBusy;
 
     esp_at_send(app->esp_at, "info");
     bool ok = app_expect_line(app, "Fox ESP32 Firmware", 1500);
@@ -291,19 +302,51 @@ static bool app_probe_uart(App* app, size_t pin_index, size_t baud_index) {
     if(!ok) {
         esp_at_free(app->esp_at);
         app->esp_at = NULL;
-        return false;
+        return ProbeResultNotFound;
     }
 
     app->pin_option_index = pin_index;
     app->baud_option_index = baud_index;
-    return true;
+    return ProbeResultOk;
+}
+
+static void app_query_attacks_and_proceed(App* app) {
+    esp_at_send(app->esp_at, "SETTINGS");
+
+    bool attacks_on = true;
+    EspAtMsg msg;
+    if(esp_at_receive(app->esp_at, &msg, 1500)) {
+        app_log(app, "%s", msg.line);
+        if(strcmp(msg.line, "ATTACKS:OFF") == 0) {
+            attacks_on = false;
+        } else if(strcmp(msg.line, "ATTACKS:ON") == 0) {
+            attacks_on = true;
+        }
+        if(esp_at_receive(app->esp_at, &msg, 500)) {
+            app_log(app, "%s", msg.line);
+        }
+    } else {
+        app_log(app, "No response to SETTINGS query.");
+    }
+
+    if(attacks_on) {
+        app_switch_to_menu(app, MenuContextFoxPortal);
+    } else {
+        message_view_show_attacks_disabled(app);
+    }
+}
+
+void app_recheck_attacks_enabled(App* app) {
+    app_query_attacks_and_proceed(app);
 }
 
 static void action_check_esp32(App* app) {
     message_view_show_detecting(app);
 
+    bool any_busy = false;
     for(size_t i = 0; i < PIN_OPTION_COUNT; i++) {
-        if(app_probe_uart(app, i, BAUD_OPTION_DEFAULT_INDEX)) {
+        ProbeResult r = app_probe_uart(app, i, BAUD_OPTION_DEFAULT_INDEX);
+        if(r == ProbeResultOk) {
             app->esp32_detected = true;
             app_log(app, "Fox ESP32 Firmware detected");
             app_log(
@@ -311,15 +354,19 @@ static void action_check_esp32(App* app) {
                 "on %s @ %lu",
                 pin_options[i].label,
                 (unsigned long)baud_options[BAUD_OPTION_DEFAULT_INDEX]);
-            /* FoxPortal is a captive-portal app - the ESP32 provides the
-               WiFi AP itself, so we don't require an upstream WiFi
-               connection here.  Go straight to the portal menu. */
-            app_switch_to_menu(app, MenuContextFoxPortal);
+            app_query_attacks_and_proceed(app);
             return;
         }
+        if(r == ProbeResultSerialBusy) any_busy = true;
     }
 
-    message_view_show_not_detected(app);
+    if(any_busy) {
+        app->serial_busy_countdown = 3;
+        message_view_show_serial_busy(app);
+        furi_timer_start(app->serial_busy_timer, 1000);
+    } else {
+        message_view_show_not_detected(app);
+    }
 }
 
 void app_retry_detection(App* app) {
@@ -348,7 +395,8 @@ uint32_t app_baud_option_value(size_t index) {
 bool app_probe_uart_selected(App* app) {
     message_view_show_detecting(app);
 
-    if(app_probe_uart(app, app->pin_option_index, app->baud_option_index)) {
+    ProbeResult r = app_probe_uart(app, app->pin_option_index, app->baud_option_index);
+    if(r == ProbeResultOk) {
         app->esp32_detected = true;
         app_log(app, "Fox ESP32 Firmware detected");
         app_log(
@@ -356,8 +404,15 @@ bool app_probe_uart_selected(App* app) {
             "on %s @ %lu",
             pin_options[app->pin_option_index].label,
             (unsigned long)baud_options[app->baud_option_index]);
-        app_switch_to_menu(app, MenuContextFoxPortal);
+        app_query_attacks_and_proceed(app);
         return true;
+    }
+
+    if(r == ProbeResultSerialBusy) {
+        app->serial_busy_countdown = 3;
+        message_view_show_serial_busy(app);
+        furi_timer_start(app->serial_busy_timer, 1000);
+        return false;
     }
 
     message_view_show_not_detected(app);
@@ -369,10 +424,74 @@ static void fox_splash_done_cb(void* context) {
     view_dispatcher_send_custom_event(app->view_dispatcher, FOX_COMMANDER_EVENT_SPLASH_DONE);
 }
 
+static void serial_busy_timer_cb(void* context) {
+    App* app = context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, FOX_CHAT_EVENT_SERIAL_BUSY_TICK);
+}
+
+static void serial_retry_timer_cb(void* context) {
+    App* app = context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, FOX_CHAT_EVENT_SERIAL_DO_RETRY);
+}
+
+static void portal_sync_timer_cb(void* context) {
+    App* app = context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, FOX_PORTAL_EVENT_SYNC_TICK);
+}
+
 static bool custom_event_callback(void* context, uint32_t event) {
     App* app = context;
     if(event == FOX_COMMANDER_EVENT_SPLASH_DONE) {
         action_check_esp32(app);
+        return true;
+    }
+    if(event == FOX_PORTAL_EVENT_SYNC_TICK) {
+        bool on_menu = app->current_view == FoxCommanderViewMenu;
+        bool on_live_terminal =
+            app->current_view == FoxCommanderViewTerminal && !app->showing_results;
+        if(app->esp32_detected && (on_menu || on_live_terminal)) {
+            foxportal_sync_saved_results(app, true);
+            if(on_live_terminal) {
+                app->terminal_scroll = (size_t)-1;
+                with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
+            }
+        }
+        return true;
+    }
+    if(event == FOX_CHAT_EVENT_SERIAL_BUSY_TICK) {
+        if(app->serial_busy_countdown > 0) {
+            app->serial_busy_countdown--;
+            if(app->serial_busy_countdown == 0) {
+                furi_timer_stop(app->serial_busy_timer);
+                app->message_view_serial_retrying = true;
+            }
+            with_view_model(app->message_view, uint8_t * _m, { UNUSED(_m); }, true);
+            if(app->serial_busy_countdown == 0) {
+                furi_timer_start(app->serial_retry_timer, 500);
+            }
+        }
+        return true;
+    }
+    if(event == FOX_CHAT_EVENT_SERIAL_DO_RETRY) {
+        bool found = false;
+        for(size_t i = 0; i < PIN_OPTION_COUNT; i++) {
+            ProbeResult r = app_probe_uart(app, i, BAUD_OPTION_DEFAULT_INDEX);
+            if(r == ProbeResultOk) {
+                app->esp32_detected = true;
+                app->message_view_serial_busy     = false;
+                app->message_view_serial_retrying = false;
+                app_log(app, "Fox ESP32 Firmware detected");
+                app_log(
+                    app,
+                    "on %s @ %lu",
+                    pin_options[i].label,
+                    (unsigned long)baud_options[BAUD_OPTION_DEFAULT_INDEX]);
+                app_query_attacks_and_proceed(app);
+                found = true;
+                break;
+            }
+        }
+        if(!found) message_view_show_serial_retry_failed(app);
         return true;
     }
     return false;
@@ -407,17 +526,16 @@ static bool navigation_callback(void* context) {
         return true;
     }
 
-    /* Message (the no-ESP32-response Retry screen) - the only remaining
-       case, exits the app. */
     view_dispatcher_stop(app->view_dispatcher);
     return true;
 }
 
-static App* app_alloc(void) {
+static App* app_alloc(bool skip_splash) {
     App* app = malloc(sizeof(App));
     memset(app, 0, sizeof(App));
 
     app->log = furi_string_alloc();
+    app->results_text = furi_string_alloc();
     app->portal_ssid = furi_string_alloc();
     app->baud_option_index = BAUD_OPTION_DEFAULT_INDEX;
 
@@ -466,14 +584,30 @@ static App* app_alloc(void) {
 
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    app->current_view = FoxCommanderViewSplash;
-    view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewSplash);
-    fox_splash_start(app->splash);
+    app->serial_busy_timer  = furi_timer_alloc(serial_busy_timer_cb,  FuriTimerTypePeriodic, app);
+    app->serial_retry_timer = furi_timer_alloc(serial_retry_timer_cb, FuriTimerTypeOnce,     app);
+    app->portal_sync_timer  = furi_timer_alloc(portal_sync_timer_cb,  FuriTimerTypePeriodic, app);
+    furi_timer_start(app->portal_sync_timer, FOX_PORTAL_SYNC_INTERVAL_MS);
+
+    if(skip_splash) {
+        action_check_esp32(app);
+    } else {
+        app->current_view = FoxCommanderViewSplash;
+        view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewSplash);
+        fox_splash_start(app->splash);
+    }
 
     return app;
 }
 
 static void app_free(App* app) {
+    furi_timer_stop(app->serial_busy_timer);
+    furi_timer_free(app->serial_busy_timer);
+    furi_timer_stop(app->serial_retry_timer);
+    furi_timer_free(app->serial_retry_timer);
+    furi_timer_stop(app->portal_sync_timer);
+    furi_timer_free(app->portal_sync_timer);
+
     if(app->esp_at != NULL) esp_at_free(app->esp_at);
 
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewSplash);
@@ -496,13 +630,14 @@ static void app_free(App* app) {
     furi_record_close(RECORD_GUI);
 
     furi_string_free(app->log);
+    furi_string_free(app->results_text);
     furi_string_free(app->portal_ssid);
     free(app);
 }
 
 int32_t fox_portal_main(void* p) {
-    UNUSED(p);
-    App* app = app_alloc();
+    bool skip_splash = (p != NULL && strcmp((const char*)p, "SKIPSPLASH") == 0);
+    App* app = app_alloc(skip_splash);
     view_dispatcher_run(app->view_dispatcher);
     app_free(app);
     return 0;

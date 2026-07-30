@@ -1,8 +1,7 @@
-// scenes/gdr_scene_saved_info.c
 #include "../gdr_app_i.h"
 #include "../helpers/gdr_storage.h"
 #include "../protocols/protocols_common.h"
-#include "gdr_icons.h"
+#include "garage_door_remote_icons.h"
 
 #define TAG "GDRSceneSavedInfo"
 
@@ -20,7 +19,6 @@ static void gdr_scene_saved_info_widget_callback(
         }
 #endif
     } else if(result == GuiButtonTypeRight && (type == InputTypeShort)) {
-        //Send delete event and get user confirmation to delete.
         view_dispatcher_send_custom_event(
             app->view_dispatcher, GDRCustomEventSavedInfoDelete);
     }
@@ -45,10 +43,8 @@ void gdr_scene_saved_info_on_enter(void* context) {
         return;
     }
 
-    // Reset widget first
     widget_reset(app->widget);
 
-    // Validate file path
     if(!app->loaded_file_path || furi_string_empty(app->loaded_file_path)) {
         FURI_LOG_E(TAG, "No file path");
         widget_add_string_element(
@@ -58,7 +54,6 @@ void gdr_scene_saved_info_on_enter(void* context) {
 
     FURI_LOG_I(TAG, "Path: %s", furi_string_get_cstr(app->loaded_file_path));
 
-    // Allocate strings first (no I/O)
     info_str = furi_string_alloc();
     temp_str = furi_string_alloc();
     if(!info_str || !temp_str) {
@@ -70,7 +65,6 @@ void gdr_scene_saved_info_on_enter(void* context) {
 
     FURI_LOG_I(TAG, "Strings allocated");
 
-    // Open storage
     FURI_LOG_I(TAG, "Opening storage...");
     storage = furi_record_open(RECORD_STORAGE);
     if(!storage) {
@@ -82,7 +76,6 @@ void gdr_scene_saved_info_on_enter(void* context) {
 
     FURI_LOG_I(TAG, "Storage opened");
 
-    // Allocate flipper format
     FURI_LOG_I(TAG, "Allocating FF...");
     ff = flipper_format_file_alloc(storage);
     if(!ff) {
@@ -94,7 +87,6 @@ void gdr_scene_saved_info_on_enter(void* context) {
 
     FURI_LOG_I(TAG, "FF allocated");
 
-    // Open file
     FURI_LOG_I(TAG, "Opening file...");
     if(!flipper_format_file_open_existing(ff, furi_string_get_cstr(app->loaded_file_path))) {
         FURI_LOG_E(TAG, "File open failed");
@@ -105,7 +97,6 @@ void gdr_scene_saved_info_on_enter(void* context) {
 
     FURI_LOG_I(TAG, "File opened, reading...");
 
-    // Read fields
     uint32_t temp_data = 0;
     app->emulate_disabled_for_loaded = false;
 
@@ -125,7 +116,6 @@ void gdr_scene_saved_info_on_enter(void* context) {
 
     flipper_format_rewind(ff);
     if(flipper_format_read_string(ff, FF_PRESET, temp_str)) {
-        // Convert full preset name to short name
         const char* preset_name = pp_get_short_preset_name(furi_string_get_cstr(temp_str));
         furi_string_cat_printf(info_str, "Modulation: %s\n", preset_name);
     }
@@ -199,7 +189,7 @@ void gdr_scene_saved_info_on_enter(void* context) {
     success = true;
 
 cleanup:
-    // Close file and storage BEFORE widget operations
+
     if(ff) {
         flipper_format_free(ff);
         ff = NULL;
@@ -211,7 +201,6 @@ cleanup:
 
     FURI_LOG_I(TAG, "Storage closed");
 
-    // Now do widget operations
     if(success && info_str && furi_string_size(info_str) > 0) {
         FURI_LOG_I(TAG, "Adding scroll element");
         widget_add_text_scroll_element(app->widget, 0, 0, 128, 50, furi_string_get_cstr(info_str));
@@ -234,7 +223,6 @@ cleanup:
             app);
     }
 
-    // Free strings
     if(temp_str) furi_string_free(temp_str);
     if(info_str) furi_string_free(info_str);
 
@@ -269,7 +257,6 @@ bool gdr_scene_saved_info_on_event(void* context, SceneManagerEvent event) {
                 DialogMessageButton dialog_result = dialog_message_show(app->dialogs, message);
                 dialog_message_free(message);
 
-                //Delete if the user said yes.
                 if(dialog_result == DialogMessageButtonLeft) {
                     notification_message(app->notifications, &sequence_semi_success);
                     gdr_storage_delete_file(furi_string_get_cstr(app->loaded_file_path));

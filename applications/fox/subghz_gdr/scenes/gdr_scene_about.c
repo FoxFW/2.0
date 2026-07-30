@@ -1,7 +1,6 @@
-// scenes/gdr_scene_about.c
 #include "../gdr_app_i.h"
 #include "../helpers/gdr_settings.h"
-#include "gdr_icons.h"
+#include "garage_door_remote_icons.h"
 #include <gui/elements.h>
 #include <input/input.h>
 #include <dialogs/dialogs.h>
@@ -53,7 +52,6 @@ static const char* credits[] = {
     "RocketGod",
     "Slackware",
     "Trikk",
-    // can add more
 };
 
 #define CREDITS_COUNT (sizeof(credits) / sizeof(credits[0]))
@@ -79,14 +77,11 @@ static void about_draw_callback(Canvas* canvas, void* context) {
     srand(g_state.seed);
     canvas_clear(canvas);
 
-    // Light background static
     canvas_set_color(canvas, ColorBlack);
     draw_noise_pixels(canvas, 6 + (rand() % 6));
 
-    // Occasional subtle x-jitter
     int8_t x_off = (rand() % 15 == 0) ? ((rand() % 4) - 2) : 0;
 
-    // Animated TPP decoration (centered)
     canvas_set_font(canvas, FontKeyboard);
     if(g_state.frame % 8 < 4) {
         canvas_draw_str_aligned(
@@ -96,17 +91,13 @@ static void about_draw_callback(Canvas* canvas, void* context) {
             canvas, 64, 18, AlignCenter, AlignBottom, ">>>======[TPP]======<<<");
     }
 
-    // Draw credits region (clip area)
     canvas_set_font(canvas, FontSecondary);
 
-    // Calculate total scroll height
     int16_t total_height = CREDITS_COUNT * CREDIT_LINE_HEIGHT;
 
-    // Draw scrolling credits
     for(size_t i = 0; i < CREDITS_COUNT; i++) {
         int16_t y = CREDITS_START_Y + (i * CREDIT_LINE_HEIGHT) - g_state.scroll_offset;
 
-        // Wrap around for endless scroll
         while(y < CREDITS_START_Y - CREDIT_LINE_HEIGHT) {
             y += total_height;
         }
@@ -114,18 +105,15 @@ static void about_draw_callback(Canvas* canvas, void* context) {
             y -= total_height;
         }
 
-        // Only draw if in visible region
         if(y >= CREDITS_START_Y - CREDIT_LINE_HEIGHT && y <= CREDITS_END_Y) {
             canvas_draw_str(canvas, x_off, y, credits[i]);
         }
     }
 
-    // Draw fade/mask bars at top and bottom of credits area
     canvas_set_color(canvas, ColorWhite);
     canvas_draw_box(canvas, 0, 0, 128, CREDITS_START_Y - CREDIT_LINE_HEIGHT);
     canvas_draw_box(canvas, 0, CREDITS_END_Y, 128, 14);
 
-    // Redraw header over mask
     canvas_set_color(canvas, ColorBlack);
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, x_off, 10, "GDR v" FAP_VERSION);
@@ -139,17 +127,14 @@ static void about_draw_callback(Canvas* canvas, void* context) {
             canvas, 64, 18, AlignCenter, AlignBottom, ">>>======[TPP]======<<<");
     }
 
-    // Redraw static in header area
     srand(g_state.seed + 1);
     for(uint8_t i = 0; i < 3; i++) {
         canvas_draw_dot(canvas, rand() % 128, rand() % (CREDITS_START_Y - CREDIT_LINE_HEIGHT));
     }
 
-    // Footer: The Pirate's Plunder Discord
     canvas_set_font(canvas, FontKeyboard);
     canvas_draw_str_aligned(canvas, 127, 62, AlignRight, AlignBottom, "discord.gg/thepirates");
 
-    // Rare subtle glitch bar
     if(rand() % 30 == 0) {
         canvas_set_color(canvas, ColorXOR);
         uint8_t y = rand() % 60;
@@ -178,7 +163,6 @@ static bool about_input_callback(InputEvent* event, void* context) {
                 app->view_dispatcher, GDRCustomEventAboutToggleEmulate);
         }
     } else if(event->key == EMULATE_TOGGLE_COMBO[0]) {
-
         g_state.combo_progress = 1;
     } else {
         g_state.combo_progress = 0;

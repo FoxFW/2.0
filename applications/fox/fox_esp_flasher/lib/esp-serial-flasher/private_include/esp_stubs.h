@@ -13,8 +13,6 @@
  * limitations under the License.
  */
 
-// auto-generated stubs from esp-flasher-stub v0.3.0
-
 #pragma once
 
 #include <stdint.h>

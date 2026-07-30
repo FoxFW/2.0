@@ -1,4 +1,3 @@
-// views/gdr_receiver.c
 #include "gdr_receiver.h"
 #include "../gdr_history.h"
 #include "../gdr_app_i.h"
@@ -6,7 +5,7 @@
 #include <gui/elements.h>
 #include <furi.h>
 
-#include "gdr_icons.h"
+#include "garage_door_remote_icons.h"
 
 #define FRAME_HEIGHT             12
 #define MAX_LEN_PX               112
@@ -103,7 +102,6 @@ static void gdr_view_rssi_draw(Canvas* canvas, GDRReceiverModel* model) {
         u_rssi = (uint8_t)v;
     }
 
-    //Add a 1px space between the segments
     uint8_t spacer = 0;
     for(uint8_t i = 1; i < u_rssi; i++) {
         if(i % 5) {
@@ -234,7 +232,6 @@ void gdr_view_receiver_draw(Canvas* canvas, GDRReceiverModel* model) {
     canvas_set_color(canvas, ColorBlack);
     canvas_set_font(canvas, FontSecondary);
 
-    // Increment animation frame
     static uint8_t animation_frame = 0;
     animation_frame = (animation_frame + 1) % 96;
 
@@ -242,14 +239,11 @@ void gdr_view_receiver_draw(Canvas* canvas, GDRReceiverModel* model) {
     bool scrollbar = item_count > MENU_ITEMS;
 
     if(!model->sub_decode_mode) {
-        //Config button. (Do it at the top so we dont get Inversion problems from the list view part.)
         elements_button_left(canvas, "Config");
 
-        // Draw RSSI
         gdr_view_rssi_draw(canvas, model);
     }
 
-    //Draw To Unlock, Locked etc...
     if(model->lock_count) {
         canvas_draw_str(canvas, 44, 63, furi_string_get_cstr(model->frequency_str));
         canvas_draw_str(canvas, 79, 63, furi_string_get_cstr(model->preset_str));
@@ -273,9 +267,7 @@ void gdr_view_receiver_draw(Canvas* canvas, GDRReceiverModel* model) {
         }
     }
 
-    //Draw the List, or the Radar/Dolphin View.
     if(item_count > 0) {
-        // Draw received items list
         size_t shift_position = model->list_offset;
 
         for(size_t i = 0; i < MIN(item_count, MENU_ITEMS); i++) {
@@ -294,9 +286,7 @@ void gdr_view_receiver_draw(Canvas* canvas, GDRReceiverModel* model) {
                 canvas, 4, 9 + (i * FRAME_HEIGHT), furi_string_get_cstr(model->draw_scratch));
         }
 
-        //Draw scrollbar if needed
         if(scrollbar) {
-            // Calculate maximum scroll position
             size_t max_scroll = item_count > MENU_ITEMS ? item_count - MENU_ITEMS : 0;
             size_t scroll_pos = shift_position;
             if(scroll_pos > max_scroll) {
@@ -306,7 +296,6 @@ void gdr_view_receiver_draw(Canvas* canvas, GDRReceiverModel* model) {
             elements_scrollbar_pos(canvas, 128, 0, 49, scroll_pos, scrollable_total);
         }
     } else {
-        //Are we in Radar View or FLipper View Mode?
         if(!model->dolphin_view) {
             const uint8_t center_x = 64;
             const uint8_t center_y = 22;
@@ -368,7 +357,6 @@ void gdr_view_receiver_draw(Canvas* canvas, GDRReceiverModel* model) {
                 model->external_radio ? &I_PP_scanning_ext_123x52 : &I_PP_scanning_123x52);
         }
 
-        // Draw EXT/INT indicator in upper right corner
         canvas_set_font(canvas, FontSecondary);
         if(model->external_radio) {
             canvas_draw_str_aligned(canvas, 127, 0, AlignRight, AlignTop, "Ext");
@@ -376,7 +364,6 @@ void gdr_view_receiver_draw(Canvas* canvas, GDRReceiverModel* model) {
             canvas_draw_str_aligned(canvas, 127, 0, AlignRight, AlignTop, "Int");
         }
 
-        //Draw the Auto-save Indicator
         if(model->auto_save) {
             const char* auto_save_text = "Save";
             canvas_draw_str(
@@ -486,7 +473,7 @@ bool gdr_view_receiver_input(InputEvent* event, void* context) {
         case InputKeyOk:
             bool do_ok_cb = false;
             bool do_toggle = false;
-            /* Read-only: do not redraw */
+
             with_view_model(
                 receiver->view,
                 GDRReceiverModel * model,
@@ -502,7 +489,7 @@ bool gdr_view_receiver_input(InputEvent* event, void* context) {
                     gdr_view_receiver_history_unlock(model);
                 },
                 false);
-            /* Only redraw if we actually changed dolphin_view */
+
             if(do_toggle) {
                 with_view_model(
                     receiver->view,

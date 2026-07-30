@@ -6,17 +6,6 @@
 #include <lib/subghz/blocks/generic.h>
 #include <lib/subghz/blocks/math.h>
 
-/*
- * Help
- * https://wiki.cuvoodoo.info/doku.php?id=megacode
- * https://wiki.cuvoodoo.info/lib/exe/fetch.php?media=megacode:megacode_1.pdf
- * https://fccid.io/EF4ACP00872/Test-Report/Megacode-2-112615.pdf
- * https://github.com/aaronsp777/megadecoder
- * https://github.com/rjmendez/Linear_keyfob
- * https://github.com/j07rdi/Linear_MegaCode_Garage_Remote
- *
- */
-
 #define TAG "SubGhzProtocolMegaCode"
 
 static const SubGhzBlockConst subghz_protocol_megacode_const = {
@@ -101,11 +90,6 @@ void subghz_protocol_encoder_megacode_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderMegaCode instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_megacode_get_upload(SubGhzProtocolEncoderMegaCode* instance) {
     furi_assert(instance);
     uint8_t last_bit = 0;
@@ -117,21 +101,8 @@ static bool subghz_protocol_encoder_megacode_get_upload(SubGhzProtocolEncoderMeg
         instance->encoder.size_upload = size_upload;
     }
 
-    /*
-    * Due to the nature of the protocol
-    *
-    *  00000 1
-    *  _____|-| = 1 becomes
-    * 
-    *  00 1 000
-    *  __|-|___ = 0 becomes
-    * 
-    * it's easier for us to generate an upload backwards
-    */
-
     size_t index = size_upload - 1;
 
-    // Send end level
     instance->encoder.upload[index--] =
         level_duration_make(true, (uint32_t)subghz_protocol_megacode_const.te_short);
     if(bit_read(instance->generic.data, 0)) {
@@ -140,17 +111,14 @@ static bool subghz_protocol_encoder_megacode_get_upload(SubGhzProtocolEncoderMeg
         last_bit = 0;
     }
 
-    //Send key data
     for(uint8_t i = 1; i < instance->generic.data_count_bit; i++) {
         if(bit_read(instance->generic.data, i)) {
-            //if bit 1
             instance->encoder.upload[index--] = level_duration_make(
                 false,
                 last_bit ? (uint32_t)subghz_protocol_megacode_const.te_short * 5 :
                            (uint32_t)subghz_protocol_megacode_const.te_short * 2);
             last_bit = 1;
         } else {
-            //if bit 0
             instance->encoder.upload[index--] = level_duration_make(
                 false,
                 last_bit ? (uint32_t)subghz_protocol_megacode_const.te_short * 8 :
@@ -161,13 +129,10 @@ static bool subghz_protocol_encoder_megacode_get_upload(SubGhzProtocolEncoderMeg
             level_duration_make(true, (uint32_t)subghz_protocol_megacode_const.te_short);
     }
 
-    //Send PT_GUARD
     if(bit_read(instance->generic.data, 0)) {
-        //if end bit 1
         instance->encoder.upload[index] =
             level_duration_make(false, (uint32_t)subghz_protocol_megacode_const.te_short * 11);
     } else {
-        //if end bit 1
         instance->encoder.upload[index] =
             level_duration_make(false, (uint32_t)subghz_protocol_megacode_const.te_short * 14);
     }
@@ -188,7 +153,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -251,27 +216,24 @@ void subghz_protocol_decoder_megacode_feed(void* context, bool level, uint32_t d
     switch(instance->decoder.parser_step) {
     case MegaCodeDecoderStepReset:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_megacode_const.te_short * 13) <
-                        subghz_protocol_megacode_const.te_delta * 17)) { //10..16ms
-            //Found header MegaCode
+                        subghz_protocol_megacode_const.te_delta * 17)) {
             instance->decoder.parser_step = MegaCodeDecoderStepFoundStartBit;
         }
         break;
     case MegaCodeDecoderStepFoundStartBit:
         if(level && (DURATION_DIFF(duration, subghz_protocol_megacode_const.te_short) <
                      subghz_protocol_megacode_const.te_delta)) {
-            //Found start bit MegaCode
             instance->decoder.parser_step = MegaCodeDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
             subghz_protocol_blocks_add_bit(&instance->decoder, 1);
             instance->last_bit = 1;
-
         } else {
             instance->decoder.parser_step = MegaCodeDecoderStepReset;
         }
         break;
     case MegaCodeDecoderStepSaveDuration:
-        if(!level) { //save interval
+        if(!level) {
             if(duration >= (subghz_protocol_megacode_const.te_short * 10)) {
                 instance->decoder.parser_step = MegaCodeDecoderStepReset;
                 if(instance->decoder.decode_count_bit ==
@@ -323,46 +285,7 @@ void subghz_protocol_decoder_megacode_feed(void* context, bool level, uint32_t d
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_megacode_check_remote_controller(SubGhzBlockGeneric* instance) {
-    /*
-    * Short: 1000 µs
-    * Long: 1000 µs
-    * Gap: 11000 .. 14000 µs
-    * A Linear Megacode transmission consists of 24 bit frames starting with 
-    * the most significant bit and ending with the least. Each of the 24 bit 
-    * frames is 6 milliseconds wide and always contains a single 1 millisecond 
-    * pulse. A frame with more than 1 pulse or a frame with no pulse is invalid 
-    * and a receiver should reset and begin watching for another start bit. 
-    * Start bit is always 1.
-    * 
-    * 
-    * Example (I created with my own remote):
-    * Remote “A” has the code “17316”, a Facility Code of “3”, and a single button.
-    * Start bit (S) = 1
-    * Facility Code 3 (F) = 0011
-    * Remote Code (Key) 17316 = 43A4 = 0100001110100100
-    * Button (Btn) 1 = 001
-    *          S  F        Key         Btn
-    * Result = 1|0011|0100001110100100|001
-    * 
-    *  00000 1
-    *  _____|-| = 1 becomes
-    * 
-    *  00 1 000
-    *  __|-|___ = 0 becomes
-    * 
-    * The device needs to transmit with a 9000 µs gap between retransmissions:
-    * 000001 001000 001000 000001 000001 001000 000001 001000 001000 001000 001000 000001
-    * 000001 000001 001000 000001 001000 001000 000001 001000 001000 001000 001000 000001
-    * wait 9000 µs
-    * 000001 001000 001000 000001 000001 001000 000001 001000 001000 001000 001000 000001
-    * 000001 000001 001000 000001 001000 001000 000001 001000 001000 001000 001000 000001
-    * 
-    */
     if((instance->data >> 23) == 1) {
         instance->serial = (instance->data >> 3) & 0xFFFF;
         instance->btn = instance->data & 0b111;
@@ -405,11 +328,9 @@ void subghz_protocol_decoder_megacode_get_string(void* context, FuriString* outp
     SubGhzProtocolDecoderMegaCode* instance = context;
     subghz_protocol_megacode_check_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 3;
-    //
 
     furi_string_cat_printf(
         output,

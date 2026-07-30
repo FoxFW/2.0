@@ -1,4 +1,3 @@
-// scenes/gdr_scene_saved.c
 #include "../gdr_app_i.h"
 
 #define TAG "GDRSceneSaved"

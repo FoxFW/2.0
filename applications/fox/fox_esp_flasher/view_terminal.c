@@ -4,7 +4,7 @@
 static FlasherApp* s_app = NULL;
 
 typedef struct {
-    bool cmd_focused; /* true when [Send Command] button is selected */
+    uint8_t scroll;
 } TermModel;
 
 #define BTN_X  4
@@ -13,52 +13,83 @@ typedef struct {
 #define BTN_H  12
 #define BTN_R  3
 
+#define TERM_VISIBLE_LINES 3
+#define TERM_LINE_Y0        22
+#define TERM_LINE_DY        11
+#define TERM_LINE_MAXW      32
+#define TERM_MAX_LINES      40
+
+static size_t term_split_lines(
+    const char* log,
+    size_t      log_n,
+    uint16_t*   starts,
+    uint16_t*   lens,
+    size_t      max_lines) {
+    size_t n = 0;
+    size_t line_start = 0;
+    for(size_t i = 0; i <= log_n; i++) {
+        if(i == log_n || log[i] == '\n') {
+            size_t end = i;
+            while(end > line_start && log[end - 1] == '\r') end--;
+            if(!(i == log_n && end == line_start && n > 0)) {
+                if(n < max_lines) {
+                    starts[n] = (uint16_t)line_start;
+                    lens[n]   = (uint16_t)(end - line_start);
+                    n++;
+                }
+            }
+            line_start = i + 1;
+        }
+    }
+    return n;
+}
+
 static void terminal_draw(Canvas* canvas, void* model_ptr) {
     TermModel* m = model_ptr;
     FlasherApp* app = s_app;
     if(!app) return;
 
     canvas_clear(canvas);
+
+    canvas_set_color(canvas, ColorBlack);
+    canvas_draw_box(canvas, 0, 0, 128, 11);
+    canvas_set_color(canvas, ColorWhite);
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 1, AlignCenter, AlignTop, "Terminal");
+    canvas_set_color(canvas, ColorBlack);
 
     canvas_set_font(canvas, FontSecondary);
 
     const char* log   = app->term_log;
     size_t      log_n = app->term_log_len;
 
-    /* Walk backwards to find the ends of the last two lines */
-    char line1[32] = {0};
-    char line2[32] = {0};
+    uint16_t starts[TERM_MAX_LINES];
+    uint16_t lens[TERM_MAX_LINES];
+    size_t total_lines = term_split_lines(log, log_n, starts, lens, TERM_MAX_LINES);
 
-    if(log_n > 0) {
-        size_t end2 = log_n;
-        while(end2 > 0 && (log[end2 - 1] == '\n' || log[end2 - 1] == '\r')) end2--;
+    bool show_hint = (app->last_cmd[0] && !app->flashing_active && !app->flash_done_pending);
+    size_t visible_lines = show_hint ? 2 : TERM_VISIBLE_LINES;
 
-        size_t start2 = end2;
-        while(start2 > 0 && log[start2 - 1] != '\n') start2--;
+    if(total_lines > 0) {
+        uint8_t max_scroll =
+            (total_lines > visible_lines) ? (uint8_t)(total_lines - visible_lines) : 0;
+        uint8_t scroll = (m->scroll > max_scroll) ? max_scroll : m->scroll;
 
-        size_t len2 = end2 - start2;
-        if(len2 > sizeof(line2) - 1) len2 = sizeof(line2) - 1;
-        memcpy(line2, log + start2, len2);
-        line2[len2] = '\0';
+        size_t bottom_idx = total_lines - 1 - scroll;
+        size_t top_idx = (bottom_idx + 1 > visible_lines) ? (bottom_idx + 1 - visible_lines) : 0;
 
-        if(start2 > 0) {
-            size_t end1 = start2 - 1;
-            while(end1 > 0 && (log[end1 - 1] == '\n' || log[end1 - 1] == '\r')) end1--;
-            size_t start1 = end1;
-            while(start1 > 0 && log[start1 - 1] != '\n') start1--;
-            size_t len1 = end1 - start1;
-            if(len1 > sizeof(line1) - 1) len1 = sizeof(line1) - 1;
-            memcpy(line1, log + start1, len1);
-            line1[len1] = '\0';
+        for(size_t li = top_idx; li <= bottom_idx; li++) {
+            char linebuf[TERM_LINE_MAXW];
+            size_t len = lens[li];
+            if(len > sizeof(linebuf) - 1) len = sizeof(linebuf) - 1;
+            memcpy(linebuf, log + starts[li], len);
+            linebuf[len] = '\0';
+            uint8_t row = (uint8_t)(li - top_idx);
+            canvas_draw_str(canvas, 4, TERM_LINE_Y0 + row * TERM_LINE_DY, linebuf);
         }
     }
 
-    canvas_draw_str(canvas, 4, 22, line1);
-    canvas_draw_str(canvas, 4, 33, line2);
-
-    if(app->last_cmd[0]) {
+    if(show_hint) {
         char hint[28];
         hint[0] = '>';
         hint[1] = ' ';
@@ -67,17 +98,9 @@ static void terminal_draw(Canvas* canvas, void* model_ptr) {
         canvas_draw_str_aligned(canvas, 4, 43, AlignLeft, AlignTop, hint);
     }
 
-    canvas_set_color(canvas, ColorBlack);
-    if(m->cmd_focused) {
-        canvas_draw_rbox(canvas, BTN_X, BTN_Y, BTN_W, BTN_H, BTN_R);
-        canvas_set_color(canvas, ColorWhite);
-    } else {
-        canvas_draw_rframe(canvas, BTN_X, BTN_Y, BTN_W, BTN_H, BTN_R);
-        canvas_draw_rframe(canvas, BTN_X + 2, BTN_Y + 2, BTN_W - 4, BTN_H - 4, BTN_R - 1);
-    }
-    canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str_aligned(canvas, 64, BTN_Y + BTN_H / 2, AlignCenter, AlignCenter, "Send Command");
-    canvas_set_color(canvas, ColorBlack);
+    flasher_draw_ok_button(
+        canvas, BTN_X, BTN_Y, BTN_W, BTN_H, BTN_R,
+        (app->flashing_active || app->flash_done_pending) ? "Back" : "Send Command");
 }
 
 static bool terminal_input(InputEvent* event, void* context) {
@@ -86,19 +109,24 @@ static bool terminal_input(InputEvent* event, void* context) {
 
     switch(event->key) {
     case InputKeyUp:
-    case InputKeyDown:
+
         with_view_model(app->terminal_view, TermModel* m, {
-            m->cmd_focused = !m->cmd_focused;
+            if(m->scroll < 0xFF) m->scroll++;
         }, true);
         return true;
-    case InputKeyOk: {
-        bool focused = false;
-        with_view_model(app->terminal_view, TermModel* m, { focused = m->cmd_focused; }, false);
-        if(focused) {
+    case InputKeyDown:
+        with_view_model(app->terminal_view, TermModel* m, {
+            if(m->scroll > 0) m->scroll--;
+        }, true);
+        return true;
+    case InputKeyOk:
+
+        if(app->flashing_active || app->flash_done_pending) {
+            flasher_terminal_back(app);
+        } else {
             view_dispatcher_send_custom_event(app->view_dispatcher, FlasherEventTerminalCmd);
         }
         return true;
-    }
     case InputKeyBack:
         return false;
     default:
@@ -113,7 +141,7 @@ View* view_terminal_alloc(FlasherApp* app) {
     view_set_input_callback(v, terminal_input);
     view_set_context(v, app);
     view_allocate_model(v, ViewModelTypeLocking, sizeof(TermModel));
-    with_view_model(v, TermModel* m, { m->cmd_focused = true; }, false);
+    with_view_model(v, TermModel* m, { m->scroll = 0; }, false);
     return v;
 }
 
@@ -124,6 +152,10 @@ void view_terminal_free(View* v) {
 
 void view_terminal_refresh(View* v) {
     with_view_model(v, TermModel* m, { UNUSED(m); }, true);
+}
+
+void view_terminal_reset_scroll(View* v) {
+    with_view_model(v, TermModel* m, { m->scroll = 0; }, true);
 }
 
 void view_terminal_append(FlasherApp* app, const char* str, size_t len) {

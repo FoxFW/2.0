@@ -81,7 +81,7 @@ void* subghz_protocol_encoder_hormann_alloc(SubGhzEnvironment* environment) {
     instance->generic.protocol_name = instance->base.protocol->name;
 
     instance->encoder.repeat = 1;
-    instance->encoder.size_upload = 1850; // 1801
+    instance->encoder.size_upload = 1850;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
     instance->encoder.is_running = false;
     return instance;
@@ -94,11 +94,6 @@ void subghz_protocol_encoder_hormann_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderHormann instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_hormann_get_upload(SubGhzProtocolEncoderHormann* instance) {
     furi_assert(instance);
 
@@ -112,21 +107,18 @@ static bool subghz_protocol_encoder_hormann_get_upload(SubGhzProtocolEncoderHorm
     }
 
     for(size_t repeat = 0; repeat < 20; repeat++) {
-        //Send start bit
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_hormann_const.te_short * 24);
         instance->encoder.upload[index++] =
             level_duration_make(false, (uint32_t)subghz_protocol_hormann_const.te_short);
-        //Send key data
+
         for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
             if(bit_read(instance->generic.data, i - 1)) {
-                //send bit 1
                 instance->encoder.upload[index++] =
                     level_duration_make(true, (uint32_t)subghz_protocol_hormann_const.te_long);
                 instance->encoder.upload[index++] =
                     level_duration_make(false, (uint32_t)subghz_protocol_hormann_const.te_short);
             } else {
-                //send bit 0
                 instance->encoder.upload[index++] =
                     level_duration_make(true, (uint32_t)subghz_protocol_hormann_const.te_short);
                 instance->encoder.upload[index++] =
@@ -153,12 +145,12 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
         if(!subghz_protocol_encoder_hormann_get_upload(instance)) {
-            instance->encoder.front = 0; // reset position before start
+            instance->encoder.front = 0;
             ret = SubGhzProtocolStatusErrorEncoderGetUpload;
             break;
         }
@@ -171,7 +163,7 @@ SubGhzProtocolStatus
 void subghz_protocol_encoder_hormann_stop(void* context) {
     SubGhzProtocolEncoderHormann* instance = context;
     instance->encoder.is_running = false;
-    instance->encoder.front = 0; // reset position
+    instance->encoder.front = 0;
 }
 
 LevelDuration subghz_protocol_encoder_hormann_yield(void* context) {
@@ -238,7 +230,7 @@ void subghz_protocol_decoder_hormann_feed(void* context, bool level, uint32_t du
         }
         break;
     case HormannDecoderStepSaveDuration:
-        if(level) { //save interval
+        if(level) {
             if(duration >= (subghz_protocol_hormann_const.te_short * 5) &&
                subghz_protocol_decoder_hormann_check_pattern(instance)) {
                 instance->decoder.parser_step = HormannDecoderStepFoundStartBit;
@@ -282,10 +274,6 @@ void subghz_protocol_decoder_hormann_feed(void* context, bool level, uint32_t du
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_hormann_check_remote_controller(SubGhzBlockGeneric* instance) {
     instance->btn = (instance->data >> 8) & 0xF;
 }
@@ -319,11 +307,9 @@ void subghz_protocol_decoder_hormann_get_string(void* context, FuriString* outpu
     SubGhzProtocolDecoderHormann* instance = context;
     subghz_protocol_hormann_check_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

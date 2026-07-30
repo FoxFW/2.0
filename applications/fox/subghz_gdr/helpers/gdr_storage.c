@@ -1,4 +1,3 @@
-// helpers/gdr_storage.c
 #include "gdr_storage.h"
 #include "../defines.h"
 #include "../protocols/protocols_common.h"
@@ -455,7 +454,6 @@ bool gdr_storage_save_capture_to_path(FlipperFormat* flipper_format, const char*
     bool result = false;
 
     do {
-        // Remove if it already exists (overwrite)
         if(storage_file_exists(storage, full_path)) {
             storage_simply_remove(storage, full_path);
         }
@@ -477,7 +475,6 @@ bool gdr_storage_save_capture_to_path(FlipperFormat* flipper_format, const char*
 
         result = true;
         FURI_LOG_I(TAG, "Saved capture to %s", full_path);
-
     } while(false);
 
     flipper_format_free(save_file);
@@ -539,7 +536,6 @@ bool gdr_storage_save_capture(
 
         result = true;
         FURI_LOG_I(TAG, "Saved capture to %s", furi_string_get_cstr(file_path));
-
     } while(false);
 
     flipper_format_free(save_file);

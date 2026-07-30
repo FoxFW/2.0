@@ -92,17 +92,11 @@ void subghz_protocol_encoder_magellan_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderMagellan instance
- * @return true On success
- */
 static bool subghz_protocol_encoder_magellan_get_upload(SubGhzProtocolEncoderMagellan* instance) {
     furi_assert(instance);
 
     size_t index = 0;
 
-    //Send header
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_magellan_const.te_short * 4);
     instance->encoder.upload[index++] =
@@ -118,22 +112,18 @@ static bool subghz_protocol_encoder_magellan_get_upload(SubGhzProtocolEncoderMag
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_magellan_const.te_long);
 
-    //Send start bit
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_magellan_const.te_long * 3);
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_magellan_const.te_long);
 
-    //Send key data
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_magellan_const.te_short);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_magellan_const.te_long);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_magellan_const.te_long);
             instance->encoder.upload[index++] =
@@ -141,7 +131,6 @@ static bool subghz_protocol_encoder_magellan_get_upload(SubGhzProtocolEncoderMag
         }
     }
 
-    //Send stop bit
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_magellan_const.te_short);
     instance->encoder.upload[index++] =
@@ -164,12 +153,12 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
         if(!subghz_protocol_encoder_magellan_get_upload(instance)) {
-            instance->encoder.front = 0; // reset before start
+            instance->encoder.front = 0;
             ret = SubGhzProtocolStatusErrorEncoderGetUpload;
             break;
         }
@@ -182,7 +171,7 @@ SubGhzProtocolStatus
 void subghz_protocol_encoder_magellan_stop(void* context) {
     SubGhzProtocolEncoderMagellan* instance = context;
     instance->encoder.is_running = false;
-    instance->encoder.front = 0; // reset position
+    instance->encoder.front = 0;
 }
 
 LevelDuration subghz_protocol_encoder_magellan_yield(void* context) {
@@ -269,7 +258,6 @@ void subghz_protocol_decoder_magellan_feed(void* context, bool level, uint32_t d
                 subghz_protocol_magellan_const.te_delta) &&
                (DURATION_DIFF(duration, subghz_protocol_magellan_const.te_short) <
                 subghz_protocol_magellan_const.te_delta)) {
-                // Found header
                 instance->header_count++;
             } else if(
                 (DURATION_DIFF(instance->decoder.te_last, subghz_protocol_magellan_const.te_short) <
@@ -327,7 +315,6 @@ void subghz_protocol_decoder_magellan_feed(void* context, bool level, uint32_t d
                 subghz_protocol_blocks_add_bit(&instance->decoder, 0);
                 instance->decoder.parser_step = MagellanDecoderStepSaveDuration;
             } else if(duration >= (subghz_protocol_magellan_const.te_long * 3)) {
-                //Found stop bit
                 if((instance->decoder.decode_count_bit ==
                     subghz_protocol_magellan_const.min_count_bit_for_found) &&
                    subghz_protocol_magellan_check_crc(instance)) {
@@ -349,53 +336,7 @@ void subghz_protocol_decoder_magellan_feed(void* context, bool level, uint32_t d
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_magellan_check_remote_controller(SubGhzBlockGeneric* instance) {
-    /*
-*   package 32b            data 24b           CRC8
-*   0x037AE4828 => 001101111010111001001000 00101000
-*   
-*   0x037AE48 (flipped in reverse bit sequence) => 0x1275EC
-*
-*   0x1275EC =>  0x12-event codes, 0x75EC-serial (dec 117236)
-*
-* Event codes consist of two parts:
-* - The upper nibble (bits 7-4) represents the event type:
-*     - 0x00: Nothing
-*     - 0x01: Door
-*     - 0x02: Motion
-*     - 0x03: Smoke Alarm
-*     - 0x04: REM1
-*     - 0x05: REM1 with subtype Off1
-*     - 0x06: REM2
-*     - 0x07: REM2 with subtype Off1
-*     - Others: Unknown
-* - The lower nibble (bits 3-0) represents the event subtype, which varies based on the model type:
-*     - If the model type is greater than 0x03 (e.g., REM1 or REM2):
-*         - 0x00: Arm1
-*         - 0x01: Btn1
-*         - 0x02: Btn2
-*         - 0x03: Btn3
-*         - 0x08: Reset
-*         - 0x09: LowBatt
-*         - 0x0A: BattOk
-*         - 0x0B: Learn
-*         - Others: Unknown
-*     - Otherwise:
-*         - 0x00: Sealed
-*         - 0x01: Alarm
-*         - 0x02: Tamper
-*         - 0x03: Alarm + Tamper
-*         - 0x08: Reset
-*         - 0x09: LowBatt
-*         - 0x0A: BattOk
-*         - 0x0B: Learn
-*         - Others: Unknown
-*
-*/
     uint64_t data_rev = subghz_protocol_blocks_reverse_key(instance->data >> 8, 24);
     instance->serial = data_rev & 0xFFFF;
     instance->btn = (data_rev >> 16) & 0xFF;
@@ -500,11 +441,9 @@ void subghz_protocol_decoder_magellan_get_string(void* context, FuriString* outp
     SubGhzProtocolDecoderMagellan* instance = context;
     subghz_protocol_magellan_check_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 8;
-    //
 
     furi_string_cat_printf(
         output,

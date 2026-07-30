@@ -1,4 +1,3 @@
-// scenes/gdr_scene_receiver_config.c
 #include "../gdr_app_i.h"
 
 enum GDRSettingIndex {
@@ -248,7 +247,7 @@ void gdr_scene_receiver_config_on_enter(void* context) {
         item, subghz_setting_get_preset_name(app->setting, value_index));
 
 #ifdef ENABLE_EMULATE_FEATURE
-    // TX power option
+
     item = variable_item_list_add(
         app->variable_item_list,
         "TX Power:",
@@ -258,7 +257,7 @@ void gdr_scene_receiver_config_on_enter(void* context) {
     variable_item_set_current_value_index(item, app->tx_power);
     variable_item_set_current_value_text(item, tx_power_text[app->tx_power]);
 #endif
-    // Auto-save option
+
     item = variable_item_list_add(
         app->variable_item_list,
         "Auto-Save:",

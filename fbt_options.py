@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import posixpath
 
 # For more details on these options, run 'fbt -h'
@@ -17,6 +18,51 @@ DEBUG = 0
 # Suffix to add to files when building distribution
 # If OS environment has DIST_SUFFIX set, it will be used instead
 DIST_SUFFIX = "local"
+
+if not os.environ.get("DIST_SUFFIX"):
+    def git(*args):
+        import subprocess
+
+        return (
+            subprocess.check_output(["git", *args], stderr=subprocess.DEVNULL)
+            .decode()
+            .strip()
+        )
+
+    # FoxFW.ver (repo root) is the single source of truth for the release
+    # version - bump it there and every build re-tags HEAD to match, no
+    # manual "git tag" needed.
+    version_file = Path("FoxFW.ver")
+    version_tag = version_file.read_text().strip() if version_file.exists() else ""
+
+    if version_tag:
+        try:
+            git("tag", "-f", version_tag)
+        except Exception:
+            pass
+        DIST_SUFFIX = f"foxfw-{version_tag}"
+    else:
+        try:
+            # If HEAD is exactly on a release tag, e.g. v2.0.1 -> foxfw-v2.0.1
+            tag_name = git("describe", "--tags", "--abbrev=0", "--exact-match")
+            DIST_SUFFIX = f"foxfw-{tag_name}"
+        except Exception:
+            # Otherwise this is a dev build: foxfw-(branch)-(commit)
+            try:
+                branch_name = git("rev-parse", "--abbrev-ref", "HEAD")
+                commit_sha = git("rev-parse", "HEAD")[:8]
+                DIST_SUFFIX = f"foxfw-{branch_name}-{commit_sha}"
+            except Exception:
+                DIST_SUFFIX = "local"
+    DIST_SUFFIX = DIST_SUFFIX.replace("/", "-")
+    # scripts/version.py reads DIST_SUFFIX straight from the OS environment
+    # (see FORWARDED_ENV_VARIABLES in scripts/fbt/util.py), so this has to be
+    # a real env var, not just this file's Python variable, for VERSION to
+    # actually pick up the computed value below.
+    os.environ["DIST_SUFFIX"] = DIST_SUFFIX
+# FIRMWARE_ORIGIN (below) is what qFlipper shows as "FIRMWARE" - it stays "FoxFW"
+# regardless of DIST_SUFFIX. DIST_SUFFIX only feeds VERSION, used by the
+# in-app update checker and dist/output file naming.
 
 # Coprocessor firmware
 COPRO_OB_DATA = "scripts/ob.data"

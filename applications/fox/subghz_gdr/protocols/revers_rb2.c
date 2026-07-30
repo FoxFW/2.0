@@ -120,10 +120,6 @@ static LevelDuration
     return level_duration_make(data.level, data.duration);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderRevers_RB2 instance
- */
 static void
     subghz_protocol_encoder_revers_rb2_get_upload(SubGhzProtocolEncoderRevers_RB2* instance) {
     furi_assert(instance);
@@ -153,13 +149,7 @@ static void
     instance->encoder.size_upload = index;
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_revers_rb2_remote_controller(SubGhzBlockGeneric* instance) {
-    // Revers RB2 / RB2M Decoder
-    // 02.2025 - @xMasterX (MMX)
     instance->serial = (((instance->data << 16) >> 16) >> 10);
 }
 
@@ -176,7 +166,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -253,14 +243,10 @@ void subghz_protocol_decoder_revers_rb2_addbit(void* context, bool data) {
         return;
     }
 
-    // Revers RB2 / RB2M Decoder
-    // 02.2025 - @xMasterX (MMX)
-
     uint16_t preamble = (instance->decoder.decode_data >> 48) & 0xFF;
     uint16_t stop_code = (instance->decoder.decode_data & 0x3FF);
 
     if(preamble == 0xFF && stop_code == 0x200) {
-        //Found header and stop code
         instance->generic.data = instance->decoder.decode_data;
         instance->generic.data_count_bit = instance->decoder.decode_count_bit;
 

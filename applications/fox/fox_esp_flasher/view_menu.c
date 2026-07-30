@@ -1,8 +1,8 @@
 #include "fox_esp_flasher.h"
 
 typedef struct {
-    uint8_t selected; /* 0-2 */
-    uint8_t offset;   /* 0 = show items 0,1  |  1 = show items 1,2 */
+    uint8_t selected;
+    uint8_t offset;
 } MenuModel;
 
 #define ITEM_COUNT 3
@@ -11,7 +11,7 @@ typedef struct {
 #define BOX_H  28
 #define BOX_R  4
 
-static const uint8_t k_slot_y[2] = {2, 34};  /* 2 + 28 + 4gap + 28 = 62, fits in 64px */
+static const uint8_t k_slot_y[2] = {2, 34};
 
 static const char* k_line1[ITEM_COUNT] = {
     "Install",

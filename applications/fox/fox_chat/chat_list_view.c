@@ -49,7 +49,7 @@ static size_t fit_chars(Canvas* canvas, const char* text, size_t len, int max_w)
     while(n < len) {
         size_t take = n + 1;
         size_t cap = take < sizeof(buf) - 1 ? take : sizeof(buf) - 1;
-        if(cap < take) break; /* text longer than our probe buffer can hold */
+        if(cap < take) break;
         memcpy(buf, text, cap);
         buf[cap] = '\0';
         if((int)canvas_string_width(canvas, buf) > max_w) break;
@@ -73,22 +73,10 @@ size_t chat_wrap_lines(
         bool last_slot = (count == out_capacity - 1);
 
         size_t fit = fit_chars(canvas, text + pos, remaining, max_w);
-        if(fit == 0) fit = 1; /* never stall on one very-wide character */
+        if(fit == 0) fit = 1;
         bool more_after = (pos + fit) < len;
 
         if(last_slot && more_after) {
-            /* This line has to carry "..." to show text kept going -
-               refit against a narrower width that leaves room for it.
-               Built with a direct memcpy + fixed-index ellipsis rather
-               than snprintf("%s...", ...): gcc's -Wformat-truncation
-               can't statically see that n below is already bounded
-               well under CHAT_WRAP_LINE_MAX (it only knows the
-               destination's declared size, not this function's actual
-               runtime guarantee), and flags a %s truncation risk that
-               can't really happen - same class of false-positive as
-               fox_esp32_detector's date buffer warning. Side-stepping
-               it by not going through a printf-family call at all is
-               simpler than fighting the warning. */
             int dots_w = (int)canvas_string_width(canvas, "...");
             int avail = max_w - dots_w;
             size_t fit2 = fit_chars(canvas, text + pos, remaining, avail);
@@ -104,10 +92,6 @@ size_t chat_wrap_lines(
 
         size_t break_at = fit;
         if(more_after && text[pos + fit] != ' ') {
-            /* Prefer breaking at the last space within the fitted
-               range, same "don't split mid-word unless forced" rule
-               main.c's Terminal wrapper uses - but don't backtrack more
-               than a third of the line looking for one. */
             size_t min_break = fit / 3;
             for(size_t i = fit; i > min_break; i--) {
                 if(text[pos + i - 1] == ' ') {

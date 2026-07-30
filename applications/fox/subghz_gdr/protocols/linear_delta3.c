@@ -97,11 +97,6 @@ void subghz_protocol_encoder_linear_delta3_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderLinearDelta3 instance
- * @return true On success
- */
 static bool
     subghz_protocol_encoder_linear_delta3_get_upload(SubGhzProtocolEncoderLinearDelta3* instance) {
     furi_assert(instance);
@@ -114,35 +109,30 @@ static bool
         instance->encoder.size_upload = size_upload;
     }
 
-    //Send key data
     for(uint8_t i = instance->generic.data_count_bit; i > 1; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_linear_delta3_const.te_short);
             instance->encoder.upload[index++] = level_duration_make(
                 false, (uint32_t)subghz_protocol_linear_delta3_const.te_short * 7);
         } else {
-            //send bit 0
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_linear_delta3_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_linear_delta3_const.te_long);
         }
     }
-    //Send end bit
+
     if(bit_read(instance->generic.data, 0)) {
-        //send bit 1
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_linear_delta3_const.te_short);
-        //Send PT_GUARD
+
         instance->encoder.upload[index] = level_duration_make(
             false, (uint32_t)subghz_protocol_linear_delta3_const.te_short * 73);
     } else {
-        //send bit 0
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_linear_delta3_const.te_long);
-        //Send PT_GUARD
+
         instance->encoder.upload[index] = level_duration_make(
             false, (uint32_t)subghz_protocol_linear_delta3_const.te_short * 70);
     }
@@ -164,7 +154,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_linear_delta3_deserialize(
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -231,7 +221,6 @@ void subghz_protocol_decoder_linear_delta3_feed(void* context, bool level, uint3
         if((!level) &&
            (DURATION_DIFF(duration, subghz_protocol_linear_delta3_const.te_short * 70) <
             subghz_protocol_linear_delta3_const.te_delta * 24)) {
-            //Found header Linear
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
             instance->decoder.parser_step = LinearDecoderStepSaveDuration;
@@ -296,7 +285,6 @@ void subghz_protocol_decoder_linear_delta3_feed(void* context, bool level, uint3
             } else {
                 instance->decoder.parser_step = LinearDecoderStepReset;
             }
-
         } else {
             instance->decoder.parser_step = LinearDecoderStepReset;
         }

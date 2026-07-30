@@ -98,7 +98,13 @@ static void submenu_view_draw_callback(Canvas* canvas, void* _model) {
 
     if(!furi_string_empty(model->header)) {
         canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str(canvas, 4, 11, furi_string_get_cstr(model->header));
+        canvas_draw_str_aligned(
+            canvas,
+            canvas_width(canvas) / 2,
+            11,
+            AlignCenter,
+            AlignBottom,
+            furi_string_get_cstr(model->header));
     }
 
     canvas_set_font(canvas, FontSecondary);

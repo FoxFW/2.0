@@ -103,7 +103,6 @@ void subghz_protocol_decoder_ido_feed(void* context, bool level, uint32_t durati
     case IDoDecoderStepFoundPreambula:
         if((!level) && (DURATION_DIFF(duration, subghz_protocol_ido_const.te_short * 10) <
                         subghz_protocol_ido_const.te_delta * 5)) {
-            //Found Preambula
             instance->decoder.parser_step = IDoDecoderStepSaveDuration;
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
@@ -130,7 +129,6 @@ void subghz_protocol_decoder_ido_feed(void* context, bool level, uint32_t durati
                 instance->decoder.te_last = duration;
                 instance->decoder.parser_step = IDoDecoderStepCheckDuration;
             }
-
         } else {
             instance->decoder.parser_step = IDoDecoderStepReset;
         }
@@ -160,10 +158,6 @@ void subghz_protocol_decoder_ido_feed(void* context, bool level, uint32_t durati
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_ido_check_remote_controller(SubGhzBlockGeneric* instance) {
     uint64_t code_found_reverse =
         subghz_protocol_blocks_reverse_key(instance->data, instance->data_count_bit);
@@ -207,11 +201,9 @@ void subghz_protocol_decoder_ido_get_string(void* context, FuriString* output) {
     uint32_t code_fix = code_found_reverse & 0xFFFFFF;
     uint32_t code_hop = (code_found_reverse >> 24) & 0xFFFFFF;
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

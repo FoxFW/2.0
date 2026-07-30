@@ -1,8 +1,7 @@
-// scenes/gdr_scene_start.c
 #include "../gdr_app_i.h"
 #include "../helpers/gdr_storage.h"
 
-#include "gdr_icons.h"
+#include "garage_door_remote_icons.h"
 
 #define TAG "GDRSceneStart"
 
@@ -24,14 +23,12 @@ typedef enum {
 #endif
 } SubmenuIndex;
 
-// Forward declaration
 static void gdr_scene_start_open_saved_captures(GDRApp* app);
 
 static void gdr_scene_start_submenu_callback(void* context, uint32_t index) {
     furi_check(context);
     GDRApp* app = context;
 
-    // Handle "Saved Captures" directly here, not via custom event
     if(index == SubmenuIndexGDRSaved) {
         gdr_scene_start_open_saved_captures(app);
     } else {
@@ -43,7 +40,6 @@ static void gdr_scene_start_open_saved_captures(GDRApp* app) {
     FURI_LOG_I(TAG, "[1] Opening saved captures browser");
     FURI_LOG_I(TAG, "[1a] GDR_APP_FOLDER = %s", GDR_APP_FOLDER);
 
-    // Check and create folder
     FURI_LOG_D(TAG, "[2] Opening storage");
     Storage* storage = furi_record_open(RECORD_STORAGE);
 
@@ -67,19 +63,16 @@ static void gdr_scene_start_open_saved_captures(GDRApp* app) {
     furi_record_close(RECORD_STORAGE);
     FURI_LOG_D(TAG, "[6] Storage closed");
 
-    // Check file_path
     FURI_LOG_D(TAG, "[7] Checking app->file_path");
     if(!app->file_path) {
         FURI_LOG_E(TAG, "[7a] app->file_path is NULL!");
         return;
     }
 
-    // Set starting path
     FURI_LOG_D(TAG, "[8] Setting file_path");
     furi_string_set(app->file_path, GDR_APP_FOLDER);
     FURI_LOG_D(TAG, "[9] file_path set to: %s", furi_string_get_cstr(app->file_path));
 
-    // Configure file browser
     FURI_LOG_D(TAG, "[10] Creating browser_options");
     DialogsFileBrowserOptions browser_options;
 
@@ -137,9 +130,6 @@ void gdr_scene_start_on_enter(void* context) {
     furi_check(context);
     GDRApp* app = context;
 
-    /* Dismiss the startup loading wheel now that we're ready to show the
-     * menu. This completes the seamless FAP-load → loading-wheel → menu
-     * transition with no blank-screen gap. */
     if(app->startup_holder) {
         view_holder_set_view(app->startup_holder, NULL);
         view_holder_free(app->startup_holder);
