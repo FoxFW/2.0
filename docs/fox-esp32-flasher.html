@@ -94,7 +94,10 @@
     animation:ready-pulse 1.4s ease-in-out infinite;
   }
   .ready-pill.notready{ color:var(--err); }
-  .ready-pill.notready .rdot{ background:var(--err); }
+  .ready-pill.notready .rdot{
+    background:var(--err); box-shadow:0 0 6px var(--err);
+    animation:ready-pulse 1.4s ease-in-out infinite;
+  }
   @keyframes ready-pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
   .tab-btn:hover:not(.active){ color:var(--text); }
   .fi-addr input:disabled{ opacity:.75; cursor:default; }
@@ -144,12 +147,14 @@
   .fi-state.ok{ color:var(--ok); border-color:#1f4a30; }
   .fi-state.err{ color:var(--err); border-color:#4a1f21; }
   .fi-state.pending{ color:var(--warn); border-color:#4a3a10; }
+  .fi-state-wrap{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
+  .fi-file-link{ text-decoration:none; cursor:pointer; }
+  .fi-file-link:hover{ text-decoration:underline; }
   .fi-bottom{ margin-top:8px; display:flex; align-items:center; gap:8px; }
   .fi-bottom input[type=file]{
     font-family:var(--sans); font-size:11px; color:var(--text-dim);
     flex:1; min-width:0;
   }
-  .fi-source{ font-size:10.5px; color:var(--text-dim); font-family:var(--mono); }
   .progress-wrap{ margin-top:16px; display:none; }
   .progress-wrap.active{ display:block; }
   .progress-label{
@@ -181,7 +186,7 @@
   .footnote a:hover{ text-decoration:underline; }
   @media (prefers-reduced-motion: reduce){
     .progress-fill{ transition:none; }
-    .ready-pill.ready .rdot{ animation:none; }
+    .ready-pill .rdot{ animation:none; }
   }
 </style>
 </head>
@@ -222,10 +227,8 @@
       <button class="tab-btn active" type="button" data-mode="fox" id="tabFoxBtn">Fox Firmware</button>
       <button class="tab-btn" type="button" data-mode="custom" id="tabCustomBtn">Custom Firmware</button>
     </div>
-    <div class="row" id="fetchRow" style="display:none;">
-      <label></label>
+    <div class="row" id="fetchRow" style="display:none; justify-content:center;">
       <button class="btn btn-sm" id="fetchBtn">↻ Re-fetch firmware set</button>
-      <span class="fi-source" id="fetchStatus"></span>
     </div>
     <div class="file-table" id="fileTable"></div>
 
@@ -493,7 +496,6 @@
   const boardSelect = $("boardSelect");
   const fetchRow = $("fetchRow");
   const fetchBtn = $("fetchBtn");
-  const fetchStatus = $("fetchStatus");
   const fileTable = $("fileTable");
   const tabFoxBtn = $("tabFoxBtn");
   const tabCustomBtn = $("tabCustomBtn");
@@ -604,7 +606,7 @@
         <div class="fi-top">
           <span class="fi-label">${slot.label}</span>
           <span class="fi-addr">addr <input type="text" data-idx="${idx}" class="addr-input" value="${slot.address}" spellcheck="false" ${locked ? "disabled" : ""}></span>
-          <span class="fi-state" data-state="${idx}">not loaded</span>
+          <span class="fi-state-wrap" data-state="${idx}"></span>
         </div>
         ${locked ? "" : `
         <div class="fi-bottom">
@@ -634,6 +636,7 @@
           // Chromium no longer documents in the File API spec.
           slots[idx].data = arrayBufferToBinaryString(ev.target.result);
           slots[idx].source = "manual";
+          slots[idx].manualName = file.name;
           setSlotState(idx, "ok", "manual: " + file.name);
           updateProgramState();
           log(`Loaded ${file.name} for "${slots[idx].label}" (manual).`);
@@ -646,10 +649,34 @@
   }
 
   function setSlotState(idx, cls, text) {
-    const el = fileTable.querySelector(`.fi-state[data-state="${idx}"]`);
-    if (!el) return;
-    el.className = "fi-state" + (cls ? " " + cls : "");
-    el.textContent = text;
+    const s = slots[idx];
+    s.stateCls = cls;
+    s.stateText = text;
+    renderSlotState(idx);
+  }
+
+  // Renders the right-hand side of a file row. A file successfully
+  // fetched from the same directory as this page gets split into two
+  // separate pills - the filename itself is a real link (download the
+  // exact bytes this flasher is about to write), the size is plain text
+  // so it isn't accidentally clickable. Anything else (still loading,
+  // errored, not loaded, or a manually-chosen local file with no stable
+  // URL to link to) falls back to a single plain-text pill.
+  function renderSlotState(idx) {
+    const s = slots[idx];
+    const wrap = fileTable.querySelector(`.fi-state-wrap[data-state="${idx}"]`);
+    if (!wrap) return;
+
+    if (s.data && s.source === "fetched" && s.downloadUrl) {
+      wrap.innerHTML = `
+        <a class="fi-state ok fi-file-link" href="${s.downloadUrl}" download="${s.filename}" target="_blank" rel="noopener">${s.filename}</a>
+        <span class="fi-state ok">${(s.sizeBytes / 1024).toFixed(1)} KB</span>
+      `;
+    } else if (s.data && s.source === "manual") {
+      wrap.innerHTML = `<span class="fi-state ok">manual: ${s.manualName || s.filename}</span>`;
+    } else {
+      wrap.innerHTML = `<span class="fi-state${s.stateCls ? " " + s.stateCls : ""}">${s.stateText || "not loaded"}</span>`;
+    }
   }
 
   async function loadBoard(index) {
@@ -667,7 +694,6 @@
   }
 
   async function fetchBoardFiles(board) {
-    fetchStatus.textContent = "fetching…";
     fetchBtn.disabled = true;
     let okCount = 0;
     for (let i = 0; i < board.files.length; i++) {
@@ -680,7 +706,9 @@
         const buf = await res.arrayBuffer();
         slots[i].data = arrayBufferToBinaryString(buf);
         slots[i].source = "fetched";
-        setSlotState(i, "ok", "v" + FOX_FIRMWARE_VERSION + " · " + (buf.byteLength / 1024).toFixed(1) + " KB");
+        slots[i].downloadUrl = url;
+        slots[i].sizeBytes = buf.byteLength;
+        setSlotState(i, "ok", null);
         okCount++;
         log(`Fetched ${f.filename} for "${board.name}".`);
       } catch (err) {
@@ -688,7 +716,6 @@
         log(`Could not fetch ${f.filename}: ${err.message || err}. Click "Re-fetch firmware set" to retry, or switch to the Custom Firmware tab to load it by hand.`, "e");
       }
     }
-    fetchStatus.textContent = okCount === board.files.length ? "all files loaded — v" + FOX_FIRMWARE_VERSION : `${okCount}/${board.files.length} loaded`;
     fetchBtn.disabled = false;
     updateProgramState();
   }
