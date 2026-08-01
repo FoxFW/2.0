@@ -2,6 +2,7 @@
 #include "connect_settings.h"
 
 #include <loader/loader.h>
+#include <storage/storage.h>
 
 static App* s_message_view_app = NULL;
 

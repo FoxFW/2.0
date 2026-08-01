@@ -11,6 +11,7 @@
 #include <stdarg.h>
 
 #include <loader/loader.h>
+#include <storage/storage.h>
 
 static void action_check_esp32(App* app);
 static void text_input_result_callback(void* context);

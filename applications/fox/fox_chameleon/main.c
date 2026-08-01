@@ -157,6 +157,24 @@ static void app_render_log(App* app) {
     view_dispatcher_switch_to_view(app->view_dispatcher, FoxChameleonViewTerminal);
 }
 
+static char* next_config_line(char** cursor) {
+    if(*cursor == NULL) return NULL;
+    char* start = *cursor;
+    while(*start == '\r' || *start == '\n') start++;
+    if(*start == '\0') {
+        *cursor = NULL;
+        return NULL;
+    }
+    char* end = start;
+    while(*end != '\0' && *end != '\r' && *end != '\n') end++;
+    if(*end != '\0') {
+        *end = '\0';
+        end++;
+    }
+    *cursor = end;
+    return start;
+}
+
 static void app_load_config(App* app) {
     furi_string_reset(app->chameleon_mac);
     furi_string_reset(app->gatt_service_uuid);
@@ -171,7 +189,8 @@ static void app_load_config(App* app) {
         uint16_t read = storage_file_read(file, buffer, sizeof(buffer) - 1);
         buffer[read] = '\0';
 
-        char* line = strtok(buffer, "\r\n");
+        char* cursor = buffer;
+        char* line = next_config_line(&cursor);
         while(line != NULL) {
             char key[32] = {0};
             char value[64] = {0};
@@ -186,7 +205,7 @@ static void app_load_config(App* app) {
                     furi_string_set(app->gatt_notify_char_uuid, value);
                 }
             }
-            line = strtok(NULL, "\r\n");
+            line = next_config_line(&cursor);
         }
     }
 

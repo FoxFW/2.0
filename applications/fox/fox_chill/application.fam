@@ -1,0 +1,15 @@
+App(
+    appid="fox_chill",
+    name="Fox Chill",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="fox_chill_main",
+    requires=["gui", "storage", "notification"],
+    stack_size=8 * 1024,
+    fap_icon="icon.png",
+    fap_icon_assets="images",
+    resources="sd_resources",
+    fap_category="Fox",
+    fap_version="0.1",
+    fap_author="FoxFW",
+    fap_description="Fox Chill - jokes, riddles, fun facts, and a pointless but addictive scroll counter.",
+)

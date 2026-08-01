@@ -21,6 +21,24 @@ static bool parse_key_line(const char* line, uint8_t* key) {
     return true;
 }
 
+static char* next_line(char** cursor) {
+    if(*cursor == NULL) return NULL;
+    char* start = *cursor;
+    while(*start == '\r' || *start == '\n') start++;
+    if(*start == '\0') {
+        *cursor = NULL;
+        return NULL;
+    }
+    char* end = start;
+    while(*end != '\0' && *end != '\r' && *end != '\n') end++;
+    if(*end != '\0') {
+        *end = '\0';
+        end++;
+    }
+    *cursor = end;
+    return start;
+}
+
 static size_t load_file(Storage* storage, const char* path, KeyDictionary* dictionary) {
     File* file = storage_file_alloc(storage);
     size_t loaded = 0;
@@ -30,7 +48,8 @@ static size_t load_file(Storage* storage, const char* path, KeyDictionary* dicti
         uint16_t read = storage_file_read(file, buffer, KEY_DICTIONARY_READ_CHUNK);
         buffer[read] = '\0';
 
-        char* line = strtok(buffer, "\r\n");
+        char* cursor = buffer;
+        char* line = next_line(&cursor);
         while(line != NULL && dictionary->count < KEY_DICTIONARY_MAX_KEYS) {
             if(line[0] != '#' && line[0] != '\0') {
                 uint8_t key[KEY_DICTIONARY_KEY_LEN];
@@ -40,7 +59,7 @@ static size_t load_file(Storage* storage, const char* path, KeyDictionary* dicti
                     loaded++;
                 }
             }
-            line = strtok(NULL, "\r\n");
+            line = next_line(&cursor);
         }
     }
 
