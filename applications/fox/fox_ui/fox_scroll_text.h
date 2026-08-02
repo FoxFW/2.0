@@ -1,7 +1,4 @@
 #pragma once
-/* Reference only - copy fox_scroll_text.c/.h into each app that uses it
-   (see fox_file_browser, fox_esp32_terminal). Not linked via a relative
-   sources= path. */
 
 #include <stdbool.h>
 #include <stdint.h>

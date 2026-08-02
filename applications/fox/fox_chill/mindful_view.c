@@ -5,7 +5,7 @@
 
 #define MINDFUL_TICKS_PER_FLASH 2
 #define MINDFUL_FLASH_COUNT 20
-#define MINDFUL_TOTAL_TICKS (MINDFUL_FLASH_COUNT * MINDFUL_TICKS_PER_FLASH) // 40 = 10s
+#define MINDFUL_TOTAL_TICKS (MINDFUL_FLASH_COUNT * MINDFUL_TICKS_PER_FLASH)
 #define MINDFUL_VIBE_EVERY_TICKS 8
 
 typedef enum {
@@ -92,7 +92,7 @@ static bool mindful_input_cb(InputEvent* event, void* context) {
     case InputKeyDown:
     case InputKeyLeft:
     case InputKeyRight:
-        return true; // swallow - arrow keys do nothing on this screen
+        return true;
     default:
         return false;
     }

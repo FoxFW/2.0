@@ -4,17 +4,21 @@
 #include "update_meta.h"
 #include "json_mini.h"
 #include "strutil.h"
+#include "installer.h"
 
 #include <toolbox/version.h>
 #include <furi_hal_version.h>
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define DL_TIMEOUT_MS            15000
-#define DL_CHUNK_TIMEOUT_MS      10000
+#define DL_CHUNK_POLL_SLICE_MS   150
 #define RELEASE_CHECK_TIMEOUT_MS 45000
 #define DL_STREAM_FRAME_MAX      1024
+
+#define ESP32_CANCEL_SETTLE_MS 600
 
 typedef enum { WaitOk, WaitError, WaitTimeout } WaitResult;
 
@@ -48,6 +52,144 @@ static void drain_stray_messages(EspAt* esp_at) {
     }
 }
 
+static void progress_marker_path(const char* dest_path, char* out, size_t out_size) {
+    snprintf(out, out_size, "%s.progress", dest_path);
+}
+
+static void write_progress_marker(
+    Storage* storage, const char* dest_path, const char* tag, uint32_t total_size) {
+    char marker_path[UPDATER_PATH_LEN];
+    progress_marker_path(dest_path, marker_path, sizeof(marker_path));
+    File* f = storage_file_alloc(storage);
+    if(storage_file_open(f, marker_path, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+        char buf[UPDATER_STR_LEN + 16];
+        int len = snprintf(buf, sizeof(buf), "%s\n%lu\n", tag, (unsigned long)total_size);
+        storage_file_write(f, buf, (uint16_t)len);
+    }
+    storage_file_close(f);
+    storage_file_free(f);
+}
+
+static bool read_progress_marker(
+    Storage* storage,
+    const char* dest_path,
+    char* tag_out,
+    size_t tag_out_size,
+    uint32_t* total_out) {
+    char marker_path[UPDATER_PATH_LEN];
+    progress_marker_path(dest_path, marker_path, sizeof(marker_path));
+    File* f = storage_file_alloc(storage);
+    bool ok = false;
+    if(storage_file_open(f, marker_path, FSAM_READ, FSOM_OPEN_EXISTING)) {
+        char buf[UPDATER_STR_LEN + 16] = {0};
+        uint16_t got = storage_file_read(f, buf, sizeof(buf) - 1);
+        if(got > 0) {
+            buf[got] = '\0';
+            char* nl = strchr(buf, '\n');
+            if(nl) {
+                *nl = '\0';
+                str_copy(tag_out, tag_out_size, buf);
+                *total_out = (uint32_t)strtoul(nl + 1, NULL, 10);
+                ok = true;
+            }
+        }
+    }
+    storage_file_close(f);
+    storage_file_free(f);
+    return ok;
+}
+
+static void clear_progress_marker(Storage* storage, const char* dest_path) {
+    char marker_path[UPDATER_PATH_LEN];
+    progress_marker_path(dest_path, marker_path, sizeof(marker_path));
+    storage_common_remove(storage, marker_path);
+}
+
+static uint32_t resumable_offset_for(UpdaterApp* app, const char* dest_path, uint32_t* out_total) {
+    char marker_tag[UPDATER_STR_LEN];
+    uint32_t marker_total = 0;
+    if(!read_progress_marker(app->storage, dest_path, marker_tag, sizeof(marker_tag), &marker_total)) {
+        return 0;
+    }
+    if(strcmp(marker_tag, app->release.tag) != 0) {
+        clear_progress_marker(app->storage, dest_path);
+        return 0;
+    }
+    FileInfo file_info;
+    if(storage_common_stat(app->storage, dest_path, &file_info) != FSE_OK) {
+        clear_progress_marker(app->storage, dest_path);
+        return 0;
+    }
+    if(file_info.size == 0 || file_info.size >= marker_total) {
+        clear_progress_marker(app->storage, dest_path);
+        return 0;
+    }
+    *out_total = marker_total;
+    return (uint32_t)file_info.size;
+}
+
+bool updater_has_partial_download(
+    UpdaterApp* app,
+    UpdaterFlow flow,
+    char* tag_out,
+    size_t tag_out_size,
+    char* asset_path_out,
+    size_t asset_path_out_size) {
+    uint32_t total = 0;
+
+    if(flow == UpdaterFlowFirmware) {
+        char dest_path[UPDATER_PATH_LEN];
+        snprintf(
+            dest_path, sizeof(dest_path), "%s/downloads/%s", UPDATER_DATA_DIR, FOXFW_TAR_ASSET_NAME);
+        if(read_progress_marker(app->storage, dest_path, tag_out, tag_out_size, &total)) {
+            str_copy(asset_path_out, asset_path_out_size, dest_path);
+            return true;
+        }
+        return false;
+    }
+
+    const char* board_folder = k_updater_boards[app->board_index].folder;
+    static const char* k_names[3] = {"bootloader.bin", "partitions.bin", "firmware.bin"};
+    for(uint8_t i = 0; i < 3; i++) {
+        char dest_path[UPDATER_PATH_LEN];
+        snprintf(
+            dest_path,
+            sizeof(dest_path),
+            "%s/downloads/%s/%s",
+            UPDATER_DATA_DIR,
+            board_folder,
+            k_names[i]);
+        if(read_progress_marker(app->storage, dest_path, tag_out, tag_out_size, &total)) {
+            snprintf(
+                asset_path_out, asset_path_out_size, "%s/downloads/%s", UPDATER_DATA_DIR, board_folder);
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool switch_esp32_baud(UpdaterApp* app, uint32_t new_baud) {
+    char cmd[32];
+    snprintf(cmd, sizeof(cmd), "[BAUD/SET]%lu", (unsigned long)new_baud);
+    esp_at_send(app->esp_at, cmd);
+    char rest[16] = {0};
+    if(wait_for_line_prefix(app->esp_at, "[BAUD/SET/SUCCESS]", rest, sizeof(rest), 2000) != WaitOk) {
+        return false;
+    }
+    furi_delay_ms(50);
+    esp_at_set_baud(app->esp_at, new_baud);
+    furi_delay_ms(80);
+    esp_at_flush_rx(app->esp_at);
+    drain_stray_messages(app->esp_at);
+    return true;
+}
+
+static uint32_t lower_baud_step(uint32_t baud) {
+    if(baud >= 921600U) return 460800U;
+    if(baud >= 460800U) return 230400U;
+    return UPDATER_BAUD;
+}
+
 static void set_progress_error(UpdaterApp* app, const char* msg) {
     furi_mutex_acquire(app->progress_mutex, FuriWaitForever);
     app->progress_done = true;
@@ -66,12 +208,6 @@ static void set_progress_done_ok(UpdaterApp* app) {
 static void add_progress_bytes(UpdaterApp* app, uint32_t n) {
     furi_mutex_acquire(app->progress_mutex, FuriWaitForever);
     app->progress_bytes += n;
-    furi_mutex_release(app->progress_mutex);
-}
-
-static void sub_progress_bytes(UpdaterApp* app, uint32_t n) {
-    furi_mutex_acquire(app->progress_mutex, FuriWaitForever);
-    app->progress_bytes = (app->progress_bytes > n) ? (app->progress_bytes - n) : 0;
     furi_mutex_release(app->progress_mutex);
 }
 
@@ -103,9 +239,9 @@ static void run_check(UpdaterApp* app) {
 
     updater_set_check_stage(app, "Contacting Server...", 25);
     const char* repo = (app->flow == UpdaterFlowFirmware) ? FOXFW_REPO : ESP32FW_REPO;
-    bool need_assets = (app->flow == UpdaterFlowFirmware);
+
     if(!github_release_check(
-           app->esp_at, repo, false, need_assets, &app->release, RELEASE_CHECK_TIMEOUT_MS, app)) {
+           app->esp_at, repo, false, false, &app->release, RELEASE_CHECK_TIMEOUT_MS, app)) {
         set_progress_error(app, "No response from GitHub");
         return;
     }
@@ -133,19 +269,20 @@ static void run_check(UpdaterApp* app) {
         update_available = (app->release.tag[0] != '\0') &&
                            version_compare_dotted(app->release.tag, local_version) > 0;
 
-        for(uint8_t i = 0; i < app->release.asset_count; i++) {
-            size_t len = strlen(app->release.assets[i].name);
-            if(len >= 4 && strcmp(app->release.assets[i].name + len - 4, ".tar") == 0) {
-                app->matched_asset = (int)i;
-                break;
-            }
-        }
+        ReleaseAsset* asset = &app->release.assets[0];
+        snprintf(asset->name, sizeof(asset->name), "%s", FOXFW_TAR_ASSET_NAME);
+        snprintf(
+            asset->url,
+            sizeof(asset->url),
+            "https://github.com/%s/releases/download/%s/%s",
+            FOXFW_REPO,
+            app->release.tag,
+            FOXFW_TAR_ASSET_NAME);
+        asset->size = 0;
+        app->release.asset_count = 1;
+        app->matched_asset = 0;
 
         app->result = update_available ? UpdaterResultUpdateAvailable : UpdaterResultUpToDate;
-        if(update_available && app->matched_asset < 0) {
-            set_progress_error(app, "Update found but no .tar asset in the release");
-            return;
-        }
     } else {
         char rest[32] = {0};
         esp_at_send(app->esp_at, "[VERSION]");
@@ -215,29 +352,57 @@ static bool download_one(
     uint32_t* out_bytes) {
     drain_stray_messages(app->esp_at);
 
-    char start_cmd[UPDATER_URL_LEN + 32];
-    snprintf(start_cmd, sizeof(start_cmd), "[DOWNLOAD/START]{\"url\":\"%s\"}", asset->url);
+    uint32_t marker_total = 0;
+    uint32_t resume_offset = resumable_offset_for(app, dest_path, &marker_total);
+
+    char start_cmd[UPDATER_URL_LEN + 48];
+    if(resume_offset > 0) {
+        snprintf(
+            start_cmd,
+            sizeof(start_cmd),
+            "[DOWNLOAD/START]{\"url\":\"%s\",\"offset\":%lu}",
+            asset->url,
+            (unsigned long)resume_offset);
+    } else {
+        snprintf(start_cmd, sizeof(start_cmd), "[DOWNLOAD/START]{\"url\":\"%s\"}", asset->url);
+    }
     esp_at_send(app->esp_at, start_cmd);
 
     char rest[64] = {0};
     if(wait_for_line_prefix(
            app->esp_at, "[DOWNLOAD/START/SUCCESS]", rest, sizeof(rest), DL_TIMEOUT_MS) != WaitOk) {
         snprintf(error_msg, error_msg_size, "Download could not start");
+        if(out_bytes) *out_bytes = resume_offset;
         return false;
     }
 
     uint32_t live_size = 0;
     json_mini_get_uint(rest, "size", &live_size);
-    uint32_t expected_size = (live_size > 0) ? live_size : asset->size;
-    if(asset->size == 0 && live_size > 0) {
-        add_progress_total(app, live_size);
-        asset->size = live_size;
+
+    uint32_t expected_size;
+    if(resume_offset > 0) {
+        expected_size = marker_total;
+        uint32_t expected_remaining = marker_total - resume_offset;
+        if(live_size != expected_remaining) {
+            resume_offset = 0;
+            clear_progress_marker(app->storage, dest_path);
+            expected_size = (live_size > 0) ? live_size : asset->size;
+        }
+    } else {
+        expected_size = (live_size > 0) ? live_size : asset->size;
+    }
+
+    if(asset->size == 0 && expected_size > 0) {
+        add_progress_total(app, expected_size);
+        asset->size = expected_size;
     }
 
     File* file = storage_file_alloc(app->storage);
-    if(!storage_file_open(file, dest_path, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+    FS_OpenMode open_mode = (resume_offset > 0) ? FSOM_OPEN_APPEND : FSOM_CREATE_ALWAYS;
+    if(!storage_file_open(file, dest_path, FSAM_WRITE, open_mode)) {
         storage_file_free(file);
         snprintf(error_msg, error_msg_size, "Could not create file");
+        if(out_bytes) *out_bytes = 0;
         return false;
     }
 
@@ -246,30 +411,23 @@ static bool download_one(
            app->esp_at, "[DOWNLOAD/STREAM/BEGIN]", NULL, 0, DL_TIMEOUT_MS) != WaitOk) {
         storage_file_close(file);
         storage_file_free(file);
-        storage_common_remove(app->storage, dest_path);
         snprintf(error_msg, error_msg_size, "Stream did not start");
-        if(out_bytes) *out_bytes = 0;
+        if(out_bytes) *out_bytes = resume_offset;
         return false;
     }
 
-    // No per-chunk framing and no baud switching here, by design: the ESP32
-    // just pushes raw bytes with nothing between them (like FlipperHTTP's
-    // proven stream() implementation), and since we already know the exact
-    // expected size from DOWNLOAD/START/SUCCESS above, we read exactly that
-    // many raw bytes rather than relying on a length-prefixed frame or an
-    // end-of-stream marker. A single dropped byte here just costs one byte
-    // at the very end (caught by the size check below), instead of
-    // desyncing every frame header for the rest of the transfer.
     static uint8_t stream_buf[DL_STREAM_FRAME_MAX];
     bool success = false;
     bool cancelled = false;
     bool stream_ok = true;
     uint32_t bytes_this_file = 0;
+    uint32_t chunk_timeout_ms = (uint32_t)app->settings.timeout_sec * 1000;
+    uint32_t remaining_total = (expected_size > resume_offset) ? (expected_size - resume_offset) : 0;
     snprintf(error_msg, error_msg_size, "Download failed");
 
     esp_at_begin_raw(app->esp_at);
 
-    while(expected_size == 0 || bytes_this_file < expected_size) {
+    while(expected_size == 0 || bytes_this_file < remaining_total) {
         if(app->cancel_requested && !cancelled) {
             esp_at_send(app->esp_at, "[DOWNLOAD/CANCEL]");
             cancelled = true;
@@ -278,13 +436,26 @@ static bool download_one(
 
         size_t want = sizeof(stream_buf);
         if(expected_size > 0) {
-            uint32_t remaining = expected_size - bytes_this_file;
+            uint32_t remaining = remaining_total - bytes_this_file;
             if(remaining < want) want = remaining;
         }
 
-        size_t got = esp_at_read_raw(app->esp_at, stream_buf, want, DL_CHUNK_TIMEOUT_MS);
+        size_t got = 0;
+        uint32_t idle_start = furi_get_tick();
+        while(true) {
+            if(app->cancel_requested) break;
+            uint32_t elapsed = furi_get_tick() - idle_start;
+            if(elapsed >= chunk_timeout_ms) break;
+            uint32_t remaining_budget = chunk_timeout_ms - elapsed;
+            uint32_t slice = (remaining_budget < DL_CHUNK_POLL_SLICE_MS) ? remaining_budget :
+                                                                            DL_CHUNK_POLL_SLICE_MS;
+            got = esp_at_read_raw(app->esp_at, stream_buf, want, slice);
+            if(got > 0) break;
+        }
+
         if(got == 0) {
-            if(expected_size == 0) break; // unknown size: no more data means we're done
+            if(app->cancel_requested) continue;
+            if(expected_size == 0) break;
             snprintf(error_msg, error_msg_size, "Connection timed out");
             stream_ok = false;
             break;
@@ -297,26 +468,34 @@ static bool download_one(
     esp_at_end_raw(app->esp_at);
 
     if(!stream_ok) {
+
+        esp_at_send(app->esp_at, "[DOWNLOAD/CANCEL]");
+        wait_for_line_prefix(app->esp_at, "[DOWNLOAD/CANCEL/SUCCESS]", NULL, 0, 2000);
         drain_stray_messages(app->esp_at);
+        furi_delay_ms(ESP32_CANCEL_SETTLE_MS);
     } else if(cancelled) {
         wait_for_line_prefix(app->esp_at, "[DOWNLOAD/CANCEL/SUCCESS]", NULL, 0, 2000);
         snprintf(error_msg, error_msg_size, "Cancelled");
+        furi_delay_ms(ESP32_CANCEL_SETTLE_MS);
+    } else if(expected_size > 0 && bytes_this_file >= remaining_total) {
+
+        if(esp_at_receive(app->esp_at, &s_esp_msg, 3000) &&
+           strncmp(s_esp_msg.line, "[ERROR]", 7) == 0) {
+            str_copy(error_msg, error_msg_size, s_esp_msg.line + 7);
+            str_capitalize_first(error_msg);
+        } else {
+            success = true;
+        }
     } else {
         if(!esp_at_receive(app->esp_at, &s_esp_msg, 3000)) {
             snprintf(error_msg, error_msg_size, "No response after download");
+
+            esp_at_send(app->esp_at, "[DOWNLOAD/CANCEL]");
+            wait_for_line_prefix(app->esp_at, "[DOWNLOAD/CANCEL/SUCCESS]", NULL, 0, 2000);
+            furi_delay_ms(ESP32_CANCEL_SETTLE_MS);
         } else if(strncmp(s_esp_msg.line, "[ERROR]", 7) == 0) {
             str_copy(error_msg, error_msg_size, s_esp_msg.line + 7);
-        } else if(strcmp(s_esp_msg.line, "[DOWNLOAD/STREAM/END]") == 0) {
-            if(expected_size > 0 && bytes_this_file < expected_size) {
-                snprintf(
-                    error_msg,
-                    error_msg_size,
-                    "Download incomplete (%lu of %lu bytes)",
-                    (unsigned long)bytes_this_file,
-                    (unsigned long)expected_size);
-            } else {
-                success = true;
-            }
+            str_capitalize_first(error_msg);
         } else {
             snprintf(error_msg, error_msg_size, "Unexpected response");
         }
@@ -325,10 +504,11 @@ static bool download_one(
     storage_file_close(file);
     storage_file_free(file);
 
-    if(out_bytes) *out_bytes = bytes_this_file;
+    uint32_t total_on_disk = resume_offset + bytes_this_file;
+    if(out_bytes) *out_bytes = total_on_disk;
 
-    if(!success) {
-        storage_common_remove(app->storage, dest_path);
+    if(total_on_disk > 0) {
+        write_progress_marker(app->storage, dest_path, app->release.tag, expected_size);
     }
     return success;
 }
@@ -339,13 +519,67 @@ static bool download_one_retrying(
     const char* dest_path,
     char* error_msg,
     size_t error_msg_size) {
-    for(int attempt = 0; attempt < 3; attempt++) {
+    char marker_tag[UPDATER_STR_LEN];
+    uint32_t marker_total = 0;
+    if(read_progress_marker(app->storage, dest_path, marker_tag, sizeof(marker_tag), &marker_total) &&
+       strcmp(marker_tag, app->release.tag) == 0) {
+        FileInfo file_info;
+        if(storage_common_stat(app->storage, dest_path, &file_info) == FSE_OK &&
+           file_info.size > 0 && (uint32_t)file_info.size == marker_total) {
+            if(asset->size == 0 && marker_total > 0) {
+                add_progress_total(app, marker_total);
+                asset->size = marker_total;
+            }
+            add_progress_bytes(app, marker_total);
+            return true;
+        }
+    }
+
+    uint32_t pre_marker_total = 0;
+    uint32_t pre_existing = resumable_offset_for(app, dest_path, &pre_marker_total);
+    if(pre_existing > 0) add_progress_bytes(app, pre_existing);
+
+    uint8_t max_attempts = app->settings.retry_attempts;
+    if(max_attempts == 0) max_attempts = 1;
+    uint8_t lower_every = (uint8_t)((max_attempts + 3) / 4);
+    if(lower_every == 0) lower_every = 1;
+
+    uint32_t effective_baud = app->settings.baud;
+    uint8_t fails = 0;
+
+    for(uint8_t attempt = 0; attempt < max_attempts; attempt++) {
         if(attempt > 0) furi_delay_ms(500);
-        uint32_t bytes_written = 0;
-        bool ok = download_one(app, asset, dest_path, error_msg, error_msg_size, &bytes_written);
-        if(ok) return true;
-        sub_progress_bytes(app, bytes_written);
-        if(app->cancel_requested) return false;
+
+        bool switched = false;
+        if(effective_baud != UPDATER_BAUD) {
+            switched = switch_esp32_baud(app, effective_baud);
+            if(!switched) effective_baud = UPDATER_BAUD;
+        }
+
+        uint32_t bytes_on_disk = 0;
+        bool ok = download_one(app, asset, dest_path, error_msg, error_msg_size, &bytes_on_disk);
+
+        if(switched) {
+            switch_esp32_baud(app, UPDATER_BAUD);
+        }
+
+        if(ok) {
+            if(effective_baud != app->settings.baud) {
+                app->settings.baud = effective_baud;
+                updater_settings_save(app);
+            }
+            return true;
+        }
+
+        if(app->cancel_requested) {
+            return false;
+        }
+
+        fails++;
+        if(app->settings.auto_lower_baud && effective_baud > UPDATER_BAUD &&
+           (fails % lower_every) == 0) {
+            effective_baud = lower_baud_step(effective_baud);
+        }
     }
     return false;
 }
@@ -364,15 +598,34 @@ static void run_download_firmware(UpdaterApp* app) {
         app->download_path, sizeof(app->download_path), "%s/downloads/%s", UPDATER_DATA_DIR, asset->name);
     snprintf(app->download_name, sizeof(app->download_name), "%s", asset->name);
 
-    // Streaming download stays at the connection's normal baud rate rather
-    // than boosting to UPDATER_FAST_BAUD - a fixed, never-renegotiated baud
-    // rate is what the (known-reliable) FlipperHTTP library does, and it
-    // removes a whole class of timing/desync risk during the transfer.
     char error_msg[UPDATER_STR_LEN];
     bool success = download_one_retrying(app, asset, app->download_path, error_msg, sizeof(error_msg));
 
     if(!success) {
         set_progress_error(app, error_msg);
+        return;
+    }
+
+    app->progress_phase = ProgressPhaseVerify;
+
+    char validate_dir[UPDATER_PATH_LEN];
+    snprintf(validate_dir, sizeof(validate_dir), "%s/validate", UPDATER_DATA_DIR);
+    char manifest_path[UPDATER_PATH_LEN] = {0};
+    char verify_error[UPDATER_STR_LEN];
+    bool verified = installer_verify_firmware_package(
+        app->storage,
+        app->download_path,
+        validate_dir,
+        manifest_path,
+        sizeof(manifest_path),
+        verify_error,
+        sizeof(verify_error),
+        app);
+
+    if(!verified) {
+        storage_common_remove(app->storage, app->download_path);
+        clear_progress_marker(app->storage, app->download_path);
+        set_progress_error(app, "Corrupt download - try 115200 baud");
         return;
     }
 
@@ -405,7 +658,6 @@ static void run_download_esp32(UpdaterApp* app) {
     str_join2(path_part, sizeof(path_part), app->download_path, "/partitions.bin");
     str_join2(path_fw, sizeof(path_fw), app->download_path, "/firmware.bin");
 
-    // See run_download_firmware() - no baud boost, stay at the fixed rate.
     char error_msg[UPDATER_STR_LEN];
     snprintf(app->download_name, sizeof(app->download_name), "%s", boot->name);
     bool success = download_one_retrying(app, boot, path_boot, error_msg, sizeof(error_msg));
@@ -419,9 +671,6 @@ static void run_download_esp32(UpdaterApp* app) {
     }
 
     if(!success) {
-        storage_common_remove(app->storage, path_boot);
-        storage_common_remove(app->storage, path_part);
-        storage_common_remove(app->storage, path_fw);
         set_progress_error(app, error_msg);
         return;
     }
@@ -434,6 +683,15 @@ static void run_download_esp32(UpdaterApp* app) {
         app->release.commit,
         board_folder,
         boot->size + part->size + fw->size);
+    set_progress_done_ok(app);
+}
+
+static void run_install_firmware(UpdaterApp* app) {
+    char error[UPDATER_STR_LEN];
+    if(!installer_install_firmware(app, error, sizeof(error))) {
+        set_progress_error(app, error);
+        return;
+    }
     set_progress_done_ok(app);
 }
 
@@ -450,9 +708,14 @@ int32_t updater_worker_thread(void* context) {
 
     if(app->stage == UpdaterStageCheck) {
         run_check(app);
+    } else if(app->stage == UpdaterStageInstall) {
+        app->progress_phase = ProgressPhaseInstall;
+        run_install_firmware(app);
     } else if(app->flow == UpdaterFlowFirmware) {
+        app->progress_phase = ProgressPhaseDownload;
         run_download_firmware(app);
     } else {
+        app->progress_phase = ProgressPhaseDownload;
         run_download_esp32(app);
     }
 

@@ -1,6 +1,7 @@
 #include "app.h"
 
 static UpdaterApp* s_app = NULL;
+static bool s_auto_advance_fired = false;
 
 typedef struct {
     uint8_t display_pct;
@@ -80,6 +81,7 @@ void view_check_progress_free(View* v) {
 }
 
 void view_check_progress_reset(View* v) {
+    s_auto_advance_fired = false;
     with_view_model(
         v,
         CheckProgressModel * m,
@@ -102,6 +104,7 @@ void view_check_progress_refresh(View* v) {
     snprintf(label, sizeof(label), "%s", app->check_stage_label);
     furi_mutex_release(app->progress_mutex);
 
+    bool should_advance = false;
     with_view_model(
         v,
         CheckProgressModel * m,
@@ -114,7 +117,17 @@ void view_check_progress_refresh(View* v) {
                 m->display_pct = target;
             }
             snprintf(m->label, sizeof(m->label), "%s", label);
-            m->await_next = app->check_stage_await_next;
+
+            m->await_next = app->check_stage_await_next && m->display_pct >= target;
+            if(m->await_next && !s_auto_advance_fired) {
+                s_auto_advance_fired = true;
+                should_advance = true;
+            }
         },
         true);
+
+    if(should_advance) {
+
+        view_dispatcher_send_custom_event(app->view_dispatcher, UpdaterEventCheckProgressNext);
+    }
 }

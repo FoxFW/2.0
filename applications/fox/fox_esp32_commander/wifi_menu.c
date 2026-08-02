@@ -8,7 +8,7 @@
 #include <furi_hal_rtc.h>
 #include <loader/loader.h>
 
-#define FOX_PCAP_SNAPLEN 256 /* must match firmware's WIFI_PCAP_SNAPLEN (config.h) */
+#define FOX_PCAP_SNAPLEN 256
 
 typedef enum {
     MenuWifiConnect,
@@ -28,7 +28,15 @@ typedef enum {
 
 static void fox_wifi_status_write(bool connected);
 
+static void wifi_status_drain_stray(App* app) {
+    EspAtMsg msg;
+    for(int i = 0; i < 8; i++) {
+        if(!esp_at_receive(app->esp_at, &msg, 50)) break;
+    }
+}
+
 static bool wifi_is_connected(App* app) {
+    wifi_status_drain_stray(app);
     esp_at_send(app->esp_at, "[WIFI/STATUS]");
     EspAtMsg msg;
     bool connected = false;

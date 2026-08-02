@@ -245,6 +245,7 @@ static void terminal_draw_cb(Canvas* canvas, void* model) {
 
     size_t max_scroll = total > visible_rows ? total - visible_rows : 0;
     if(app->terminal_scroll > max_scroll) app->terminal_scroll = max_scroll;
+    app->terminal_max_scroll = max_scroll;
 
     for(size_t row = 0; row < visible_rows && (app->terminal_scroll + row) < total; row++) {
         const TerminalWrapLine* wl = &lines[app->terminal_scroll + row];
@@ -452,7 +453,9 @@ static bool custom_event_callback(void* context, uint32_t event) {
         if(app->esp32_detected && (on_menu || on_live_terminal)) {
             foxportal_sync_saved_results(app, true);
             if(on_live_terminal) {
-                app->terminal_scroll = (size_t)-1;
+                if(app->terminal_scroll >= app->terminal_max_scroll) {
+                    app->terminal_scroll = (size_t)-1;
+                }
                 with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
             }
         }

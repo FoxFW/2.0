@@ -1,6 +1,7 @@
 #include "strutil.h"
 
 #include <string.h>
+#include <ctype.h>
 
 void str_copy(char* dst, size_t dst_size, const char* src) {
     if(dst_size == 0) return;
@@ -42,4 +43,13 @@ void str_join3(char* dst, size_t dst_size, const char* a, const char* b, const c
     pos += len_c;
 
     dst[pos] = '\0';
+}
+
+void str_capitalize_first(char* s) {
+    if(!s) return;
+
+    while(*s == ' ') s++;
+    if(*s) {
+        *s = (char)toupper((unsigned char)*s);
+    }
 }

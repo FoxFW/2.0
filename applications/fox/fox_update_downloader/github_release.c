@@ -1,5 +1,6 @@
 #include "github_release.h"
 #include "json_mini.h"
+#include "strutil.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -51,6 +52,7 @@ bool github_release_check(
                 while(*text == ' ') text++;
                 info->ok = false;
                 strncpy(info->error, text, sizeof(info->error) - 1);
+                str_capitalize_first(info->error);
                 return true;
             }
             if(strncmp(line, "[RELEASE/CHECK/SUCCESS]", 23) == 0) {

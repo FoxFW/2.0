@@ -49,8 +49,6 @@ void session_log_open(App* app) {
         return;
     }
 
-    /* FSAM_READ_WRITE, not FSAM_WRITE - log_read_file() reads through this
-       same handle while it's open; a write-only handle reads back nothing. */
     if(!storage_file_open(
            app->session_log_file, app->session_log_path, FSAM_READ_WRITE, FSOM_OPEN_APPEND)) {
         storage_file_free(app->session_log_file);
@@ -80,8 +78,6 @@ void session_log_close(App* app) {
     app->session_log_open = false;
 }
 
-/* Hand-rolled insertion sort - qsort() isn't part of the exported firmware
-   API for external apps and fails at runtime with "Missing Imports". */
 static void log_files_sort_desc(App* app) {
     for(size_t i = 1; i < app->log_file_count; i++) {
         char key[FOX_LOG_FILENAME_MAX];
@@ -158,9 +154,6 @@ bool log_read_file(App* app, const char* filename, FuriString* out) {
 
     furi_string_reset(out);
 
-    /* If this is the live session's own file, read through the already-open
-       handle instead of a second one - a second handle to the same file
-       while it's open for append hangs the device. */
     bool is_live_session_file = app->session_log_open && app->session_log_file != NULL &&
                                  app->session_log_path[0] != '\0';
     if(is_live_session_file) {

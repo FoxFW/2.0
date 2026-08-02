@@ -21,6 +21,7 @@ typedef enum {
     UpdaterViewStatus,
     UpdaterViewProgress,
     UpdaterViewCheckProgress,
+    UpdaterViewDownloadSettings,
 } UpdaterView;
 
 typedef enum {
@@ -34,6 +35,8 @@ typedef enum {
     UpdaterEventProgressTick = 7,
     UpdaterEventProgressCancelled = 8,
     UpdaterEventCheckProgressNext = 9,
+    UpdaterEventCachedOptionConfirm = 10,
+    UpdaterEventMenuDownloadSettings = 11,
 } UpdaterEvent;
 
 typedef enum {
@@ -45,7 +48,14 @@ typedef enum {
 typedef enum {
     UpdaterStageCheck,
     UpdaterStageDownload,
+    UpdaterStageInstall,
 } UpdaterStage;
+
+typedef enum {
+    ProgressPhaseDownload,
+    ProgressPhaseVerify,
+    ProgressPhaseInstall,
+} ProgressPhase;
 
 typedef enum {
     UpdaterResultNone = 0,
@@ -62,7 +72,6 @@ typedef enum {
     UpdaterActionInstall,
     UpdaterActionConfirmEsp32Install,
     UpdaterActionEsp32ResetAndInstall,
-    UpdaterActionDeleteAndRecheck,
 } UpdaterAction;
 
 #define UPDATER_BOARD_COUNT 6
@@ -87,7 +96,9 @@ extern const UpdaterBoard k_updater_boards[UPDATER_BOARD_COUNT];
 #define FOXFW_REPO   "FoxFW/2.0"
 #define ESP32FW_REPO "FoxFW/Fox_ESP32_FW"
 
-#define FOX_ESP_FLASHER_FAP "/ext/apps/Fox/fox_esp_flasher.fap"
+#define FOXFW_TAR_ASSET_NAME "flipper-z-f7-update-local.tar"
+
+#define FOX_ESP32_FLASHER_FAP "/ext/apps/Fox/fox_esp32_flasher.fap"
 
 typedef struct {
     char name[UPDATER_STR_LEN];
@@ -103,6 +114,13 @@ typedef struct {
     uint8_t asset_count;
     char error[UPDATER_STR_LEN];
 } ReleaseInfo;
+
+typedef struct {
+    uint32_t baud;
+    uint8_t retry_attempts;
+    uint16_t timeout_sec;
+    bool auto_lower_baud;
+} DownloaderSettings;
 
 typedef struct UpdaterApp UpdaterApp;
 
@@ -130,6 +148,10 @@ struct UpdaterApp {
     View* connect_settings_view;
     uint8_t connect_settings_selected;
 
+    View* download_settings_view;
+    uint8_t download_settings_selected;
+    DownloaderSettings settings;
+
     UpdaterView current_view;
     UpdaterFlow flow;
     UpdaterStage stage;
@@ -138,6 +160,8 @@ struct UpdaterApp {
     uint8_t board_index;
 
     bool verifying_cached;
+    bool verifying_partial;
+    uint8_t status_cycle_kind;
     char cached_tag[UPDATER_STR_LEN];
     char cached_commit[16];
     char cached_asset_path[UPDATER_PATH_LEN];
@@ -166,8 +190,14 @@ struct UpdaterApp {
     bool status_has_right;
     uint8_t status_selected;
 
+    bool status_cycle_mode;
+    const char* status_cycle_options[5];
+    uint8_t status_cycle_count;
+    uint8_t status_cycle_selected;
+
     char download_path[UPDATER_PATH_LEN];
     char download_name[UPDATER_STR_LEN];
+    char extract_current_name[UPDATER_STR_LEN];
 
     FuriThread* worker;
     volatile bool worker_running;
@@ -178,6 +208,7 @@ struct UpdaterApp {
     volatile uint32_t progress_total;
     volatile bool progress_done;
     volatile bool progress_ok;
+    volatile uint8_t progress_phase;
     char progress_error[UPDATER_STR_LEN];
 
     FuriTimer* progress_timer;
@@ -194,6 +225,12 @@ void view_message_free(View* v);
 View* connect_settings_view_alloc(UpdaterApp* app);
 void connect_settings_view_free(View* v);
 void connect_settings_view_reset(UpdaterApp* app);
+
+View* download_settings_view_alloc(UpdaterApp* app);
+void download_settings_view_free(View* v);
+void download_settings_view_reset(UpdaterApp* app);
+void updater_settings_load(UpdaterApp* app);
+void updater_settings_save(UpdaterApp* app);
 
 size_t app_pin_option_count(void);
 const char* app_pin_option_label(size_t index);
@@ -215,6 +252,7 @@ void view_status_refresh(View* v);
 View* view_progress_alloc(UpdaterApp* app);
 void view_progress_free(View* v);
 void view_progress_refresh(View* v);
+void view_progress_reset(View* v);
 
 View* view_check_progress_alloc(UpdaterApp* app);
 void view_check_progress_free(View* v);
@@ -229,13 +267,38 @@ void updater_switch_to_status(
     const char* btn_left,
     const char* btn_right);
 
+void updater_switch_to_status_cycle(
+    UpdaterApp* app,
+    const char* title,
+    const char* line1,
+    const char* line2,
+    const char* const* options,
+    uint8_t option_count);
+
+void updater_handle_cached_option(UpdaterApp* app);
+
 void updater_start_worker(UpdaterApp* app, UpdaterStage stage);
+
+bool updater_has_partial_download(
+    UpdaterApp* app,
+    UpdaterFlow flow,
+    char* tag_out,
+    size_t tag_out_size,
+    char* asset_path_out,
+    size_t asset_path_out_size);
 
 void updater_draw_ok_button(
     Canvas* canvas,
     uint8_t x,
     uint8_t y,
     uint8_t w,
+    uint8_t h,
+    uint8_t radius,
+    const char* label);
+
+void updater_draw_ok_button_centered(
+    Canvas* canvas,
+    uint8_t y,
     uint8_t h,
     uint8_t radius,
     const char* label);

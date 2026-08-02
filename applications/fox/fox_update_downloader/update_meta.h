@@ -21,6 +21,6 @@ void update_meta_write(
     const char* board_folder,
     uint32_t size);
 
-void update_meta_find(Storage* storage, UpdaterFlow flow, DownloadedMeta* out);
+void update_meta_find(Storage* storage, UpdaterFlow flow, const char* board_folder, DownloadedMeta* out);
 
 void update_meta_delete(Storage* storage, const char* asset_path);

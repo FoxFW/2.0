@@ -10,9 +10,44 @@ from flipper.app import App
 
 class GitVersion:
     REVISION_SUFFIX_LENGTH = 8
+    VERSION_FILE_NAME = "firmware.ver"
+    DEFAULT_FIRMWARE_NAME = "Firmware"
+    BANNER_FILE_RELPATH = os.path.join("build", ".fbt_version_banner")
 
     def __init__(self, source_dir):
         self.source_dir = source_dir
+
+    def _read_version_file(self):
+        version_file = os.path.join(self.source_dir, self.VERSION_FILE_NAME)
+        try:
+            with open(version_file, "r") as f:
+                lines = [line.strip() for line in f.readlines()]
+        except EnvironmentError:
+            return None, None
+        lines = [line for line in lines if line]
+        if not lines:
+            return None, None
+        if len(lines) == 1:
+            return self.DEFAULT_FIRMWARE_NAME, lines[0]
+        return lines[0], lines[1]
+
+    def _write_banner_file(self, line):
+        banner_path = os.path.join(self.source_dir, self.BANNER_FILE_RELPATH)
+        try:
+            os.makedirs(os.path.dirname(banner_path), exist_ok=True)
+            with open(banner_path, "w", newline="\n") as f:
+                f.write(line + "\n")
+        except OSError:
+            pass
+
+    def _sync_git_tag(self, name, version):
+        try:
+            self._exec_git(f"tag -f {version}")
+            banner = f"\033[96m{name} Version Tag: {version}\033[0m"
+            print(banner)
+            self._write_banner_file(banner)
+        except (subprocess.CalledProcessError, OSError):
+            pass
 
     def get_version_info(self):
         commit = (
@@ -35,10 +70,15 @@ class GitVersion:
             or "unknown"
         )
 
+        firmware_name, file_version = self._read_version_file()
         version = (
             os.environ.get("DIST_SUFFIX", None)
+            or file_version
             or "Fox FW"
         )
+
+        if file_version:
+            self._sync_git_tag(firmware_name or self.DEFAULT_FIRMWARE_NAME, file_version)
 
         force_no_dirty = (
             os.environ.get("FORCE_NO_DIRTY", None)
@@ -62,7 +102,7 @@ class GitVersion:
             "GIT_BRANCH": branch,
             "VERSION": version,
             "BUILD_DIRTY": dirty and 1 or 0,
-            "GIT_ORIGIN": "https://github.com/SamMichaelINC/FoxFW.git",
+            "GIT_ORIGIN": "https://github.com/FoxFW/2.0.git",
             "GIT_COMMIT_DATE": commit_date,
         }
     

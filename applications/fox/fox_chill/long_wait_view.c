@@ -37,7 +37,7 @@ static bool long_wait_input_cb(InputEvent* event, void* context) {
     case InputKeyUp:
     case InputKeyDown:
     case InputKeyLeft:
-        return true; // no-op
+        return true;
     case InputKeyBack:
         return false;
     default:

@@ -344,9 +344,6 @@ static int32_t scan_worker(void* context) {
                 break;
             }
 
-            /* Must run before the AT/OK probe below - Fox ESP32 Firmware
-               answers a bare "AT" with "OK" too, which would otherwise
-               match first and shadow the "info" signature check. */
             bool signature_found = false;
             for(size_t s = 0; s < SIGNATURE_COUNT; s++) {
                 if(link_capture_response(
@@ -409,8 +406,6 @@ static int32_t scan_worker(void* context) {
             }
         }
 
-        /* Stop async rx before deinit/release, free the stream buffer last -
-           wrong order here is a known Flipper firmware bug class (PR #4246). */
         furi_hal_serial_async_rx_stop(handle);
         if(owned) furi_hal_serial_deinit(handle);
         furi_hal_serial_control_release(handle);

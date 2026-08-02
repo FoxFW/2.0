@@ -114,8 +114,6 @@ void esp_at_free(EspAt* esp_at) {
     furi_thread_join(esp_at->worker);
     furi_thread_free(esp_at->worker);
 
-    /* Stop async rx before deinit/release, free stream buffers last -
-       wrong order here is a known Flipper firmware bug class (PR #4246). */
     furi_hal_serial_async_rx_stop(esp_at->serial);
 
     if(esp_at->serial_owned) {

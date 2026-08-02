@@ -8,17 +8,27 @@ typedef struct {
 #define BOX_W 120
 #define BOX_H 28
 #define BOX_R 4
+#define MENU_ROW_COUNT 3
+#define MENU_VISIBLE 2
 
-static const uint8_t k_slot_y[2] = {2, 34};
-static const char* const k_line1[2] = {"Fox Custom Firmware", "Fox ESP32 Firmware"};
-static const char* const k_line2[2] = {"Flipper Zero", "ESP32 S2, S3, C3, C5, C6"};
+static const uint8_t k_slot_y[MENU_VISIBLE] = {2, 34};
+static const char* const k_line1[MENU_ROW_COUNT] = {
+    "Fox Custom Firmware", "Fox ESP32 Firmware", "Download Settings"};
+static const char* const k_line2[MENU_ROW_COUNT] = {
+    "Flipper Zero", "ESP32 S2, S3, C3, C5, C6", "Edit Baud & Retry Options"};
+
+static uint8_t menu_scroll_top(uint8_t selected) {
+    return (selected >= MENU_ROW_COUNT - 1) ? (uint8_t)(MENU_ROW_COUNT - MENU_VISIBLE) : 0;
+}
 
 static void menu_draw(Canvas* canvas, void* model_ptr) {
     MenuModel* m = model_ptr;
     canvas_clear(canvas);
-    for(uint8_t row = 0; row < 2; row++) {
+    uint8_t scroll_top = menu_scroll_top(m->selected);
+    for(uint8_t slot = 0; slot < MENU_VISIBLE; slot++) {
+        uint8_t row = scroll_top + slot;
         bool sel = (m->selected == row);
-        uint8_t y = k_slot_y[row];
+        uint8_t y = k_slot_y[slot];
         canvas_set_color(canvas, ColorBlack);
         if(sel) {
             canvas_draw_rbox(canvas, BOX_X, y, BOX_W, BOX_H, BOX_R);
@@ -40,15 +50,26 @@ static bool menu_input(InputEvent* event, void* context) {
 
     switch(event->key) {
     case InputKeyUp:
+        with_view_model(
+            app->menu_view,
+            MenuModel * m,
+            { m->selected = (m->selected == 0) ? (MENU_ROW_COUNT - 1) : m->selected - 1; },
+            true);
+        return true;
     case InputKeyDown:
         with_view_model(
-            app->menu_view, MenuModel * m, { m->selected = m->selected == 0 ? 1 : 0; }, true);
+            app->menu_view,
+            MenuModel * m,
+            { m->selected = (uint8_t)((m->selected + 1) % MENU_ROW_COUNT); },
+            true);
         return true;
     case InputKeyOk: {
         uint8_t sel = 0;
         with_view_model(app->menu_view, MenuModel * m, { sel = m->selected; }, false);
-        view_dispatcher_send_custom_event(
-            app->view_dispatcher, sel == 0 ? UpdaterEventMenuFw : UpdaterEventMenuEsp32);
+        UpdaterEvent ev = UpdaterEventMenuFw;
+        if(sel == 1) ev = UpdaterEventMenuEsp32;
+        else if(sel == 2) ev = UpdaterEventMenuDownloadSettings;
+        view_dispatcher_send_custom_event(app->view_dispatcher, ev);
         return true;
     }
     default:

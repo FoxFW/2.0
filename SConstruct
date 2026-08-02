@@ -6,10 +6,30 @@
 # trees on startup. So, to keep startup time as low as possible, we're hiding
 # construction of certain targets behind command-line options.
 
+import atexit
 import os
 from fbt.util import open_browser_action
 
 DefaultEnvironment(tools=[])
+
+_version_banner_path = os.path.join(Dir("#build").abspath, ".fbt_version_banner")
+try:
+    os.remove(_version_banner_path)
+except OSError:
+    pass
+
+
+def _reprint_version_banner():
+    try:
+        with open(_version_banner_path, "r") as f:
+            banner = f.read().rstrip("\n")
+    except OSError:
+        return
+    if banner:
+        print(banner)
+
+
+atexit.register(_reprint_version_banner)
 
 EnsurePythonVersion(3, 8)
 

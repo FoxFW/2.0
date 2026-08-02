@@ -21,6 +21,7 @@ void esp_at_send(EspAt* esp_at, const char* command);
 bool esp_at_receive(EspAt* esp_at, EspAtMsg* msg, uint32_t timeout_ms);
 
 void esp_at_set_baud(EspAt* esp_at, uint32_t baud_rate);
+void esp_at_flush_rx(EspAt* esp_at);
 
 void esp_at_begin_raw(EspAt* esp_at);
 size_t esp_at_read_raw(EspAt* esp_at, uint8_t* buf, size_t len, uint32_t timeout_ms);

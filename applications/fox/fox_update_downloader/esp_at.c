@@ -19,6 +19,7 @@ struct EspAt {
     FuriThread* worker;
     volatile bool running;
     volatile bool raw_mode;
+    volatile bool flush_requested;
 };
 
 static void esp_at_rx_callback(FuriHalSerialHandle* handle, FuriHalSerialRxEvent event, void* context) {
@@ -37,7 +38,8 @@ static void esp_at_emit_line(EspAt* esp_at, const char* text, size_t length) {
     size_t copy_len = length < (ESP_AT_LINE_MAX - 1) ? length : (ESP_AT_LINE_MAX - 1);
     memcpy(s_emit_msg.line, text, copy_len);
     s_emit_msg.line[copy_len] = '\0';
-    furi_message_queue_put(esp_at->msg_queue, &s_emit_msg, FuriWaitForever);
+
+    furi_message_queue_put(esp_at->msg_queue, &s_emit_msg, 0);
 }
 
 static int32_t esp_at_worker(void* context) {
@@ -49,6 +51,13 @@ static int32_t esp_at_worker(void* context) {
     while(esp_at->running) {
         if(esp_at->raw_mode) {
             furi_delay_ms(2);
+            continue;
+        }
+
+        if(esp_at->flush_requested) {
+            line_len = 0;
+            furi_stream_buffer_reset(esp_at->rx_stream);
+            esp_at->flush_requested = false;
             continue;
         }
 
@@ -93,6 +102,7 @@ EspAt* esp_at_alloc(FuriHalSerialId serial_id, uint32_t baud_rate) {
     esp_at->msg_queue = furi_message_queue_alloc(ESP_AT_QUEUE_DEPTH, sizeof(EspAtMsg));
     esp_at->running = true;
     esp_at->raw_mode = false;
+    esp_at->flush_requested = false;
     esp_at->serial = handle;
     esp_at->expansion = expansion;
 
@@ -141,6 +151,15 @@ bool esp_at_receive(EspAt* esp_at, EspAtMsg* msg, uint32_t timeout_ms) {
 void esp_at_set_baud(EspAt* esp_at, uint32_t baud_rate) {
     furi_hal_serial_tx_wait_complete(esp_at->serial);
     furi_hal_serial_set_br(esp_at->serial, baud_rate);
+}
+
+void esp_at_flush_rx(EspAt* esp_at) {
+    esp_at->flush_requested = true;
+    uint32_t start = furi_get_tick();
+    while(esp_at->flush_requested) {
+        if((furi_get_tick() - start) > 200) break;
+        furi_delay_ms(1);
+    }
 }
 
 void esp_at_begin_raw(EspAt* esp_at) {

@@ -5,7 +5,7 @@
 
 #define FOX_CHILL_SAVE_DIR  "/ext/apps_data/fox_chill"
 #define FOX_CHILL_SAVE_PATH FOX_CHILL_SAVE_DIR "/.cache"
-#define FOX_CHILL_SAVE_MAGIC 0x464C4331u // 'FLC1'
+#define FOX_CHILL_SAVE_MAGIC 0x464C4331u
 #define FOX_CHILL_XOR_SEED    0x9E3779B1u
 
 static void xor_crypt(uint8_t* data, size_t len) {

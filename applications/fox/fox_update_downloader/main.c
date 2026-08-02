@@ -25,6 +25,7 @@ static const uint32_t baud_options[] = {UPDATER_BAUD};
 #define BAUD_OPTION_DEFAULT_INDEX 0
 
 static void start_check(UpdaterApp* app);
+static void begin_check_for_flow(UpdaterApp* app, UpdaterFlow flow);
 
 void updater_draw_ok_button(
     Canvas* canvas,
@@ -52,6 +53,22 @@ void updater_draw_ok_button(
     canvas_set_color(canvas, ColorBlack);
 }
 
+void updater_draw_ok_button_centered(
+    Canvas* canvas,
+    uint8_t y,
+    uint8_t h,
+    uint8_t radius,
+    const char* label) {
+    canvas_set_font(canvas, FontSecondary);
+    const Icon* icon = &I_ButtonCenter_7x7;
+    int32_t icon_gap = 3;
+    int32_t pad = 8;
+    int32_t w = icon->width + icon_gap + (int32_t)canvas_string_width(canvas, label) + pad * 2;
+    if(w > 124) w = 124;
+    int32_t x = (128 - w) / 2;
+    updater_draw_ok_button(canvas, (uint8_t)x, y, (uint8_t)w, h, radius, label);
+}
+
 void updater_switch_to_status(
     UpdaterApp* app,
     const char* title,
@@ -65,9 +82,34 @@ void updater_switch_to_status(
     app->status_has_left = btn_left != NULL;
     app->status_has_right = btn_right != NULL;
     app->status_selected = 1;
+    app->status_cycle_mode = false;
     snprintf(app->status_btn_left, sizeof(app->status_btn_left), "%s", btn_left ? btn_left : "");
     snprintf(
         app->status_btn_right, sizeof(app->status_btn_right), "%s", btn_right ? btn_right : "");
+    app->current_view = UpdaterViewStatus;
+    view_status_refresh(app->status_view);
+    view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewStatus);
+}
+
+void updater_switch_to_status_cycle(
+    UpdaterApp* app,
+    const char* title,
+    const char* line1,
+    const char* line2,
+    const char* const* options,
+    uint8_t option_count) {
+    snprintf(app->status_title, sizeof(app->status_title), "%s", title ? title : "");
+    snprintf(app->status_line1, sizeof(app->status_line1), "%s", line1 ? line1 : "");
+    snprintf(app->status_line2, sizeof(app->status_line2), "%s", line2 ? line2 : "");
+    app->status_has_left = false;
+    app->status_has_right = false;
+    app->status_cycle_mode = true;
+    if(option_count > 5) option_count = 5;
+    app->status_cycle_count = option_count;
+    app->status_cycle_selected = 0;
+    for(uint8_t i = 0; i < option_count; i++) {
+        app->status_cycle_options[i] = options[i];
+    }
     app->current_view = UpdaterViewStatus;
     view_status_refresh(app->status_view);
     view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewStatus);
@@ -92,6 +134,114 @@ static void show_install_ready_prompt(UpdaterApp* app) {
     updater_switch_to_status(app, "Downloaded", app->release.tag, "Install now?", "Later", "Install");
 }
 
+typedef enum {
+    StatusCycleKindCachedComplete,
+    StatusCycleKindPartial,
+    StatusCycleKindDownloadFailed,
+} StatusCycleKind;
+
+static const char* const k_cached_options[5] = {
+    "Install", "Later", "Re-Check", "Re-Download", "Delete"};
+static const char* const k_partial_options[4] = {"Resume", "Later", "Re-Check", "Delete"};
+static const char* const k_failed_options[3] = {"Retry", "Back", "Delete"};
+
+static void show_cached_install_prompt(UpdaterApp* app) {
+    app->status_cycle_kind = StatusCycleKindCachedComplete;
+    app->pending_action =
+        (app->flow == UpdaterFlowEsp32) ? UpdaterActionConfirmEsp32Install : UpdaterActionInstall;
+    updater_switch_to_status_cycle(
+        app, "Already Downloaded", app->release.tag, "", k_cached_options, 5);
+}
+
+static void show_partial_download_prompt(UpdaterApp* app) {
+    app->status_cycle_kind = StatusCycleKindPartial;
+    app->pending_action = UpdaterActionStartDownload;
+    updater_switch_to_status_cycle(app, "Partial Download", app->release.tag, "", k_partial_options, 4);
+}
+
+static void show_download_failed_prompt(UpdaterApp* app, const char* error) {
+    app->status_cycle_kind = StatusCycleKindDownloadFailed;
+    app->pending_action = UpdaterActionStartDownload;
+    updater_switch_to_status_cycle(app, "Download Failed", error, "", k_failed_options, 3);
+}
+
+void updater_handle_cached_option(UpdaterApp* app) {
+    if(app->status_cycle_kind == StatusCycleKindPartial) {
+        switch(app->status_cycle_selected) {
+        case 0:
+            updater_handle_status_confirm(app);
+            return;
+        case 1:
+            app->pending_action = UpdaterActionNone;
+            app->current_view = UpdaterViewMenu;
+            view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
+            return;
+        case 2:
+            app->pending_action = UpdaterActionNone;
+            begin_check_for_flow(app, app->flow);
+            return;
+        case 3:
+            update_meta_delete(app->storage, app->cached_asset_path);
+            app->pending_action = UpdaterActionNone;
+            app->current_view = UpdaterViewMenu;
+            view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
+            return;
+        default:
+            return;
+        }
+    }
+
+    if(app->status_cycle_kind == StatusCycleKindDownloadFailed) {
+        switch(app->status_cycle_selected) {
+        case 0:
+            updater_handle_status_confirm(app);
+            return;
+        case 1:
+            app->pending_action = UpdaterActionNone;
+            app->current_view = UpdaterViewMenu;
+            view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
+            return;
+        case 2:
+            update_meta_delete(app->storage, app->download_path);
+            app->pending_action = UpdaterActionNone;
+            app->current_view = UpdaterViewMenu;
+            view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
+            return;
+        default:
+            return;
+        }
+    }
+
+    switch(app->status_cycle_selected) {
+    case 0:
+        updater_handle_status_confirm(app);
+        return;
+    case 1:
+        app->pending_action = UpdaterActionNone;
+        app->current_view = UpdaterViewMenu;
+        view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
+        return;
+    case 2:
+        app->pending_action = UpdaterActionNone;
+        begin_check_for_flow(app, app->flow);
+        return;
+    case 3:
+        update_meta_delete(app->storage, app->cached_asset_path);
+        app->pending_action = UpdaterActionNone;
+        app->verifying_cached = false;
+        start_check(app);
+        return;
+    case 4:
+        update_meta_delete(app->storage, app->cached_asset_path);
+        app->pending_action = UpdaterActionNone;
+        app->current_view = UpdaterViewMenu;
+        view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
+        return;
+    default:
+        return;
+    }
+}
+
 void updater_handle_worker_done(UpdaterApp* app) {
     bool ok;
     char error[UPDATER_STR_LEN];
@@ -102,14 +252,22 @@ void updater_handle_worker_done(UpdaterApp* app) {
 
     if(app->stage == UpdaterStageCheck) {
         bool was_verifying = app->verifying_cached;
+        bool was_verifying_partial = app->verifying_partial;
         app->verifying_cached = false;
+        app->verifying_partial = false;
 
         if(!ok) {
             if(was_verifying) {
                 str_copy(app->download_path, sizeof(app->download_path), app->cached_asset_path);
                 str_copy(app->release.tag, sizeof(app->release.tag), app->cached_tag);
                 str_copy(app->release.commit, sizeof(app->release.commit), app->cached_commit);
-                show_install_ready_prompt(app);
+                show_cached_install_prompt(app);
+                return;
+            }
+            if(was_verifying_partial) {
+                str_copy(app->download_path, sizeof(app->download_path), app->cached_asset_path);
+                str_copy(app->release.tag, sizeof(app->release.tag), app->cached_tag);
+                show_partial_download_prompt(app);
                 return;
             }
             app->pending_action = UpdaterActionNone;
@@ -120,7 +278,14 @@ void updater_handle_worker_done(UpdaterApp* app) {
         if(was_verifying) {
             if(strcmp(app->release.tag, app->cached_tag) == 0) {
                 str_copy(app->download_path, sizeof(app->download_path), app->cached_asset_path);
-                show_install_ready_prompt(app);
+                show_cached_install_prompt(app);
+                return;
+            }
+            update_meta_delete(app->storage, app->cached_asset_path);
+        } else if(was_verifying_partial) {
+            if(strcmp(app->release.tag, app->cached_tag) == 0) {
+                str_copy(app->download_path, sizeof(app->download_path), app->cached_asset_path);
+                show_partial_download_prompt(app);
                 return;
             }
             update_meta_delete(app->storage, app->cached_asset_path);
@@ -129,8 +294,8 @@ void updater_handle_worker_done(UpdaterApp* app) {
         if(app->result == UpdaterResultUpToDate) {
             char line1[UPDATER_STR_LEN];
             snprintf(line1, sizeof(line1), "Current: %s", app->compare_current);
-            app->pending_action = UpdaterActionNone;
-            updater_switch_to_status(app, "Up to date", line1, "", NULL, "OK");
+            app->pending_action = UpdaterActionStartDownload;
+            updater_switch_to_status(app, "Up to date", line1, "", NULL, "Download Anyway");
             return;
         }
         char line1[UPDATER_STR_LEN];
@@ -144,9 +309,16 @@ void updater_handle_worker_done(UpdaterApp* app) {
 
     furi_timer_stop(app->progress_timer);
 
+    if(app->stage == UpdaterStageInstall) {
+        if(!ok) {
+            app->pending_action = UpdaterActionNone;
+            updater_switch_to_status(app, "Install failed", error, "", NULL, "OK");
+        }
+        return;
+    }
+
     if(!ok) {
-        app->pending_action = UpdaterActionNone;
-        updater_switch_to_status(app, "Download failed", error, "", NULL, "OK");
+        show_download_failed_prompt(app, error);
         return;
     }
 
@@ -157,19 +329,21 @@ void updater_handle_status_confirm(UpdaterApp* app) {
     switch(app->pending_action) {
     case UpdaterActionStartDownload:
         app->current_view = UpdaterViewProgress;
+        view_progress_reset(app->progress_view);
         view_progress_refresh(app->progress_view);
         view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewProgress);
         furi_timer_start(app->progress_timer, furi_ms_to_ticks(200));
         updater_start_worker(app, UpdaterStageDownload);
         return;
-    case UpdaterActionInstall: {
-        char error[UPDATER_STR_LEN];
-        if(!installer_install_firmware(app, error, sizeof(error))) {
-            app->pending_action = UpdaterActionNone;
-            updater_switch_to_status(app, "Install failed", error, "", NULL, "OK");
-        }
+    case UpdaterActionInstall:
+        app->current_view = UpdaterViewProgress;
+        view_progress_reset(app->progress_view);
+        app->progress_phase = ProgressPhaseInstall;
+        view_progress_refresh(app->progress_view);
+        view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewProgress);
+        furi_timer_start(app->progress_timer, furi_ms_to_ticks(200));
+        updater_start_worker(app, UpdaterStageInstall);
         return;
-    }
     case UpdaterActionConfirmEsp32Install:
         app->pending_action = UpdaterActionEsp32ResetAndInstall;
         updater_switch_to_status(
@@ -194,11 +368,6 @@ void updater_handle_status_confirm(UpdaterApp* app) {
         }
         installer_install_esp32(app);
         return;
-    case UpdaterActionDeleteAndRecheck:
-        update_meta_delete(app->storage, app->download_path);
-        app->pending_action = UpdaterActionNone;
-        start_check(app);
-        return;
     default:
         app->current_view = UpdaterViewMenu;
         view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
@@ -209,13 +378,6 @@ void updater_handle_status_confirm(UpdaterApp* app) {
 void updater_handle_status_back(UpdaterApp* app) {
     if(app->pending_action == UpdaterActionEsp32ResetAndInstall) {
         show_install_ready_prompt(app);
-        return;
-    }
-    if(app->pending_action == UpdaterActionInstall ||
-       app->pending_action == UpdaterActionConfirmEsp32Install) {
-        app->pending_action = UpdaterActionDeleteAndRecheck;
-        updater_switch_to_status(
-            app, "Not Installed", "Download saved.", "Try again?", "Menu", "Restart");
         return;
     }
     app->pending_action = UpdaterActionNone;
@@ -248,6 +410,10 @@ static bool navigation_callback(void* context) {
         app->current_view = UpdaterViewMenu;
         view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
         return true;
+    case UpdaterViewDownloadSettings:
+        app->current_view = UpdaterViewMenu;
+        view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
+        return true;
     default:
         view_dispatcher_stop(app->view_dispatcher);
         return true;
@@ -255,10 +421,13 @@ static bool navigation_callback(void* context) {
 }
 
 static void start_check(UpdaterApp* app) {
-    if(!app->esp_at) {
-        app->esp_at = esp_at_alloc(
-            pin_options[app->pin_option_index].serial_id, baud_options[app->baud_option_index]);
+
+    if(app->esp_at) {
+        esp_at_free(app->esp_at);
+        app->esp_at = NULL;
     }
+    app->esp_at = esp_at_alloc(
+        pin_options[app->pin_option_index].serial_id, baud_options[app->baud_option_index]);
     if(!app->esp_at) {
         updater_switch_to_status(app, "Error", "Could not open UART", "", NULL, "OK");
         return;
@@ -270,6 +439,32 @@ static void start_check(UpdaterApp* app) {
     view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewCheckProgress);
     furi_timer_start(app->check_progress_timer, furi_ms_to_ticks(80));
     updater_start_worker(app, UpdaterStageCheck);
+}
+
+static void begin_check_for_flow(UpdaterApp* app, UpdaterFlow flow) {
+    DownloadedMeta meta;
+    const char* board_folder =
+        (flow == UpdaterFlowEsp32) ? k_updater_boards[app->board_index].folder : NULL;
+    update_meta_find(app->storage, flow, board_folder, &meta);
+    bool matches = meta.found;
+    app->verifying_cached = false;
+    app->verifying_partial = false;
+    if(matches) {
+        str_copy(app->cached_asset_path, sizeof(app->cached_asset_path), meta.asset_path);
+        str_copy(app->cached_tag, sizeof(app->cached_tag), meta.tag);
+        str_copy(app->cached_commit, sizeof(app->cached_commit), meta.commit);
+        str_copy(app->cached_board_folder, sizeof(app->cached_board_folder), meta.board_folder);
+        app->verifying_cached = true;
+    } else if(updater_has_partial_download(
+                  app,
+                  flow,
+                  app->cached_tag,
+                  sizeof(app->cached_tag),
+                  app->cached_asset_path,
+                  sizeof(app->cached_asset_path))) {
+        app->verifying_partial = true;
+    }
+    start_check(app);
 }
 
 static bool probe_esp32(UpdaterApp* app, size_t pin_index, size_t baud_index) {
@@ -298,28 +493,9 @@ static bool probe_esp32(UpdaterApp* app, size_t pin_index, size_t baud_index) {
 }
 
 static void proceed_after_detection(UpdaterApp* app) {
-    DownloadedMeta meta;
-    update_meta_find(app->storage, UpdaterFlowNone, &meta);
-    if(meta.found) {
-        app->flow = meta.flow;
-        str_copy(app->cached_asset_path, sizeof(app->cached_asset_path), meta.asset_path);
-        str_copy(app->cached_tag, sizeof(app->cached_tag), meta.tag);
-        str_copy(app->cached_commit, sizeof(app->cached_commit), meta.commit);
-        str_copy(app->cached_board_folder, sizeof(app->cached_board_folder), meta.board_folder);
-        if(meta.flow == UpdaterFlowEsp32) {
-            for(uint8_t i = 0; i < UPDATER_BOARD_COUNT; i++) {
-                if(strcmp(k_updater_boards[i].folder, app->cached_board_folder) == 0) {
-                    app->board_index = i;
-                    break;
-                }
-            }
-        }
-        app->verifying_cached = true;
-        start_check(app);
-    } else {
-        app->current_view = UpdaterViewMenu;
-        view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
-    }
+
+    app->current_view = UpdaterViewMenu;
+    view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
 }
 
 static void run_detection(UpdaterApp* app) {
@@ -386,7 +562,7 @@ static bool custom_event_callback(void* context, uint32_t event) {
         return true;
     case UpdaterEventMenuFw:
         app->flow = UpdaterFlowFirmware;
-        start_check(app);
+        begin_check_for_flow(app, UpdaterFlowFirmware);
         return true;
     case UpdaterEventMenuEsp32:
         app->flow = UpdaterFlowEsp32;
@@ -395,7 +571,7 @@ static bool custom_event_callback(void* context, uint32_t event) {
         view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewBoard);
         return true;
     case UpdaterEventBoardGo:
-        start_check(app);
+        begin_check_for_flow(app, UpdaterFlowEsp32);
         return true;
     case UpdaterEventWorkerDone:
         if(app->stage == UpdaterStageCheck) {
@@ -420,6 +596,14 @@ static bool custom_event_callback(void* context, uint32_t event) {
         app->check_stage_await_next = false;
         updater_handle_worker_done(app);
         return true;
+    case UpdaterEventCachedOptionConfirm:
+        updater_handle_cached_option(app);
+        return true;
+    case UpdaterEventMenuDownloadSettings:
+        download_settings_view_reset(app);
+        app->current_view = UpdaterViewDownloadSettings;
+        view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewDownloadSettings);
+        return true;
     case UpdaterEventStatusConfirm:
         updater_handle_status_confirm(app);
         return true;
@@ -442,6 +626,7 @@ static UpdaterApp* app_alloc(bool skip_splash) {
 
     storage_simply_mkdir(app->storage, UPDATER_DATA_DIR);
     storage_simply_mkdir(app->storage, UPDATER_DATA_DIR "/downloads");
+    updater_settings_load(app);
 
     app->progress_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     app->matched_asset = -1;
@@ -459,6 +644,7 @@ static UpdaterApp* app_alloc(bool skip_splash) {
     app->splash = fox_splash_alloc(&I_fox_64x64, 2000, 666, fox_splash_done_cb, app);
     app->message_view = view_message_alloc(app);
     app->connect_settings_view = connect_settings_view_alloc(app);
+    app->download_settings_view = download_settings_view_alloc(app);
     app->menu_view = view_menu_alloc(app);
     app->board_view = view_board_alloc(app);
     app->status_view = view_status_alloc(app);
@@ -470,6 +656,8 @@ static UpdaterApp* app_alloc(bool skip_splash) {
     view_dispatcher_add_view(app->view_dispatcher, UpdaterViewMessage, app->message_view);
     view_dispatcher_add_view(
         app->view_dispatcher, UpdaterViewConnectSettings, app->connect_settings_view);
+    view_dispatcher_add_view(
+        app->view_dispatcher, UpdaterViewDownloadSettings, app->download_settings_view);
     view_dispatcher_add_view(app->view_dispatcher, UpdaterViewMenu, app->menu_view);
     view_dispatcher_add_view(app->view_dispatcher, UpdaterViewBoard, app->board_view);
     view_dispatcher_add_view(app->view_dispatcher, UpdaterViewStatus, app->status_view);
@@ -500,6 +688,7 @@ static void app_free(UpdaterApp* app) {
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewSplash);
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewMessage);
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewConnectSettings);
+    view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewDownloadSettings);
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewMenu);
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewBoard);
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewStatus);
@@ -509,6 +698,7 @@ static void app_free(UpdaterApp* app) {
     fox_splash_free(app->splash);
     view_message_free(app->message_view);
     connect_settings_view_free(app->connect_settings_view);
+    download_settings_view_free(app->download_settings_view);
     view_menu_free(app->menu_view);
     view_board_free(app->board_view);
     view_status_free(app->status_view);

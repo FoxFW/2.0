@@ -75,6 +75,7 @@ typedef struct {
     FuriString* log;
     View* terminal_view;
     size_t terminal_scroll;
+    size_t terminal_max_scroll;
 
     bool showing_results;
     FuriString* results_text;

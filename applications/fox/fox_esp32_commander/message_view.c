@@ -1,6 +1,8 @@
 #include "message_view.h"
 #include "connect_settings.h"
+#include "fox_esp32_commander_icons.h"
 
+#include <gui/icon.h>
 #include <loader/loader.h>
 #include <storage/storage.h>
 
@@ -40,14 +42,27 @@ static void message_draw_two_buttons(
 
 static void message_draw_one_button(Canvas* canvas, const char* label) {
     int32_t bar_y = 64 - MESSAGE_BOTTOM_BAR_H;
-    int32_t btn_w = 100;
+
+    canvas_set_font(canvas, FontSecondary);
+    const Icon* icon = &I_ButtonCenter_7x7;
+    int32_t icon_w = icon_get_width(icon);
+    int32_t icon_h = icon_get_height(icon);
+    int32_t icon_gap = 3;
+    int32_t pad_x = 10;
+    int32_t content_w = icon_w + icon_gap + (int32_t)canvas_string_width(canvas, label);
+    int32_t btn_w = content_w + pad_x * 2;
     int32_t x = (128 - btn_w) / 2;
 
     canvas_set_color(canvas, ColorBlack);
     canvas_draw_rbox(canvas, x, bar_y, btn_w, MESSAGE_BOTTOM_BAR_H, 3);
     canvas_set_color(canvas, ColorWhite);
+
+    int32_t gx = x + (btn_w - content_w) / 2;
+    int32_t gy_icon = bar_y + (MESSAGE_BOTTOM_BAR_H - icon_h) / 2;
+    canvas_draw_icon(canvas, gx, gy_icon, icon);
     canvas_draw_str_aligned(
-        canvas, x + btn_w / 2, bar_y + MESSAGE_BOTTOM_BAR_H / 2, AlignCenter, AlignCenter, label);
+        canvas, gx + icon_w + icon_gap, bar_y + MESSAGE_BOTTOM_BAR_H / 2, AlignLeft, AlignCenter, label);
+
     canvas_set_color(canvas, ColorBlack);
 }
 

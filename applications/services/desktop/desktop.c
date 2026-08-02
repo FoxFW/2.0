@@ -526,7 +526,7 @@ static int fox_wifi_probe_pins(FuriHalSerialId serial_id) {
          * Do NOT call expansion_enable() here. We only land in this branch
          * when something else currently owns the port, which means that
          * something already called expansion_disable() itself and expects
-         * it to stay disabled for the rest of its own session (fox_esp_flasher
+         * it to stay disabled for the rest of its own session (fox_esp32_flasher
          * disables it once at open and doesn't re-enable until close). Our
          * own expansion_disable() call just above was therefore already a
          * no-op (state was Disabled already) -- calling expansion_enable()
