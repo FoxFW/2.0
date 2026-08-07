@@ -4,6 +4,14 @@
 *.gdb_history
 *.old
 
+# Personal dev-machine scripts - hardcoded local paths, not usable by
+# anyone else, not part of the buildable firmware
+/DIRLIST.bat
+/assets/DIRLIST.bat
+/clean_build.bat
+/clean_build.txt
+/build_fox_apps_suite.bat
+
 
 # LSP
 .cache
