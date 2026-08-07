@@ -1,5 +1,7 @@
 #include "main_menu.h"
 
+#include <gui/elements.h>
+
 static App* s_main_menu_app = NULL;
 
 static const char* const s_main_menu_labels[MainMenuItemCount] = {
@@ -48,12 +50,16 @@ static void main_menu_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(MainMenuItemCount > MAIN_MENU_ROW_VIS) {
+        // Dotted track + solid position block, matching FOX_CHILL's
+        // scrollbar style instead of a plain solid bar with no track.
         int available_h = 64 - MAIN_MENU_HEADER_H;
-        int bar_h = (int)(available_h * MAIN_MENU_ROW_VIS / (int)MainMenuItemCount);
-        if(bar_h < 3) bar_h = 3;
-        int bar_y = MAIN_MENU_HEADER_H +
-                    (int)(available_h * (int)app->main_menu_scroll / (int)MainMenuItemCount);
-        canvas_draw_box(canvas, 125, bar_y, 3, bar_h);
+        elements_scrollbar_pos(
+            canvas,
+            128,
+            MAIN_MENU_HEADER_H,
+            (size_t)available_h,
+            (size_t)app->main_menu_scroll,
+            (size_t)MainMenuItemCount);
     }
 }
 

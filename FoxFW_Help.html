@@ -253,7 +253,7 @@
     <p style="text-align:center;font-size:0.85rem;letter-spacing:2px;text-transform:uppercase;color:#888;margin-bottom:14px;">Welcome to</p>
     <h2 style="text-align:center;color:#ff9a3c;font-size:2rem;letter-spacing:1px;margin-bottom:28px;font-family:'Segoe UI',system-ui,sans-serif;">FoxFW v2.0</h2>
     <video
-      src="https://raw.githubusercontent.com/foxfw/2.0/master/docs/FoxFW2.0.mp4"
+      src="https://foxfw.github.io/fox-web/FoxFW2.0.mp4"
       poster="FoxFW2.0.png"
       width="100%" height="600"
       controls
@@ -261,7 +261,7 @@
       muted
       playsinline
       style="display:block;width:100%;border-radius:6px 6px 0 0;">
-      <a href="https://raw.githubusercontent.com/foxfw/2.0/master/docs/FoxFW2.0.mp4" style="color:#ff9a3c;">▶ Watch the FoxFW 2.0 overview video</a>
+      <a href="https://foxfw.github.io/fox-web/FoxFW2.0.mp4" style="color:#ff9a3c;">▶ Watch the FoxFW 2.0 overview video</a>
     </video>
   </div>
 </section>
@@ -290,6 +290,7 @@
     <ol>
       <li><a href="#about">About FoxFW</a></li>
       <li><a href="#web-flasher">Web Installer</a></li>
+      <li><a href="#fap-compiler-info">FAP Compiler</a></li>
       <li><a href="#first-boot">First Boot — Fox Setup Wizard</a>
         <ul class="sub">
           <li><a href="#wizard-name">Rename your Flipper</a></li>
@@ -359,7 +360,7 @@
   </p>
   <div class="box tip">
     <strong>📸 See it in action:</strong> Check out our
-    <a href="https://foxfw.github.io/2.0/screenshots/screenshots.html" style="color:#80c890;">collection of screenshots</a>
+    <a href="https://foxfw.github.io/fox-web/screenshots/screenshots.html" style="color:#80c890;">collection of screenshots</a>
     to get a feel for FoxFW before you dive in. Got some great shots of your own?
     Send them our way — we may feature them here with a link to your own GitHub page!
   </div>
@@ -399,14 +400,14 @@
   </div>
 
   <div style="text-align:center;margin:28px 0;">
-    <a href="https://foxfw.github.io/2.0/flasher.html"
+    <a href="https://foxfw.github.io/fox-web/flasher.html"
        style="display:inline-block;background:var(--orange);color:#fff;font-weight:700;
               font-size:1.05rem;padding:16px 40px;border-radius:8px;text-decoration:none;
               box-shadow:0 0 20px rgba(232,117,10,0.35);letter-spacing:0.3px;">
       ⚡ Open Web Installer →
     </a>
     <p style="margin-top:12px;font-size:0.82rem;color:#888;">
-      Opens at foxfw.github.io/2.0/flasher.html
+      Opens at foxfw.github.io/fox-web/flasher.html
     </p>
   </div>
 
@@ -427,6 +428,48 @@
     via WebUSB — use this if your Flipper will not boot normally.
     SD card contents are not affected. After a DFU Recovery, it is <strong>HIGHLY RECOMMENDED</strong>
     to complete a Standard Install - this will ensure that the core FoxFW apps are all returned to the device.
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 1c · FAP COMPILER ══════════════════ -->
+<section class="section" id="fap-compiler-info">
+  <div class="chapter-label">Chapter 2b</div>
+  <h2>FAP Compiler <span class="badge">New</span></h2>
+  <p>
+    Want to run a third-party app that isn't bundled with FoxFW? Paste its GitHub
+    URL into the FAP Compiler and it builds a <code>.fap</code> against FoxFW v2.0
+    for you — no local toolchain install required.
+  </p>
+
+  <div class="box tip">
+    No GitHub account or login needed — just paste a repo URL and compile.
+  </div>
+
+  <div style="text-align:center;margin:28px 0;">
+    <a href="https://foxfw.github.io/fox-web/fap-compiler.html"
+       style="display:inline-block;background:var(--orange);color:#fff;font-weight:700;
+              font-size:1.05rem;padding:16px 40px;border-radius:8px;text-decoration:none;
+              box-shadow:0 0 20px rgba(232,117,10,0.35);letter-spacing:0.3px;">
+      ⚙ Open FAP Compiler →
+    </a>
+    <p style="margin-top:12px;font-size:0.82rem;color:#888;">
+      Opens at foxfw.github.io/fox-web/fap-compiler.html
+    </p>
+  </div>
+
+  <h3>How it works</h3>
+  <ol style="color:#ccc;padding-left:22px;line-height:1.9;">
+    <li>Paste the GitHub URL of the app you want, then click <strong>Compile .FAP</strong>.</li>
+    <li>Watch the live console as GitHub Actions checks out FoxFW v2.0 and builds the app.</li>
+    <li>Download the finished <code>.fap</code> and copy it to <code>apps/</code> on your SD card.</li>
+  </ol>
+
+  <div class="box info" style="margin-top:18px;">
+    The target repo just needs an <code>application.fam</code> file — the same format used by
+    every Flipper Zero app. Multi-app repos are supported via an advanced "subfolder" option.
   </div>
 
   <div class="back-top"><a href="#top">↑ Back to top</a></div>
@@ -549,7 +592,7 @@
     companion ESP32 board wired to your Flipper's GPIO header and running
     Fox ESP32 Firmware. Flash it straight from the Flipper using the built-in
     <strong>Fox ESP32 Flasher</strong> app (no PC required), or via the
-    <a href="https://foxfw.github.io/esp32-fw/fox-esp32-flasher.html" style="color:#80c890;">Web Flasher</a>.
+    <a href="https://foxfw.github.io/fox-web/fox-esp32-flasher.html" style="color:#80c890;">Web Flasher</a>.
     Source code and releases are at
     <a href="https://github.com/FoxFW/Fox_ESP32_FW" style="color:#80c890;">github.com/FoxFW/Fox_ESP32_FW</a>.
     See the <a href="#fox-esp32-apps" style="color:#80c890;">Fox ESP32 Apps</a> section below for a full overview.
@@ -1049,7 +1092,7 @@
     <strong>Firmware required.</strong> Flash your ESP32 first. The easiest
     way is the built-in <strong>Fox ESP32 Flasher</strong> app (see below) —
     no PC, no downloads, the firmware is bundled into FoxFW. Alternatively
-    use the <a href="https://foxfw.github.io/esp32-fw/fox-esp32-flasher.html" style="color:#80c890;">Web Flasher</a>
+    use the <a href="https://foxfw.github.io/fox-web/fox-esp32-flasher.html" style="color:#80c890;">Web Flasher</a>
     (Chrome / Edge). Source code and releases:
     <a href="https://github.com/FoxFW/Fox_ESP32_FW" style="color:#80c890;">github.com/FoxFW/Fox_ESP32_FW</a>.
   </div>
@@ -1097,6 +1140,12 @@
       <td>Apps → Fox</td>
       <td style="text-align:center;">✓</td>
       <td>Checks GitHub for newer FoxFW2.0 and Fox ESP32 Firmware releases, downloads them over the ESP32 bridge, and hands off to install — no PC needed.</td>
+    </tr>
+    <tr>
+      <td><strong>Fox File Downloader</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">✓</td>
+      <td>Direct URL downloads with resume, an App Catalog browser, a GitHub <code>.fap</code> installer, and its own app-manager and WiFi/recon/attack menus — all over the ESP32 bridge.</td>
     </tr>
     <tr>
       <td><strong>Fox Chameleon</strong></td>
@@ -1706,7 +1755,7 @@
   <h3>Method 1 — via Web Installer <span class="badge">New</span> (recommended)</h3>
   <ol>
     <li>Connect your Flipper to your computer via USB.</li>
-    <li>Open the <a href="https://foxfw.github.io/2.0/flasher.html" style="color:var(--accent);">FoxFW Web Installer</a> in Chrome or Edge on desktop.</li>
+    <li>Open the <a href="https://foxfw.github.io/fox-web/flasher.html" style="color:var(--accent);">FoxFW Web Installer</a> in Chrome or Edge on desktop.</li>
     <li>Choose <strong>Standard Update</strong> and click <strong>Connect Flipper</strong>, selecting your device from the browser dialog.</li>
     <li>Click <strong>Install Now</strong> — the installer downloads the firmware and transfers it automatically, no software install required.</li>
     <li>The Flipper will reboot. On first boot after the update the Fox Setup Wizard runs.</li>
@@ -1760,6 +1809,7 @@
     <a href="FoxESP32_Help.html#update-downloader" style="color:#80c890;">Fox ESP32 Firmware guide</a>
     for that side of it, including picking your board.
   </div>
+
   <div class="box info">
     <strong>After an update:</strong> The Fox Setup Wizard runs on the first boot
     after every firmware update. Your PIN, name, settings, and files are all preserved.

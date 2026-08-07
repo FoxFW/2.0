@@ -7,8 +7,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define ESP_AT_RX_BUFFER   8192
-#define ESP_AT_QUEUE_DEPTH 2
+#define ESP_AT_RX_BUFFER      8192
+#define ESP_AT_QUEUE_DEPTH    2
+#define ESP_AT_RAW_TRIGGER_MAX 64
 
 struct EspAt {
     FuriHalSerialHandle* serial;
@@ -20,6 +21,8 @@ struct EspAt {
     volatile bool running;
     volatile bool raw_mode;
     volatile bool flush_requested;
+    volatile bool raw_trigger_armed;
+    char raw_trigger[ESP_AT_RAW_TRIGGER_MAX];
 };
 
 static void esp_at_rx_callback(FuriHalSerialHandle* handle, FuriHalSerialRxEvent event, void* context) {
@@ -69,6 +72,18 @@ static int32_t esp_at_worker(void* context) {
             size_t n = line_len;
             if(n > 0 && line[n - 1] == '\r') n--;
             esp_at_emit_line(esp_at, line, n);
+            if(esp_at->raw_trigger_armed) {
+                size_t trig_len = strlen(esp_at->raw_trigger);
+                if(n >= trig_len && strncmp(line, esp_at->raw_trigger, trig_len) == 0) {
+                    // Flip to raw mode right now, in this same thread/iteration,
+                    // before the loop can pull another byte off rx_stream. This
+                    // closes the race where the first bytes of a raw stream
+                    // (sent by the peer immediately after this marker line)
+                    // would otherwise get consumed here as text.
+                    esp_at->raw_trigger_armed = false;
+                    esp_at->raw_mode = true;
+                }
+            }
             line_len = 0;
         } else if(line_len < ESP_AT_LINE_MAX - 1) {
             line[line_len++] = (char)byte;
@@ -103,6 +118,8 @@ EspAt* esp_at_alloc(FuriHalSerialId serial_id, uint32_t baud_rate) {
     esp_at->running = true;
     esp_at->raw_mode = false;
     esp_at->flush_requested = false;
+    esp_at->raw_trigger_armed = false;
+    esp_at->raw_trigger[0] = '\0';
     esp_at->serial = handle;
     esp_at->expansion = expansion;
 
@@ -184,4 +201,16 @@ size_t esp_at_read_raw(EspAt* esp_at, uint8_t* buf, size_t len, uint32_t timeout
 
 void esp_at_end_raw(EspAt* esp_at) {
     esp_at->raw_mode = false;
+}
+
+void esp_at_arm_raw_trigger(EspAt* esp_at, const char* line_prefix) {
+    size_t len = strlen(line_prefix);
+    if(len >= ESP_AT_RAW_TRIGGER_MAX) len = ESP_AT_RAW_TRIGGER_MAX - 1;
+    memcpy(esp_at->raw_trigger, line_prefix, len);
+    esp_at->raw_trigger[len] = '\0';
+    esp_at->raw_trigger_armed = true;
+}
+
+void esp_at_disarm_raw_trigger(EspAt* esp_at) {
+    esp_at->raw_trigger_armed = false;
 }

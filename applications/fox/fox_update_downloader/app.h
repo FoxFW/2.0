@@ -98,7 +98,7 @@ extern const UpdaterBoard k_updater_boards[UPDATER_BOARD_COUNT];
 
 #define FOXFW_TAR_ASSET_NAME "flipper-z-f7-update-local.tar"
 
-#define FOX_ESP32_FLASHER_FAP "/ext/apps/Fox/fox_esp32_flasher.fap"
+#define FOX_ESP32_FLASHER_FAP "/ext/apps/Fox/ESP32/fox_esp32_flasher.fap"
 
 typedef struct {
     char name[UPDATER_STR_LEN];

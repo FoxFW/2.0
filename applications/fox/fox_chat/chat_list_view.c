@@ -1,5 +1,6 @@
 #include "chat_list_view.h"
 
+#include <gui/elements.h>
 #include <string.h>
 
 static App* s_chat_list_view_app = NULL;
@@ -115,11 +116,10 @@ size_t chat_wrap_lines(
 
 static void chat_draw_scroll(Canvas* canvas, size_t total, size_t vis, size_t scroll) {
     if(total <= vis) return;
+    // Dotted track + solid position block, matching FOX_CHILL's scrollbar
+    // style instead of a plain solid bar with no track.
     int area_h = 64 - CHAT_ROW_HEADER_H;
-    int bar_h = (int)(area_h * (int)vis / (int)total);
-    if(bar_h < 3) bar_h = 3;
-    int bar_y = CHAT_ROW_HEADER_H + (int)(area_h * (int)scroll / (int)total);
-    canvas_draw_box(canvas, 125, bar_y, 3, bar_h);
+    elements_scrollbar_pos(canvas, 128, CHAT_ROW_HEADER_H, (size_t)area_h, scroll, total);
 }
 
 static void chat_list_draw_cb(Canvas* canvas, void* model) {

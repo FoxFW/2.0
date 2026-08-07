@@ -26,3 +26,14 @@ void esp_at_flush_rx(EspAt* esp_at);
 void esp_at_begin_raw(EspAt* esp_at);
 size_t esp_at_read_raw(EspAt* esp_at, uint8_t* buf, size_t len, uint32_t timeout_ms);
 void esp_at_end_raw(EspAt* esp_at);
+
+// Arms a trigger so the RX worker thread itself flips into raw mode the
+// instant it recognises a complete line starting with `line_prefix` -
+// synchronously, in the same loop iteration, with no cross-thread latency.
+// This must be used instead of calling esp_at_begin_raw() after waiting for
+// the line via esp_at_receive(): that pattern leaves a race window where
+// bytes belonging to the raw stream (sent immediately after the marker line
+// by the peer) can be consumed as text by the worker thread before raw mode
+// is enabled, silently corrupting the start of the binary payload.
+void esp_at_arm_raw_trigger(EspAt* esp_at, const char* line_prefix);
+void esp_at_disarm_raw_trigger(EspAt* esp_at);

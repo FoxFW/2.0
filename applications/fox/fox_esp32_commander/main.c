@@ -133,9 +133,37 @@ void app_switch_to_menu(App* app, MenuContext ctx) {
 }
 
 void app_show_text_input(App* app, const char* header, TextInputPurpose purpose) {
+    app_show_text_input_prefill(app, header, purpose, "");
+}
+
+static bool text_input_purpose_is_url(TextInputPurpose purpose) {
+    switch(purpose) {
+    case TextInputPurposeHttpGetUrl:
+    case TextInputPurposeHttpPostUrl:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void app_show_text_input_prefill(
+    App* app,
+    const char* header,
+    TextInputPurpose purpose,
+    const char* prefill) {
     app->menu_return_context = app->menu_context;
     app->text_input_purpose = purpose;
-    app->text_input_buffer[0] = '\0';
+
+    bool prefill_empty = (prefill == NULL || prefill[0] == '\0');
+    const char* effective_prefill =
+        (prefill_empty && text_input_purpose_is_url(purpose)) ? "https://" : prefill;
+
+    snprintf(
+        app->text_input_buffer,
+        sizeof(app->text_input_buffer),
+        "%s",
+        effective_prefill ? effective_prefill : "");
+
     text_input_set_header_text(app->text_input, header);
     app->current_view = FoxCommanderViewTextInput;
     view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewTextInput);
@@ -378,9 +406,11 @@ static void main_render_menu(App* app) {
             app_menu_item_callback,
             app);
     }
+    submenu_set_selected_item(app->submenu, app->main_menu_selected);
 }
 
 static void main_menu_select(App* app, uint32_t index) {
+    app->main_menu_selected = index;
     switch((MenuMainIndex)index) {
     case MenuMainWifi: {
         esp_at_send(app->esp_at, "WIFIFOXPORTAL:STATUS");
@@ -484,6 +514,7 @@ static ProbeResult app_probe_uart(App* app, size_t pin_index, size_t baud_index)
 }
 
 static void app_goto_post_detect_menu(App* app) {
+    settings_view_refresh(app);
     if(app->launch_wifi_connection) {
         app->launch_wifi_connection = false;
         app_switch_to_menu(app, MenuContextWifiConnection);
@@ -683,7 +714,6 @@ static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
     app->baud_option_index = BAUD_OPTION_DEFAULT_INDEX;
     app->attacks_enabled = false;
     app->launch_wifi_connection = wifi_connection_target;
-    app_expert_mode_load(app);
 
     app->gui = furi_record_open(RECORD_GUI);
     app->view_dispatcher = view_dispatcher_alloc();
@@ -703,7 +733,7 @@ static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
         app,
         app->text_input_buffer,
         sizeof(app->text_input_buffer),
-        true);
+        false);
 
     app->terminal_view = view_alloc();
     view_set_draw_callback(app->terminal_view, terminal_draw_cb);

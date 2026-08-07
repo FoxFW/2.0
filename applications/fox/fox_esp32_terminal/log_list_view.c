@@ -2,6 +2,7 @@
 #include "session_log.h"
 #include "fox_scroll_text.h"
 
+#include <gui/elements.h>
 #include <string.h>
 
 static App* s_log_list_app = NULL;
@@ -120,12 +121,16 @@ static void log_list_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(app->log_file_count > LOG_LIST_ROW_VIS) {
+        // Dotted track + solid position block, matching FOX_CHILL's
+        // scrollbar style instead of a plain solid bar with no track.
         int available_h = 64 - LOG_LIST_ROW_HEADER_H;
-        int bar_h = (int)(available_h * LOG_LIST_ROW_VIS / (int)app->log_file_count);
-        if(bar_h < 3) bar_h = 3;
-        int bar_y = LOG_LIST_ROW_HEADER_H +
-                    (int)(available_h * (int)app->log_file_scroll / (int)app->log_file_count);
-        canvas_draw_box(canvas, 125, bar_y, 3, bar_h);
+        elements_scrollbar_pos(
+            canvas,
+            128,
+            LOG_LIST_ROW_HEADER_H,
+            (size_t)available_h,
+            (size_t)app->log_file_scroll,
+            (size_t)app->log_file_count);
     }
 }
 

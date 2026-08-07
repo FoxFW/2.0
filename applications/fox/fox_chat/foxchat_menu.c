@@ -11,95 +11,69 @@ typedef enum {
     MenuChatRead,
 } MenuChatIndex;
 
-static const uint8_t foxchat_seed_a[72] = {
-    217, 178, 75,  92,  35,  252, 224, 91,  44,  158, 100, 57,  210, 56,  248, 199,
-    83,  0,   189, 137, 108, 4,   4,   196, 26,  19,  54,  111, 247, 21,  213, 83,
-    113, 214, 159, 10,  24,  116, 114, 243, 104, 104, 147, 17,  95,  175, 43,  248,
-    102, 29,  101, 79,  255, 64,  176, 20,  207, 157, 117, 109, 197, 2,   199, 94,
-    73,  42,  23,  247, 122, 75,  42,  41};
-static const uint8_t foxchat_seed_b[19] = {
-    165, 211, 44, 29, 95, 176, 155, 87, 81, 239, 17, 120, 172, 74, 170, 207, 42, 125, 222};
-
-static void foxchat_seed_decode(const uint8_t* in, size_t len, char* out) {
-    uint32_t s = 0x2F6B19A7u;
-    for(size_t i = 0; i < len; i++) {
-        s = s * 1103515245u + 12345u;
-        out[i] = (char)(in[i] ^ (uint8_t)(s >> 16));
-    }
-    out[len] = '\0';
-}
-
-static bool foxchat_auto_provision(App* app) {
-    char token[sizeof(foxchat_seed_a) + 1];
-    char channel[sizeof(foxchat_seed_b) + 1];
-    foxchat_seed_decode(foxchat_seed_a, sizeof(foxchat_seed_a), token);
-    foxchat_seed_decode(foxchat_seed_b, sizeof(foxchat_seed_b), channel);
-
-    char cmd[sizeof(token) + sizeof(channel) + 24];
-    snprintf(cmd, sizeof(cmd), "DISCORDINIT:%s:%s", token, channel);
-    esp_at_send(app->esp_at, cmd);
-
-    EspAtMsg msg;
-    bool ok = esp_at_receive(app->esp_at, &msg, 10000) && strcmp(msg.line, "OK") == 0;
-
-    memset(token, 0, sizeof(token));
-    memset(channel, 0, sizeof(channel));
-    memset(cmd, 0, sizeof(cmd));
-    return ok;
-}
-
 static bool chat_fetch_messages(App* app) {
     bool line_protocol_error = false;
-    for(int attempt = 0; attempt < 2; attempt++) {
-        char cmd[24];
-        snprintf(cmd, sizeof(cmd), "DISCORDREAD:%d", FOX_CHAT_MESSAGE_MAX);
-        esp_at_send(app->esp_at, cmd);
+    char cmd[24];
+    snprintf(cmd, sizeof(cmd), "DISCORDREAD:%d", FOX_CHAT_MESSAGE_MAX);
+    esp_at_send(app->esp_at, cmd);
 
-        app->chat_message_count = 0;
-        bool notinit = false;
-        for(;;) {
-            EspAtMsg msg;
-            if(!esp_at_receive(app->esp_at, &msg, 10000)) {
-                app_log(app, "No response.");
-                line_protocol_error = true;
-                break;
-            }
-            if(strcmp(msg.line, "DISCORDREADDONE") == 0) {
-                break;
-            }
-            if(attempt == 0 && strcmp(msg.line, "ERROR:NOTINIT") == 0) {
-                notinit = true;
-                break;
-            }
-            if(strncmp(msg.line, "ERROR:", 6) == 0) {
-                app_log(app, "%s", msg.line);
-                line_protocol_error = true;
-                break;
-            }
-            if(strncmp(msg.line, "DISCORDMSG:", 11) == 0 &&
-               app->chat_message_count < FOX_CHAT_MESSAGE_MAX) {
-                const char* rest = msg.line + 11;
-                const char* pipe = strchr(rest, '|');
-                ChatMessage* cm = &app->chat_messages[app->chat_message_count];
-                if(pipe != NULL) {
-                    size_t tlen = (size_t)(pipe - rest);
-                    if(tlen > sizeof(cm->time) - 1) tlen = sizeof(cm->time) - 1;
-                    memcpy(cm->time, rest, tlen);
-                    cm->time[tlen] = '\0';
-                    strncpy(cm->text, pipe + 1, sizeof(cm->text) - 1);
-                    cm->text[sizeof(cm->text) - 1] = '\0';
-                } else {
-                    strncpy(cm->time, "--:--", sizeof(cm->time) - 1);
-                    cm->time[sizeof(cm->time) - 1] = '\0';
-                    strncpy(cm->text, rest, sizeof(cm->text) - 1);
-                    cm->text[sizeof(cm->text) - 1] = '\0';
-                }
-                app->chat_message_count++;
-                continue;
-            }
+    app->chat_message_count = 0;
+    for(;;) {
+        EspAtMsg msg;
+        if(!esp_at_receive(app->esp_at, &msg, 10000)) {
+            app_log(app, "No response.");
+            line_protocol_error = true;
+            break;
         }
-        if(notinit && foxchat_auto_provision(app)) continue;
-        break;
+        if(strcmp(msg.line, "DISCORDREADDONE") == 0) {
+            break;
+        }
+        if(strncmp(msg.line, "ERROR:", 6) == 0) {
+            app_log(app, "%s", msg.line);
+            line_protocol_error = true;
+            break;
+        }
+        if(strncmp(msg.line, "DISCORDMSG:", 11) == 0 &&
+           app->chat_message_count < FOX_CHAT_MESSAGE_MAX) {
+            const char* rest = msg.line + 11;
+            const char* pipe1 = strchr(rest, '|');
+            const char* pipe2 = pipe1 ? strchr(pipe1 + 1, '|') : NULL;
+            ChatMessage* cm = &app->chat_messages[app->chat_message_count];
+            if(pipe1 != NULL && pipe2 != NULL) {
+                // "<time>|<full_time>|<text>" - current protocol
+                size_t tlen = (size_t)(pipe1 - rest);
+                if(tlen > sizeof(cm->time) - 1) tlen = sizeof(cm->time) - 1;
+                memcpy(cm->time, rest, tlen);
+                cm->time[tlen] = '\0';
+
+                size_t flen = (size_t)(pipe2 - (pipe1 + 1));
+                if(flen > sizeof(cm->full_time) - 1) flen = sizeof(cm->full_time) - 1;
+                memcpy(cm->full_time, pipe1 + 1, flen);
+                cm->full_time[flen] = '\0';
+
+                strncpy(cm->text, pipe2 + 1, sizeof(cm->text) - 1);
+                cm->text[sizeof(cm->text) - 1] = '\0';
+            } else if(pipe1 != NULL) {
+                // "<time>|<text>" - older ESP32 firmware without full_time
+                size_t tlen = (size_t)(pipe1 - rest);
+                if(tlen > sizeof(cm->time) - 1) tlen = sizeof(cm->time) - 1;
+                memcpy(cm->time, rest, tlen);
+                cm->time[tlen] = '\0';
+                strncpy(cm->full_time, cm->time, sizeof(cm->full_time) - 1);
+                cm->full_time[sizeof(cm->full_time) - 1] = '\0';
+                strncpy(cm->text, pipe1 + 1, sizeof(cm->text) - 1);
+                cm->text[sizeof(cm->text) - 1] = '\0';
+            } else {
+                strncpy(cm->time, "--:--", sizeof(cm->time) - 1);
+                cm->time[sizeof(cm->time) - 1] = '\0';
+                strncpy(cm->full_time, "--:--", sizeof(cm->full_time) - 1);
+                cm->full_time[sizeof(cm->full_time) - 1] = '\0';
+                strncpy(cm->text, rest, sizeof(cm->text) - 1);
+                cm->text[sizeof(cm->text) - 1] = '\0';
+            }
+            app->chat_message_count++;
+            continue;
+        }
     }
     return !line_protocol_error;
 }
@@ -149,26 +123,18 @@ void chat_message_submitted(App* app) {
     app_log(app, "Posting...");
     app_render_log(app);
     bool posted = false;
-    for(int attempt = 0; attempt < 2; attempt++) {
-        esp_at_send(app->esp_at, cmd);
-        EspAtMsg msg;
-        if(!esp_at_receive(app->esp_at, &msg, 10000)) {
-            app_log(app, "No response.");
-            break;
-        }
-        if(attempt == 0 && strcmp(msg.line, "ERROR:NOTINIT") == 0 && foxchat_auto_provision(app)) {
-            continue;
-        }
-        if(strcmp(msg.line, "ERROR:PROFANITY") == 0) {
-            app_log(app, "Blocked - message flagged by content filter.");
-        } else if(strcmp(msg.line, "ERROR:RATELIMIT") == 0) {
-            app_log(app, "Too soon - wait a few seconds and try again.");
-        } else if(strcmp(msg.line, "OK") == 0) {
-            posted = true;
-        } else {
-            app_log(app, "%s", msg.line);
-        }
-        break;
+    esp_at_send(app->esp_at, cmd);
+    EspAtMsg msg;
+    if(!esp_at_receive(app->esp_at, &msg, 10000)) {
+        app_log(app, "No response.");
+    } else if(strcmp(msg.line, "ERROR:PROFANITY") == 0) {
+        app_log(app, "Blocked - message flagged by content filter.");
+    } else if(strcmp(msg.line, "ERROR:RATELIMIT") == 0) {
+        app_log(app, "Too soon - wait a few seconds and try again.");
+    } else if(strcmp(msg.line, "OK") == 0) {
+        posted = true;
+    } else {
+        app_log(app, "%s", msg.line);
     }
 
     if(posted && chat_fetch_messages(app)) {

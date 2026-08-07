@@ -150,7 +150,18 @@ bool installer_verify_firmware_package(
 
     if(manifest_path_out[0] == '\0') {
         uint32_t entries = count_dir_entries(storage, pkg_dir);
-        snprintf(error_msg, error_msg_size, "No manifest (%lu items extracted)", (unsigned long)entries);
+        FURI_LOG_W(
+            "FoxUpdater",
+            "No manifest found in %s (%lu items extracted)",
+            pkg_dir,
+            (unsigned long)entries);
+
+        uint32_t current_baud = progress_app ? progress_app->settings.baud : UPDATER_BAUD;
+        if(current_baud > UPDATER_BAUD) {
+            snprintf(error_msg, error_msg_size, "File Corrupt - Download Again at 115200 Baud");
+        } else {
+            snprintf(error_msg, error_msg_size, "File Corrupt - Retry with Stronger WiFi");
+        }
         return false;
     }
     return true;

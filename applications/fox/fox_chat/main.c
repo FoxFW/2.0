@@ -603,7 +603,7 @@ int32_t fox_chat_main(void* p) {
         Loader* loader = furi_record_open(RECORD_LOADER);
         loader_enqueue_launch(
             loader,
-            EXT_PATH("apps/Fox/fox_esp32_commander.fap"),
+            EXT_PATH("apps/Fox/ESP32/fox_esp32_commander.fap"),
             NULL,
             LoaderDeferredLaunchFlagNone);
         furi_record_close(RECORD_LOADER);

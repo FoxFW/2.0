@@ -163,6 +163,7 @@ typedef struct {
 
     bool attacks_enabled;
     bool expert_mode;
+    uint32_t main_menu_selected;
     View* settings_view;
     uint8_t settings_selected;
 
@@ -182,6 +183,11 @@ void app_render_log(App* app);
 bool app_expect_line(App* app, const char* expected, uint32_t timeout_ms);
 void app_switch_to_menu(App* app, MenuContext ctx);
 void app_show_text_input(App* app, const char* header, TextInputPurpose purpose);
+void app_show_text_input_prefill(
+    App* app,
+    const char* header,
+    TextInputPurpose purpose,
+    const char* prefill);
 
 void app_menu_item_callback(void* context, uint32_t index);
 

@@ -406,15 +406,30 @@ static bool download_one(
         return false;
     }
 
+    // Arm the raw-mode trigger BEFORE asking the peer to start streaming, so
+    // the esp_at worker thread flips into raw mode itself the instant it
+    // recognises the BEGIN line - synchronously, with no gap in which the
+    // first bytes of the binary stream could be mistaken for text and lost.
+    // (Previously esp_at_begin_raw() was only called after this function had
+    // already woken up from wait_for_line_prefix(), which left a real race
+    // window - the peer starts sending raw bytes right after the BEGIN line,
+    // and the worker thread could consume several of them as "text" before
+    // this thread got scheduled again, silently corrupting the start of the
+    // downloaded file every time it lost the race.)
+    esp_at_arm_raw_trigger(app->esp_at, "[DOWNLOAD/STREAM/BEGIN]");
     esp_at_send(app->esp_at, "[DOWNLOAD/STREAM]");
     if(wait_for_line_prefix(
            app->esp_at, "[DOWNLOAD/STREAM/BEGIN]", NULL, 0, DL_TIMEOUT_MS) != WaitOk) {
+        esp_at_disarm_raw_trigger(app->esp_at);
         storage_file_close(file);
         storage_file_free(file);
         snprintf(error_msg, error_msg_size, "Stream did not start");
         if(out_bytes) *out_bytes = resume_offset;
         return false;
     }
+    // By the time wait_for_line_prefix() returns WaitOk here, raw_mode is
+    // already true - the worker thread set it itself while processing the
+    // very same BEGIN line, before it could touch any subsequent byte.
 
     static uint8_t stream_buf[DL_STREAM_FRAME_MAX];
     bool success = false;
@@ -424,8 +439,6 @@ static bool download_one(
     uint32_t chunk_timeout_ms = (uint32_t)app->settings.timeout_sec * 1000;
     uint32_t remaining_total = (expected_size > resume_offset) ? (expected_size - resume_offset) : 0;
     snprintf(error_msg, error_msg_size, "Download failed");
-
-    esp_at_begin_raw(app->esp_at);
 
     while(expected_size == 0 || bytes_this_file < remaining_total) {
         if(app->cancel_requested && !cancelled) {
@@ -625,7 +638,7 @@ static void run_download_firmware(UpdaterApp* app) {
     if(!verified) {
         storage_common_remove(app->storage, app->download_path);
         clear_progress_marker(app->storage, app->download_path);
-        set_progress_error(app, "Corrupt download - try 115200 baud");
+        set_progress_error(app, verify_error[0] ? verify_error : "Corrupt download - try again");
         return;
     }
 

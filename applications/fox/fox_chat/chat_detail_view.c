@@ -80,12 +80,12 @@ static void chat_detail_draw_cb(Canvas* canvas, void* model) {
     canvas_draw_box(canvas, 0, bar_y, 128, CHAT_DETAIL_BOTTOM_BAR_H);
     canvas_set_color(canvas, ColorWhite);
 
-    const char* traw = cm->time;
+    const char* traw = cm->full_time;
     bool is_local = (traw[0] == 'L');
     bool has_tag = (traw[0] == 'L' || traw[0] == 'Z');
     const char* tdisp = has_tag ? traw + 1 : traw;
 
-    char bar_text[32];
+    char bar_text[40];
     if(is_local) {
         snprintf(bar_text, sizeof(bar_text), "Sent %s", tdisp);
     } else {

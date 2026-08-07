@@ -1,18 +1,36 @@
+// FoxFW keyboard.
+//
+// This replaces the stock Flipper on-screen keyboard system-wide: every
+// app that calls text_input_alloc()/text_input_set_result_callback() -
+// built-in or third-party .fap - gets this keyboard, since they all go
+// through this one shared module. The old lowercase/digits/underscore-only
+// keyboard (no symbols, no way to type a URL) is gone for good.
+//
+// Design: a pure QWERTY grid (letters only, no digits) where every key
+// sits in its own small rounded box with a 1px gap, plus a fixed DEL/SYM/OK
+// button column on the right that never moves regardless of which layer is
+// showing. SYM swaps the whole grid to a digits+symbols layer (includes
+// ':' and '/', which the old keyboard never had at all).
+//
+// Public API (text_input.h) and behavior contracts (validator callback,
+// minimum_length gating, clear_default_text semantics) are unchanged, so
+// every existing call site elsewhere in the firmware keeps working
+// without modification.
 #include "text_input.h"
 #include <gui/elements.h>
-#include <assets_icons.h>
 #include <furi.h>
+#include <string.h>
 
 struct TextInput {
     View* view;
     FuriTimer* timer;
+    FuriTimer* blink_timer;
 };
 
-typedef struct {
-    const char text;
-    const uint8_t x;
-    const uint8_t y;
-} TextInputKey;
+typedef enum {
+    TextInputLayerLetters,
+    TextInputLayerSymbols,
+} TextInputLayer;
 
 typedef struct {
     const char* header;
@@ -21,377 +39,399 @@ typedef struct {
     size_t minimum_length;
     bool clear_default_text;
 
-    bool cursor_select;
-    size_t cursor_pos;
-
     TextInputCallback callback;
     void* callback_context;
 
-    uint8_t selected_row;
-    uint8_t selected_column;
+    TextInputLayer layer;
+    bool in_buttons; // focus is on the DEL/SYM/OK column, not the grid
+    bool in_text; // focus is on the text field above the grid, cursor-editing
+    size_t cursor_pos;
+    uint8_t selected_row; // grid row (0-2), or button index (0-2) when in_buttons
+    uint8_t selected_column; // grid column
 
     TextInputValidatorCallback validator_callback;
     void* validator_callback_context;
     FuriString* validator_text;
     bool validator_message_visible;
+
+    bool space_blink;
 } TextInputModel;
 
-static const uint8_t keyboard_origin_x = 1;
-static const uint8_t keyboard_origin_y = 29;
-static const uint8_t keyboard_row_count = 3;
+// Pure QWERTY, no digits (those live on the Symbols layer instead). ':',
+// '.' and '/' sit in their real-keyboard spots (after L, after M) so a URL
+// is typeable without switching layers. The space bar sits where a comma
+// would be - a blank, blinking tile (drawn specially in draw_grid).
+static const char letters_row_0[] = "qwertyuiop";
+static const char letters_row_1[] = "asdfghjkl:";
+static const char letters_row_2[] = "zxcvbnm ./";
 
-#define ENTER_KEY     '\r'
-#define BACKSPACE_KEY '\b'
+// Digits + the most common symbols, including ':' and '/' so a URL like
+// "https://example.com" is actually typeable.
+static const char symbols_row_0[] = "1234567890";
+static const char symbols_row_1[] = ":/.-_=@#&";
+static const char symbols_row_2[] = "!?%+*,;";
 
-static const TextInputKey keyboard_keys_row_1[] = {
-    {'q', 1, 8},
-    {'w', 10, 8},
-    {'e', 19, 8},
-    {'r', 28, 8},
-    {'t', 37, 8},
-    {'y', 46, 8},
-    {'u', 55, 8},
-    {'i', 64, 8},
-    {'o', 73, 8},
-    {'p', 82, 8},
-    {'0', 91, 8},
-    {'1', 100, 8},
-    {'2', 110, 8},
-    {'3', 120, 8},
-};
+#define ROW_COUNT 3
+static const uint8_t ROW_TOP[ROW_COUNT] = {20, 34, 48};
+static const uint8_t ROW_BOX_H[ROW_COUNT] = {13, 13, 14};
+// Each row is centered in the grid width, keys 10px apart (9px box + 1px
+// gap): start_x = 1 + (99 - (cols*10 - 1)) / 2.
+static const uint8_t LETTERS_ROW_COLS[ROW_COUNT] = {10, 10, 10};
+static const uint8_t LETTERS_ROW_START_X[ROW_COUNT] = {1, 1, 1};
+static const uint8_t SYMBOLS_ROW_COLS[ROW_COUNT] = {10, 9, 7};
+static const uint8_t SYMBOLS_ROW_START_X[ROW_COUNT] = {1, 6, 16};
+#define GRID_BOX_W 9
 
-static const TextInputKey keyboard_keys_row_2[] = {
-    {'a', 1, 20},
-    {'s', 10, 20},
-    {'d', 19, 20},
-    {'f', 28, 20},
-    {'g', 37, 20},
-    {'h', 46, 20},
-    {'j', 55, 20},
-    {'k', 64, 20},
-    {'l', 73, 20},
-    {BACKSPACE_KEY, 82, 12},
-    {'4', 100, 20},
-    {'5', 110, 20},
-    {'6', 120, 20},
-};
-
-static const TextInputKey keyboard_keys_row_3[] = {
-    {'z', 1, 32},
-    {'x', 10, 32},
-    {'c', 19, 32},
-    {'v', 28, 32},
-    {'b', 37, 32},
-    {'n', 46, 32},
-    {'m', 55, 32},
-    {'_', 64, 32},
-    {ENTER_KEY, 74, 23},
-    {'7', 100, 32},
-    {'8', 110, 32},
-    {'9', 120, 32},
-};
-
-static uint8_t get_row_size(uint8_t row_index) {
-    uint8_t row_size = 0;
-
-    switch(row_index + 1) {
-    case 1:
-        row_size = COUNT_OF(keyboard_keys_row_1);
-        break;
-    case 2:
-        row_size = COUNT_OF(keyboard_keys_row_2);
-        break;
-    case 3:
-        row_size = COUNT_OF(keyboard_keys_row_3);
-        break;
-    default:
-        furi_crash();
-    }
-
-    return row_size;
+static uint8_t get_row_cols(TextInputLayer layer, uint8_t row) {
+    return layer == TextInputLayerLetters ? LETTERS_ROW_COLS[row] : SYMBOLS_ROW_COLS[row];
 }
 
-static const TextInputKey* get_row(uint8_t row_index) {
-    const TextInputKey* row = NULL;
-
-    switch(row_index + 1) {
-    case 1:
-        row = keyboard_keys_row_1;
-        break;
-    case 2:
-        row = keyboard_keys_row_2;
-        break;
-    case 3:
-        row = keyboard_keys_row_3;
-        break;
-    default:
-        furi_crash();
-    }
-
-    return row;
+static uint8_t get_row_start_x(TextInputLayer layer, uint8_t row) {
+    return layer == TextInputLayerLetters ? LETTERS_ROW_START_X[row] : SYMBOLS_ROW_START_X[row];
 }
 
-static char get_selected_char(TextInputModel* model) {
-    return get_row(model->selected_row)[model->selected_column].text;
-}
+#define BTN_LEFT 103
+#define BTN_W    24
 
-static bool char_is_lowercase(char letter) {
-    return letter >= 0x61 && letter <= 0x7A;
-}
-
-static char char_to_uppercase(const char letter) {
-    if(letter == '_') {
-        return 0x20;
-    } else if(char_is_lowercase(letter)) {
-        return (letter - 0x20);
+static const char* get_row_chars(TextInputLayer layer, uint8_t row) {
+    if(layer == TextInputLayerLetters) {
+        switch(row) {
+        case 0:
+            return letters_row_0;
+        case 1:
+            return letters_row_1;
+        default:
+            return letters_row_2;
+        }
     } else {
-        return letter;
+        switch(row) {
+        case 0:
+            return symbols_row_0;
+        case 1:
+            return symbols_row_1;
+        default:
+            return symbols_row_2;
+        }
     }
 }
 
-static void text_input_backspace_cb(TextInputModel* model) {
+static char get_char(TextInputLayer layer, uint8_t row, uint8_t column) {
+    return get_row_chars(layer, row)[column];
+}
+
+static char char_shift(char c) {
+    if(c >= 'a' && c <= 'z') return (char)(c - 0x20);
+    if(c >= 'A' && c <= 'Z') return (char)(c + 0x20);
+    return c;
+}
+
+static void text_input_delete(TextInputModel* model) {
     if(model->clear_default_text) {
-        model->text_buffer[0] = 0;
-        model->cursor_pos = 0;
-    } else if(model->cursor_pos > 0) {
-        char* move = model->text_buffer + model->cursor_pos;
-        memmove(move - 1, move, strlen(move) + 1);
-        model->cursor_pos--;
+        model->clear_default_text = false;
+        return;
     }
+    // Always backspaces at cursor_pos, whether focus is in the text field
+    // or back on the grid - cursor_pos is maintained across both the whole
+    // time now (see text_input_handle_ok's insert path), so there's no
+    // separate "delete the last character" fallback needed anymore.
+    size_t len = strlen(model->text_buffer);
+    if(model->cursor_pos == 0 || model->cursor_pos > len) return;
+    memmove(
+        model->text_buffer + model->cursor_pos - 1,
+        model->text_buffer + model->cursor_pos,
+        len - model->cursor_pos + 1);
+    model->cursor_pos--;
+}
+
+static void text_input_clamp_column(TextInputModel* model) {
+    uint8_t size = get_row_cols(model->layer, model->selected_row);
+    if(model->selected_column >= size) {
+        model->selected_column = size - 1;
+    }
+}
+
+static void draw_grid(Canvas* canvas, TextInputModel* model) {
+    // Letters use the tiny keyboard-specific font (reads fine at that
+    // size for plain letters); Symbols uses the regular secondary font,
+    // since fiddly glyphs like '%' and '&' turn into an illegible blob at
+    // FontKeyboard's size.
+    canvas_set_font(canvas, model->layer == TextInputLayerLetters ? FontKeyboard : FontSecondary);
+
+    for(uint8_t row = 0; row < ROW_COUNT; row++) {
+        const char* chars = get_row_chars(model->layer, row);
+        uint8_t cols = get_row_cols(model->layer, row);
+        uint8_t top = ROW_TOP[row];
+        uint8_t h = ROW_BOX_H[row];
+        uint8_t start_x = get_row_start_x(model->layer, row);
+
+        for(uint8_t column = 0; column < cols; column++) {
+            uint8_t x = start_x + column * 10;
+            bool selected = !model->in_text && !model->in_buttons &&
+                             model->selected_row == row && model->selected_column == column;
+
+            canvas_set_color(canvas, ColorBlack);
+            if(selected) {
+                canvas_draw_rbox(canvas, x, top, GRID_BOX_W, h, 1);
+                canvas_set_color(canvas, ColorWhite);
+            } else {
+                canvas_draw_rframe(canvas, x, top, GRID_BOX_W, h, 1);
+            }
+            if(chars[column] == ' ') {
+                if(model->space_blink) {
+                    canvas_draw_glyph(canvas, x + 2, (uint8_t)(top + h - 4), '_');
+                }
+            } else {
+                // '_' sits right on the box's bottom line otherwise - nudge
+                // it up 1px so it reads as a character, not part of the box.
+                uint8_t glyph_y =
+                    (chars[column] == '_') ? (uint8_t)(top + h - 4) : (uint8_t)(top + h - 3);
+                canvas_draw_glyph(canvas, x + 2, glyph_y, chars[column]);
+            }
+            canvas_set_color(canvas, ColorBlack);
+        }
+    }
+}
+
+static void draw_buttons(Canvas* canvas, TextInputModel* model) {
+    canvas_set_font(canvas, FontSecondary);
+    const char* labels[ROW_COUNT] = {
+        "DEL",
+        model->layer == TextInputLayerLetters ? "SYM" : "ABC",
+        "OK",
+    };
+    for(uint8_t row = 0; row < ROW_COUNT; row++) {
+        uint8_t top = ROW_TOP[row];
+        uint8_t h = ROW_BOX_H[row];
+        bool selected = !model->in_text && model->in_buttons && model->selected_row == row;
+
+        canvas_set_color(canvas, ColorBlack);
+        if(selected) {
+            canvas_draw_rbox(canvas, BTN_LEFT, top, BTN_W, h, 2);
+            canvas_set_color(canvas, ColorWhite);
+        } else {
+            canvas_draw_rframe(canvas, BTN_LEFT, top, BTN_W, h, 2);
+        }
+        uint16_t text_w = canvas_string_width(canvas, labels[row]);
+        uint8_t text_x = BTN_LEFT + (uint8_t)((BTN_W - text_w) / 2);
+        canvas_draw_str(canvas, text_x, top + h - 3, labels[row]);
+        canvas_set_color(canvas, ColorBlack);
+    }
+}
+
+// Finds the leftmost viewport start (>= full_text, <= cursor) where the
+// segment from there to the cursor still fits within max_width - i.e. the
+// text stays anchored at the start of the string for as long as the
+// cursor fits on screen, and only scrolls once it wouldn't. The previous
+// version measured the width of the *whole remaining string* (all the way
+// to its true end, not just up to the cursor) to decide whether to
+// scroll - for any string longer than the field that's essentially always
+// "too wide" regardless of where the cursor actually is, so it jumped to
+// tracking the cursor almost immediately instead of only once actually
+// necessary (e.g. moving right one step off position 0 in a long URL
+// would instantly scroll the start of the string out of view).
+static const char*
+    text_field_scroll_start(Canvas* canvas, const char* full_text, size_t cursor, uint8_t max_width) {
+    const char* text = full_text;
+    while((size_t)(text - full_text) < cursor) {
+        size_t seg_len = cursor - (size_t)(text - full_text);
+        char segment[80];
+        if(seg_len >= sizeof(segment)) seg_len = sizeof(segment) - 1;
+        memcpy(segment, text, seg_len);
+        segment[seg_len] = '\0';
+        if(canvas_string_width(canvas, segment) <= max_width) break;
+        text++;
+    }
+    return text;
+}
+
+static void draw_text_field(Canvas* canvas, TextInputModel* model) {
+    uint8_t needed_string_width = canvas_width(canvas) - 8;
+    uint8_t start_pos = 4;
+
+    const char* full_text = model->text_buffer ? model->text_buffer : "";
+    size_t full_len = strlen(full_text);
+    // cursor_pos now always tracks where the next insert/delete lands,
+    // whether focus is on the grid or in the text field (see
+    // text_input_handle_ok's insert path) - so the visible window always
+    // scrolls to keep it on screen, not just the tail of the string.
+    size_t cursor = model->cursor_pos > full_len ? full_len : model->cursor_pos;
+
+    canvas_draw_str(canvas, 2, 7, model->header);
+    if(model->in_text) {
+        elements_slightly_rounded_frame(canvas, 0, 7, 128, 14);
+    }
+    elements_slightly_rounded_frame(canvas, 1, 8, 126, 12);
+
+    const char* text = text_field_scroll_start(canvas, full_text, cursor, needed_string_width);
+
+    if(text > full_text) {
+        needed_string_width -= 8;
+        text = text_field_scroll_start(canvas, full_text, cursor, needed_string_width);
+        canvas_draw_str(canvas, start_pos, 17, "...");
+        start_pos += 6;
+    }
+
+    char before[80];
+    size_t n = cursor - (size_t)(text - full_text);
+    if(n >= sizeof(before)) n = sizeof(before) - 1;
+    memcpy(before, text, n);
+    before[n] = '\0';
+    uint16_t cursor_x = start_pos + canvas_string_width(canvas, before);
+
+    if(model->clear_default_text) {
+        elements_slightly_rounded_box(
+            canvas, start_pos - 1, 14, canvas_string_width(canvas, text) + 2, 10);
+        canvas_set_color(canvas, ColorWhite);
+        canvas_draw_str(canvas, start_pos, 17, text);
+    } else if(model->in_text) {
+        canvas_draw_str(canvas, start_pos, 17, text);
+        canvas_draw_box(canvas, cursor_x, 10, 1, 9);
+    } else {
+        // Same cursor_x as the in_text case, just drawn as a "|" marker
+        // instead of a solid block - a lighter-weight hint of where a
+        // typed character will land while focus is still on the grid.
+        canvas_draw_str(canvas, cursor_x + 1, 18, "|");
+        canvas_draw_str(canvas, cursor_x + 2, 18, "|");
+        canvas_draw_str(canvas, start_pos, 17, text);
+    }
+    canvas_set_color(canvas, ColorBlack);
 }
 
 static void text_input_view_draw_callback(Canvas* canvas, void* _model) {
     TextInputModel* model = _model;
-    uint8_t text_length = model->text_buffer ? strlen(model->text_buffer) : 0;
-    uint8_t needed_string_width = canvas_width(canvas) - 8;
-    uint8_t start_pos = 4;
-
-    model->cursor_pos = model->cursor_pos > text_length ? text_length : model->cursor_pos;
-    size_t cursor_pos = model->cursor_pos;
 
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
 
-    canvas_draw_str(canvas, 2, 8, model->header);
-    elements_slightly_rounded_frame(canvas, 1, 12, 126, 15);
+    draw_text_field(canvas, model);
+    draw_grid(canvas, model);
+    draw_buttons(canvas, model);
 
-    char buf[text_length + 1];
-    if(model->text_buffer) {
-        strlcpy(buf, model->text_buffer, sizeof(buf));
-    }
-    char* str = buf;
-
-    if(model->clear_default_text) {
-        elements_slightly_rounded_box(
-            canvas, start_pos - 1, 14, canvas_string_width(canvas, str) + 2, 10);
-        canvas_set_color(canvas, ColorWhite);
-    } else {
-        char* move = str + cursor_pos;
-        memmove(move + 1, move, strlen(move) + 1);
-        str[cursor_pos] = '|';
-    }
-
-    if(cursor_pos > 0 && canvas_string_width(canvas, str) > needed_string_width) {
-        canvas_draw_str(canvas, start_pos, 22, "...");
-        start_pos += 6;
-        needed_string_width -= 8;
-        for(uint32_t off = 0;
-            strlen(str) && canvas_string_width(canvas, str) > needed_string_width &&
-            off < cursor_pos;
-            off++) {
-            str++;
-        }
-    }
-
-    if(canvas_string_width(canvas, str) > needed_string_width) {
-        needed_string_width -= 4;
-        size_t len = strlen(str);
-        while(len && canvas_string_width(canvas, str) > needed_string_width) {
-            str[len--] = '\0';
-        }
-        strcat(str, "...");
-    }
-
-    canvas_draw_str(canvas, start_pos, 22, str);
-
-    canvas_set_font(canvas, FontKeyboard);
-
-    for(uint8_t row = 0; row < keyboard_row_count; row++) {
-        const uint8_t column_count = get_row_size(row);
-        const TextInputKey* keys = get_row(row);
-
-        for(size_t column = 0; column < column_count; column++) {
-            bool selected = !model->cursor_select && model->selected_row == row &&
-                            model->selected_column == column;
-
-            if(keys[column].text == ENTER_KEY) {
-                canvas_set_color(canvas, ColorBlack);
-                if(selected) {
-                    canvas_draw_icon(
-                        canvas,
-                        keyboard_origin_x + keys[column].x,
-                        keyboard_origin_y + keys[column].y,
-                        &I_KeySaveSelected_24x11);
-                } else {
-                    canvas_draw_icon(
-                        canvas,
-                        keyboard_origin_x + keys[column].x,
-                        keyboard_origin_y + keys[column].y,
-                        &I_KeySave_24x11);
-                }
-            } else if(keys[column].text == BACKSPACE_KEY) {
-                canvas_set_color(canvas, ColorBlack);
-                if(selected) {
-                    canvas_draw_icon(
-                        canvas,
-                        keyboard_origin_x + keys[column].x,
-                        keyboard_origin_y + keys[column].y,
-                        &I_KeyBackspaceSelected_16x9);
-                } else {
-                    canvas_draw_icon(
-                        canvas,
-                        keyboard_origin_x + keys[column].x,
-                        keyboard_origin_y + keys[column].y,
-                        &I_KeyBackspace_16x9);
-                }
-            } else {
-                if(selected) {
-                    canvas_set_color(canvas, ColorBlack);
-                    canvas_draw_box(
-                        canvas,
-                        keyboard_origin_x + keys[column].x - 1,
-                        keyboard_origin_y + keys[column].y - 8,
-                        7,
-                        10);
-                    canvas_set_color(canvas, ColorWhite);
-                } else {
-                    canvas_set_color(canvas, ColorBlack);
-                }
-
-                if(model->clear_default_text || text_length == 0) {
-                    canvas_draw_glyph(
-                        canvas,
-                        keyboard_origin_x + keys[column].x,
-                        keyboard_origin_y + keys[column].y,
-                        char_to_uppercase(keys[column].text));
-                } else {
-                    canvas_draw_glyph(
-                        canvas,
-                        keyboard_origin_x + keys[column].x,
-                        keyboard_origin_y + keys[column].y,
-                        keys[column].text);
-                }
-            }
-        }
-    }
     if(model->validator_message_visible) {
         canvas_set_font(canvas, FontSecondary);
         canvas_set_color(canvas, ColorWhite);
         canvas_draw_box(canvas, 8, 10, 110, 48);
         canvas_set_color(canvas, ColorBlack);
-        // [NO_DOLPHIN] canvas_draw_icon(canvas, 10, 14, &I_WarningDolphin_45x42);
         canvas_draw_rframe(canvas, 8, 8, 112, 50, 3);
         canvas_draw_rframe(canvas, 9, 9, 110, 48, 2);
-        elements_multiline_text(canvas, 62, 20, furi_string_get_cstr(model->validator_text));
-        canvas_set_font(canvas, FontKeyboard);
+        elements_multiline_text(canvas, 14, 20, furi_string_get_cstr(model->validator_text));
     }
 }
 
-static void text_input_handle_up(TextInput* text_input, TextInputModel* model) {
-    UNUSED(text_input);
+static void text_input_handle_up(TextInputModel* model) {
+    if(model->in_text) return;
     if(model->selected_row > 0) {
         model->selected_row--;
-        if(model->selected_column > get_row_size(model->selected_row) - 6) {
-            model->selected_column = model->selected_column + 1;
-        }
-    } else {
-        model->cursor_select = true;
-        model->clear_default_text = false;
+        if(!model->in_buttons) text_input_clamp_column(model);
+        return;
     }
+    // Topmost row - Up moves focus into the text field itself so Left/
+    // Right can move a cursor through what's already been typed. cursor_pos
+    // is left as wherever it was last - Down only toggles focus, it never
+    // resets it, so returning here lands you back where you left off.
+    model->in_text = true;
 }
 
-static void text_input_handle_down(TextInput* text_input, TextInputModel* model) {
-    UNUSED(text_input);
-    if(model->cursor_select) {
-        model->cursor_select = false;
-    } else if(model->selected_row < keyboard_row_count - 1) {
+static void text_input_handle_down(TextInputModel* model) {
+    if(model->in_text) {
+        model->in_text = false;
+        return;
+    }
+    if(model->selected_row < ROW_COUNT - 1) {
         model->selected_row++;
-        if(model->selected_column > get_row_size(model->selected_row) - 4) {
-            model->selected_column = model->selected_column - 1;
-        }
+        if(!model->in_buttons) text_input_clamp_column(model);
     }
 }
 
-static void text_input_handle_left(TextInput* text_input, TextInputModel* model) {
-    UNUSED(text_input);
-    if(model->cursor_select) {
-        model->clear_default_text = false;
-        if(model->cursor_pos > 0) {
-            model->cursor_pos = CLAMP(model->cursor_pos - 1, strlen(model->text_buffer), 0u);
-        }
+static void text_input_handle_left(TextInputModel* model) {
+    if(model->in_text) {
+        if(model->cursor_pos > 0) model->cursor_pos--;
+        return;
+    }
+    if(model->in_buttons) {
+        // Buttons sit to the right of the grid - stepping left from them
+        // wraps to the rightmost key of the same row.
+        model->in_buttons = false;
+        model->selected_column = get_row_cols(model->layer, model->selected_row) - 1;
     } else if(model->selected_column > 0) {
         model->selected_column--;
     } else {
-        model->selected_column = get_row_size(model->selected_row) - 1;
+        model->in_buttons = true;
     }
 }
 
-static void text_input_handle_right(TextInput* text_input, TextInputModel* model) {
-    UNUSED(text_input);
-    if(model->cursor_select) {
-        model->clear_default_text = false;
-        model->cursor_pos = CLAMP(model->cursor_pos + 1, strlen(model->text_buffer), 0u);
-    } else if(model->selected_column < get_row_size(model->selected_row) - 1) {
-        model->selected_column++;
-    } else {
-        model->selected_column = 0;
-    }
-}
-
-static void text_input_handle_ok(TextInput* text_input, TextInputModel* model, InputType type) {
-    if(model->cursor_select) {
-        model->clear_default_text = !model->clear_default_text;
+static void text_input_handle_right(TextInputModel* model) {
+    if(model->in_text) {
+        size_t len = strlen(model->text_buffer);
+        if(model->cursor_pos < len) model->cursor_pos++;
         return;
     }
-    bool shift = type == InputTypeLong;
-    bool repeat = type == InputTypeRepeat;
-    char selected = get_selected_char(model);
-    size_t text_length = strlen(model->text_buffer);
-
-    if(selected == ENTER_KEY) {
-        if(model->validator_callback &&
-           (!model->validator_callback(
-               model->text_buffer, model->validator_text, model->validator_callback_context))) {
-            model->validator_message_visible = true;
-            furi_timer_start(text_input->timer, furi_kernel_get_tick_frequency() * 4);
-        } else if(model->callback != 0 && text_length >= model->minimum_length) {
-            model->callback(model->callback_context);
-        }
+    if(model->in_buttons) {
+        model->in_buttons = false;
+        model->selected_column = 0;
+    } else if(model->selected_column < get_row_cols(model->layer, model->selected_row) - 1) {
+        model->selected_column++;
     } else {
-        if(selected == BACKSPACE_KEY) {
-            text_input_backspace_cb(model);
-        } else if(!repeat) {
-            if(model->clear_default_text) {
-                text_length = 0;
-            }
-            if(text_length < (model->text_buffer_size - 1)) {
-                if(shift != (text_length == 0)) {
-                    selected = char_to_uppercase(selected);
-                }
-                if(model->clear_default_text) {
-                    model->text_buffer[0] = selected;
-                    model->text_buffer[1] = '\0';
-                    model->cursor_pos = 1;
-                } else {
-                    char* move = model->text_buffer + model->cursor_pos;
-                    memmove(move + 1, move, strlen(move) + 1);
-                    model->text_buffer[model->cursor_pos] = selected;
-                    model->cursor_pos++;
-                }
-            }
-        }
-        model->clear_default_text = false;
+        model->in_buttons = true;
     }
+}
+
+static void
+    text_input_handle_ok(TextInput* text_input, TextInputModel* model, bool shift) {
+    if(model->in_text) {
+        text_input_delete(model);
+        return;
+    }
+    if(model->in_buttons) {
+        switch(model->selected_row) {
+        case 0: // DEL
+            text_input_delete(model);
+            break;
+        case 1: // SYM/ABC - swap the whole keyboard, stays a fixed button
+            model->layer = (model->layer == TextInputLayerLetters) ? TextInputLayerSymbols :
+                                                                       TextInputLayerLetters;
+            break;
+        case 2: { // OK - submit
+            size_t text_length = strlen(model->text_buffer);
+            if(model->validator_callback &&
+               (!model->validator_callback(
+                   model->text_buffer, model->validator_text, model->validator_callback_context))) {
+                model->validator_message_visible = true;
+                furi_timer_start(text_input->timer, furi_kernel_get_tick_frequency() * 4);
+            } else if(model->callback != 0 && text_length >= model->minimum_length) {
+                model->callback(model->callback_context);
+            }
+            break;
+        }
+        }
+        return;
+    }
+
+    char selected = get_char(model->layer, model->selected_row, model->selected_column);
+    if(selected == ' ' && shift) {
+        selected = '_';
+    } else if(shift) {
+        selected = char_shift(selected);
+    }
+
+    // Inserts at cursor_pos instead of always appending at the end, so
+    // typing from the grid lands wherever the cursor was last left in the
+    // text field - previously this ignored cursor_pos entirely, which is
+    // why repositioning the cursor and then going back to the keyboard to
+    // type always just appended at the end regardless.
+    size_t text_length = model->clear_default_text ? 0 : strlen(model->text_buffer);
+    size_t insert_at = model->clear_default_text ? 0 : model->cursor_pos;
+    if(insert_at > text_length) insert_at = text_length;
+
+    if(text_length < (model->text_buffer_size - 1)) {
+        memmove(
+            model->text_buffer + insert_at + 1,
+            model->text_buffer + insert_at,
+            text_length - insert_at + 1);
+        model->text_buffer[insert_at] = selected;
+        model->cursor_pos = insert_at + 1;
+    }
+    model->clear_default_text = false;
 }
 
 static bool text_input_view_input_callback(InputEvent* event, void* context) {
@@ -400,7 +440,6 @@ static bool text_input_view_input_callback(InputEvent* event, void* context) {
 
     bool consumed = false;
 
-    // Acquire model
     TextInputModel* model = view_get_model(text_input->view);
 
     if((!(event->type == InputTypePress) && !(event->type == InputTypeRelease)) &&
@@ -411,19 +450,19 @@ static bool text_input_view_input_callback(InputEvent* event, void* context) {
         consumed = true;
         switch(event->key) {
         case InputKeyUp:
-            text_input_handle_up(text_input, model);
+            text_input_handle_up(model);
             break;
         case InputKeyDown:
-            text_input_handle_down(text_input, model);
+            text_input_handle_down(model);
             break;
         case InputKeyLeft:
-            text_input_handle_left(text_input, model);
+            text_input_handle_left(model);
             break;
         case InputKeyRight:
-            text_input_handle_right(text_input, model);
+            text_input_handle_right(model);
             break;
         case InputKeyOk:
-            text_input_handle_ok(text_input, model, event->type);
+            text_input_handle_ok(text_input, model, false);
             break;
         default:
             consumed = false;
@@ -433,22 +472,22 @@ static bool text_input_view_input_callback(InputEvent* event, void* context) {
         consumed = true;
         switch(event->key) {
         case InputKeyUp:
-            text_input_handle_up(text_input, model);
+            text_input_handle_up(model);
             break;
         case InputKeyDown:
-            text_input_handle_down(text_input, model);
+            text_input_handle_down(model);
             break;
         case InputKeyLeft:
-            text_input_handle_left(text_input, model);
+            text_input_handle_left(model);
             break;
         case InputKeyRight:
-            text_input_handle_right(text_input, model);
+            text_input_handle_right(model);
             break;
         case InputKeyOk:
-            text_input_handle_ok(text_input, model, event->type);
+            text_input_handle_ok(text_input, model, true);
             break;
         case InputKeyBack:
-            text_input_backspace_cb(model);
+            text_input_delete(model);
             break;
         default:
             consumed = false;
@@ -458,22 +497,19 @@ static bool text_input_view_input_callback(InputEvent* event, void* context) {
         consumed = true;
         switch(event->key) {
         case InputKeyUp:
-            text_input_handle_up(text_input, model);
+            text_input_handle_up(model);
             break;
         case InputKeyDown:
-            text_input_handle_down(text_input, model);
+            text_input_handle_down(model);
             break;
         case InputKeyLeft:
-            text_input_handle_left(text_input, model);
+            text_input_handle_left(model);
             break;
         case InputKeyRight:
-            text_input_handle_right(text_input, model);
-            break;
-        case InputKeyOk:
-            text_input_handle_ok(text_input, model, event->type);
+            text_input_handle_right(model);
             break;
         case InputKeyBack:
-            text_input_backspace_cb(model);
+            text_input_delete(model);
             break;
         default:
             consumed = false;
@@ -481,7 +517,6 @@ static bool text_input_view_input_callback(InputEvent* event, void* context) {
         }
     }
 
-    // Commit model
     view_commit_model(text_input->view, consumed);
 
     return consumed;
@@ -498,6 +533,57 @@ void text_input_timer_callback(void* context) {
         true);
 }
 
+static void text_input_blink_timer_callback(void* context) {
+    furi_assert(context);
+    TextInput* text_input = context;
+
+    with_view_model(
+        text_input->view,
+        TextInputModel * model,
+        { model->space_blink = !model->space_blink; },
+        true);
+}
+
+static void text_input_view_enter_callback(void* context) {
+    furi_assert(context);
+    TextInput* text_input = context;
+    furi_timer_start(text_input->blink_timer, furi_ms_to_ticks(500));
+
+    // Reset cursor position and focus every time the keyboard is actually
+    // shown, not just once when the app first allocates it via
+    // text_input_set_result_callback() - that only runs once per app
+    // lifetime, so without this, cursor position and grid/button focus
+    // left over from a *previous* text-input session (possibly editing a
+    // totally different field) would carry over indefinitely.
+    with_view_model(
+        text_input->view,
+        TextInputModel * model,
+        {
+            model->in_text = false;
+            model->cursor_pos = model->text_buffer ? strlen(model->text_buffer) : 0;
+            if(model->clear_default_text) {
+                // A default value that types-over on the first keystroke
+                // (e.g. renaming a file) - land ready to type immediately.
+                model->in_buttons = false;
+                model->selected_row = 0;
+            } else {
+                // Nothing to clear-and-replace - land on OK so an
+                // unchanged/already-correct value can be confirmed with a
+                // single press; Left steps back into the grid to edit.
+                model->in_buttons = true;
+                model->selected_row = 2;
+            }
+            model->selected_column = 0;
+        },
+        true);
+}
+
+static void text_input_view_exit_callback(void* context) {
+    furi_assert(context);
+    TextInput* text_input = context;
+    furi_timer_stop(text_input->blink_timer);
+}
+
 TextInput* text_input_alloc(void) {
     TextInput* text_input = malloc(sizeof(TextInput));
     text_input->view = view_alloc();
@@ -505,18 +591,17 @@ TextInput* text_input_alloc(void) {
     view_allocate_model(text_input->view, ViewModelTypeLocking, sizeof(TextInputModel));
     view_set_draw_callback(text_input->view, text_input_view_draw_callback);
     view_set_input_callback(text_input->view, text_input_view_input_callback);
+    view_set_enter_callback(text_input->view, text_input_view_enter_callback);
+    view_set_exit_callback(text_input->view, text_input_view_exit_callback);
 
     text_input->timer = furi_timer_alloc(text_input_timer_callback, FuriTimerTypeOnce, text_input);
+    text_input->blink_timer =
+        furi_timer_alloc(text_input_blink_timer_callback, FuriTimerTypePeriodic, text_input);
 
     with_view_model(
         text_input->view,
         TextInputModel * model,
-        {
-            model->validator_text = furi_string_alloc();
-            model->minimum_length = 1;
-            model->cursor_pos = 0;
-            model->cursor_select = false;
-        },
+        { model->validator_text = furi_string_alloc(); },
         false);
 
     text_input_reset(text_input);
@@ -532,10 +617,10 @@ void text_input_free(TextInput* text_input) {
         { furi_string_free(model->validator_text); },
         false);
 
-    // Send stop command
     furi_timer_stop(text_input->timer);
-    // Release allocated memory
     furi_timer_free(text_input->timer);
+    furi_timer_stop(text_input->blink_timer);
+    furi_timer_free(text_input->blink_timer);
 
     view_free(text_input->view);
 
@@ -549,12 +634,14 @@ void text_input_reset(TextInput* text_input) {
         TextInputModel * model,
         {
             model->header = "";
+            model->layer = TextInputLayerLetters;
+            model->in_buttons = false;
+            model->in_text = false;
+            model->cursor_pos = 0;
             model->selected_row = 0;
             model->selected_column = 0;
             model->minimum_length = 1;
             model->clear_default_text = false;
-            model->cursor_pos = 0;
-            model->cursor_select = false;
             model->text_buffer = NULL;
             model->text_buffer_size = 0;
             model->callback = NULL;
@@ -589,15 +676,17 @@ void text_input_set_result_callback(
             model->text_buffer = text_buffer;
             model->text_buffer_size = text_buffer_size;
             model->clear_default_text = clear_default_text;
-            model->cursor_select = false;
-            if(text_buffer && text_buffer[0] != '\0') {
-                model->cursor_pos = strlen(text_buffer);
-                // Set focus on Save
-                model->selected_row = 2;
-                model->selected_column = 8;
-            } else {
-                model->cursor_pos = 0;
-            }
+            model->layer = TextInputLayerLetters;
+            model->in_text = false;
+            // Cursor position and grid/button focus are re-derived from
+            // scratch every time the view is actually shown (see
+            // text_input_view_enter_callback) - what's set here at
+            // allocation time is irrelevant since it's always overwritten
+            // before the user ever sees it.
+            model->cursor_pos = text_buffer ? strlen(text_buffer) : 0;
+            model->in_buttons = false;
+            model->selected_row = 0;
+            model->selected_column = 0;
         },
         true);
 }

@@ -3,12 +3,11 @@ App(
     name="Fox Portal",
     apptype=FlipperAppType.EXTERNAL,
     entry_point="fox_portal_main",
-    # Same reasoning as fox_esp32_commander/fox_chameleon's stack_size -
-    # see fox_foxchat's application.fam for the fuller comment.
     stack_size=8 * 1024,
-    fap_category="Fox",
+    fap_category="Fox/ESP32",
     fap_version="0.1",
-    fap_author="",
+    fap_author="FoxFW",
+    order=90,
     fap_icon="icon.png",
     fap_icon_assets="images",
     fap_file_assets="apps_data/fox_portal",

@@ -136,7 +136,7 @@ static bool message_input_cb(InputEvent* event, void* context) {
             Loader* loader = furi_record_open(RECORD_LOADER);
             loader_enqueue_launch(
                 loader,
-                EXT_PATH("apps/Fox/fox_portal.fap"),
+                EXT_PATH("apps/Fox/ESP32/fox_portal.fap"),
                 "SKIPSPLASH",
                 LoaderDeferredLaunchFlagGui);
             furi_record_close(RECORD_LOADER);

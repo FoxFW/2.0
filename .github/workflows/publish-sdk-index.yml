@@ -1,0 +1,131 @@
+name: Publish SDK Index
+
+# Builds a versioned FoxFW2.0 SDK bundle (the same "flipper-z-f7-sdk-*.zip"
+# format the official firmware publishes), attaches it to a GitHub Release,
+# and publishes directory.json into the separate `fox-web` repo — a
+# ufbt-compatible SDK index served by GitHub Pages at
+# https://foxfw.github.io/fox-web/directory.json.
+#
+# Once this is live, the FAP Compiler's compile.yml can swap from a full
+# `fbt` checkout+build to `flipperdevices/flipperzero-ufbt-action` pointed
+# at this index (see the foxfw-fap-compiler repo's compile-fast.yml.example),
+# which downloads a small prebuilt SDK instead of rebuilding the firmware
+# from source on every compile — much faster.
+#
+# Trigger this manually (Actions tab -> Publish SDK Index -> Run workflow)
+# whenever you cut a new FoxFW2.0 release, or automatically on version tags.
+#
+# REQUIRES a repo secret named FOX_WEB_DEPLOY_TOKEN — a GitHub Personal
+# Access Token (classic, `repo` scope is enough) that has push access to the
+# foxfw/fox-web repo. This repo's own default GITHUB_TOKEN can only write to
+# itself, not to a different repo, so a cross-repo push needs its own token.
+# Create it at github.com/settings/tokens/new, then add it under this repo's
+# Settings -> Secrets and variables -> Actions -> New repository secret.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version string for this release, e.g. 2.0.1 (blank = use the pushed tag)"
+        required: false
+        default: ""
+      changelog:
+        description: "Short changelog text for this version"
+        required: false
+        default: ""
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout FoxFW2.0
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Resolve version + tag
+        id: ver
+        run: |
+          set -e
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
+          fi
+          TAG="v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Building FoxFW2.0 $VERSION (tag $TAG)"
+
+      - name: Build firmware + updater + SDK bundle
+        run: |
+          set -e
+          ./fbt updater_package
+
+      - name: Locate dist output directory
+        id: dist
+        run: |
+          set -e
+          DIST_DIR="$(find dist -maxdepth 1 -type d -name 'f7*' | head -1)"
+          if [ -z "$DIST_DIR" ]; then
+            echo "::error::No dist/f7* directory produced by ./fbt updater_package"
+            exit 1
+          fi
+          echo "dist_dir=$DIST_DIR" >> "$GITHUB_OUTPUT"
+          echo "Dist output: $DIST_DIR"
+          ls -la "$DIST_DIR"
+
+      - name: Create / update GitHub Release with dist files
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: FoxFW2.0 ${{ steps.ver.outputs.version }}
+          body: ${{ inputs.changelog }}
+          files: ${{ steps.dist.outputs.dist_dir }}/*
+          fail_on_unmatched_files: true
+
+      - name: Checkout fox-web (destination for directory.json)
+        uses: actions/checkout@v4
+        with:
+          repository: foxfw/fox-web
+          token: ${{ secrets.FOX_WEB_DEPLOY_TOKEN }}
+          path: fox-web-checkout
+          fetch-depth: 1
+
+      - name: Generate / merge directory.json
+        run: |
+          set -e
+          python3 scripts/publish_sdk_index.py \
+            --dist-dir "${{ steps.dist.outputs.dist_dir }}" \
+            --version "${{ steps.ver.outputs.version }}" \
+            --changelog "${{ inputs.changelog }}" \
+            --repo "${{ github.repository }}" \
+            --tag "${{ steps.ver.outputs.tag }}" \
+            --channel-id release \
+            --channel-title "Stable Release Channel" \
+            --index-path fox-web-checkout/directory.json \
+            --keep 5
+
+      - name: Commit + push directory.json to fox-web
+        working-directory: fox-web-checkout
+        run: |
+          set -e
+          git config user.name "foxfw-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add directory.json
+          if git diff --cached --quiet; then
+            echo "No changes to directory.json"
+          else
+            git commit -m "Publish SDK index for ${{ steps.ver.outputs.version }}"
+            git push
+          fi

@@ -615,6 +615,44 @@ static int fox_wifi_probe_pins(FuriHalSerialId serial_id) {
     return result;
 }
 
+/* Fire-and-forget nudge telling the ESP32 to re-check its timezone offset
+   (see FoxTz::refreshOffset() / the new [TZ/REFRESH] command in
+   Fox_ESP32_FW's http_bridge.cpp). Piggybacks on the exact same
+   acquire/release safety dance as fox_wifi_probe_pins() above - it must
+   never contend with whatever Fox app the user currently has open, so it
+   silently gives up if the port is busy (result -1 there) and just tries
+   again on the next scheduled half-hour slot instead. No reply is read
+   back; this is purely a maintenance ping, not something the desktop
+   service needs to block on. */
+static void fox_tz_refresh_send(FuriHalSerialId serial_id) {
+    Expansion* expansion = furi_record_open(RECORD_EXPANSION);
+    expansion_disable(expansion);
+
+    FuriHalSerialHandle* handle = furi_hal_serial_control_acquire(serial_id);
+    if(handle == NULL) {
+        furi_record_close(RECORD_EXPANSION);
+        return;
+    }
+
+    FuriHalBus bus = (serial_id == FuriHalSerialIdUsart) ? FuriHalBusUSART1 : FuriHalBusLPUART1;
+    bool serial_owned = !furi_hal_bus_is_enabled(bus);
+    if(serial_owned) {
+        furi_hal_serial_init(handle, FOX_ESP32_WIFI_PROBE_BAUD);
+    }
+    furi_hal_serial_set_br(handle, FOX_ESP32_WIFI_PROBE_BAUD);
+
+    static const char cmd[] = "[TZ/REFRESH]\r\n";
+    furi_hal_serial_tx(handle, (const uint8_t*)cmd, strlen(cmd));
+    furi_hal_serial_tx_wait_complete(handle);
+
+    if(serial_owned) {
+        furi_hal_serial_deinit(handle);
+    }
+    furi_hal_serial_control_release(handle);
+    expansion_enable(expansion);
+    furi_record_close(RECORD_EXPANSION);
+}
+
 static void fox_wifi_status_write_raw(Storage* storage, bool connected) {
     storage_simply_mkdir(storage, "/ext/apps_data");
     storage_simply_mkdir(storage, "/ext/apps_data/fox_esp32");
@@ -643,12 +681,19 @@ static int32_t desktop_wifi_recheck_thread(void* context) {
        the start" means this first check can't wait for the delay at
        the bottom of the loop. */
     bool first_pass = true;
+    /* Tracks which half-hour "slot" (hour*2 + 0-or-1) we last sent
+       [TZ/REFRESH] for, so the check below fires at most once per slot
+       even though this loop runs every FOX_ESP32_WIFI_RECHECK_MS (15s) -
+       several iterations will land inside the same "just past xx:00 or
+       xx:30" window. -1 means "haven't sent one yet this boot". */
+    int last_tz_refresh_slot = -1;
     while(true) {
         if(!first_pass) {
             furi_delay_ms(FOX_ESP32_WIFI_RECHECK_MS);
         }
         first_pass = false;
 
+        FuriHalSerialId working_id = FuriHalSerialIdUsart;
         int result_usart = fox_wifi_probe_pins(FuriHalSerialIdUsart);
         int result = result_usart;
         if(result_usart == -2) {
@@ -661,11 +706,32 @@ static int32_t desktop_wifi_recheck_thread(void* context) {
              * no benefit, since the whole point of probing at all is to
              * self-correct the icon while nothing else is using the UART. */
             result = fox_wifi_probe_pins(FuriHalSerialIdLpuart);
+            working_id = FuriHalSerialIdLpuart;
         }
 
         if(result != -1) {
             bool connected = (result == 1);
             fox_wifi_status_write_raw(desktop->storage, connected);
+
+            /* Re-check the ESP32's timezone offset shortly after every
+               xx:00 and xx:30, so a DST shift gets picked up within half
+               an hour instead of staying wrong until the next manual WiFi
+               reconnect (see FoxTz::refreshOffset() - it's otherwise only
+               ever called once, right after a successful [WIFI/CONNECT]).
+               Only makes sense to bother if we just confirmed the ESP32 is
+               actually connected - matches the same serial pin pair that
+               just answered us, so no extra port-hunting. */
+            if(connected) {
+                DateTime now;
+                furi_hal_rtc_get_datetime(&now);
+                if((now.minute == 0 || now.minute == 30) && now.second < 15) {
+                    int slot = now.hour * 2 + (now.minute >= 30 ? 1 : 0);
+                    if(slot != last_tz_refresh_slot) {
+                        last_tz_refresh_slot = slot;
+                        fox_tz_refresh_send(working_id);
+                    }
+                }
+            }
         }
     }
 

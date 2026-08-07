@@ -38,6 +38,7 @@ typedef enum {
 
 typedef struct {
     char time[16];
+    char full_time[24];
     char text[FOX_CHAT_MESSAGE_TEXT_MAX + 1];
 } ChatMessage;
 

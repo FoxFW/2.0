@@ -339,6 +339,17 @@
           <li><a href="#update-board-select">Selecting your ESP32 board</a></li>
         </ul>
       </li>
+      <li><a href="#file-downloader">Fox File Downloader</a>
+        <ul class="sub">
+          <li><a href="#file-downloader-url">File Download (URL)</a></li>
+          <li><a href="#file-downloader-queue">Download.txt queue</a></li>
+          <li><a href="#file-downloader-catalog">App Catalog</a></li>
+          <li><a href="#file-downloader-github">GitHub Repos</a></li>
+          <li><a href="#file-downloader-manage">Manage Apps</a></li>
+          <li><a href="#file-downloader-settings">Download Settings</a></li>
+          <li><a href="#file-downloader-wifi">WiFi, Recon &amp; Attacks</a></li>
+        </ul>
+      </li>
       <li><a href="#wifi-icon">Status Bar WiFi Icon</a></li>
       <li><a href="#commands">Full Command Reference</a>
         <ul class="sub">
@@ -454,7 +465,7 @@
   </p>
 
   <div style="text-align:center;margin:28px 0;">
-    <a href="https://foxfw.github.io/esp32-fw/fox-esp32-flasher.html"
+    <a href="https://foxfw.github.io/fox-web/fox-esp32-flasher.html"
        style="display:inline-block;background:var(--orange);color:#fff;font-weight:700;
               font-size:1.05rem;padding:16px 40px;border-radius:8px;text-decoration:none;
               box-shadow:0 0 20px rgba(232,117,10,0.35);letter-spacing:0.3px;">
@@ -1014,26 +1025,23 @@
   <p>
     Post to and read from a Discord text channel, straight from your
     Flipper's screen, using your ESP32's internet connection. You'll need an
-    active WiFi connection (set up via Fox ESP32 Commander's WiFi menu) and a
-    Discord bot pointed at a channel.
+    active WiFi connection (set up via Fox ESP32 Commander's WiFi menu) —
+    nothing else to configure.
   </p>
 
   <div class="menu-tree">Fox Chat
 ├── Post Message
-├── Read Messages
-└── Bot Settings</div>
+└── Read Messages</div>
 
   <div class="setting">
     <div class="name">Post Message</div>
     <div class="desc">
       Prompts for your message text, then sends it prefixed with your
       Flipper's own device name — e.g. <code>MyFlipper: hello</code> — so
-      anyone reading the channel can tell which device posted it (Discord
-      bot accounts don't have a per-message display-name feature outside of
-      webhooks, so this is the practical equivalent). If the message is
-      blocked by the content filter you'll see <em>"Blocked - message
-      flagged by content filter"</em>; if you're posting too quickly you'll
-      see <em>"Too soon - wait a few seconds and try again."</em>
+      anyone reading the channel can tell which device posted it. If the
+      message is blocked by the content filter you'll see <em>"Blocked -
+      message flagged by content filter"</em>; if you're posting too quickly
+      you'll see <em>"Too soon - wait a few seconds and try again."</em>
     </div>
   </div>
   <div class="setting">
@@ -1052,34 +1060,14 @@
       your timezone yet, times fall back to plain UTC (labelled accordingly).
     </div>
   </div>
-  <div class="setting">
-    <div class="name">Bot Settings</div>
-    <div class="desc">
-      Prompts for your bot token, then your channel ID, and saves both to
-      the ESP32 (persists across reboots — you only need to do this once per
-      bot/channel).
-    </div>
-  </div>
 
   <div class="box info">
-    <strong>Works out of the box without setup.</strong> If you post or read
-    before ever visiting Bot Settings, Fox Chat automatically falls back to a
-    pre-configured demo bot/channel baked into the app, so you can try the
-    feature immediately. Run Bot Settings whenever you want to point it at
-    your own bot and channel instead — once you do, your own credentials take
-    over.
+    <strong>No setup, no bot to create.</strong> Every FoxFW device posts to
+    and reads from the same shared FoxFW community Discord channel by
+    default. The real Discord bot token lives only in a small relay server
+    FoxFW runs — it never touches your Flipper or ESP32, and there's no
+    token or channel ID to enter anywhere.
   </div>
-
-  <h3>Setting up your own Discord bot</h3>
-  <ol>
-    <li>Go to the <a href="https://discord.com/developers/applications" style="color:var(--accent);">Discord Developer Portal</a>, log in, click <strong>New Application</strong>, and give it a name.</li>
-    <li>Open the <strong>Bot</strong> tab and copy the bot token (treat this like a password — anyone with it can post as your bot).</li>
-    <li>On the same tab, turn on <strong>Message Content Intent</strong> under Privileged Gateway Intents — required for reading message text.</li>
-    <li>Go to <strong>OAuth2 → URL Generator</strong>, check the <strong>bot</strong> scope, then check only <strong>Send Messages</strong> and <strong>Read Message History</strong> under bot permissions. Copy the generated URL.</li>
-    <li>Paste that URL into your browser, pick your server, and click <strong>Authorize</strong>.</li>
-    <li>In Discord, enable <strong>Developer Mode</strong> (User Settings → Advanced), then right-click your target channel and choose <strong>Copy Channel ID</strong>.</li>
-    <li>Enter the bot token and channel ID into Fox Chat's <strong>Bot Settings</strong> screen.</li>
-  </ol>
 
   <h3>Content moderation — what's protected and what isn't</h3>
   <ul>
@@ -1345,9 +1333,217 @@
 </section>
 
 
-<!-- ══════════════════ 9 · WIFI ICON ══════════════════ -->
-<section class="section" id="wifi-icon">
+<!-- ══════════════════ 9 · FOX FILE DOWNLOADER ══════════════════ -->
+<section class="section" id="file-downloader">
   <div class="chapter-label">Chapter 9</div>
+  <h2>Fox File Downloader</h2>
+  <p>
+    Downloads files onto your SD card over the ESP32's internet connection —
+    a direct URL, a browsable App Catalog, or a <code>.fap</code> straight off
+    a GitHub repo — plus its own WiFi menu for connecting, scanning, and (if
+    Attacks is on) the same recon/attack tools as Fox ESP32 Commander.
+  </p>
+
+  <div class="menu-tree">Fox File Downloader
+├── WiFi                  <span style="color:#888">(hidden once connected)</span>
+├── File Download (URL)
+├── App Catalog
+├── Manage Apps
+├── GitHub Repos
+├── Settings
+└── Terminal</div>
+
+  <h3 id="file-downloader-url">File Download (URL)</h3>
+  <p>
+    Prompts for a single URL — there's no separate filename prompt. The
+    filename is worked out automatically from the last segment of the URL; if
+    a file with that name already exists it's saved as <code>name (2).ext</code>,
+    <code>name (3).ext</code>, and so on rather than overwriting anything.
+    Files land at <code>/ext/downloads/</code>. The field remembers the last
+    URL you entered (pre-filled next time), or starts at <code>http://</code>
+    the very first time.
+  </p>
+  <p>
+    Opening this menu item doesn't necessarily show that keyboard right away —
+    it checks two things first, in order:
+  </p>
+  <div class="setting">
+    <div class="name">1. An interrupted download</div>
+    <div class="desc">
+      If a previous download didn't finish, you'll see <strong>Download
+      Interrupted</strong> with the filename and two buttons: <strong>Resume</strong>
+      (continues from where it left off, straight into the normal downloading
+      screen) and <strong>Restart</strong> (deletes the partial file and
+      downloads from byte 0 again). Resume works via a real HTTP Range
+      request — the ESP32 asks the server for only the remaining bytes,
+      rather than re-downloading what you already have.
+    </div>
+  </div>
+  <div class="setting">
+    <div class="name">2. A queued URL — see <a href="#file-downloader-queue" style="color:#80c890;">Download.txt</a> below</div>
+    <div class="desc">
+      If neither of those apply, you get the URL keyboard as normal.
+    </div>
+  </div>
+
+  <p>Once a URL is confirmed, the flow is a single continuous connection:</p>
+  <div class="flow">
+    <div class="flow-step"><span class="n">Connecting</span>Bar fills against a 28s timeout, not real progress</div>
+    <div class="arrow">→</div>
+    <div class="flow-step"><span class="n">Connected</span>Shows size (or "size unknown") + Cancel/Download</div>
+    <div class="arrow">→</div>
+    <div class="flow-step"><span class="n">Downloading</span>Filename, bar, % and speed (or bytes if size unknown)</div>
+    <div class="arrow">→</div>
+    <div class="flow-step"><span class="n">Complete</span>Full bar, save location + filename</div>
+  </div>
+  <div class="box info">
+    <strong>Redirects and HTTPS are both handled automatically</strong> —
+    up to 5 redirect hops are followed even across an http→https upgrade
+    (common on hosts that force one), and HTTPS downloads work without any
+    extra setup.
+  </div>
+  <div class="box tip">
+    <strong>"Stream protocol error"?</strong> This is a UART framing hiccup,
+    more likely at higher baud rates. The Terminal log tells you exactly what
+    to do about it — drop to 115200 Baud in Download Settings if you're above
+    it, or reset the ESP32 if you're already there.
+  </div>
+
+  <h3 id="file-downloader-queue">Download.txt queue</h3>
+  <p>
+    A plain text file at <code>/ext/download.txt</code> (SD card root, not in
+    <code>apps_data</code>) — created automatically the first time you open
+    the app if it doesn't already exist, with a header comment explaining
+    itself. One URL per line; blank lines and lines starting with
+    <code>#</code> are ignored. Opening <strong>File Download (URL)</strong>
+    checks this file for the first non-comment line and downloads it
+    automatically, no keyboard shown — once it starts, that line gets a
+    <code>#</code> inserted in front of it so it's not picked up again, but
+    it stays in the file as a record rather than being deleted. Only one URL
+    is taken per visit, so queue up as many as you like and reopen File
+    Download (URL) to work through them one at a time.
+  </p>
+
+  <h3 id="file-downloader-catalog">App Catalog</h3>
+  <p>
+    Browses <a href="https://catalog.flipperzero.one" style="color:#80c890;">catalog.flipperzero.one</a>
+    by category — Bluetooth, Games, GPIO, Infrared, iButton, Media, NFC,
+    RFID, Sub-GHz, Tools, USB — showing one app at a time with its
+    description, version, and position in the list. Left/Right moves between
+    apps (and pages, once you reach either end); OK installs the highlighted
+    app straight to <code>/ext/apps/&lt;Category&gt;/</code>, matching the
+    category folder Flipper itself expects.
+  </p>
+  <div class="box warn">
+    <strong>Firmware API is 88.2, most catalog apps are still 87.x — installs
+    may fail for now.</strong> Shown once per app session the first time you
+    open App Catalog. The catalog only offers a build if one exists that's
+    compatible with your exact firmware API version and hardware target; if
+    it doesn't, you'll see <em>"App's catalog build doesn't match this
+    firmware's API. May work on other firmware."</em> instead of a download.
+  </div>
+
+  <h3 id="file-downloader-github">GitHub Repos</h3>
+  <p>
+    Type a repo as <strong>owner/repo</strong> (not a full URL) — e.g.
+    <code>jblanked/FlipDownloader</code>. The app fetches the repo's default
+    branch and scans its entire file tree for anything ending in
+    <code>.fap</code>, wherever it lives in the repo (this looks at the raw
+    tree, not GitHub Releases or a build workflow — the app needs to already
+    contain a built <code>.fap</code> file checked into the branch). Pick one
+    from the list and it downloads straight from
+    <code>raw.githubusercontent.com</code> to
+    <code>/ext/apps/GitHub/&lt;filename&gt;</code>.
+  </p>
+  <div class="box info">
+    If GitHub's response for a very large repo gets truncated, the header
+    shows <strong>(partial)</strong> next to the repo name — the list you see
+    may not be every <code>.fap</code> in the repo.
+  </div>
+
+  <h3 id="file-downloader-manage">Manage Apps</h3>
+  <p>
+    Lists every <code>.fap</code> under <code>/ext/apps</code> (skipping any
+    folder literally named <code>assets</code>, so bundled app resources
+    aren't shown or touched) as a path relative to that folder, e.g.
+    <code>Tools/myapp.fap</code>. Selecting one shows a confirm screen —
+    <strong>OK</strong> deletes it, <strong>Back</strong> cancels — and the
+    list refreshes afterward.
+  </p>
+
+  <h3 id="file-downloader-settings">Download Settings</h3>
+  <p>
+    The main menu's <strong>Settings</strong> item goes straight here — this
+    app doesn't have a separate Connect Settings screen reachable from the
+    menu the way Commander does. Four rows, Left/Right to cycle, saved
+    automatically on every change:
+  </p>
+  <div class="setting">
+    <div class="name">Baud</div>
+    <div class="desc">UART speed used during an active download stream (separate from the fixed 115200 used for detection). 115200 / 230400 / 460800 / 921600 — higher is faster but more prone to the "Stream protocol error" desync.</div>
+    <div class="values">Default: <span>115200</span></div>
+  </div>
+  <div class="setting">
+    <div class="name">Retries</div>
+    <div class="desc">Max connect/stream attempts per download before giving up, shown as "Try N/M" on the progress screen.</div>
+    <div class="values">Default: <span>3</span> — choices: 1, 2, 3, 5, 10, 15, 20</div>
+  </div>
+  <div class="setting">
+    <div class="name">Timeout</div>
+    <div class="desc">Per-chunk idle timeout in seconds — if no data arrives for this long mid-download, that attempt is treated as failed and retried.</div>
+    <div class="values">Default: <span>10s</span> — choices: 5, 8, 10, 15, 20, 30, 45, 60</div>
+  </div>
+  <div class="setting">
+    <div class="name">Auto Lower Baud</div>
+    <div class="desc">When on, if the configured baud is above 115200 and a download keeps failing, the app temporarily steps the baud down a notch to retry, then keeps whatever baud actually worked.</div>
+    <div class="values">Default: <span>No</span></div>
+  </div>
+
+  <h3 id="file-downloader-wifi">WiFi, Recon &amp; Attacks</h3>
+  <p>
+    Same shared WiFi module as <a href="#commander" style="color:#80c890;">Fox
+    ESP32 Commander</a> — full network connect/manage plus Recon and (if
+    enabled) Attacks, not a trimmed-down "just connect" menu. The main menu's
+    WiFi item disappears once you're connected, replaced by nothing (there's
+    no menu-level shortcut to the Connection submenu here the way Commander
+    has one) — reopen WiFi from Terminal/Settings context if you need to
+    check status without disconnecting.
+  </p>
+  <div class="menu-tree">WiFi
+├── Connect / Connection   <span style="color:#888">(same as Commander — see Chapter 5)</span>
+├── My IP
+├── Recon
+│     ├── Scan APs
+│     ├── Scan Stations
+│     ├── Select AP
+│     ├── Signal Monitor
+│     ├── Packet Count
+│     ├── Wardrive
+│     └── Packet Capture
+└── Attacks  <span class="badge gated">Gated</span>
+      ├── Select AP
+      ├── Select Station
+      ├── Deauth (Broadcast)
+      ├── Deauth (Targeted)
+      ├── Beacon Spam (Random)
+      ├── Beacon Spam (Custom)
+      └── Probe Flood</div>
+  <div class="box info">
+    Every screen, file format, and gated-behind-Attacks rule here is
+    identical to Commander's WiFi menu — see <a href="#cmd-wifi" style="color:inherit;">Chapter
+    5's WiFi menu</a> for the full breakdown (Wardrive's CSV columns, Packet
+    Capture's <code>.pcap</code> format, saved-network handling, and so on).
+    Attacks is turned on and off from Fox ESP32 Commander's Settings screen —
+    it's one shared toggle stored on the ESP32 itself, not per-app.
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 10 · WIFI ICON ══════════════════ -->
+<section class="section" id="wifi-icon">
+  <div class="chapter-label">Chapter 10</div>
   <h2>Status Bar WiFi Icon</h2>
   <p>
     Your Flipper's own desktop status bar shows a small WiFi icon,
@@ -1380,9 +1576,9 @@
 </section>
 
 
-<!-- ══════════════════ 10 · FULL COMMAND REFERENCE ══════════════════ -->
+<!-- ══════════════════ 11 · FULL COMMAND REFERENCE ══════════════════ -->
 <section class="section" id="commands">
-  <div class="chapter-label">Chapter 10</div>
+  <div class="chapter-label">Chapter 11</div>
   <h2>Full Command Reference</h2>
   <p>
     Every command the firmware understands, sent over serial at
@@ -1618,12 +1814,11 @@ repeat (3) {
 
   <h3 id="cmd-discord-ref">Fox Chat (Discord bridge)</h3>
   <table>
-    <tr><td><code>DISCORDINIT:&lt;botToken&gt;:&lt;channelId&gt;</code></td><td>Saves bot credentials (persists across reboots)</td></tr>
-    <tr><td><code>DISCORDPOST:&lt;message&gt;</code></td><td>Posts a message to the channel</td></tr>
+    <tr><td><code>DISCORDPOST:&lt;message&gt;</code></td><td>Posts a message to the shared FoxFW Discord channel</td></tr>
     <tr><td><code>DISCORDREAD</code></td><td>Reads the 5 most recent messages</td></tr>
     <tr><td><code>DISCORDREAD:&lt;count&gt;</code></td><td>Reads up to &lt;count&gt; messages (max 10)</td></tr>
   </table>
-  <p>Reads reply with one <code>DISCORDMSG:&lt;HH:MM&gt;|&lt;content&gt;</code> line per message (oldest first), ending with <code>DISCORDREADDONE</code>.</p>
+  <p>Reads reply with one <code>DISCORDMSG:&lt;HH:MM&gt;|&lt;full date and time&gt;|&lt;content&gt;</code> line per message (oldest first), ending with <code>DISCORDREADDONE</code>.</p>
 
   <h3 id="cmd-portal-ref">Fox Portal</h3>
   <table>
@@ -1687,9 +1882,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 11 · SAFETY, LEGAL, ATTACKS TOGGLE ══════════════════ -->
+<!-- ══════════════════ 12 · SAFETY, LEGAL, ATTACKS TOGGLE ══════════════════ -->
 <section class="section" id="safety">
-  <div class="chapter-label">Chapter 11</div>
+  <div class="chapter-label">Chapter 12</div>
   <h2>Safety, Legal &amp; the Attacks Toggle</h2>
 
   <div class="box warn">
@@ -1757,9 +1952,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 12 · KNOWN LIMITATIONS ══════════════════ -->
+<!-- ══════════════════ 13 · KNOWN LIMITATIONS ══════════════════ -->
 <section class="section" id="limitations">
-  <div class="chapter-label">Chapter 12</div>
+  <div class="chapter-label">Chapter 13</div>
   <h2>Known Limitations</h2>
   <p>
     An honest list of rough edges, so nothing here catches you by surprise.
@@ -1809,10 +2004,17 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 13 · SUPPORT & TROUBLESHOOTING ══════════════════ -->
+<!-- ══════════════════ 14 · SUPPORT & TROUBLESHOOTING ══════════════════ -->
 <section class="section" id="support">
-  <div class="chapter-label">Chapter 13</div>
+  <div class="chapter-label">Chapter 14</div>
   <h2>Support &amp; Troubleshooting</h2>
+
+  <div class="box tip">
+    Looking to run a third-party Flipper app that isn't bundled with FoxFW?
+    The <a href="https://foxfw.github.io/fox-web/fap-compiler.html" style="color:#80c890;">FAP Compiler</a>
+    builds a <code>.fap</code> against FoxFW v2.0 straight from a GitHub URL —
+    no toolchain install required.
+  </div>
 
   <h3>Nothing responds / apps say "not detected"</h3>
   <ol>

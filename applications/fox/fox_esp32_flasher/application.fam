@@ -6,11 +6,12 @@ App(
     entry_point="fox_esp32_flasher_app",
     requires=["gui", "storage", "dialogs"],
     stack_size=6 * 1024,
-    order=10,
+    fap_author="FoxFW",
+    order=40,
     fap_icon="images/icon_10x10.png",
     fap_icon_assets="images",
     resources="sd_resources",
-    fap_category="Fox",
+    fap_category="Fox/ESP32",
     fap_private_libs=[
         Lib(
             name="esp-serial-flasher",

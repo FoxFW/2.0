@@ -5,11 +5,11 @@ App(
     entry_point="fox_setup_app",
     cdefines=["APP_FOX_SETUP"],
     requires=[
-        "desktop",   # grants access to desktop.h, desktop_settings.h, helpers/pin_code.h SDK headers
+        "desktop",
         "gui",
     ],
     stack_size=4 * 1024,
-    order=1,
+    order=1000,
     fap_icon="icon.png",
     fap_icon_assets="images",
     fap_category="Fox",

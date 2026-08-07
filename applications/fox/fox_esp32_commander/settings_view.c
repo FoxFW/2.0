@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <storage/storage.h>
 
 static App* s_settings_view_app = NULL;
 
@@ -13,40 +12,6 @@ static App* s_settings_view_app = NULL;
 #define SETTINGS_BOX_X     4
 #define SETTINGS_BOX_W     120
 #define SETTINGS_BOX_R     4
-
-#define EXPERT_MODE_DIR  "/ext/apps_data/fox_esp32_commander"
-#define EXPERT_MODE_PATH "/ext/apps_data/fox_esp32_commander/expert_mode.txt"
-
-void app_expert_mode_load(App* app) {
-    app->expert_mode = false;
-
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    File* file = storage_file_alloc(storage);
-    if(storage_file_open(file, EXPERT_MODE_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
-        char buf[1] = {0};
-        if(storage_file_read(file, buf, 1) == 1) {
-            app->expert_mode = (buf[0] == '1');
-        }
-    }
-    storage_file_close(file);
-    storage_file_free(file);
-    furi_record_close(RECORD_STORAGE);
-}
-
-static void expert_mode_save(bool enabled) {
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    storage_simply_mkdir(storage, "/ext/apps_data");
-    storage_simply_mkdir(storage, EXPERT_MODE_DIR);
-
-    File* file = storage_file_alloc(storage);
-    if(storage_file_open(file, EXPERT_MODE_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
-        const char* v = enabled ? "1" : "0";
-        storage_file_write(file, v, 1);
-    }
-    storage_file_close(file);
-    storage_file_free(file);
-    furi_record_close(RECORD_STORAGE);
-}
 
 static void settings_draw_row(
     Canvas* canvas,
@@ -123,7 +88,10 @@ static void settings_apply_attacks(App* app) {
 
 static void settings_apply_expert_mode(App* app) {
     with_view_model(app->settings_view, uint8_t * _m, { UNUSED(_m); }, true);
-    expert_mode_save(app->expert_mode);
+    esp_at_send(
+        app->esp_at, app->expert_mode ? "SETTINGS:EXPERTMODE:ON" : "SETTINGS:EXPERTMODE:OFF");
+    EspAtMsg msg;
+    esp_at_receive(app->esp_at, &msg, 1500);
 }
 
 static bool settings_input_cb(InputEvent* event, void* context) {
@@ -174,7 +142,12 @@ void settings_view_free(View* view) {
 void settings_view_refresh(App* app) {
     esp_at_send(app->esp_at, "SETTINGS");
     EspAtMsg msg;
-    if(esp_at_receive(app->esp_at, &msg, 1500)) {
-        app->attacks_enabled = (strcmp(msg.line, "ATTACKS:ON") == 0);
+    for(int i = 0; i < 3; i++) {
+        if(!esp_at_receive(app->esp_at, &msg, 1500)) break;
+        if(strncmp(msg.line, "ATTACKS:", 8) == 0) {
+            app->attacks_enabled = (strcmp(msg.line, "ATTACKS:ON") == 0);
+        } else if(strncmp(msg.line, "EXPERTMODE:", 11) == 0) {
+            app->expert_mode = (strcmp(msg.line, "EXPERTMODE:ON") == 0);
+        }
     }
 }

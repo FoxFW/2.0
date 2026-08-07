@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <storage/storage.h>
+#include <gui/elements.h>
 
 #define WIFI_TXT_PATH     "/ext/wifi.txt"
 #define WIFI_TXT_BAK_PATH "/ext/wifi.txt.bak"
@@ -504,12 +505,16 @@ static void saved_list_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(app->saved_wifi_count > SAVED_ROW_VIS) {
+        // Dotted track + solid position block, matching FOX_CHILL's
+        // scrollbar style instead of a plain solid bar with no track.
         int available_h = 64 - SAVED_ROW_HEADER_H;
-        int bar_h = (int)(available_h * SAVED_ROW_VIS / (int)app->saved_wifi_count);
-        if(bar_h < 3) bar_h = 3;
-        int bar_y = SAVED_ROW_HEADER_H +
-                    (int)(available_h * (int)app->saved_wifi_scroll / (int)app->saved_wifi_count);
-        canvas_draw_box(canvas, 125, bar_y, 3, bar_h);
+        elements_scrollbar_pos(
+            canvas,
+            128,
+            SAVED_ROW_HEADER_H,
+            (size_t)available_h,
+            (size_t)app->saved_wifi_scroll,
+            (size_t)app->saved_wifi_count);
     }
 }
 

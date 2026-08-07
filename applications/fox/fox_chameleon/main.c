@@ -4,6 +4,7 @@
 
 #include <storage/storage.h>
 #include <furi_hal_rtc.h>
+#include <gui/elements.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -576,12 +577,16 @@ static void candidate_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(app->candidate_count > CANDIDATE_ROW_VIS) {
+        // Dotted track + solid position block, matching FOX_CHILL's
+        // scrollbar style instead of a plain solid bar with no track.
         int available_h = 64 - CANDIDATE_ROW_HEADER_H;
-        int bar_h = (int)(available_h * CANDIDATE_ROW_VIS / app->candidate_count);
-        if(bar_h < 3) bar_h = 3;
-        int bar_y =
-            CANDIDATE_ROW_HEADER_H + (int)(available_h * app->candidate_scroll / app->candidate_count);
-        canvas_draw_box(canvas, 125, bar_y, 3, bar_h);
+        elements_scrollbar_pos(
+            canvas,
+            128,
+            CANDIDATE_ROW_HEADER_H,
+            (size_t)available_h,
+            (size_t)app->candidate_scroll,
+            (size_t)app->candidate_count);
     }
 }
 

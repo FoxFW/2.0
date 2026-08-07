@@ -2,9 +2,11 @@
   <h1> FoxFW v2.0</h1>
   <p><em>A custom Flipper Zero firmware built for automotive research and advanced ESP32 manipulation.</em></p>
   <p>
-    <a href="https://foxfw.github.io/2.0/">Full User Guide</a>
+    <a href="https://foxfw.github.io/fox-web/">Full User Guide</a>
     &nbsp;·&nbsp;
-    <a href="https://foxfw.github.io/2.0/screenshots/screenshots.html">SCREENSHOTS!</a>
+    <a href="https://foxfw.github.io/fox-web/screenshots/screenshots.html">SCREENSHOTS!</a>
+    &nbsp;·&nbsp;
+    <a href="https://foxfw.github.io/fox-web/fap-compiler.html">FAP Compiler</a>
     &nbsp;·&nbsp;
     <a href="mailto:foxcustomfirmware@gmail.com">Support</a>
     &nbsp;·&nbsp;
@@ -57,6 +59,7 @@ companion firmware, **Fox ESP32 Firmware**, flashed once to the ESP32 itself.
 | **Fox ESP32 Detector** | Diagnostic tool — scans every GPIO pin pair and baud rate to identify a connected ESP32 and confirm your wiring |
 | **Fox ESP32 Flasher** | Flash Fox ESP32 Firmware onto a connected board directly from the Flipper — no PC, no browser, no files to download |
 | **Fox Update Downloader** | Checks GitHub for newer FoxFW and Fox ESP32 Firmware releases, downloads them over the ESP32 bridge, and hands off to install |
+| **Fox File Downloader** | App Catalog browsing/installs, GitHub repo installs, and resumable URL/file downloads — all over the ESP32 bridge |
 | **Fox ESP32 Terminal** | A focused live-terminal companion — streaming console, quick command send, and per-session logs saved to your SD card |
 | **Fox Chat** | Post to and read from a Discord channel through the ESP32's internet connection |
 | **Fox Portal** | A configurable, consent-based lead-capture WiFi captive portal with QR join and auto-detected field logging |
@@ -71,7 +74,7 @@ Source code, releases, and full board wiring for the ESP32 side live in a
 separate repository: **[github.com/FoxFW/Fox_ESP32_FW](https://github.com/FoxFW/Fox_ESP32_FW)**.
 The complete walkthrough for every app above — menus, commands, and board
 compatibility — is in `FoxESP32_Help.html`, also linked from the
-[Full User Guide](https://foxfw.github.io/2.0/).
+[Full User Guide](https://foxfw.github.io/fox-web/).
 
 ---
 
@@ -182,11 +185,20 @@ The complete guide covers every feature in detail — first-boot setup, all Fox
 Settings options, the Fox File Browser, the Sub-GHz toolset, the Fox ESP32
 App Suite, firmware updates, and lockout recovery.
 
-**[→ Open the Full User Guide](https://foxfw.github.io/2.0/)**
+**[→ Open the Full User Guide](https://foxfw.github.io/fox-web/)**
 
 *(The guide is an HTML file hosted on GitHub Pages. You can also find it in
 this repository as `FoxFW_Help.html`, and the ESP32-specific guide as
 `FoxESP32_Help.html` — open either locally in any browser.)*
+
+---
+
+## Run Any Flipper App — FAP Compiler
+
+Want to run a third-party Flipper app that isn't bundled with FoxFW? Paste
+its GitHub URL into the **[FAP Compiler](https://foxfw.github.io/fox-web/fap-compiler.html)**
+and it builds a `.fap` against FoxFW v2.0 for you — no local toolchain
+install, no GitHub account or login needed.
 
 ---
 
@@ -196,7 +208,7 @@ this repository as `FoxFW_Help.html`, and the ESP32-specific guide as
 
 Install FoxFW directly from your browser — no software required.
 
-**[→ Open the FoxFW Web Installer](https://foxfw.github.io/2.0/flasher.html)** `Recommended`
+**[→ Open the FoxFW Web Installer](https://foxfw.github.io/fox-web/flasher.html)** `Recommended`
 
 1. Open the link above in **Chrome** or **Edge** on desktop.
 2. Connect your Flipper Zero via USB.

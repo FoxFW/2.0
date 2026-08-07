@@ -7,6 +7,7 @@
 #include <storage/storage.h>
 #include <furi_hal_rtc.h>
 #include <loader/loader.h>
+#include <gui/elements.h>
 
 #define FOX_PCAP_SNAPLEN 256
 
@@ -985,7 +986,7 @@ void wifi_menu_select(App* app, MenuContext ctx, uint32_t index) {
                     Loader* loader = furi_record_open(RECORD_LOADER);
                     loader_enqueue_launch(
                         loader,
-                        EXT_PATH("apps/Fox/fox_portal.fap"),
+                        EXT_PATH("apps/Fox/ESP32/fox_portal.fap"),
                         "SKIPSPLASH",
                         LoaderDeferredLaunchFlagGui);
                     furi_record_close(RECORD_LOADER);
@@ -1267,12 +1268,16 @@ static void network_list_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(app->network_count > NETWORK_ROW_VIS) {
+        // Dotted track + solid position block, matching FOX_CHILL's
+        // scrollbar style instead of a plain solid bar with no track.
         int available_h = 64 - NETWORK_ROW_HEADER_H;
-        int bar_h = (int)(available_h * NETWORK_ROW_VIS / (int)app->network_count);
-        if(bar_h < 3) bar_h = 3;
-        int bar_y = NETWORK_ROW_HEADER_H +
-                    (int)(available_h * (int)app->network_scroll / (int)app->network_count);
-        canvas_draw_box(canvas, 125, bar_y, 3, bar_h);
+        elements_scrollbar_pos(
+            canvas,
+            128,
+            NETWORK_ROW_HEADER_H,
+            (size_t)available_h,
+            (size_t)app->network_scroll,
+            (size_t)app->network_count);
     }
 }
 
@@ -1385,12 +1390,16 @@ static void station_list_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(app->station_count > STATION_ROW_VIS) {
+        // Dotted track + solid position block, matching FOX_CHILL's
+        // scrollbar style instead of a plain solid bar with no track.
         int available_h = 64 - STATION_ROW_HEADER_H;
-        int bar_h = (int)(available_h * STATION_ROW_VIS / (int)app->station_count);
-        if(bar_h < 3) bar_h = 3;
-        int bar_y = STATION_ROW_HEADER_H +
-                    (int)(available_h * (int)app->station_scroll / (int)app->station_count);
-        canvas_draw_box(canvas, 125, bar_y, 3, bar_h);
+        elements_scrollbar_pos(
+            canvas,
+            128,
+            STATION_ROW_HEADER_H,
+            (size_t)available_h,
+            (size_t)app->station_scroll,
+            (size_t)app->station_count);
     }
 }
 
