@@ -31,16 +31,16 @@ if not os.environ.get("DIST_SUFFIX"):
 
     # firmware.ver (repo root) is the single source of truth for the release
     # version - bump it there and every build re-tags HEAD to match, no
-    # manual "git tag" needed. Line 1 is the firmware name, line 2 is the
-    # version - same format scripts/version.py's GitVersion reads, so there's
-    # only ever one file to keep in sync.
+    # manual "git tag" needed. Just the version on a single line - same
+    # format scripts/version.py's GitVersion reads, so there's only ever one
+    # file to keep in sync. The firmware name itself isn't in this file; it's
+    # hardcoded where it's actually used (FIRMWARE_ORIGIN above, and
+    # scripts/version.py's GitVersion.FIRMWARE_NAME for the tag banner).
     version_file = Path("firmware.ver")
     version_tag = ""
     if version_file.exists():
         lines = [line.strip() for line in version_file.read_text().splitlines() if line.strip()]
-        if len(lines) >= 2:
-            version_tag = lines[1]
-        elif len(lines) == 1:
+        if lines:
             version_tag = lines[0]
 
     if version_tag:

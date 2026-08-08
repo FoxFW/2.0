@@ -21,6 +21,7 @@ typedef enum {
     DesktopSettingsAppViewIdPinError,
     DesktopSettingsAppViewDialogEx,
     DesktopSettingsAppViewTextInput,
+    DesktopSettingsAppViewWallpaper,
 } DesktopSettingsAppView;
 
 extern const SceneManagerHandlers desktop_settings_scene_handlers;

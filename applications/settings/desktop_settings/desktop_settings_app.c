@@ -54,6 +54,7 @@ DesktopSettingsApp* desktop_settings_app_alloc(void) {
     app->pin_setup_howto_view = desktop_settings_view_pin_setup_howto_alloc();
     app->pin_setup_howto2_view = desktop_settings_view_pin_setup_howto2_alloc();
     app->numeric_pin_view = desktop_settings_view_numeric_pin_alloc();
+    app->wallpaper_view = desktop_settings_view_wallpaper_alloc();
     app->dialog_ex = dialog_ex_alloc();
 
     app->pin_menu_idx = DesktopSettingsAppViewIdPinInput;
@@ -80,6 +81,10 @@ DesktopSettingsApp* desktop_settings_app_alloc(void) {
         desktop_settings_view_pin_setup_howto2_get_view(app->pin_setup_howto2_view));
     view_dispatcher_add_view(
         app->view_dispatcher, DesktopSettingsAppViewDialogEx, dialog_ex_get_view(app->dialog_ex));
+    view_dispatcher_add_view(
+        app->view_dispatcher,
+        DesktopSettingsAppViewWallpaper,
+        desktop_settings_view_wallpaper_get_view(app->wallpaper_view));
 
     app->text_input = text_input_alloc();
     view_dispatcher_add_view(
@@ -125,6 +130,7 @@ void desktop_settings_app_free(DesktopSettingsApp* app) {
     view_dispatcher_remove_view(app->view_dispatcher, DesktopSettingsAppViewIdPinSetupHowto2);
     view_dispatcher_remove_view(app->view_dispatcher, DesktopSettingsAppViewDialogEx);
     view_dispatcher_remove_view(app->view_dispatcher, DesktopSettingsAppViewTextInput);
+    view_dispatcher_remove_view(app->view_dispatcher, DesktopSettingsAppViewWallpaper);
 
     text_input_free(app->text_input);
     variable_item_list_free(app->variable_item_list);
@@ -134,6 +140,7 @@ void desktop_settings_app_free(DesktopSettingsApp* app) {
     desktop_settings_view_pin_setup_howto_free(app->pin_setup_howto_view);
     desktop_settings_view_pin_setup_howto2_free(app->pin_setup_howto2_view);
     desktop_settings_view_numeric_pin_free(app->numeric_pin_view);
+    desktop_settings_view_wallpaper_free(app->wallpaper_view);
     dialog_ex_free(app->dialog_ex);
 
     view_dispatcher_free(app->view_dispatcher);

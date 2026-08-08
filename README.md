@@ -41,7 +41,7 @@ know that it took me 126 tries (and 56 versions) to get the Web Flasher to work.
 | **RAW Waveform Editor** | Trim Sub-GHz RAW captures in-app without leaving the device |
 | **Protocol Filters** | Enable/disable individual Sub-GHz protocols — fewer active protocols = faster, more accurate decoding |
 | **Bounce-Scroll Text** | System-wide: labels too long to fit bounce left and right rather than truncating — works in every menu |
-| **Custom Wallpaper** | 128×64 XBM image support; a default is auto-generated from firmware if your wallpaper.xbm is missing |
+| **Custom Wallpaper** | Multiple 128×64 XBM wallpapers stored in `/ext/wallpapers/`, switchable from Fox Settings; a default is auto-generated if none exist |
 | **First-Boot Wizard** | Guided setup for device name and PIN on every fresh install |
 
 ---

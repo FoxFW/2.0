@@ -91,6 +91,7 @@ struct Desktop {
 
     View* wallpaper_view;
     uint8_t* wallpaper_data;
+    FuriTimer* wallpaper_check_timer; // polls for a pending web-install activation + edited file
 
     Loader* loader;
     Storage* storage;

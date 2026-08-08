@@ -53,6 +53,7 @@ typedef struct {
     uint8_t lock_usb_level;
     uint8_t menu_theme;       /* MenuTheme enum */
     uint8_t wifi_icon_hidden; /* 0 = show (default), 1 = hide */
+    char wallpaper_filename[64]; /* selected file in /ext/wallpapers, e.g. "Default.xbm" */
 } DesktopSettings;
 
 void desktop_settings_load(DesktopSettings* settings);

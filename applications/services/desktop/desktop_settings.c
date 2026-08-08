@@ -12,7 +12,8 @@
 #define DESKTOP_SETTINGS_VER_20 (20)
 #define DESKTOP_SETTINGS_VER_21 (21)
 #define DESKTOP_SETTINGS_VER_22 (22)
-#define DESKTOP_SETTINGS_VER    (23)
+#define DESKTOP_SETTINGS_VER_23 (23)
+#define DESKTOP_SETTINGS_VER    (24)
  
 #define DESKTOP_SETTINGS_PATH  INT_PATH(DESKTOP_SETTINGS_FILE_NAME)
 #define DESKTOP_SETTINGS_MAGIC (0x17)
@@ -88,6 +89,23 @@ typedef struct {
     uint8_t menu_theme;
 } DesktopSettingsV22;
 
+typedef struct {
+    uint32_t auto_lock_delay_ms;
+    uint8_t usb_inhibit_auto_lock;
+    uint8_t displayBatteryPercentage;
+    uint8_t display_clock;
+    FavoriteApp favorite_apps[FavoriteAppNumber];
+    uint8_t pin_max_attempts;
+    uint8_t pin_exceed_action;
+    uint8_t wallpaper_enabled;
+    uint8_t lock_on_lock_enabled;
+    uint8_t lock_disconnect_ble;
+    uint8_t lock_disconnect_gpio;
+    uint8_t lock_usb_level;
+    uint8_t menu_theme;
+    uint8_t wifi_icon_hidden;
+} DesktopSettingsV23;
+
 void desktop_settings_load(DesktopSettings* settings) {
     furi_assert(settings);
  
@@ -104,6 +122,36 @@ void desktop_settings_load(DesktopSettings* settings) {
                 sizeof(DesktopSettings),
                 DESKTOP_SETTINGS_MAGIC,
                 DESKTOP_SETTINGS_VER);
+
+        } else if(version == DESKTOP_SETTINGS_VER_23) {
+            DesktopSettingsV23* s = malloc(sizeof(DesktopSettingsV23));
+
+            success = saved_struct_load(
+                DESKTOP_SETTINGS_PATH,
+                s,
+                sizeof(DesktopSettingsV23),
+                DESKTOP_SETTINGS_MAGIC,
+                DESKTOP_SETTINGS_VER_23);
+
+            if(success) {
+                settings->auto_lock_delay_ms       = s->auto_lock_delay_ms;
+                settings->usb_inhibit_auto_lock    = s->usb_inhibit_auto_lock;
+                settings->displayBatteryPercentage = s->displayBatteryPercentage;
+                settings->display_clock            = s->display_clock;
+                memcpy(settings->favorite_apps, s->favorite_apps, sizeof(settings->favorite_apps));
+                settings->pin_max_attempts         = s->pin_max_attempts;
+                settings->pin_exceed_action        = s->pin_exceed_action;
+                settings->wallpaper_enabled        = s->wallpaper_enabled;
+                settings->lock_on_lock_enabled     = s->lock_on_lock_enabled;
+                settings->lock_disconnect_ble      = s->lock_disconnect_ble;
+                settings->lock_disconnect_gpio     = s->lock_disconnect_gpio;
+                settings->lock_usb_level           = s->lock_usb_level;
+                settings->menu_theme               = s->menu_theme;
+                settings->wifi_icon_hidden         = s->wifi_icon_hidden;
+                settings->wallpaper_filename[0]    = '\0'; /* re-seeded on next boot */
+            }
+
+            free(s);
 
         } else if(version == DESKTOP_SETTINGS_VER_22) {
             DesktopSettingsV22* s = malloc(sizeof(DesktopSettingsV22));
@@ -130,6 +178,7 @@ void desktop_settings_load(DesktopSettings* settings) {
                 settings->lock_usb_level           = s->lock_usb_level;
                 settings->menu_theme               = s->menu_theme;
                 settings->wifi_icon_hidden         = 0; /* default ON for existing users */
+                settings->wallpaper_filename[0]    = '\0';
             }
 
             free(s);
@@ -158,6 +207,8 @@ void desktop_settings_load(DesktopSettings* settings) {
                 settings->lock_disconnect_gpio    = s->lock_disconnect_gpio;
                 settings->lock_usb_level          = s->lock_usb_level;
                 settings->menu_theme              = MenuThemeFox; // new users get Fox theme by default
+                settings->wifi_icon_hidden        = 0;
+                settings->wallpaper_filename[0]   = '\0';
             }
 
             free(s);
@@ -194,6 +245,9 @@ void desktop_settings_load(DesktopSettings* settings) {
                     settings->lock_disconnect_gpio  = 0;
                     settings->lock_usb_level        = LockUsbLevelOff;
                 }
+                settings->menu_theme            = MenuThemeFox;
+                settings->wifi_icon_hidden      = 0;
+                settings->wallpaper_filename[0] = '\0';
             }
 
             free(s);
@@ -222,10 +276,12 @@ void desktop_settings_load(DesktopSettings* settings) {
                 settings->lock_disconnect_gpio    = 0;
                 settings->lock_usb_level          = LockUsbLevelOff;
                 settings->menu_theme              = MenuThemeFox;
+                settings->wifi_icon_hidden        = 0;
+                settings->wallpaper_filename[0]   = '\0';
             }
- 
+
             free(s);
- 
+
         } else if(version == DESKTOP_SETTINGS_VER_18) {
             DesktopSettingsV18* s = malloc(sizeof(DesktopSettingsV18));
  
@@ -250,10 +306,12 @@ void desktop_settings_load(DesktopSettings* settings) {
                 settings->lock_disconnect_gpio    = 0;
                 settings->lock_usb_level          = LockUsbLevelOff;
                 settings->menu_theme              = MenuThemeFox;
+                settings->wifi_icon_hidden        = 0;
+                settings->wallpaper_filename[0]   = '\0';
             }
- 
+
             free(s);
- 
+
         } else if(version == DESKTOP_SETTINGS_VER_17) {
             DesktopSettingsV17* s = malloc(sizeof(DesktopSettingsV17));
  
@@ -278,11 +336,13 @@ void desktop_settings_load(DesktopSettings* settings) {
                 settings->lock_disconnect_gpio    = 0;
                 settings->lock_usb_level          = LockUsbLevelOff;
                 settings->menu_theme              = MenuThemeFox;
+                settings->wifi_icon_hidden        = 0;
+                settings->wallpaper_filename[0]   = '\0';
             }
- 
+
             free(s);
         }
- 
+
     } while(false);
  
     if(!success) {

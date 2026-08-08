@@ -11,7 +11,11 @@ from flipper.app import App
 class GitVersion:
     REVISION_SUFFIX_LENGTH = 8
     VERSION_FILE_NAME = "firmware.ver"
-    DEFAULT_FIRMWARE_NAME = "Firmware"
+    # FoxFW's product name, used for the git-tag banner below. This used to
+    # live as an optional first line in firmware.ver, but that file only
+    # ever needs to hold the version - the name belongs here, next to the
+    # other place it's hardcoded (fbt_options.py's FIRMWARE_ORIGIN).
+    FIRMWARE_NAME = "FoxFW"
     BANNER_FILE_RELPATH = os.path.join("build", ".fbt_version_banner")
 
     def __init__(self, source_dir):
@@ -23,13 +27,11 @@ class GitVersion:
             with open(version_file, "r") as f:
                 lines = [line.strip() for line in f.readlines()]
         except EnvironmentError:
-            return None, None
+            return None
         lines = [line for line in lines if line]
         if not lines:
-            return None, None
-        if len(lines) == 1:
-            return self.DEFAULT_FIRMWARE_NAME, lines[0]
-        return lines[0], lines[1]
+            return None
+        return lines[0]
 
     def _write_banner_file(self, line):
         banner_path = os.path.join(self.source_dir, self.BANNER_FILE_RELPATH)
@@ -40,10 +42,10 @@ class GitVersion:
         except OSError:
             pass
 
-    def _sync_git_tag(self, name, version):
+    def _sync_git_tag(self, version):
         try:
             self._exec_git(f"tag -f {version}")
-            banner = f"\033[96m{name} Version Tag: {version}\033[0m"
+            banner = f"\033[96m{self.FIRMWARE_NAME} Version Tag: {version}\033[0m"
             print(banner)
             self._write_banner_file(banner)
         except (subprocess.CalledProcessError, OSError):
@@ -70,7 +72,7 @@ class GitVersion:
             or "unknown"
         )
 
-        firmware_name, file_version = self._read_version_file()
+        file_version = self._read_version_file()
         version = (
             os.environ.get("DIST_SUFFIX", None)
             or file_version
@@ -78,7 +80,7 @@ class GitVersion:
         )
 
         if file_version:
-            self._sync_git_tag(firmware_name or self.DEFAULT_FIRMWARE_NAME, file_version)
+            self._sync_git_tag(file_version)
 
         force_no_dirty = (
             os.environ.get("FORCE_NO_DIRTY", None)
