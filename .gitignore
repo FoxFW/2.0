@@ -12,6 +12,11 @@
 /clean_build.txt
 /build_fox_apps_suite.bat
 
+# Personal notes - not part of the firmware, not for publishing
+/FOX_RELEASE_PROCESS.md
+/CLAUDE.md
+/PROJECT_HANDOVER.md
+
 
 # LSP
 .cache
