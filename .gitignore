@@ -110,3 +110,4 @@ scripts/deploy_flipper_docs.py
 build_fox_apps_suite.bat
 clean_build.txt
 clean_build.txt
+clean_build_output.tmp.log
