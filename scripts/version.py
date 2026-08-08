@@ -6,6 +6,7 @@ import subprocess
 from datetime import date, datetime
 
 from flipper.app import App
+from clean_git_locks import clean_stale_git_locks
 
 
 class GitVersion:
@@ -52,6 +53,11 @@ class GitVersion:
             pass
 
     def get_version_info(self):
+        # Every git command below fails outright if a stale lock is sitting
+        # in .git (e.g. left behind by a prior interrupted session) - clear
+        # those first, before touching git at all.
+        clean_stale_git_locks()
+
         commit = (
             self._exec_git(f"rev-parse --short={self.REVISION_SUFFIX_LENGTH} HEAD")
             or "unknown"

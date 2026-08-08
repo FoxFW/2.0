@@ -197,7 +197,7 @@ void desktop_settings_view_wallpaper_load(
             snprintf(full, sizeof(full), "%s/%s", WALLPAPER_DIR, name);
             if(!xbm_file_is_128x64(storage, full)) continue;
 
-            snprintf(names[count], WALLPAPER_NAME_MAX, "%s", name);
+            strlcpy(names[count], name, WALLPAPER_NAME_MAX);
             count++;
         }
     }
