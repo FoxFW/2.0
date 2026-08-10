@@ -11,6 +11,7 @@
 #include <desktop/desktop.h>
 #include <desktop/helpers/pin_code.h> // Brings back the true definition for DesktopPinCode!
 #include <dialogs/dialogs.h>
+#include <notification/notification_app.h>
 
 #include "views/desktop_settings_view_pin_setup_howto.h"
 #include "views/desktop_settings_view_pin_setup_howto2.h"
@@ -50,6 +51,8 @@ typedef struct {
     DesktopSettingsViewWallpaper* wallpaper_view;
     DialogEx* dialog_ex;
     TextInput* text_input;
+
+    NotificationApp* notification;
 
     char device_name[64];
     bool save_name;

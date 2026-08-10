@@ -2,6 +2,13 @@
 #include "../helpers/subghz_custom_event.h"
 #include <lib/toolbox/value_index.h>
 #include <applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h>
+#include <targets/f7/furi_hal/furi_hal_subghz.h>
+
+/* Fixed list position of the two nav-only rows below (File Prefix, Custom
+ * Frequencies) - always after Protocol Names and before Counter Incr., so
+ * the position is stable whether or not the debug-only rows are present. */
+#define RADIO_SETTINGS_ROW_FILE_PREFIX   5
+#define RADIO_SETTINGS_ROW_CUSTOM_FREQ   6
 
 #define RADIO_DEVICE_COUNT 2
 const char* const radio_device_text[RADIO_DEVICE_COUNT] = {
@@ -165,6 +172,22 @@ static void subghz_scene_receiver_config_set_timestamp_file_names(VariableItem* 
     subghz_save_all(subghz);
 }
 
+static void subghz_scene_radio_settings_set_bypass_region_lock(VariableItem* item) {
+    SubGhz* subghz = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, on_off_text[index]);
+    subghz->last_settings->bypass_region_lock = (index == 1);
+    // Push live immediately, same flag the SD-card dangerous_settings file
+    // sets at boot - either source can enable it.
+    furi_hal_subghz_set_dangerous_frequency(subghz->last_settings->bypass_region_lock);
+    subghz_save_all(subghz);
+}
+
+static void subghz_scene_radio_settings_var_list_enter_callback(void* context, uint32_t index) {
+    SubGhz* subghz = context;
+    view_dispatcher_send_custom_event(subghz->view_dispatcher, index);
+}
+
 void subghz_scene_radio_settings_on_enter(void* context) {
     SubGhz* subghz = context;
 
@@ -226,6 +249,25 @@ void subghz_scene_radio_settings_on_enter(void* context) {
 
     item = variable_item_list_add(
         variable_item_list,
+        "Bypass Region Lock",
+        ON_OFF_COUNT,
+        subghz_scene_radio_settings_set_bypass_region_lock,
+        subghz);
+    value_index = subghz->last_settings->bypass_region_lock ? 1 : 0;
+    variable_item_set_current_value_index(item, value_index);
+    variable_item_set_current_value_text(item, on_off_text[value_index]);
+
+    item = variable_item_list_add(variable_item_list, "File Prefix", 0, NULL, NULL);
+    if(subghz->last_settings->file_prefix[0] != '\0') {
+        variable_item_set_current_value_text(item, subghz->last_settings->file_prefix);
+    } else {
+        variable_item_set_current_value_text(item, "(none)");
+    }
+
+    variable_item_list_add(variable_item_list, "Custom Frequencies", 0, NULL, NULL);
+
+    item = variable_item_list_add(
+        variable_item_list,
         "Counter Incr.",
         furi_hal_rtc_is_flag_set(FuriHalRtcFlagDebug) ? DEBUG_COUNTER_COUNT : 3,
         subghz_scene_receiver_config_set_debug_counter,
@@ -261,13 +303,24 @@ void subghz_scene_radio_settings_on_enter(void* context) {
         variable_item_set_current_value_text(item, debug_pin_text[value_index]);
     }
 
+    variable_item_list_set_enter_callback(
+        variable_item_list, subghz_scene_radio_settings_var_list_enter_callback, subghz);
+
     view_dispatcher_switch_to_view(subghz->view_dispatcher, SubGhzViewIdVariableItemList);
 }
 
 bool subghz_scene_radio_settings_on_event(void* context, SceneManagerEvent event) {
     SubGhz* subghz = context;
-    UNUSED(subghz);
-    UNUSED(event);
+
+    if(event.type == SceneManagerEventTypeCustom) {
+        if(event.event == RADIO_SETTINGS_ROW_FILE_PREFIX) {
+            scene_manager_next_scene(subghz->scene_manager, SubGhzSceneFilePrefix);
+            return true;
+        } else if(event.event == RADIO_SETTINGS_ROW_CUSTOM_FREQ) {
+            scene_manager_next_scene(subghz->scene_manager, SubGhzSceneCustomFreq);
+            return true;
+        }
+    }
 
     return false;
 }

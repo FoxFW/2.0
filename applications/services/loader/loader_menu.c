@@ -5,9 +5,11 @@
 #include <assets_icons.h>
 #include <applications.h>
 #include <archive/helpers/archive_favorites.h>
+#include <string.h>
 
 #include "loader.h"
 #include "loader_menu.h"
+#include "loader_main_menu_pins.h"
 
 #define TAG "LoaderMenu"
 
@@ -45,6 +47,7 @@ typedef struct {
     ViewDispatcher* view_dispatcher;
     Menu* primary_menu;
     Submenu* settings_menu;
+    MainMenuPins pins;
 } LoaderMenuApp;
 
 static void loader_menu_start(const char* name) {
@@ -63,6 +66,24 @@ static void loader_menu_external_apps_callback(void* context, uint32_t index) {
     UNUSED(context);
     const char* path = FLIPPER_EXTERNAL_APPS[index].name;
     loader_menu_start(path);
+}
+
+static void loader_menu_pinned_callback(void* context, uint32_t index) {
+    UNUSED(context);
+    const char* path = (const char*)index;
+    loader_menu_start(path);
+}
+
+// Derives a display label from a .fap path: strips directory and extension.
+// Writes into `out` (caller-owned, at least `out_size` bytes).
+static void loader_menu_pin_label(const char* path, char* out, size_t out_size) {
+    const char* slash = strrchr(path, '/');
+    const char* base = slash ? slash + 1 : path;
+    strlcpy(out, base, out_size);
+    size_t len = strlen(out);
+    if(len > 4 && strcmp(out + len - 4, ".fap") == 0) {
+        out[len - 4] = '\0';
+    }
 }
 
 static void loader_menu_applications_callback(void* context, uint32_t index) {
@@ -106,6 +127,18 @@ static uint32_t loader_menu_exit(void* context) {
 
 static void loader_menu_build_menu(LoaderMenuApp* app, LoaderMenu* menu) {
     size_t i = 0;
+
+    for(size_t p = 0; p < app->pins.count; p++) {
+        char label[MAIN_MENU_PINS_PATH_LEN];
+        loader_menu_pin_label(app->pins.paths[p], label, sizeof(label));
+        menu_add_item(
+            app->primary_menu,
+            label,
+            &A_Plugins_14,
+            (uint32_t)app->pins.paths[p],
+            loader_menu_pinned_callback,
+            (void*)menu);
+    }
 
     menu_add_item(
         app->primary_menu,
@@ -172,6 +205,7 @@ static LoaderMenuApp* loader_menu_app_alloc(LoaderMenu* loader_menu) {
     app->view_dispatcher = view_dispatcher_alloc();
     app->primary_menu = menu_alloc();
     app->settings_menu = submenu_alloc();
+    main_menu_pins_load(&app->pins);
 
     loader_menu_build_menu(app, loader_menu);
     loader_menu_build_submenu(app, loader_menu);

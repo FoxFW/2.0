@@ -6,8 +6,9 @@ App(
     requires=[
         "desktop",
         "gui",
+        "notification",
     ],
-    stack_size=2 * 1024,
+    stack_size=4 * 1024,
     order=2,
     fap_icon="fox_icon_10x10.png",
     fap_category="Fox",

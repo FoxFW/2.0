@@ -181,7 +181,10 @@ void desktop_settings_view_wallpaper_load(
     Storage* storage = furi_record_open(RECORD_STORAGE);
     storage_simply_mkdir(storage, WALLPAPER_DIR);
 
-    char names[WALLPAPER_LIST_MAX][WALLPAPER_NAME_MAX];
+    // names[][] is WALLPAPER_LIST_MAX * WALLPAPER_NAME_MAX = 4096 bytes -
+    // this app's thread only has a 2KB stack (see application.fam), so a
+    // local array this size overflows it outright. Heap-allocate instead.
+    char(*names)[WALLPAPER_NAME_MAX] = malloc(WALLPAPER_LIST_MAX * WALLPAPER_NAME_MAX);
     uint8_t count = 0;
 
     File* dir = storage_file_alloc(storage);
@@ -224,7 +227,7 @@ void desktop_settings_view_wallpaper_load(
         instance->view,
         WallpaperSettingsModel* model,
         {
-            memcpy(model->names, names, sizeof(names));
+            memcpy(model->names, names, sizeof(model->names));
             model->count = count;
             model->enabled = enabled;
             model->focus_row = WallpaperRowName;
@@ -237,6 +240,8 @@ void desktop_settings_view_wallpaper_load(
             }
         },
         true);
+
+    free(names);
 }
 
 void desktop_settings_view_wallpaper_get(

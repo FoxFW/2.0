@@ -41,6 +41,8 @@ static bool lcd_backlight_is_on = false;
 // --- RGB BACKLIGHT ---
 // local variable for local use
 uint8_t rgb_backlight_installed_variable = 0;
+// 1 = RGB + White (default, matches pre-existing behavior); 0 = RGB only
+uint8_t rgb_backlight_white_mode_variable = 1;
 
 typedef struct {
     char* name;
@@ -81,9 +83,26 @@ const char* rgb_backlight_get_color_text(uint8_t index) {
     return colors[index].name;
 }
 
+void rgb_backlight_get_color_rgb(uint8_t index, uint8_t* r, uint8_t* g, uint8_t* b) {
+    *r = colors[index].red;
+    *g = colors[index].green;
+    *b = colors[index].blue;
+}
+
 // function for changind local variable from outside;
 void set_rgb_backlight_installed_variable(uint8_t var) {
     rgb_backlight_installed_variable = var;
+}
+
+void set_rgb_backlight_white_mode_variable(uint8_t var) {
+    rgb_backlight_white_mode_variable = var;
+}
+
+// furi_hal_light.c calls this to decide whether to also ramp the stock
+// white LP5562 channel: yes if RGB isn't installed (nothing else would
+// light the screen), or if the user opted to keep both lights on.
+bool rgb_backlight_should_drive_white_led(void) {
+    return (rgb_backlight_installed_variable == 0) || (rgb_backlight_white_mode_variable != 0);
 }
 
 // update led current colors by static
@@ -861,6 +880,7 @@ static NotificationApp* notification_app_alloc(void) {
 
     // init rgb.segings values
     app->settings.rgb.rgb_backlight_installed = 0;
+    app->settings.rgb.white_backlight_mode = 1;
     app->settings.rgb.led_2_color_index = 0;
     app->settings.rgb.led_1_color_index = 0;
     app->settings.rgb.led_0_color_index = 0;
@@ -943,6 +963,7 @@ int32_t notification_srv(void* p) {
 
     //setup local variable
     set_rgb_backlight_installed_variable(app->settings.rgb.rgb_backlight_installed);
+    set_rgb_backlight_white_mode_variable(app->settings.rgb.white_backlight_mode);
 
     // define rainbow_timer and they callback
     app->rainbow_timer = furi_timer_alloc(rainbow_timer_callback, FuriTimerTypePeriodic, app);

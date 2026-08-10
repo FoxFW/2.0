@@ -1,6 +1,8 @@
 #include "rpc_i.h"
 #include <gui/gui_i.h>
 #include <assets_icons.h>
+#include <notification/notification_app.h>
+#include <screen_color/screen_color_settings.h>
 
 #include <flipper.pb.h>
 #include <gui.pb.h>
@@ -57,6 +59,10 @@ typedef struct {
     const Icon* icon;
     FuriPubSub* input_events;
 
+    // VGM Options: screen stream foreground/background colors
+    NotificationApp* notification;
+    ScreenColorSettings screen_color;
+
     // Receive part
     ViewPort* virtual_display_view_port;
     uint8_t* virtual_display_buffer;
@@ -81,6 +87,31 @@ static const PB_Gui_ScreenOrientation rpc_system_gui_screen_orientation_map[] = 
     [CanvasOrientationVerticalFlip] = PB_Gui_ScreenOrientation_VERTICAL_FLIP,
 };
 
+/* VGM Options: pack the configured foreground/background screen-stream
+ * color for the wire. RgbMod mode mirrors this device's live RGB backlight
+ * color (or hands rendering to the client if a rainbow effect is active). */
+static uint32_t rpc_system_gui_get_screen_color(RpcGuiSystem* rpc_gui, bool foreground) {
+    uint8_t mode = foreground ? rpc_gui->screen_color.fg_mode : rpc_gui->screen_color.bg_mode;
+    uint8_t r = foreground ? rpc_gui->screen_color.fg_r : rpc_gui->screen_color.bg_r;
+    uint8_t g = foreground ? rpc_gui->screen_color.fg_g : rpc_gui->screen_color.bg_g;
+    uint8_t b = foreground ? rpc_gui->screen_color.fg_b : rpc_gui->screen_color.bg_b;
+
+    if(mode == ScreenColorModeRgbBacklight && rpc_gui->notification) {
+        RGBBacklightSettings* rgb = &rpc_gui->notification->settings.rgb;
+        if(!rgb->rgb_backlight_installed) {
+            return screen_color_pack(ScreenColorModeDefault, 0, 0, 0);
+        }
+        if(rgb->rainbow_mode != 0) {
+            return screen_color_pack(ScreenColorModeRainbow, 0, 0, 0);
+        }
+        uint8_t cr, cg, cb;
+        rgb_backlight_get_color_rgb(rgb->led_0_color_index, &cr, &cg, &cb);
+        return screen_color_pack(ScreenColorModeCustom, cr, cg, cb);
+    }
+
+    return screen_color_pack(mode, r, g, b);
+}
+
 static void rpc_system_gui_screen_stream_frame_callback(
     uint8_t* data,
     size_t size,
@@ -97,6 +128,11 @@ static void rpc_system_gui_screen_stream_frame_callback(
     memcpy(buffer, data, size);
     rpc_gui->transmit_frame->content.gui_screen_frame.orientation =
         rpc_system_gui_screen_orientation_map[orientation];
+
+    rpc_gui->transmit_frame->content.gui_screen_frame.fg_color =
+        rpc_system_gui_get_screen_color(rpc_gui, true);
+    rpc_gui->transmit_frame->content.gui_screen_frame.bg_color =
+        rpc_system_gui_get_screen_color(rpc_gui, false);
 
     furi_thread_flags_set(furi_thread_get_id(rpc_gui->transmit_thread), RpcGuiWorkerFlagTransmit);
 }
@@ -402,6 +438,9 @@ void* rpc_system_gui_alloc(RpcSession* session) {
     rpc_gui->input_events = furi_record_open(RECORD_INPUT_EVENTS);
     rpc_gui->session = session;
 
+    rpc_gui->notification = furi_record_open(RECORD_NOTIFICATION);
+    screen_color_settings_load(&rpc_gui->screen_color);
+
     // Active session icon
     const RpcOwner owner = rpc_session_get_owner(rpc_gui->session);
     if(owner != RpcOwnerBle) {
@@ -488,5 +527,6 @@ void rpc_system_gui_free(void* context) {
     }
     furi_record_close(RECORD_INPUT_EVENTS);
     furi_record_close(RECORD_GUI);
+    furi_record_close(RECORD_NOTIFICATION);
     free(rpc_gui);
 }

@@ -20,3 +20,11 @@ void desktop_view_locked_lock(DesktopViewLocked* locked_view, bool pin_locked);
 void desktop_view_locked_unlock(DesktopViewLocked* locked_view);
 void desktop_view_locked_close_doors(DesktopViewLocked* locked_view);
 bool desktop_view_locked_is_locked_hint_visible(DesktopViewLocked* locked_view);
+void desktop_view_locked_set_display_options(
+    DesktopViewLocked* locked_view,
+    bool show_time,
+    bool show_seconds,
+    bool show_date,
+    bool unlock_prompt,
+    bool allow_poweroff,
+    bool midnight_zero);

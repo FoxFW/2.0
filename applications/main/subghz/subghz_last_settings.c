@@ -26,6 +26,8 @@
 #define SUBGHZ_LAST_SETTING_FIELD_RAW_ZOOM_LEVEL      "RawZoom"
 #define SUBGHZ_LAST_SETTING_FIELD_PROTOCOL_FILTER      "ProtoFilter"
 #define SUBGHZ_LAST_SETTING_FIELD_MOD_FILTER           "ModFilter"
+#define SUBGHZ_LAST_SETTING_FIELD_BYPASS_REGION_LOCK   "BypassRegionLock"
+#define SUBGHZ_LAST_SETTING_FIELD_FILE_PREFIX          "FilePrefix"
 
 SubGhzLastSettings* subghz_last_settings_alloc(void) {
     SubGhzLastSettings* instance = malloc(sizeof(SubGhzLastSettings));
@@ -56,6 +58,8 @@ void subghz_last_settings_load(SubGhzLastSettings* instance, size_t preset_count
     instance->leds_and_amp = true;
     instance->visualizer_display_mode = SUBGHZ_LAST_SETTING_DEFAULT_VISUALIZER_MODE;
     instance->raw_playback_zoom_level = SUBGHZ_LAST_SETTING_DEFAULT_RAW_ZOOM_LEVEL;
+    instance->bypass_region_lock = false;
+    instance->file_prefix[0] = '\0';
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
     FlipperFormat* fff_data_file = flipper_format_file_alloc(storage);
@@ -198,6 +202,26 @@ void subghz_last_settings_load(SubGhzLastSettings* instance, size_t preset_count
                 instance->mod_filter_data, sizeof(instance->mod_filter_data));
             if(!instance->mod_filter_present)
                 flipper_format_rewind(fff_data_file);
+            if(!flipper_format_read_bool(
+                   fff_data_file,
+                   SUBGHZ_LAST_SETTING_FIELD_BYPASS_REGION_LOCK,
+                   &instance->bypass_region_lock,
+                   1)) {
+                instance->bypass_region_lock = false;
+                flipper_format_rewind(fff_data_file);
+            }
+            furi_string_reset(temp_str);
+            if(flipper_format_read_string(
+                   fff_data_file, SUBGHZ_LAST_SETTING_FIELD_FILE_PREFIX, temp_str)) {
+                strncpy(
+                    instance->file_prefix,
+                    furi_string_get_cstr(temp_str),
+                    sizeof(instance->file_prefix) - 1);
+                instance->file_prefix[sizeof(instance->file_prefix) - 1] = '\0';
+            } else {
+                instance->file_prefix[0] = '\0';
+            }
+            flipper_format_rewind(fff_data_file);
 
         } while(0);
     } else {
@@ -343,6 +367,17 @@ bool subghz_last_settings_save(SubGhzLastSettings* instance) {
                 file, SUBGHZ_LAST_SETTING_FIELD_MOD_FILTER,
                 instance->mod_filter_data,
                 (uint16_t)sizeof(instance->mod_filter_data));
+        }
+        if(!flipper_format_write_bool(
+               file,
+               SUBGHZ_LAST_SETTING_FIELD_BYPASS_REGION_LOCK,
+               &instance->bypass_region_lock,
+               1)) {
+            break;
+        }
+        if(!flipper_format_write_string_cstr(
+               file, SUBGHZ_LAST_SETTING_FIELD_FILE_PREFIX, instance->file_prefix)) {
+            break;
         }
         saved = true;
     } while(0);

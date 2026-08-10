@@ -16,6 +16,7 @@
 #include <gui/modules/dialog_ex.h>
 #include <gui/modules/popup.h>
 #include <gui/modules/loading.h>
+#include <gui/view_holder.h>
 #include <gui/modules/text_input.h>
 #include <gui/modules/byte_input.h>
 #include <gui/modules/text_box.h>
@@ -145,6 +146,13 @@ struct NfcApp {
     ViewDispatcher* view_dispatcher;
     NotificationApp* notifications;
     SceneManager* scene_manager;
+
+    /* Startup loading wheel - shown immediately on launch, before the
+     * (sometimes multi-second, on first use after boot) NFC chip acquire
+     * in nfc_alloc() runs, so the apps menu doesn't sit frozen with no
+     * feedback. Removed once the real scene is ready. */
+    Loading* startup_loading;
+    ViewHolder* startup_holder;
 
     char text_store[NFC_TEXT_STORE_SIZE + 1];
     FuriString* text_box_store;

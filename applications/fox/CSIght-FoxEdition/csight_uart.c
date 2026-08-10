@@ -1,5 +1,6 @@
 #include "csight.h"
 #include "csight_log.h"
+#include "gpio_remap_compat.h"
 #include <notification/notification_messages.h>
 #include <stdlib.h>
 #include <string.h>
@@ -291,7 +292,12 @@ static int32_t uart_rx_thread(void* ctx) {
 
 // ─── Init / Deinit ────────────────────────────────────────────────────────────
 void csight_uart_init(CSIghtApp* app) {
-    app->esp_at = esp_at_alloc(CSIGHT_UART_CH, CSIGHT_UART_BAUD);
+    GpioRemapSettings gpio_remap;
+    gpio_remap_settings_load(&gpio_remap);
+    FuriHalSerialId serial_id = (gpio_remap.esp32_uart_channel == GpioRemapEsp32UartLpuart)
+                                     ? FuriHalSerialIdLpuart
+                                     : FuriHalSerialIdUsart;
+    app->esp_at = esp_at_alloc(serial_id, CSIGHT_UART_BAUD);
 
     // uart_rx_thread keeps an EspAtMsg (char[ESP_AT_LINE_MAX], 6200 bytes) as
     // a local variable for the life of the thread, so the stack has to be

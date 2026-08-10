@@ -1,0 +1,10 @@
+App(
+    appid="gpio_remap",
+    apptype=FlipperAppType.STARTUP,
+    entry_point="gpio_remap_on_system_start",
+    sources=[
+        "gpio_remap_settings.c",
+    ],
+    sdk_headers=["gpio_remap_settings.h"],
+    order=1200,
+)

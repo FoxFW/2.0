@@ -16,7 +16,6 @@
 #define MESH_MAX_NODES 4  // node 0 = primary, 1-3 = secondaries
 
 // ─── UART ────────────────────────────────────────────────────────────────────
-#define CSIGHT_UART_CH       FuriHalSerialIdUsart
 #define CSIGHT_UART_BAUD     115200
 #define CSIGHT_LINE_WAIT_MS  1500
 

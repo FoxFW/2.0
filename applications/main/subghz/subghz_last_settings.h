@@ -44,6 +44,8 @@ typedef struct {
     uint8_t mod_filter_data[64];       /* 1 byte per preset:   0=off 1=on */
     bool    protocol_filter_present;   /* true if loaded from file */
     bool    mod_filter_present;        /* true if loaded from file */
+    bool    bypass_region_lock;   /* mirrors furi_hal_subghz's dangerous_frequency_i flag */
+    char    file_prefix[12];      /* prepended to auto-generated .sub filenames when non-empty */
 } SubGhzLastSettings;
 
 /* Copy raw filter arrays in/out of the filter objects.

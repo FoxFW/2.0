@@ -41,6 +41,17 @@ static void nfc_app_rpc_command_callback(const RpcAppSystemEvent* event, void* c
 NfcApp* nfc_app_alloc(void) {
     NfcApp* instance = malloc(sizeof(NfcApp));
 
+    // Open GUI record first so the startup loading wheel can go up
+    // immediately, before the slow work below (nfc_alloc() acquires the
+    // NFC chip, which can take a few seconds on first use after boot).
+    instance->gui = furi_record_open(RECORD_GUI);
+
+    instance->startup_loading = loading_alloc();
+    instance->startup_holder = view_holder_alloc();
+    view_holder_attach_to_gui(instance->startup_holder, instance->gui);
+    view_holder_set_view(
+        instance->startup_holder, loading_get_view(instance->startup_loading));
+
     instance->view_dispatcher = view_dispatcher_alloc();
     instance->scene_manager = scene_manager_alloc(&nfc_scene_handlers, instance);
     view_dispatcher_set_event_callback_context(instance->view_dispatcher, instance);
@@ -65,9 +76,6 @@ NfcApp* nfc_app_alloc(void) {
     // Nfc device
     instance->nfc_device = nfc_device_alloc();
     nfc_device_set_loading_callback(instance->nfc_device, nfc_show_loading_popup, instance);
-
-    // Open GUI record
-    instance->gui = furi_record_open(RECORD_GUI);
 
     // Open Notification record
     instance->notifications = furi_record_open(RECORD_NOTIFICATION);
@@ -211,6 +219,19 @@ void nfc_app_free(NfcApp* instance) {
     furi_record_close(RECORD_DIALOGS);
     furi_record_close(RECORD_STORAGE);
     furi_record_close(RECORD_NOTIFICATION);
+
+    /* Remove startup loading wheel if still active (fallback for launch
+     * paths, like RPC, that don't reach nfc_scene_start_on_enter). */
+    if(instance->startup_holder) {
+        view_holder_set_view(instance->startup_holder, NULL);
+        view_holder_free(instance->startup_holder);
+        instance->startup_holder = NULL;
+    }
+    if(instance->startup_loading) {
+        loading_free(instance->startup_loading);
+        instance->startup_loading = NULL;
+    }
+
     // GUI
     furi_record_close(RECORD_GUI);
     instance->gui = NULL;

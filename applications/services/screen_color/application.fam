@@ -1,0 +1,10 @@
+App(
+    appid="screen_color",
+    apptype=FlipperAppType.STARTUP,
+    entry_point="screen_color_on_system_start",
+    sources=[
+        "screen_color_settings.c",
+    ],
+    sdk_headers=["screen_color_settings.h"],
+    order=1210,
+)

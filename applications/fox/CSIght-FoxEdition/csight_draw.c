@@ -396,10 +396,6 @@ void csight_draw_main_menu(Canvas* c, CSIghtApp* app) {
 
         if(selected) canvas_set_color(c, ColorBlack);
     }
-
-    // Hold back to exit hint
-    canvas_set_font(c, FontSecondary);
-    canvas_draw_str(c, 2, SCREEN_H - 1, "Hold Back to exit");
 }
 
 // ─── About screen ─────────────────────────────────────────────────────────────

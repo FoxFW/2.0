@@ -1,6 +1,7 @@
 #include "app.h"
 #include "chameleon_protocol.h"
 #include "key_dictionary.h"
+#include "gpio_remap_compat.h"
 
 #include <storage/storage.h>
 #include <furi_hal_rtc.h>
@@ -1509,6 +1510,8 @@ static bool settings_input_cb(InputEvent* event, void* context) {
         if(app->settings_selected == SettingsIndexPins) {
             app->pin_option_index =
                 (app->pin_option_index == 0) ? (PIN_OPTION_COUNT - 1) : (app->pin_option_index - 1);
+            GpioRemapSettings gpio_remap_left = {.esp32_uart_channel = (uint8_t)app->pin_option_index};
+            gpio_remap_settings_save(&gpio_remap_left);
             with_view_model(app->settings_view, uint8_t * _m, { UNUSED(_m); }, true);
         } else if(app->settings_selected == SettingsIndexBaud) {
             app->baud_option_index = (app->baud_option_index == 0) ? (BAUD_OPTION_COUNT - 1) :
@@ -1520,6 +1523,8 @@ static bool settings_input_cb(InputEvent* event, void* context) {
     case InputKeyRight:
         if(app->settings_selected == SettingsIndexPins) {
             app->pin_option_index = (app->pin_option_index + 1) % PIN_OPTION_COUNT;
+            GpioRemapSettings gpio_remap_right = {.esp32_uart_channel = (uint8_t)app->pin_option_index};
+            gpio_remap_settings_save(&gpio_remap_right);
             with_view_model(app->settings_view, uint8_t * _m, { UNUSED(_m); }, true);
         } else if(app->settings_selected == SettingsIndexBaud) {
             app->baud_option_index = (app->baud_option_index + 1) % BAUD_OPTION_COUNT;
@@ -1581,6 +1586,10 @@ static bool app_probe_default_uart(App* app, size_t pin_index) {
 
     app->pin_option_index = pin_index;
     app->baud_option_index = BAUD_OPTION_DEFAULT_INDEX;
+
+    GpioRemapSettings gpio_remap = {.esp32_uart_channel = (uint8_t)pin_index};
+    gpio_remap_settings_save(&gpio_remap);
+
     return true;
 }
 
@@ -1595,6 +1604,12 @@ static App* app_alloc(void) {
     app->log = furi_string_alloc();
     app->terminal_log_path = furi_string_alloc();
     app->baud_option_index = BAUD_OPTION_DEFAULT_INDEX;
+
+    GpioRemapSettings gpio_remap;
+    gpio_remap_settings_load(&gpio_remap);
+    if(gpio_remap.esp32_uart_channel < PIN_OPTION_COUNT) {
+        app->pin_option_index = gpio_remap.esp32_uart_channel;
+    }
 
     app_load_config(app);
     app_ensure_config_defaults(app);

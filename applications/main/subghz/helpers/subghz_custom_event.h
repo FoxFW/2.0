@@ -82,6 +82,14 @@ typedef enum {
     SubGhzCustomEventViewModAnalBack,
     SubGhzCustomEventViewModAnalConfig,
     SubGhzCustomEventViewModAnalTune,
+
+    /* File Prefix (Radio Settings) */
+    SubGhzCustomEventSceneFilePrefixDone,
+
+    /* Custom Frequencies (Radio Settings) */
+    SubGhzCustomEventSceneCustomFreqAdd,
+    SubGhzCustomEventSceneCustomFreqRemove,
+    SubGhzCustomEventSceneCustomFreqDone,
 } SubGhzCustomEvent;
 
 typedef enum {

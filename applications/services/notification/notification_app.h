@@ -39,12 +39,17 @@ typedef struct {
     Light light;
 } NotificationLedLayer;
 
-#define NOTIFICATION_SETTINGS_VERSION 0x05
+#define NOTIFICATION_SETTINGS_VERSION 0x06
 #define NOTIFICATION_SETTINGS_PATH    INT_PATH(NOTIFICATION_SETTINGS_FILE_NAME)
 
 typedef struct {
     //Common settings
     uint8_t rgb_backlight_installed;
+
+    // 0 = RGB only (stock white LED off, matches Momentum firmware's
+    // behavior), 1 = RGB + White (stock white LED still ramps alongside
+    // the RGB LEDs - FoxFW's original/default behavior)
+    uint8_t white_backlight_mode;
 
     // static gradient mode settings
     uint8_t led_2_color_index;
@@ -105,8 +110,11 @@ void rainbow_timer_start(NotificationApp* app);
 void rainbow_timer_stop(NotificationApp* app);
 void rainbow_timer_starter(NotificationApp* app);
 const char* rgb_backlight_get_color_text(uint8_t index);
+void rgb_backlight_get_color_rgb(uint8_t index, uint8_t* r, uint8_t* g, uint8_t* b);
 uint8_t rgb_backlight_get_color_count(void);
 void set_rgb_backlight_installed_variable(uint8_t var);
+void set_rgb_backlight_white_mode_variable(uint8_t var);
+bool rgb_backlight_should_drive_white_led(void);
 
 #ifdef __cplusplus
 }

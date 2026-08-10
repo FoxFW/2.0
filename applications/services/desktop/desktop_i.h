@@ -91,6 +91,9 @@ struct Desktop {
 
     View* wallpaper_view;
     uint8_t* wallpaper_data;
+    FuriMutex* wallpaper_mutex; // guards wallpaper_data - written from the check timer /
+                                 // settings-save event, read from the draw callback, different
+                                 // threads
     FuriTimer* wallpaper_check_timer; // polls for a pending web-install activation + edited file
 
     Loader* loader;

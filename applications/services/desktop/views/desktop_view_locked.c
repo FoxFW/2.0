@@ -1,7 +1,9 @@
 #include <furi.h>
+#include <furi_hal.h>
 
 #include <gui/elements.h>
 #include <gui/view.h>
+#include <locale/locale.h>
 
 #include "../desktop_i.h"
 #include "desktop_view_locked.h"
@@ -21,6 +23,8 @@ struct DesktopViewLocked {
     FuriTimer* timer;
     uint8_t lock_count;
     uint32_t lock_lastpress;
+
+    bool allow_poweroff;
 };
 
 typedef enum {
@@ -36,6 +40,11 @@ typedef struct {
     int8_t door_offset;
     DesktopViewLockedState view_state;
     uint8_t back_presses;
+    bool show_time;
+    bool show_seconds;
+    bool show_date;
+    bool unlock_prompt;
+    bool midnight_zero;
 } DesktopViewLockedModel;
 
 void desktop_view_locked_set_callback(
@@ -118,6 +127,37 @@ static void draw_padlock_open(Canvas* canvas) {
     canvas_set_color(canvas, ColorBlack);
 }
 
+static void desktop_view_locked_draw_time_date(Canvas* canvas, DesktopViewLockedModel* m) {
+    if(!m->show_time && !m->show_date) return;
+
+    DateTime dt;
+    furi_hal_rtc_get_datetime(&dt);
+    canvas_set_font(canvas, FontSecondary);
+
+    uint8_t y = 9;
+    if(m->show_time) {
+        bool format_12 = locale_get_time_format() == LocaleTimeFormat12h;
+        uint8_t hour = dt.hour;
+        if(format_12) {
+            if(hour > 12) hour -= 12;
+            if(hour == 0 && !m->midnight_zero) hour = 12;
+        }
+        char buf[16];
+        if(m->show_seconds) {
+            snprintf(buf, sizeof(buf), "%02u:%02u:%02u", hour, dt.minute, dt.second);
+        } else {
+            snprintf(buf, sizeof(buf), "%02u:%02u", hour, dt.minute);
+        }
+        canvas_draw_str_aligned(canvas, 64, y, AlignCenter, AlignTop, buf);
+        y += 9;
+    }
+    if(m->show_date) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%02u/%02u/%04u", dt.month, dt.day, dt.year);
+        canvas_draw_str_aligned(canvas, 64, y, AlignCenter, AlignTop, buf);
+    }
+}
+
 static void desktop_view_locked_draw(Canvas* canvas, void* model) {
     DesktopViewLockedModel* m = model;
     DesktopViewLockedState view_state = m->view_state;
@@ -131,10 +171,12 @@ static void desktop_view_locked_draw(Canvas* canvas, void* model) {
     if(view_state == DesktopViewLockedStateLocked ||
        view_state == DesktopViewLockedStateDoorsClosing) {
         draw_padlock_closed(canvas);
+        desktop_view_locked_draw_time_date(canvas, m);
 
     } else if(view_state == DesktopViewLockedStateLockedHintShown) {
         draw_padlock_closed(canvas);
-        if(!m->pin_locked) {
+        desktop_view_locked_draw_time_date(canvas, m);
+        if(!m->pin_locked && m->unlock_prompt) {
             uint8_t remaining = UNLOCK_CNT - m->back_presses;
             char hint[22];
             snprintf(hint, sizeof(hint), "Back x%u to unlock", (unsigned)remaining);
@@ -144,8 +186,10 @@ static void desktop_view_locked_draw(Canvas* canvas, void* model) {
 
     } else if(view_state == DesktopViewLockedStateUnlockedHintShown) {
         draw_padlock_open(canvas);
-        canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str_aligned(canvas, 64, 57, AlignCenter, AlignBottom, "Unlocked");
+        if(m->unlock_prompt) {
+            canvas_set_font(canvas, FontSecondary);
+            canvas_draw_str_aligned(canvas, 64, 57, AlignCenter, AlignBottom, "Unlocked");
+        }
     }
 }
 
@@ -178,6 +222,12 @@ static bool desktop_view_locked_input(InputEvent* event, void* context) {
     } else if(
         view_state == DesktopViewLockedStateLocked ||
         view_state == DesktopViewLockedStateLockedHintShown) {
+        if(locked_view->allow_poweroff && event->key == InputKeyBack &&
+           event->type == InputTypeLong) {
+            locked_view->callback(DesktopLockedEventPowerOff, locked_view->context);
+            return true;
+        }
+
         if(press_time - locked_view->lock_lastpress > UNLOCK_RST_TIMEOUT) {
             locked_view->lock_lastpress = press_time;
             locked_view->lock_count = 0;
@@ -217,13 +267,55 @@ DesktopViewLocked* desktop_view_locked_alloc(void) {
     locked_view->view = view_alloc();
     locked_view->timer =
         furi_timer_alloc(locked_view_timer_callback, FuriTimerTypePeriodic, locked_view);
+    locked_view->lock_count = 0;
+    locked_view->lock_lastpress = 0;
+    locked_view->allow_poweroff = false;
 
     view_allocate_model(locked_view->view, ViewModelTypeLocking, sizeof(DesktopViewLockedModel));
     view_set_context(locked_view->view, locked_view);
     view_set_draw_callback(locked_view->view, desktop_view_locked_draw);
     view_set_input_callback(locked_view->view, desktop_view_locked_input);
 
+    with_view_model(
+        locked_view->view,
+        DesktopViewLockedModel * model,
+        {
+            model->pin_locked = false;
+            model->door_offset = 0;
+            model->view_state = DesktopViewLockedStateUnlocked;
+            model->back_presses = 0;
+            model->show_time = false;
+            model->show_seconds = false;
+            model->show_date = false;
+            model->unlock_prompt = true;
+            model->midnight_zero = false;
+        },
+        false);
+
     return locked_view;
+}
+
+void desktop_view_locked_set_display_options(
+    DesktopViewLocked* locked_view,
+    bool show_time,
+    bool show_seconds,
+    bool show_date,
+    bool unlock_prompt,
+    bool allow_poweroff,
+    bool midnight_zero) {
+    furi_assert(locked_view);
+    locked_view->allow_poweroff = allow_poweroff;
+    with_view_model(
+        locked_view->view,
+        DesktopViewLockedModel * model,
+        {
+            model->show_time = show_time;
+            model->show_seconds = show_seconds;
+            model->show_date = show_date;
+            model->unlock_prompt = unlock_prompt;
+            model->midnight_zero = midnight_zero;
+        },
+        false);
 }
 
 void desktop_view_locked_free(DesktopViewLocked* locked_view) {

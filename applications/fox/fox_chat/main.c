@@ -5,6 +5,7 @@
 #include "connect_settings.h"
 #include "chat_list_view.h"
 #include "chat_detail_view.h"
+#include "gpio_remap_compat.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -297,6 +298,10 @@ static ProbeResult app_probe_uart(App* app, size_t pin_index, size_t baud_index)
 
     app->pin_option_index = pin_index;
     app->baud_option_index = baud_index;
+
+    GpioRemapSettings gpio_remap = {.esp32_uart_channel = (uint8_t)pin_index};
+    gpio_remap_settings_save(&gpio_remap);
+
     return ProbeResultOk;
 }
 
@@ -494,6 +499,12 @@ static App* app_alloc(bool skip_splash) {
 
     app->log = furi_string_alloc();
     app->baud_option_index = BAUD_OPTION_DEFAULT_INDEX;
+
+    GpioRemapSettings gpio_remap;
+    gpio_remap_settings_load(&gpio_remap);
+    if(gpio_remap.esp32_uart_channel < app_pin_option_count()) {
+        app->pin_option_index = gpio_remap.esp32_uart_channel;
+    }
 
     app->gui = furi_record_open(RECORD_GUI);
     app->view_dispatcher = view_dispatcher_alloc();

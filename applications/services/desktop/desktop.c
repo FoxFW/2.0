@@ -470,7 +470,7 @@ static void desktop_clock_draw_callback(Canvas* canvas, void* context) {
     uint8_t hour = desktop->clock.hour;
     if(desktop->clock.format_12) {
         if(hour > 12) hour -= 12;
-        if(hour == 0) hour = 12;
+        if(hour == 0 && !desktop->settings.clock_midnight_zero) hour = 12;
     }
 
     char buffer[20];
@@ -777,10 +777,15 @@ static void desktop_wallpaper_draw_callback(Canvas* canvas, void* model) {
     if(!model) return;
     Desktop* desktop = *(Desktop**)model;
 
+    // wallpaper_data is freed/reassigned from other threads (the periodic
+    // check timer, the settings-save event handler) - must not read it
+    // without the lock, or a free() racing this draw is a use-after-free.
+    furi_mutex_acquire(desktop->wallpaper_mutex, FuriWaitForever);
     if(desktop->wallpaper_data && desktop->settings.wallpaper_enabled) {
         canvas_clear(canvas);
         canvas_draw_xbm(canvas, 0, 0, 128, 64, desktop->wallpaper_data);
     }
+    furi_mutex_release(desktop->wallpaper_mutex);
 }
 
 static bool desktop_custom_event_callback(void* context, uint32_t event) {
@@ -1058,10 +1063,12 @@ static void desktop_load_wallpaper(Desktop* desktop) {
     furi_assert(desktop);
 
     if(!desktop->settings.wallpaper_enabled || desktop->settings.wallpaper_filename[0] == '\0') {
+        furi_mutex_acquire(desktop->wallpaper_mutex, FuriWaitForever);
         if(desktop->wallpaper_data) {
             free(desktop->wallpaper_data);
             desktop->wallpaper_data = NULL;
         }
+        furi_mutex_release(desktop->wallpaper_mutex);
         return;
     }
 
@@ -1069,23 +1076,30 @@ static void desktop_load_wallpaper(Desktop* desktop) {
     snprintf(
         path, sizeof(path), "%s/%s", WALLPAPER_DIR, desktop->settings.wallpaper_filename);
 
+    // Parsing/file I/O happens outside the lock - only the pointer swap
+    // itself (below) needs to be exclusive with the draw callback.
     uint8_t* out = malloc(WALLPAPER_SIZE);
     if(!desktop_parse_xbm_file(desktop->storage, path, out)) {
         free(out);
+        furi_mutex_acquire(desktop->wallpaper_mutex, FuriWaitForever);
         if(desktop->wallpaper_data) {
             free(desktop->wallpaper_data);
             desktop->wallpaper_data = NULL;
         }
+        furi_mutex_release(desktop->wallpaper_mutex);
         return;
     }
 
+    furi_mutex_acquire(desktop->wallpaper_mutex, FuriWaitForever);
     if(desktop->wallpaper_data && memcmp(desktop->wallpaper_data, out, WALLPAPER_SIZE) == 0) {
+        furi_mutex_release(desktop->wallpaper_mutex);
         free(out); // unchanged - keep the buffer already on screen
         return;
     }
-
-    free(desktop->wallpaper_data);
+    uint8_t* old_data = desktop->wallpaper_data;
     desktop->wallpaper_data = out;
+    furi_mutex_release(desktop->wallpaper_mutex);
+    free(old_data);
 }
 
 // Consumes a pending "activate this wallpaper" request left by the Wallpaper
@@ -1146,6 +1160,8 @@ static void desktop_apply_settings(Desktop* desktop) {
 
     view_port_enabled_set(desktop->wifi_icon_viewport, !desktop->settings.wifi_icon_hidden);
 
+    gui_set_statusbar_show_icons(desktop->gui, desktop->settings.statusbar_show_icons);
+
     {
         Power* power = furi_record_open(RECORD_POWER);
         power_trigger_ui_update(power);
@@ -1174,6 +1190,13 @@ static void desktop_init_settings(Desktop* desktop) {
             desktop->settings.wallpaper_filename,
             DEFAULT_WALLPAPER_NAME,
             sizeof(desktop->settings.wallpaper_filename));
+        // No filename means either a genuinely fresh install, or an update
+        // from a firmware version old enough not to have this field at all
+        // (see the migration cases in desktop_settings.c). Either way,
+        // whatever wallpaper_enabled carried forward from before doesn't
+        // mean anything here - force it off so users don't suddenly see
+        // the generic placeholder wallpaper appear after an update.
+        desktop->settings.wallpaper_enabled = 0;
         desktop_settings_save(&desktop->settings);
     }
 
@@ -1187,6 +1210,7 @@ static Desktop* desktop_alloc(void) {
     Desktop* desktop = malloc(sizeof(Desktop));
 
     desktop->wallpaper_data  = NULL;
+    desktop->wallpaper_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     desktop->no_sd_viewport  = NULL;
     desktop->pending_slideshow = false;
 
@@ -1372,6 +1396,12 @@ void desktop_lock(Desktop* desktop) {
         }
     }
 
+    if(!desktop->settings.lock_show_statusbar) {
+        view_port_enabled_set(desktop->clock_viewport, false);
+        view_port_enabled_set(desktop->wifi_icon_viewport, false);
+        view_port_enabled_set(desktop->stealth_mode_icon_viewport, false);
+    }
+
     desktop_auto_lock_inhibit(desktop);
     scene_manager_set_scene_state(
         desktop->scene_manager, DesktopSceneLocked, DesktopSceneLockedStateFirstEnter);
@@ -1390,6 +1420,15 @@ void desktop_unlock(Desktop* desktop) {
     Gui* gui = furi_record_open(RECORD_GUI);
     gui_set_lockdown(gui, false);
     furi_record_close(RECORD_GUI);
+
+    if(!desktop->settings.lock_show_statusbar) {
+        view_port_enabled_set(desktop->clock_viewport, desktop->settings.display_clock);
+        view_port_enabled_set(desktop->wifi_icon_viewport, !desktop->settings.wifi_icon_hidden);
+        view_port_enabled_set(
+            desktop->stealth_mode_icon_viewport,
+            furi_hal_rtc_is_flag_set(FuriHalRtcFlagStealthMode));
+    }
+
     desktop_view_locked_unlock(desktop->locked_view);
     scene_manager_search_and_switch_to_previous_scene(desktop->scene_manager, DesktopSceneMain);
     desktop_auto_lock_arm(desktop);

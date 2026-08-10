@@ -6,6 +6,14 @@
 #include <dolphin/dolphin.h>
 #include <toolbox/name_generator.h>
 
+static void subghz_scene_save_name_apply_prefix(SubGhz* subghz, char* name_buf, size_t max_len) {
+    if(subghz->last_settings->file_prefix[0] == '\0') return;
+    char tmp[SUBGHZ_MAX_LEN_NAME];
+    snprintf(tmp, sizeof(tmp), "%s%s", subghz->last_settings->file_prefix, name_buf);
+    strncpy(name_buf, tmp, max_len - 1);
+    name_buf[max_len - 1] = '\0';
+}
+
 void subghz_scene_save_name_text_input_callback(void* context) {
     furi_assert(context);
     SubGhz* subghz = context;
@@ -40,6 +48,8 @@ void subghz_scene_save_name_on_enter(void* context) {
                             SUBGHZ_MAX_LEN_NAME,
                             decoder_result->protocol->name,
                             datetime);
+                        subghz_scene_save_name_apply_prefix(
+                            subghz, file_name_buf, SUBGHZ_MAX_LEN_NAME);
                         skip_dec_is_present = true;
                     }
                 }
@@ -47,6 +57,7 @@ void subghz_scene_save_name_on_enter(void* context) {
         }
         if(!skip_dec_is_present) {
             name_generator_make_auto_datetime(file_name_buf, SUBGHZ_MAX_LEN_NAME, NULL, datetime);
+            subghz_scene_save_name_apply_prefix(subghz, file_name_buf, SUBGHZ_MAX_LEN_NAME);
         }
         furi_string_set(file_name, file_name_buf);
         furi_string_set(subghz->file_path, SUBGHZ_APP_FOLDER);
@@ -64,6 +75,7 @@ void subghz_scene_save_name_on_enter(void* context) {
                 dev_name_empty = true;
                 name_generator_make_auto_datetime(
                     file_name_buf, SUBGHZ_MAX_LEN_NAME, "RAW", datetime);
+                subghz_scene_save_name_apply_prefix(subghz, file_name_buf, SUBGHZ_MAX_LEN_NAME);
                 furi_string_set(file_name, file_name_buf);
             }
         }

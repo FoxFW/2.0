@@ -1,12 +1,33 @@
 #include "cli_main_shell.h"
 #include "cli_main_commands.h"
+#include "cli_settings.h"
 #include <toolbox/cli/cli_ansi.h>
 #include <toolbox/cli/shell/cli_shell.h>
 #include <furi_hal_version.h>
 
+#define SHELL_COLOR_COUNT 8
+static const char* const shell_color_ansi[SHELL_COLOR_COUNT] = {
+    ANSI_FLIPPER_BRAND_ORANGE,
+    ANSI_FG_BR_RED,
+    ANSI_FG_BR_GREEN,
+    ANSI_FG_BR_YELLOW,
+    ANSI_FG_BR_BLUE,
+    ANSI_FG_BR_MAGENTA,
+    ANSI_FG_BR_CYAN,
+    ANSI_FG_BR_WHITE,
+};
+
 void cli_main_motd(void* context) {
     UNUSED(context);
-    printf(ANSI_FLIPPER_BRAND_ORANGE
+
+    CliSettings settings;
+    cli_settings_load(&settings);
+    uint8_t color_index = settings.shell_color_index < SHELL_COLOR_COUNT ?
+                               settings.shell_color_index :
+                               0;
+
+    printf("%s", shell_color_ansi[color_index]);
+    printf(
            "\r\n"
            "              _.-------.._                    -,\r\n"
            "          .-\"```\"--..,,_/ /`-,               -,  \\ \r\n"

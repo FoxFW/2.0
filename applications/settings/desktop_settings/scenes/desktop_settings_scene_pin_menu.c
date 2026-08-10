@@ -22,6 +22,9 @@ static const uint32_t auto_lock_delay_value[AUTO_LOCK_DELAY_COUNT] =
 #define USB_INHIBIT_COUNT 2
 static const char* const usb_inhibit_text[USB_INHIBIT_COUNT] = {"OFF", "ON"};
 
+#define POWEROFF_LOCKED_COUNT 2
+static const char* const poweroff_locked_text[POWEROFF_LOCKED_COUNT] = {"OFF", "ON"};
+
 static const char* const s_max_attempts_labels[] = {
     "No Limit", "3", "4", "5", "6", "7", "8", "9", "10"
 };
@@ -98,6 +101,17 @@ static void pin_menu_usb_inhibit_changed(VariableItem* item) {
     furi_record_close(RECORD_DESKTOP);
 }
 
+static void pin_menu_poweroff_locked_changed(VariableItem* item) {
+    DesktopSettingsApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, poweroff_locked_text[index]);
+    app->settings.allow_poweroff_locked = index;
+    desktop_settings_save(&app->settings);
+    Desktop* _d = furi_record_open(RECORD_DESKTOP);
+    desktop_api_set_settings(_d, &app->settings);
+    furi_record_close(RECORD_DESKTOP);
+}
+
 static void pin_menu_enter_callback(void* context, uint32_t index) {
     DesktopSettingsApp* app = context;
 
@@ -121,6 +135,9 @@ static void pin_menu_enter_callback(void* context, uint32_t index) {
     } else if(index == (uint32_t)(s_pin_action_count + 2)) {
         // "Advanced Security" navigation button (index = PIN buttons + MAX Attempts + On Exceed)
         scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneDisconnectServices);
+    } else if(index == (uint32_t)(s_pin_action_count + 3)) {
+        // "Lock Screen Display" navigation button
+        scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneLockDisplay);
     }
     // All other indices are variable items handled by their own change callbacks
 }
@@ -156,6 +173,15 @@ void desktop_settings_scene_pin_menu_on_enter(void* context) {
 
     // Navigation button at index s_pin_action_count + 2 — handled in enter_callback
     variable_item_list_add(var_list, "Advanced Security", 0, NULL, NULL);
+
+    // Navigation button at index s_pin_action_count + 3 — handled in enter_callback
+    variable_item_list_add(var_list, "Lock Screen Display", 0, NULL, NULL);
+
+    VariableItem* poweroff_item = variable_item_list_add(
+        var_list, "Poweroff While Locked", POWEROFF_LOCKED_COUNT, pin_menu_poweroff_locked_changed, app);
+    variable_item_set_current_value_index(poweroff_item, app->settings.allow_poweroff_locked);
+    variable_item_set_current_value_text(
+        poweroff_item, poweroff_locked_text[app->settings.allow_poweroff_locked]);
 
     VariableItem* auto_lock_item = variable_item_list_add(
         var_list, "Auto Lock Timer", AUTO_LOCK_DELAY_COUNT, pin_menu_auto_lock_delay_changed, app);

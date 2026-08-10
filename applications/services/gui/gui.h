@@ -49,6 +49,7 @@ void gui_set_lockdown(Gui* gui, bool lockdown);
 void gui_set_lockdown_inhibit(Gui* gui, bool inhibit);
 bool gui_is_lockdown(const Gui* gui);
 void gui_set_hide_status_bar(Gui* gui, bool hide);
+void gui_set_statusbar_show_icons(Gui* gui, bool show);
 Canvas* gui_direct_draw_acquire(Gui* gui);
 void gui_direct_draw_release(Gui* gui);
 

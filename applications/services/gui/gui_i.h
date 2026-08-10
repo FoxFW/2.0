@@ -54,6 +54,7 @@ struct Gui {
     bool lockdown_inhibit;
     bool direct_draw;
     bool hide_status_bar;
+    bool statusbar_show_icons;
     ViewPortArray_t layers[GuiLayerMAX];
     Canvas* canvas;
 

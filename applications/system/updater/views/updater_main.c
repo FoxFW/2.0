@@ -5,6 +5,8 @@
 #include <assets_icons.h>
 #include <furi.h>
 #include <input/input.h>
+#include <string.h>
+#include <toolbox/version.h>
 
 #include "../updater_i.h"
 #include "updater_main.h"
@@ -75,6 +77,32 @@ bool updater_main_input(InputEvent* event, void* context) {
     return true;
 }
 
+// Splits the version line into "FoxFW " (bold) and "(v2.0.4)" (not bold) so
+// the caller can render each in a different font - the full line doesn't
+// fit on screen at all-bold width. Built from firmware.ver via
+// toolbox/version.h, so this never needs manual edits on release -
+// version_get_firmware_origin() is already correctly-cased ("FoxFW"),
+// version_get_version() returns the dist-suffixed tag (e.g. "foxfw-v2.0.4");
+// strip the known "foxfw-" prefix to isolate the bare version.
+static void updater_build_version_line(
+    char* origin_out,
+    size_t origin_out_size,
+    char* tag_out,
+    size_t tag_out_size) {
+    const Version* ver = version_get();
+    const char* origin = version_get_firmware_origin(ver);
+    const char* tag = version_get_version(ver);
+
+    const char* prefix = "foxfw-";
+    size_t prefix_len = strlen(prefix);
+    if(strncmp(tag, prefix, prefix_len) == 0) {
+        tag += prefix_len;
+    }
+
+    snprintf(origin_out, origin_out_size, "%s ", origin);
+    snprintf(tag_out, tag_out_size, "(%s)", tag);
+}
+
 static void updater_main_draw_callback(Canvas* canvas, void* _model) {
     UpdaterProgressModel* model = _model;
 
@@ -93,12 +121,24 @@ static void updater_main_draw_callback(Canvas* canvas, void* _model) {
         canvas_draw_icon(canvas, 7, 54, &I_Ok_btn_9x9);
         canvas_draw_icon(canvas, 75, 55, &I_Pin_back_arrow_10x8);
     } else {
-        canvas_draw_str_aligned(canvas, 55, 14, AlignLeft, AlignTop, "UPDATING");
+        canvas_draw_str_aligned(canvas, 55, 6, AlignLeft, AlignTop, "UPDATING");
+
+        char origin_part[16] = {0};
+        char tag_part[24] = {0};
+        updater_build_version_line(origin_part, sizeof(origin_part), tag_part, sizeof(tag_part));
+        // I_Updating_32x40 is drawn at x=4 with a width of 32, so its right
+        // border is at x=36 - start the version line 4px past that (x=40)
+        // to give it the extra room "FoxFW (v2.0.4)" needs at FontPrimary
+        // widths.
+        canvas_set_font(canvas, FontPrimary);
+        canvas_draw_str_aligned(canvas, 40, 20, AlignLeft, AlignTop, origin_part);
+        uint16_t origin_width = canvas_string_width(canvas, origin_part);
         canvas_set_font(canvas, FontSecondary);
+        canvas_draw_str_aligned(canvas, 40 + origin_width, 20, AlignLeft, AlignTop, tag_part);
         canvas_draw_str_aligned(
             canvas, 64, 51, AlignCenter, AlignTop, furi_string_get_cstr(model->status));
         canvas_draw_icon(canvas, 4, 5, &I_Updating_32x40);
-        elements_progress_bar(canvas, 42, 29, 80, (float)model->progress / 100);
+        elements_progress_bar(canvas, 42, 36, 80, (float)model->progress / 100);
     }
 }
 
@@ -111,7 +151,12 @@ UpdaterMainView* updater_main_alloc(void) {
     with_view_model(
         main_view->view,
         UpdaterProgressModel * model,
-        { model->status = furi_string_alloc_set("Waiting for SD card"); },
+        {
+            model->status = furi_string_alloc_set("Waiting for SD card");
+            model->progress = 0;
+            model->rendered_progress = 0;
+            model->failed = false;
+        },
         true);
 
     view_set_context(main_view->view, main_view);

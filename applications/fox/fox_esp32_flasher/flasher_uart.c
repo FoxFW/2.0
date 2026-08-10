@@ -5,14 +5,14 @@
 #include <string.h>
 
 #define TAG         "FlasherUart"
-#define UART_CH     FuriHalSerialIdUsart
 #define RX_BUF_SIZE 2048U
 
 static const struct {
     const char* label;
+    FuriHalSerialId serial_id;
 } k_pin_options[] = {
-    {"13/14 (default)"},
-    {"15/16 (alt)"},
+    {"13/14 (default)", FuriHalSerialIdUsart},
+    {"15/16 (alt)", FuriHalSerialIdLpuart},
 };
 
 size_t flasher_pin_option_count(void) {
@@ -22,6 +22,11 @@ size_t flasher_pin_option_count(void) {
 const char* flasher_pin_option_label(size_t index) {
     if(index >= flasher_pin_option_count()) return "?";
     return k_pin_options[index].label;
+}
+
+static FuriHalSerialId flasher_uart_channel_for(size_t pin_option_index) {
+    if(pin_option_index >= flasher_pin_option_count()) pin_option_index = 0;
+    return k_pin_options[pin_option_index].serial_id;
 }
 
 typedef enum {
@@ -99,7 +104,8 @@ void flasher_uart_open(FlasherApp* app) {
     app->uart_rx_thread = furi_thread_alloc_ex("FlasherUartRx", 1024, uart_rx_worker, app);
     furi_thread_start(app->uart_rx_thread);
 
-    app->serial_handle = furi_hal_serial_control_acquire(UART_CH);
+    app->serial_handle = furi_hal_serial_control_acquire(
+        flasher_uart_channel_for(app->pin_option_index));
     furi_check(app->serial_handle);
     furi_hal_serial_init(app->serial_handle, FLASHER_BAUDRATE);
     furi_hal_serial_async_rx_start(app->serial_handle, uart_irq_cb, app, false);

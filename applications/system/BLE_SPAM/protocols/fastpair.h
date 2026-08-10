@@ -5,7 +5,8 @@
 // Documentation at https://developers.google.com/nearby/fast-pair/specifications/introduction
 
 typedef struct {
-    uint32_t model_id;
-} FastpairMsg;
+    uint32_t model;
+    uint16_t _model_index;
+} FastpairCfg;
 
-extern const BleSpamProtocol ble_spam_protocol_fastpair;
+extern const Protocol protocol_fastpair;

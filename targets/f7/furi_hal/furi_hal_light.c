@@ -43,10 +43,16 @@ void furi_hal_light_set(Light light, uint8_t value) {
         lp5562_set_channel_value(&furi_hal_i2c_handle_power, LP5562ChannelBlue, value);
     }
     if(light & LightBacklight) {
-        uint8_t prev = lp5562_get_channel_value(&furi_hal_i2c_handle_power, LP5562ChannelWhite);
-        lp5562_execute_ramp(
-            &furi_hal_i2c_handle_power, LP5562Engine1, LP5562ChannelWhite, prev, value, 100);
         // --- RGB BACKLIGHT ---
+        // Momentum firmware only drives one or the other; FoxFW makes it a
+        // user choice via "White Backlight" in RGB settings (default ON,
+        // matching the original always-both behavior).
+        if(rgb_backlight_should_drive_white_led()) {
+            uint8_t prev =
+                lp5562_get_channel_value(&furi_hal_i2c_handle_power, LP5562ChannelWhite);
+            lp5562_execute_ramp(
+                &furi_hal_i2c_handle_power, LP5562Engine1, LP5562ChannelWhite, prev, value, 100);
+        }
         rgb_backlight_update(value / 255.0f);
         // --- RGB BACKLIGHT END ---
     }

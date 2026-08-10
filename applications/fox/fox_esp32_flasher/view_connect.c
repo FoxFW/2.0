@@ -1,4 +1,5 @@
 #include "fox_esp32_flasher.h"
+#include "gpio_remap_compat.h"
 #include <stdio.h>
 
 static FlasherApp* s_app = NULL;
@@ -89,6 +90,9 @@ static bool connect_input(InputEvent* event, void* context) {
                                                ? cnt - 1
                                                : app->pin_option_index - 1;
                 }
+                GpioRemapSettings gpio_remap = {
+                    .esp32_uart_channel = (uint8_t)app->pin_option_index};
+                gpio_remap_settings_save(&gpio_remap);
             }
             with_view_model(app->connect_view, uint8_t* _m, { UNUSED(_m); }, true);
         }
@@ -111,6 +115,14 @@ static bool connect_input(InputEvent* event, void* context) {
 
 View* view_connect_alloc(FlasherApp* app) {
     s_app = app;
+
+    GpioRemapSettings gpio_remap;
+    gpio_remap_settings_load(&gpio_remap);
+    size_t count = flasher_pin_option_count();
+    if(gpio_remap.esp32_uart_channel < count) {
+        app->pin_option_index = gpio_remap.esp32_uart_channel;
+    }
+
     View* v = view_alloc();
     view_set_draw_callback(v, connect_draw);
     view_set_input_callback(v, connect_input);

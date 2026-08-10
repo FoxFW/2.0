@@ -20,6 +20,20 @@ void nfc_scene_start_on_enter(void* context) {
     NfcApp* nfc = context;
     Submenu* submenu = nfc->submenu;
 
+    /* Dismiss the startup loading wheel now that the start menu is ready
+     * to display. NFC's own viewport already took over on top of it the
+     * moment view_dispatcher_attach_to_gui() ran in nfc_app(); this just
+     * frees the now-hidden wheel's resources. */
+    if(nfc->startup_holder) {
+        view_holder_set_view(nfc->startup_holder, NULL);
+        view_holder_free(nfc->startup_holder);
+        nfc->startup_holder = NULL;
+    }
+    if(nfc->startup_loading) {
+        loading_free(nfc->startup_loading);
+        nfc->startup_loading = NULL;
+    }
+
     // Clear file name and device contents
     furi_string_reset(nfc->file_name);
     nfc_device_clear(nfc->nfc_device);

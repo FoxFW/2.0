@@ -89,6 +89,8 @@ static void gui_redraw_status_bar(Gui* gui, bool need_attention) {
     canvas_draw_icon(gui->canvas, 0, 0, &I_Background_128x11);
     canvas_set_bitmap_mode(gui->canvas, 0);
 
+    if(!gui->statusbar_show_icons) return;
+
     uint8_t x = GUI_DISPLAY_WIDTH - 2;
     ViewPortArray_it(it, gui->layers[GuiLayerStatusBarRight]);
     while(!ViewPortArray_end_p(it) && right_used < GUI_STATUS_BAR_WIDTH) {
@@ -476,6 +478,14 @@ void gui_set_hide_status_bar(Gui* gui, bool hide) {
     gui_update(gui);
 }
 
+void gui_set_statusbar_show_icons(Gui* gui, bool show) {
+    furi_check(gui);
+    gui_lock(gui);
+    gui->statusbar_show_icons = show;
+    gui_unlock(gui);
+    gui_update(gui);
+}
+
 Canvas* gui_direct_draw_acquire(Gui* gui) {
     furi_check(gui);
     gui_lock(gui);
@@ -502,6 +512,7 @@ Gui* gui_alloc(void) {
     Gui* gui = malloc(sizeof(Gui));
     gui->thread_id = furi_thread_get_current_id();
     gui->mutex = furi_mutex_alloc(FuriMutexTypeNormal);
+    gui->statusbar_show_icons = true;
 
     for(size_t i = 0; i < GuiLayerMAX; i++) {
         ViewPortArray_init(gui->layers[i]);

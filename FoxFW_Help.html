@@ -243,6 +243,18 @@
   /* ── Shortcut table colours ──────────────────────────────────────────── */
   .fixed { color: #88ccff; font-style: italic; }
   .cfg   { color: var(--accent); }
+
+  /* ── Wallpaper preview image ────────────────────────────────────────── */
+  .wallpaper-preview {
+    display: block;
+    image-rendering: pixelated;
+    width: 512px;
+    max-width: 100%;
+    height: auto;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    margin: 16px 0;
+  }
 </style>
 </head>
 <body>
@@ -315,12 +327,18 @@
       <li><a href="#fox-settings">Fox Settings</a>
         <ul class="sub">
           <li><a href="#security">Security &amp; Privacy</a></li>
+          <li><a href="#lock-display">Lock Screen Display</a></li>
           <li><a href="#wallpaper">Custom Wallpaper</a></li>
           <li><a href="#name">Change Flipper Name</a></li>
           <li><a href="#battery">Battery View</a></li>
           <li><a href="#clock">Show Clock</a></li>
+          <li><a href="#status-bar-icons">Status Bar Icons</a></li>
+          <li><a href="#shell-color">Shell Color</a></li>
+          <li><a href="#gpio-pins">ESP32 UART Pins</a></li>
+          <li><a href="#vgm-options">VGM Options</a></li>
           <li><a href="#menu-style">Menu Style</a></li>
           <li><a href="#fav-apps">Favorite Apps</a></li>
+          <li><a href="#main-menu-editor">Main Menu Editor</a></li>
         </ul>
       </li>
       <li><a href="#fox-esp32-apps">Fox ESP32 Apps</a></li>
@@ -334,6 +352,7 @@
           <li><a href="#visualizer">Signal Display</a></li>
           <li><a href="#freq-analyzer">Frequency Analyzer</a></li>
           <li><a href="#mod-analyzer">Modulation Analyzer</a></li>
+          <li><a href="#modulations-list">Modulations</a></li>
           <li><a href="#protocol-list">Protocol List</a></li>
           <li><a href="#gdr">Garage Door Remote</a></li>
           <li><a href="#supported-systems">Supported Systems</a></li>
@@ -679,6 +698,13 @@
     display when you press any key (if a PIN is set). Enter your PIN to unlock.
     If no PIN is set, any button press unlocks the device.
   </p>
+  <p>
+    What's drawn on the lock screen (time, seconds, date, status bar, the
+    "Back ×3 to unlock" hint) is configurable in Fox Settings → Security &amp;
+    Privacy → <a href="#lock-display" style="color:inherit;">Lock Screen Display</a>.
+    If <em>Allow Poweroff While Locked</em> is ON, holding <strong>Back</strong>
+    on the lock screen powers the device off without unlocking it first.
+  </p>
   <div class="box info">
     <strong>USB: No AutoLock</strong> — In Fox Settings → Security, the
     <em>USB: No AutoLock</em> setting suppresses the auto-lock timer while
@@ -843,21 +869,41 @@
   <div class="setting">
     <div class="name">On Exceed</div>
     <div class="desc">
-      What happens when wrong PINs exceed MAX Attempts.<br><br>
-      <strong>Device is Locked:</strong> The device immediately reboots and
-      on the next startup displays a <em>"Locked!"</em> screen, advising
-      you to reinstall the firmware. The locked screen itself does not delete
-      anything — any actual data loss depends on the On Exceed settings you
-      configured beforehand.
+      What happens when wrong PINs exceed MAX Attempts. Only shown (not N/A)
+      when MAX Attempts is greater than 0.<br><br>
+      <strong>Lock only</strong> — The device immediately reboots and on the
+      next startup displays a <em>"Locked!"</em> screen; normal access via
+      the device or qFlipper is blocked. Nothing on the SD card is touched —
+      only the PIN lockout state changes.<br><br>
+      <strong>Format SD</strong> — Same lockout behaviour as above,
+      <em>plus</em> the SD card is fully formatted before the reboot. This
+      is real, unrecoverable data loss (saved signals, NFC cards, wallpaper,
+      everything on the card) — pick this only if you would rather lose
+      your files than have them read by whoever is entering the wrong PIN.
     </div>
+    <div class="values">Options: <span>Lock only · Format SD</span></div>
   </div>
 
   <div class="box warn">
     <strong>Recovery after On Exceed triggers:</strong> The device is locked,
     which also blocks qFlipper access. The fastest path back is a
     <strong>DFU firmware reinstall</strong> — your SD card files are
-    unaffected. Alternatively, see the <a href="#lockout" style="color:inherit;">Lockout &amp; Recovery</a>
+    unaffected <em>only if you had On Exceed set to "Lock only."</em> If
+    "Format SD" was selected, the card was already wiped the moment the
+    lockout triggered, before you ever get to the reinstall step.
+    See the <a href="#lockout" style="color:inherit;">Lockout &amp; Recovery</a>
     section below for a step-by-step guide (you will need a computer and your SD card).
+  </div>
+
+  <div class="setting">
+    <div class="name">Allow Poweroff While Locked <span class="badge">New</span></div>
+    <div class="desc">
+      When ON, holding <strong>Back</strong> on the lock screen powers the
+      device off directly — no PIN needed, since powering off doesn't expose
+      any data. When OFF (default), the lock screen has no poweroff path;
+      you must unlock first.
+    </div>
+    <div class="values">Options: <span>OFF · ON</span></div>
   </div>
 
   <p><strong>Disconnect Services</strong></p>
@@ -926,6 +972,38 @@
     <div class="values">Options: <span>OFF · ON</span></div>
   </div>
 
+  <!-- ── LOCK SCREEN DISPLAY ── -->
+  <h3 id="lock-display">Lock Screen Display <span class="badge">New</span></h3>
+  <p>
+    Reached from Security &amp; Privacy → <em>Lock Screen Display</em>.
+    Controls what's drawn on the lock screen itself, on top of the padlock.
+  </p>
+  <div class="setting">
+    <div class="name">Show Time</div>
+    <div class="desc">Draws the current time above the padlock while locked.</div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+  <div class="setting">
+    <div class="name">Show Seconds</div>
+    <div class="desc">Adds a seconds field to the lock screen clock. Has no effect if Show Time is OFF.</div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+  <div class="setting">
+    <div class="name">Show Date</div>
+    <div class="desc">Draws today's date on the lock screen alongside the time.</div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+  <div class="setting">
+    <div class="name">Show Statusbar</div>
+    <div class="desc">Keeps the status bar (battery, icons) visible while the screen is locked, instead of hiding it.</div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+  <div class="setting">
+    <div class="name">Unlock Prompt</div>
+    <div class="desc">Shows the "Back ×3 to unlock" hint text under the padlock. Turn OFF for a cleaner lock screen if you already know the gesture.</div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+
   <!-- ── WALLPAPER ── -->
   <h3 id="wallpaper">Custom Wallpaper</h3>
   <p>
@@ -965,6 +1043,11 @@
   </div>
 
   <p><strong>Creating your own wallpaper:</strong></p>
+  <img
+    class="wallpaper-preview"
+    src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAEAAQAAAADt6/PKAAAByklEQVR4nO2bUY7DIAxEZ1b9N/e/3d7APoH3gyQQbT+2IV1QNVZUCoQnT2JSWlNARvOh8fE16sF8wAMcGu/zJdwByMzM9IkezAcESR7RkOmZ6Vvh8EzfWv10pTIzb/JgDUB7KgQLC0sQLCy1AQhux2FGkr6QhGFAlJdHmhlsIQnDgBYHVuPd8tRgWY/yNg/mA1ocbE+GFvYk2lzwNjIiEAtJuG6PWtj3qwMjAXAFCffHQWbfbVkb7NQKANg+TJaRMGBWX6+uDz5hjbTNhbi8WpwvYRhAgw8MjwUkCCCAAAIIIIAAAggggAACCCCAAAIIIIAAAggwBUAQJKJEIUtNu5AAWWq+bTvhqN/uwRKAAMrxbqvHqb3rfIsHCwD29HMe9YCll5aWztrZUm+rSRgDdKkm2rNz64QArT93KQmjAEcnvA/3X/szPncu9Em331nmvfXD5wLqLT9uexBRDFHg3RaNU3G/BzMAj75igANwnutH+RYP5gO6a5BdtGfddrGHfdb+3Du7uTJfggACCCCAAAIIcDOgrQ9e27Z9fJOcL+HGa/BkK+q/eCCAAAIIIIAAAgiwHgBPf0X/u/l8CTesE68tD3f7hP98y4AfWfyU7uhJGSoAAAAASUVORK5CYII="
+    alt="Wallpaper template — 128×64 with status bar and border marked"
+  >
   <ul>
     <li>Your image must be exactly <strong>128 × 64 px</strong>, monochrome (1-bit black and white), in XBM format.</li>
     <li>The status bar occupies roughly the top 13 pixels — keep important artwork below that.</li>
@@ -1030,6 +1113,82 @@
     </div>
     <div class="values">Options: <span>OFF · ON</span></div>
   </div>
+  <div class="setting">
+    <div class="name">Midnight Format <span class="badge">New</span></div>
+    <div class="desc">
+      In 12-hour mode, controls how midnight is displayed on both the status
+      bar clock and the lock screen clock.
+    </div>
+    <div class="values">Options: <span>12 (shows "12:00") · 0 (shows "0:00")</span></div>
+  </div>
+
+  <!-- ── STATUS BAR ICONS ── -->
+  <h3 id="status-bar-icons">Status Bar Icons <span class="badge">New</span></h3>
+  <div class="setting">
+    <div class="name">Status Bar Icons</div>
+    <div class="desc">
+      Hides the small connectivity/notification icons on the right side of
+      the status bar (WiFi, BLE, USB, etc). The "2.0" firmware watermark and
+      the screen border are not affected by this toggle — they're always on.
+    </div>
+    <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+
+  <!-- ── SHELL COLOR ── -->
+  <h3 id="shell-color">Shell Color <span class="badge">New</span></h3>
+  <div class="setting">
+    <div class="name">Shell Color</div>
+    <div class="desc">
+      Sets the accent colour used for the ASCII-art banner shown when you
+      open a CLI session (over USB serial). Purely cosmetic — doesn't affect
+      the interactive prompt colour.
+    </div>
+    <div class="values">Options: <span>Orange · Red · Green · Yellow · Blue · Magenta · Cyan · White</span></div>
+  </div>
+
+  <!-- ── GPIO PINS ── -->
+  <h3 id="gpio-pins">ESP32 UART Pins <span class="badge">New</span></h3>
+  <p>
+    A single global preference for which GPIO pin pair the Fox ESP32 apps
+    (Commander, Terminal, Flasher, and the built-in UART Terminal) default
+    to for talking to an ESP32 companion board.
+  </p>
+  <div class="setting">
+    <div class="name">ESP32 UART Pins</div>
+    <div class="desc">
+      Choosing a pair here updates the shared default immediately. Each of
+      those apps still has its own "UART Pins" option in its own connection
+      settings screen for a one-off override — but changing it in <em>any</em>
+      one of them (including here) updates this same shared preference, so
+      the others pick up the new default the next time you open their
+      connection settings.
+    </div>
+    <div class="values">Options: <span>13/14 · 15/16</span></div>
+  </div>
+  <div class="box info">
+    Fox ESP32 Detector isn't in this list — it always auto-scans both pin
+    pairs when detecting a board, so there's nothing for it to remember.
+  </div>
+
+  <!-- ── VGM OPTIONS ── -->
+  <h3 id="vgm-options">VGM Options <span class="badge">New</span></h3>
+  <p>
+    Sets the foreground/background color used when this device's screen is
+    streamed to a computer over USB/BLE (qFlipper and similar screen-mirroring
+    tools). Purely cosmetic on the receiving end — has no effect on the
+    device's own display.
+  </p>
+  <div class="setting">
+    <div class="name">Foreground / Background</div>
+    <div class="desc">
+      Cycle Left/Right through a list of named colors, or one of three special
+      modes: <strong>Default</strong> (plain black/white, stock behavior),
+      <strong>Rainbow</strong> (the receiving app animates its own rainbow),
+      or <strong>RgbMod</strong> (mirrors this device's live RGB backlight
+      color, including the current rainbow/wave animation if one is running —
+      requires RGB Backlight to be installed).
+    </div>
+  </div>
 
   <!-- ── MENU STYLE ── -->
   <h3 id="menu-style">Menu Style</h3>
@@ -1037,10 +1196,11 @@
     <div class="name">Menu Style</div>
     <div class="desc">
       Controls the visual theme of the main App Menu.<br><br>
-      <strong>Flipper</strong> — The standard Flipper grid menu.<br>
-      <strong>Fox</strong> — FoxFW's custom menu theme with the orange FoxFW aesthetic.
+      <strong>Classic</strong> — The standard Flipper grid menu.<br>
+      <strong>Default</strong> — FoxFW's own themed menu (double-row button
+      boxes, orange FoxFW styling).
     </div>
-    <div class="values">Options: <span>Flipper · Fox</span></div>
+    <div class="values">Options: <span>Classic · Default</span></div>
   </div>
 
   <!-- ── FAVORITES ── -->
@@ -1073,6 +1233,27 @@
     <strong>Tip:</strong> Any installed app (including external FAPs) can be
     assigned to a Favorite slot. Select <em>None</em> to clear a slot and
     restore its default behaviour.
+  </div>
+
+  <!-- ── MAIN MENU EDITOR ── -->
+  <h3 id="main-menu-editor">Main Menu Editor <span class="badge">New</span></h3>
+  <p>
+    Lets you pin external apps (<code>.fap</code> files on the SD card) to
+    the top of the main App Menu, above the built-in Applications list —
+    handy for the apps you open most.
+  </p>
+  <div class="setting">
+    <div class="name">+ Add App</div>
+    <div class="desc">Opens a file browser under <code>/ext/apps</code> to pick a <code>.fap</code> to pin. Up to 12 apps can be pinned.</div>
+  </div>
+  <div class="setting">
+    <div class="name">Move Up / Move Down / Remove</div>
+    <div class="desc">Selecting an already-pinned app opens these three actions to reorder or unpin it.</div>
+  </div>
+  <div class="box info">
+    This only pins external <code>.fap</code> apps from the SD card — built-in
+    apps (Sub-GHz, NFC, etc.) can't be pinned this way since they don't exist
+    as separate files.
   </div>
 
   <div class="back-top"><a href="#top">↑ Back to top</a></div>
@@ -1251,11 +1432,19 @@
   <table>
     <tr><th>Action</th><th>File type</th><th>Description</th></tr>
     <tr><td>Emulate</td><td>All decoded</td><td>Continuously retransmit the saved signal.</td></tr>
+    <tr><td>Details</td><td>All</td><td>View the decoded protocol, key, and other metadata for the file.</td></tr>
     <tr><td>Rename</td><td>All</td><td>Rename the file on SD card.</td></tr>
-    <tr><td><strong>Edit RAW</strong></td><td>RAW only</td><td>Open the built-in waveform editor to trim the capture.</td></tr>
+    <tr><td><strong>Edit RAW</strong></td><td>RAW only</td><td>Open the built-in waveform editor to trim the capture. Not shown for decoded files — there's nothing to trim.</td></tr>
     <tr><td>Delete</td><td>All</td><td>Permanently delete the file.</td></tr>
     <tr><td>Counter BruteForce</td><td>Counter-based</td><td>Try incrementing counter attacks.</td></tr>
+    <tr><td>Signal Settings</td><td>All</td><td><span class="badge">Debug mode</span> Advanced CC1101 radio register view. Only shown when the Flipper's debug flag is enabled.</td></tr>
   </table>
+  <div class="box info">
+    <strong>Decoded vs. RAW:</strong> a "decoded" file is one FoxFW successfully
+    matched to a known protocol during Read — it stores the protocol name and
+    key, and can be re-emulated directly. A RAW file is a plain edge-timing
+    capture with no protocol match, which is why only RAW files offer Edit RAW.
+  </div>
 
   <p><strong>RAW Editor controls:</strong></p>
   <div class="keys">
@@ -1314,14 +1503,23 @@
     When a carrier is detected its frequency is highlighted.
   </p>
   <div class="keys">
-    <div class="key-row"><span class="key-badge">OK (short)</span><span class="key-desc">Lock / unlock the highlighted frequency</span></div>
-    <div class="key-row"><span class="key-badge">OK (hold)</span><span class="key-desc">Accept locked frequency and open Receiver on it</span></div>
+    <div class="key-row"><span class="key-badge">← →</span><span class="key-desc">Adjust the RSSI detection threshold</span></div>
+    <div class="key-row"><span class="key-badge">↑</span><span class="key-desc">Cycle the hit-feedback level (Mute → Sound → All → Vibro)</span></div>
+    <div class="key-row"><span class="key-badge">↓</span><span class="key-desc">Browse recent detected frequencies</span></div>
+    <div class="key-row"><span class="key-badge">OK (short)</span><span class="key-desc">Commit the selected frequency</span></div>
+    <div class="key-row"><span class="key-badge">OK (hold)</span><span class="key-desc">Open the preset config screen — Left/Right pick a fixed modulation, OK applies it</span></div>
     <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Return to menu</span></div>
   </div>
   <div class="box info">
     <strong>When to use it:</strong> You have an unknown remote and don't know
     its frequency. Press a button on the remote while the analyzer runs — it
     finds the transmission frequency automatically.
+  </div>
+  <div class="box warn">
+    <strong>Continuing on:</strong> committing a frequency hands off to
+    <strong>Read RAW</strong> pre-tuned to that frequency (not the decoded
+    Receiver) — capture the signal there, then use Saved Files to try
+    decoding or re-emulating it.
   </div>
 
   <!-- MODULATION ANALYZER -->
@@ -1338,39 +1536,49 @@
     for that exact frequency and modulation.
   </p>
 
-  <p><strong>Controls:</strong></p>
+  <p><strong>Starting a scan:</strong></p>
+  <p>
+    The app opens on a <strong>Set Frequency</strong> digit-entry screen —
+    Left/Right move the cursor, Up/Down change the selected digit, OK
+    starts scanning at that frequency. It cycles through every
+    <em>enabled</em> preset at roughly 120&nbsp;ms each, watching for any
+    preset whose RSSI rises above the trigger threshold.
+  </p>
+
+  <p><strong>Controls while scanning:</strong></p>
   <div class="keys">
-    <div class="key-row"><span class="key-badge">↑ ↓</span><span class="key-desc">Select a hit in the results list</span></div>
-    <div class="key-row"><span class="key-badge">OK (short)</span><span class="key-desc">With hits: open Receiver on selected modulation. No hits: toggle Start/Stop</span></div>
-    <div class="key-row"><span class="key-badge">OK (hold)</span><span class="key-desc">Toggle scanning on / off</span></div>
-    <div class="key-row"><span class="key-badge">← Left</span><span class="key-desc">Open Config page (scanning pauses)</span></div>
-    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Stop scanning and return to menu</span></div>
+    <div class="key-row"><span class="key-badge">← →</span><span class="key-desc">Adjust the RSSI detection threshold</span></div>
+    <div class="key-row"><span class="key-badge">↑</span><span class="key-desc">Cycle the hit-feedback level (Mute → Sound → All → Vibro)</span></div>
+    <div class="key-row"><span class="key-badge">↓</span><span class="key-desc">Browse up to 4 recent distinct hits, shown in a 2×2 grid with repeat counts (e.g. "×3")</span></div>
+    <div class="key-row"><span class="key-badge">OK (short or hold)</span><span class="key-desc">Commit the selected hit</span></div>
+    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Stop scanning, return to Set Frequency (press Back again to fully exit)</span></div>
+  </div>
+  <div class="box warn">
+    <strong>Continuing on:</strong> committing a hit hands off to
+    <strong>Read RAW</strong> pre-tuned to that frequency and modulation
+    (not the decoded Receiver) — capture there, then use Saved Files to
+    decode or re-emulate it.
   </div>
 
-  <p><strong>Screen layout:</strong></p>
-  <table>
-    <tr><th>Area</th><th>Content</th></tr>
-    <tr><td>Header bar</td><td>Target frequency (left) · Current preset being tested or STOPPED (right)</td></tr>
-    <tr><td>Hit list</td><td>Detected modulations with RSSI in dBm and signal-strength bars (●●●○○)</td></tr>
-    <tr><td>Footer</td><td>Config · Stop/Start · OK=Tune (when hits exist)</td></tr>
-  </table>
+  <p><strong>Which presets get scanned:</strong> the built-in <em>Modulations</em>
+  menu (see below) has a per-preset ON/OFF list that applies here too — the
+  Modulation Analyzer only cycles through presets you've left enabled there.</p>
 
-  <p><strong>Config page:</strong> Press Left to open. Scanning pauses automatically.</p>
-  <div class="setting">
-    <div class="name">Frequency</div>
-    <div class="desc">The target frequency (300–928 MHz). Pre-populated from Radio Settings, so running the Frequency Analyzer first means this is already set correctly.</div>
-  </div>
-  <div class="setting">
-    <div class="name">AM650 / AM270 / FM238 / FM476 / FM95 / FM15k / BLE / GFSK9.99</div>
-    <div class="desc">Toggle each modulation preset ON (include in scan) or OFF (skip). Disabling unlikely presets makes each cycle faster and reduces false positives.</div>
-  </div>
-  <div class="setting">
-    <div class="name">OOK_LR / OOK_U / AM_1 / FSK_1 / FreqFast / FreqUnlckd / Pagers <span class="badge">New</span></div>
-    <div class="desc">Additional general-purpose presets. Toggle ON (include in scan) or OFF (skip) the same as the original presets above.</div>
-  </div>
-  <div class="setting">
-    <div class="name">AUDIv1 / AUDIv2 / AUDIv3 / FORDv1 / FORDv2 / FORDv3 / FORDv3-Orig / FORDv4 / FORDv5 / FORDv6 / Honda1 / Honda2 <span class="badge">New</span></div>
-    <div class="desc">Vehicle-specific presets tuned for Audi, Ford, and Honda key fobs. Toggle ON (include in scan) or OFF (skip) the same as the other presets.</div>
+  <!-- MODULATIONS FILTER -->
+  <h3 id="modulations-list">Modulations <span class="badge">New</span></h3>
+  <p>
+    A separate menu item in the Sub-GHz main list (distinct from the
+    Modulation Analyzer above) listing every modulation preset with an
+    ON/OFF toggle, built dynamically from the live preset file so any preset
+    you add to <code>setting_user</code> shows up automatically. Selecting the
+    top row toggles "Enable All" / "Disable All" in one step. At least one
+    preset must stay enabled.
+  </p>
+  <div class="box tip">
+    <strong>Why disable presets:</strong> both the Modulation Analyzer and the
+    frequency sweep use this same enabled-preset list — trimming it to the
+    presets you actually care about makes each scan cycle faster and cuts
+    down on false-positive hits.
   </div>
 
   <p><strong>Modulation reference:</strong></p>
@@ -1516,29 +1724,29 @@
   <div class="flow">
     <div class="flow-step"><span class="n">Step 1</span>Frequency Analyzer<br>Find frequency</div>
     <div class="arrow">→</div>
-    <div class="flow-step"><span class="n">Step 2</span>OK on result<br>Saves to Radio Settings &amp; returns to Sub-GHz</div>
+    <div class="flow-step"><span class="n">Step 2</span>Commit a hit<br>Saved to Radio Settings, hands off to Read RAW</div>
     <div class="arrow">→</div>
-    <div class="flow-step"><span class="n">Step 3</span>Modulation Analyzer<br>Find modulation at saved freq</div>
+    <div class="flow-step"><span class="n">Step 3</span>Back out, run Modulation Analyzer<br>Find modulation at that frequency</div>
     <div class="arrow">→</div>
-    <div class="flow-step"><span class="n">Step 4</span>OK on hit<br>Opens Receiver pre-configured</div>
+    <div class="flow-step"><span class="n">Step 4</span>Commit a hit<br>Hands off to Read RAW, pre-tuned</div>
     <div class="arrow">→</div>
-    <div class="flow-step"><span class="n">Step 5</span>Receiver<br>Capture &amp; save</div>
+    <div class="flow-step"><span class="n">Step 5</span>Read RAW<br>Capture &amp; save</div>
   </div>
   <div class="box tip">
-    <strong>Seamless transition:</strong> When the Frequency Analyzer locks onto
-    a signal and you press OK, the detected frequency is saved directly to the
-    Sub-GHz Radio Settings and you are returned to the Sub-GHz main screen — no
-    manual entry required. Similarly, pressing OK on a Modulation Analyzer hit
-    immediately opens the Receiver with both frequency and modulation already
-    configured. The entire workflow from unknown signal to captured .sub file
-    can be completed in under a minute without touching a settings menu.
+    <strong>Seamless transition:</strong> Both analyzers write the frequency
+    (and, for the Modulation Analyzer, the modulation) into Radio Settings
+    the moment you commit a result, then hand off straight into Read RAW
+    already tuned — no manual entry required. Neither analyzer opens the
+    decoded Receiver directly; from Read RAW you can save the capture and
+    try Emulate / decoding from the Saved Files menu.
   </div>
 
   <div class="box tip">
-    <strong>Dwell time:</strong> The analyzer spends ~80 ms on each preset before
-    moving to the next. With all 8 enabled, a full cycle takes under a second.
-    For very short transmissions, disable all presets except the most likely
-    candidates so each gets more dwell time.
+    <strong>Dwell time:</strong> The analyzer spends about 120 ms on each
+    enabled preset before moving to the next. With all 25 presets enabled, a
+    full cycle takes about 3 seconds. For very short transmissions, disable
+    presets you don't need in the Modulations menu so each remaining one
+    gets tested more often.
   </div>
   <div class="box warn">
     <strong>Limitation:</strong> The analyzer detects carrier energy (RSSI), not
@@ -1554,11 +1762,16 @@
     protocol has an <strong>ON / OFF toggle</strong>. Protocols set to OFF are
     completely ignored during Read and Read RAW.
   </p>
-  <p>The top of the list shows the active protocol count:</p>
+  <p>
+    The top of the list shows the active protocol count, computed live from
+    the protocol registry (currently 79 protocols total — this grows as
+    protocols are added, so don't be surprised if the number you see is
+    higher):
+  </p>
   <table>
     <tr><th>Situation</th><th>Display</th></tr>
-    <tr><td>All enabled</td><td><code>Active Protocols: 62</code></td></tr>
-    <tr><td>Some disabled</td><td><code>Active Protocols: 58/62</code></td></tr>
+    <tr><td>All enabled</td><td><code>Active Protocols: 79</code></td></tr>
+    <tr><td>Some disabled</td><td><code>Active Protocols: 70/79</code></td></tr>
   </table>
   <div class="keys">
     <div class="key-row"><span class="key-badge">↑ ↓</span><span class="key-desc">Scroll the list</span></div>
@@ -1857,7 +2070,10 @@
       USB, open qFlipper, and use <em>Install from file</em> to flash
       <code>flipper-z-f7-full-local.dfu</code>. This will restore normal
       access. Your SD card files (saved signals, NFC cards, etc.) are not
-      affected by a firmware reinstall.
+      affected by a firmware reinstall — but if <em>On Exceed</em> was set to
+      <strong>"Format SD"</strong> rather than "Lock only", the card was
+      already formatted the moment the lockout triggered, before you get to
+      this step. A firmware reinstall can't undo that.
     </li>
     <li>
       <strong>Contact support.</strong> Email us and we will provide

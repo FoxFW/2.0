@@ -1,6 +1,7 @@
 #include "connect_settings.h"
 #include "fox_esp32_terminal_icons.h"
 #include <gui/icon.h>
+#include "gpio_remap_compat.h"
 
 #include <stdio.h>
 
@@ -120,6 +121,9 @@ static void connect_settings_cycle_pin(App* app, int delta) {
     size_t idx = app->pin_option_index;
     idx = (delta > 0) ? (idx + 1) % count : ((idx == 0) ? count - 1 : idx - 1);
     app->pin_option_index = idx;
+
+    GpioRemapSettings gpio_remap = {.esp32_uart_channel = (uint8_t)idx};
+    gpio_remap_settings_save(&gpio_remap);
 }
 
 static void connect_settings_cycle_baud(App* app, int delta) {
@@ -202,4 +206,11 @@ void connect_settings_view_free(View* view) {
 void connect_settings_view_reset(App* app) {
     if(app == NULL) return;
     app->connect_settings_selected = ConnectSettingsRowPins;
+
+    GpioRemapSettings gpio_remap;
+    gpio_remap_settings_load(&gpio_remap);
+    size_t count = app_pin_option_count();
+    if(gpio_remap.esp32_uart_channel < count) {
+        app->pin_option_index = gpio_remap.esp32_uart_channel;
+    }
 }

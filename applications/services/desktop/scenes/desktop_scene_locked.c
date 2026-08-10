@@ -39,6 +39,14 @@ void desktop_scene_locked_on_enter(void* context) {
 
     // callbacks for 2-nd layer
     desktop_view_locked_set_callback(desktop->locked_view, desktop_scene_locked_callback, desktop);
+    desktop_view_locked_set_display_options(
+        desktop->locked_view,
+        desktop->settings.lock_show_time,
+        desktop->settings.lock_show_seconds,
+        desktop->settings.lock_show_date,
+        desktop->settings.lock_unlock_prompt,
+        desktop->settings.allow_poweroff_locked,
+        desktop->settings.clock_midnight_zero);
 
     bool switch_to_timeout_scene = false;
     uint32_t state = scene_manager_get_scene_state(desktop->scene_manager, DesktopSceneLocked);
@@ -97,6 +105,10 @@ bool desktop_scene_locked_on_event(void* context, SceneManagerEvent event) {
             break;
         case DesktopLockedEventShowPinInput:
             scene_manager_next_scene(desktop->scene_manager, DesktopScenePinInput);
+            consumed = true;
+            break;
+        case DesktopLockedEventPowerOff:
+            loader_start_detached_with_gui_error(desktop->loader, "Power", "off");
             consumed = true;
             break;
         case DesktopAnimationEventNewIdleAnimation:

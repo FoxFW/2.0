@@ -243,6 +243,13 @@ void furi_hal_subghz_set_ext_leds_and_amp(bool enabled);
 // Get state (enabled by default, can be disabled in radio setting with debug ON)
 bool furi_hal_subghz_get_ext_leds_and_amp(void);
 
+/** Enable or disable the dangerous/extended frequency range, bypassing the
+ * normal region-lock check in furi_hal_subghz_is_frequency_valid().
+ *
+ * @param      state_i  true to bypass region lock, false to restore it
+ */
+void furi_hal_subghz_set_dangerous_frequency(bool state_i);
+
 #ifdef __cplusplus
 }
 #endif

@@ -7,6 +7,7 @@ Header,+,applications/services/bt/bt_service/bt_keys_storage.h,,
 Header,+,applications/services/bt/bt_service/bt_settings_api_i.h,,
 Header,+,applications/services/bt/bt_settings.h,,
 Header,+,applications/services/cli/cli.h,,
+Header,+,applications/services/cli/cli_settings.h,,
 Header,+,applications/services/cli/cli_vcp.h,,
 Header,+,applications/services/desktop/desktop.h,,
 Header,+,applications/services/desktop/desktop_settings.h,,
@@ -15,6 +16,7 @@ Header,+,applications/services/dialogs/dialogs.h,,
 Header,+,applications/services/dolphin/dolphin.h,,
 Header,+,applications/services/expansion/expansion.h,,
 Header,+,applications/services/expansion/expansion_settings.h,,
+Header,+,applications/services/gpio_remap/gpio_remap_settings.h,,
 Header,+,applications/services/gui/elements.h,,
 Header,+,applications/services/gui/gui.h,,
 Header,+,applications/services/gui/icon_i.h,,
@@ -50,6 +52,7 @@ Header,+,applications/services/notification/notification_app.h,,
 Header,+,applications/services/notification/notification_messages.h,,
 Header,+,applications/services/power/power_service/power.h,,
 Header,+,applications/services/rpc/rpc_app.h,,
+Header,+,applications/services/screen_color/screen_color_settings.h,,
 Header,+,applications/services/storage/storage.h,,
 Header,+,lib/bit_lib/bit_lib.h,,
 Header,+,lib/ble_profile/extra_profiles/hid_profile.h,,
@@ -915,6 +918,8 @@ Function,+,cli_registry_delete_command,void,"CliRegistry*, const char*"
 Function,+,cli_registry_free,void,CliRegistry*
 Function,+,cli_registry_reload_external_commands,void,"CliRegistry*, const CliCommandExternalConfig*"
 Function,+,cli_registry_remove_external_commands,void,CliRegistry*
+Function,+,cli_settings_load,void,CliSettings*
+Function,+,cli_settings_save,void,const CliSettings*
 Function,+,cli_shell_alloc,CliShell*,"CliShellMotd, void*, PipeSide*, CliRegistry*, const CliCommandExternalConfig*"
 Function,+,cli_shell_free,void,CliShell*
 Function,+,cli_shell_join,void,CliShell*
@@ -1830,6 +1835,7 @@ Function,+,furi_hal_subghz_reset,void,
 Function,+,furi_hal_subghz_rx,void,
 Function,+,furi_hal_subghz_rx_pipe_not_empty,_Bool,
 Function,+,furi_hal_subghz_set_async_mirror_pin,void,const GpioPin*
+Function,+,furi_hal_subghz_set_dangerous_frequency,void,_Bool
 Function,+,furi_hal_subghz_set_ext_leds_and_amp,void,_Bool
 Function,+,furi_hal_subghz_set_frequency,uint32_t,uint32_t
 Function,+,furi_hal_subghz_set_frequency_and_path,uint32_t,uint32_t
@@ -2099,6 +2105,8 @@ Function,-,getenv,char*,const char*
 Function,-,gets,char*,char*
 Function,-,getsubopt,int,"char**, char* const*, char**"
 Function,-,getw,int,FILE*
+Function,+,gpio_remap_settings_load,void,GpioRemapSettings*
+Function,+,gpio_remap_settings_save,void,const GpioRemapSettings*
 Function,+,gui_add_framebuffer_callback,void,"Gui*, GuiCanvasCommitCallback, void*"
 Function,+,gui_add_view_port,void,"Gui*, ViewPort*, GuiLayer"
 Function,+,gui_direct_draw_acquire,Canvas*,Gui*
@@ -2110,6 +2118,7 @@ Function,+,gui_remove_view_port,void,"Gui*, ViewPort*"
 Function,+,gui_set_hide_status_bar,void,"Gui*, _Bool"
 Function,+,gui_set_lockdown,void,"Gui*, _Bool"
 Function,+,gui_set_lockdown_inhibit,void,"Gui*, _Bool"
+Function,+,gui_set_statusbar_show_icons,void,"Gui*, _Bool"
 Function,-,gui_view_port_send_to_back,void,"Gui*, ViewPort*"
 Function,+,gui_view_port_send_to_front,void,"Gui*, ViewPort*"
 Function,-,hci_send_req,int,"hci_request*, uint8_t"
@@ -3220,8 +3229,10 @@ Function,-,rename,int,"const char*, const char*"
 Function,-,renameat,int,"int, const char*, int, const char*"
 Function,-,rewind,void,FILE*
 Function,+,rgb_backlight_get_color_count,uint8_t,
+Function,+,rgb_backlight_get_color_rgb,void,"uint8_t, uint8_t*, uint8_t*, uint8_t*"
 Function,+,rgb_backlight_get_color_text,const char*,uint8_t
 Function,+,rgb_backlight_set_led_static_color,void,"uint8_t, uint8_t"
+Function,+,rgb_backlight_should_drive_white_led,_Bool,
 Function,+,rgb_backlight_update,void,float
 Function,-,rindex,char*,"const char*, int"
 Function,-,rint,double,double
@@ -3274,10 +3285,15 @@ Function,+,scene_manager_search_and_switch_to_previous_scene,_Bool,"SceneManager
 Function,+,scene_manager_search_and_switch_to_previous_scene_one_of,_Bool,"SceneManager*, const uint32_t*, size_t"
 Function,+,scene_manager_set_scene_state,void,"SceneManager*, uint32_t, uint32_t"
 Function,+,scene_manager_stop,void,SceneManager*
+Function,+,screen_color_on_system_start,void,
+Function,+,screen_color_pack,uint32_t,"uint8_t, uint8_t, uint8_t, uint8_t"
+Function,+,screen_color_settings_load,void,ScreenColorSettings*
+Function,+,screen_color_settings_save,void,const ScreenColorSettings*
 Function,+,sd_api_get_fs_type_text,const char*,SDFsType
 Function,-,secure_getenv,char*,const char*
 Function,-,seed48,unsigned short*,unsigned short[3]
 Function,+,set_rgb_backlight_installed_variable,void,uint8_t
+Function,+,set_rgb_backlight_white_mode_variable,void,uint8_t
 Function,-,setbuf,void,"FILE*, char*"
 Function,-,setbuffer,void,"FILE*, char*, int"
 Function,-,setenv,int,"const char*, const char*, int"

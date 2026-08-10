@@ -1,4 +1,5 @@
 #include "../uart_terminal_app_i.h"
+#include <gpio_remap/gpio_remap_settings.h>
 
 #define MAX_OPTIONS 25
 
@@ -46,6 +47,9 @@ static void uart_terminal_scene_setup_var_list_change_callback(VariableItem* ite
     // UART Pins
     if(app->setup_selected_menu_index == UART_PINS_ITEM_IDX) {
         app->new_uart_ch = item_index > 0;
+
+        GpioRemapSettings gpio_remap = {.esp32_uart_channel = app->new_uart_ch};
+        gpio_remap_settings_save(&gpio_remap);
     }
 
     // BaudRate

@@ -1,6 +1,8 @@
 #include <applications.h>
 #include <lib/toolbox/value_index.h>
 #include <gui/modules/fox_theme.h>
+#include <cli/cli_settings.h>
+#include <gpio_remap/gpio_remap_settings.h>
 
 #include "../desktop_settings_app.h"
 #include "desktop_settings_scene.h"
@@ -14,16 +16,23 @@
 typedef enum {
     DesktopSettingsPinSetup           = 0,
     DesktopSettingsWallpaper          = 1,
-    DesktopSettingsMenuStyle          = 2,
-    DesktopSettingsChangeName         = 3,
-    /* 4 = Battery View (inline callback, no sub-scene) */
-    /* 5 = Show Clock  (inline callback, no sub-scene) */
-    DesktopSettingsWifiIcon           = 6,  /* inline callback, no sub-scene */
-    DesktopSettingsFavoriteLeftShort  = 7,
-    DesktopSettingsFavoriteLeftLong   = 8,
-    DesktopSettingsFavoriteRightShort = 9,
-    DesktopSettingsFavoriteRightLong  = 10,
-    DesktopSettingsFavoriteOkLong     = 11,
+    DesktopSettingsRgbBacklight       = 2,
+    DesktopSettingsMenuStyle          = 3,
+    DesktopSettingsChangeName         = 4,
+    /* 5 = Battery View (inline callback, no sub-scene) */
+    /* 6 = Show Clock  (inline callback, no sub-scene) */
+    /* 7 = Midnight Format (inline callback, no sub-scene) */
+    DesktopSettingsWifiIcon           = 8,  /* inline callback, no sub-scene */
+    /* 9 = Status Bar Icons (inline callback, no sub-scene) */
+    /* 10 = Shell Color (inline callback, no sub-scene) */
+    /* 11 = GPIO Pins (inline callback, no sub-scene) */
+    DesktopSettingsVgmOptions         = 12,
+    DesktopSettingsFavoriteLeftShort  = 13,
+    DesktopSettingsFavoriteLeftLong   = 14,
+    DesktopSettingsFavoriteRightShort = 15,
+    DesktopSettingsFavoriteRightLong  = 16,
+    DesktopSettingsFavoriteOkLong     = 17,
+    DesktopSettingsMainMenu           = 18,
 } DesktopSettingsEntry;
 
 #define CLOCK_ENABLE_COUNT 2
@@ -36,6 +45,25 @@ static const char* const wifi_icon_text[WIFI_ICON_COUNT] = {"ON", "OFF"};
 
 #define MENU_STYLE_COUNT 2
 static const char* const menu_style_text[MENU_STYLE_COUNT] = {"Classic", "Default"};
+
+#define STATUSBAR_ICONS_COUNT 2
+static const char* const statusbar_icons_text[STATUSBAR_ICONS_COUNT] = {"OFF", "ON"};
+
+#define MIDNIGHT_FORMAT_COUNT 2
+static const char* const midnight_format_text[MIDNIGHT_FORMAT_COUNT] = {"12", "0"};
+
+#define SHELL_COLOR_COUNT 8
+static const char* const shell_color_text[SHELL_COLOR_COUNT] = {
+    "Orange", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"};
+static CliSettings s_cli_settings;
+
+/* Global ESP32 UART pin choice - shared with commander, terminal, flasher and
+ * uart_terminal's own "UART Pins" settings. Changing it here (or in any of
+ * those apps) updates the same file, so the others pick it up next time they
+ * (re)open their own connection settings. */
+#define GPIO_PINS_COUNT 2
+static const char* const gpio_pins_text[GPIO_PINS_COUNT] = {"13/14", "15/16"};
+static GpioRemapSettings s_gpio_remap;
 
 static void desktop_settings_scene_start_menu_style_changed(VariableItem* item) {
     DesktopSettingsApp* app = variable_item_get_context(item);
@@ -86,6 +114,34 @@ static void desktop_settings_scene_start_wifi_icon_changed(VariableItem* item) {
     app->settings.wifi_icon_hidden = index; /* 0=ON(show), 1=OFF(hide) */
 }
 
+static void desktop_settings_scene_start_midnight_format_changed(VariableItem* item) {
+    DesktopSettingsApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, midnight_format_text[index]);
+    app->settings.clock_midnight_zero = index;
+}
+
+static void desktop_settings_scene_start_shell_color_changed(VariableItem* item) {
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, shell_color_text[index]);
+    s_cli_settings.shell_color_index = index;
+    cli_settings_save(&s_cli_settings);
+}
+
+static void desktop_settings_scene_start_statusbar_icons_changed(VariableItem* item) {
+    DesktopSettingsApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, statusbar_icons_text[index]);
+    app->settings.statusbar_show_icons = index;
+}
+
+static void desktop_settings_scene_start_gpio_pins_changed(VariableItem* item) {
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, gpio_pins_text[index]);
+    s_gpio_remap.esp32_uart_channel = index;
+    gpio_remap_settings_save(&s_gpio_remap);
+}
+
 void desktop_settings_scene_start_on_enter(void* context) {
     DesktopSettingsApp* app = context;
     VariableItemList* list = app->variable_item_list;
@@ -94,6 +150,7 @@ void desktop_settings_scene_start_on_enter(void* context) {
 
     variable_item_list_add(list, "Security & Privacy", 0, NULL, NULL);
     variable_item_list_add(list, "Custom Wallpaper", 0, NULL, NULL);
+    variable_item_list_add(list, "RGB Backlight", 0, NULL, NULL);
 
     item = variable_item_list_add(
         list, "Menu Style", MENU_STYLE_COUNT,
@@ -124,16 +181,49 @@ void desktop_settings_scene_start_on_enter(void* context) {
     variable_item_set_current_value_text(item, clock_enable_text[value_index]);
 
     item = variable_item_list_add(
+        list, "Midnight Format", MIDNIGHT_FORMAT_COUNT,
+        desktop_settings_scene_start_midnight_format_changed, app);
+    variable_item_set_current_value_index(item, app->settings.clock_midnight_zero);
+    variable_item_set_current_value_text(
+        item, midnight_format_text[app->settings.clock_midnight_zero]);
+
+    item = variable_item_list_add(
         list, "WiFi Status Icon", WIFI_ICON_COUNT,
         desktop_settings_scene_start_wifi_icon_changed, app);
     variable_item_set_current_value_index(item, app->settings.wifi_icon_hidden);
     variable_item_set_current_value_text(item, wifi_icon_text[app->settings.wifi_icon_hidden]);
+
+    item = variable_item_list_add(
+        list, "Status Bar Icons", STATUSBAR_ICONS_COUNT,
+        desktop_settings_scene_start_statusbar_icons_changed, app);
+    variable_item_set_current_value_index(item, app->settings.statusbar_show_icons);
+    variable_item_set_current_value_text(
+        item, statusbar_icons_text[app->settings.statusbar_show_icons]);
+
+    cli_settings_load(&s_cli_settings);
+    item = variable_item_list_add(
+        list, "Shell Color", SHELL_COLOR_COUNT,
+        desktop_settings_scene_start_shell_color_changed, app);
+    variable_item_set_current_value_index(item, s_cli_settings.shell_color_index);
+    variable_item_set_current_value_text(item, shell_color_text[s_cli_settings.shell_color_index]);
+
+    gpio_remap_settings_load(&s_gpio_remap);
+    item = variable_item_list_add(
+        list, "ESP32 UART Pins", GPIO_PINS_COUNT,
+        desktop_settings_scene_start_gpio_pins_changed, app);
+    if(s_gpio_remap.esp32_uart_channel >= GPIO_PINS_COUNT) s_gpio_remap.esp32_uart_channel = 0;
+    variable_item_set_current_value_index(item, s_gpio_remap.esp32_uart_channel);
+    variable_item_set_current_value_text(item, gpio_pins_text[s_gpio_remap.esp32_uart_channel]);
+
+    variable_item_list_add(list, "VGM Options", 0, NULL, NULL);
 
     variable_item_list_add(list, "Favourite - Left Short",  0, NULL, NULL);
     variable_item_list_add(list, "Favourite - Left Long",   0, NULL, NULL);
     variable_item_list_add(list, "Favourite - Right Short", 0, NULL, NULL);
     variable_item_list_add(list, "Favourite - Right Long",  0, NULL, NULL);
     variable_item_list_add(list, "Favourite - Ok Long",     0, NULL, NULL);
+
+    variable_item_list_add(list, "Main Menu", 0, NULL, NULL);
 
     variable_item_list_set_enter_callback(
         list, desktop_settings_scene_start_var_list_enter_callback, app);
@@ -169,38 +259,47 @@ bool desktop_settings_scene_start_on_event(void* context, SceneManagerEvent even
         case DesktopSettingsWallpaper:
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneWallpaperSetup);
             break;
+        case DesktopSettingsRgbBacklight:
+            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneRgbSettings);
+            break;
         case DesktopSettingsChangeName:
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneChangeName);
             break;
-        case DesktopSettingsFavoriteLeftShort:  /* = 7 */
+        case DesktopSettingsVgmOptions:         /* = 12 */
+            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneVgmOptions);
+            break;
+        case DesktopSettingsFavoriteLeftShort:  /* = 13 */
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppLeftShort);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteLeftLong:   /* = 8 */
+        case DesktopSettingsFavoriteLeftLong:   /* = 14 */
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppLeftLong);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteRightShort: /* = 9 */
+        case DesktopSettingsFavoriteRightShort: /* = 15 */
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppRightShort);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteRightLong:  /* = 10 */
+        case DesktopSettingsFavoriteRightLong:  /* = 16 */
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppRightLong);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteOkLong:     /* = 11 */
+        case DesktopSettingsFavoriteOkLong:     /* = 17 */
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppOkLong);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
+            break;
+        case DesktopSettingsMainMenu:
+            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneMainMenu);
             break;
         default:
             break;

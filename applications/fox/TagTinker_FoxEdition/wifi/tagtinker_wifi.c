@@ -39,6 +39,7 @@
  */
 #include "tagtinker_wifi.h"
 #include "esp_at.h"
+#include "gpio_remap_compat.h"
 
 #include <furi.h>
 #include <string.h>
@@ -812,7 +813,12 @@ void tagtinker_wifi_free(TagTinkerWifi* w) {
 bool tagtinker_wifi_open(TagTinkerWifi* w) {
     if(w->esp_at) return true;
 
-    w->esp_at = esp_at_alloc(FuriHalSerialIdUsart, ESP_BAUD);
+    GpioRemapSettings gpio_remap;
+    gpio_remap_settings_load(&gpio_remap);
+    FuriHalSerialId serial_id = (gpio_remap.esp32_uart_channel == GpioRemapEsp32UartLpuart)
+                                     ? FuriHalSerialIdLpuart
+                                     : FuriHalSerialIdUsart;
+    w->esp_at = esp_at_alloc(serial_id, ESP_BAUD);
     if(!w->esp_at) return false;
 
     w->running = true;

@@ -118,6 +118,15 @@ const char* const rgb_backlight_installed_text[RGB_BACKLIGHT_INSTALLED_COUNT] = 
 };
 const bool rgb_backlight_installed_value[RGB_BACKLIGHT_INSTALLED_COUNT] = {false, true};
 
+// White Backlight ON keeps the stock white LED running alongside the RGB
+// LEDs (original FoxFW behavior); OFF drives RGB only, same as Momentum.
+#define RGB_BACKLIGHT_WHITE_MODE_COUNT 2
+const char* const rgb_backlight_white_mode_text[RGB_BACKLIGHT_WHITE_MODE_COUNT] = {
+    "OFF",
+    "ON",
+};
+const bool rgb_backlight_white_mode_value[RGB_BACKLIGHT_WHITE_MODE_COUNT] = {false, true};
+
 #define RGB_BACKLIGHT_RAINBOW_MODE_COUNT 3
 const char* const rgb_backlight_rainbow_mode_text[RGB_BACKLIGHT_RAINBOW_MODE_COUNT] = {
     "OFF",
@@ -399,7 +408,7 @@ static void rgb_backlight_installed_changed(VariableItem* item) {
     }
 
     // Lock/Unlock all rgb settings depent from rgb_backlight_installed switch
-    for(int i = 1; i < 9; i++) {
+    for(int i = 1; i < 10; i++) {
         VariableItem* t_item = variable_item_list_get(app->variable_item_list_rgb, i);
         if(index == 0) {
             variable_item_set_locked(t_item, true, "RGB\nOFF!");
@@ -407,6 +416,16 @@ static void rgb_backlight_installed_changed(VariableItem* item) {
             variable_item_set_locked(t_item, false, "RGB\nOFF!");
         }
     }
+    notification_message_save_settings(app->notification);
+}
+
+static void rgb_backlight_white_mode_changed(VariableItem* item) {
+    NotificationAppSettings* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, rgb_backlight_white_mode_text[index]);
+    app->notification->settings.rgb.white_backlight_mode = rgb_backlight_white_mode_value[index];
+    set_rgb_backlight_white_mode_variable(rgb_backlight_white_mode_value[index]);
+
     notification_message_save_settings(app->notification);
 }
 
@@ -753,6 +772,21 @@ static NotificationAppSettings* alloc_settings(void) {
         RGB_BACKLIGHT_INSTALLED_COUNT);
     variable_item_set_current_value_index(item, value_index);
     variable_item_set_current_value_text(item, rgb_backlight_installed_text[value_index]);
+
+    item = variable_item_list_add(
+        app->variable_item_list_rgb,
+        "White Backlight",
+        RGB_BACKLIGHT_WHITE_MODE_COUNT,
+        rgb_backlight_white_mode_changed,
+        app);
+    value_index = value_index_bool(
+        app->notification->settings.rgb.white_backlight_mode,
+        rgb_backlight_white_mode_value,
+        RGB_BACKLIGHT_WHITE_MODE_COUNT);
+    variable_item_set_current_value_index(item, value_index);
+    variable_item_set_current_value_text(item, rgb_backlight_white_mode_text[value_index]);
+    variable_item_set_locked(
+        item, (app->notification->settings.rgb.rgb_backlight_installed == 0), "RGB MOD \nOFF!");
 
     // We (humans) are numbering LEDs from left to right as 1..3, but hardware have another order from right to left 2..0
     // led_1 color

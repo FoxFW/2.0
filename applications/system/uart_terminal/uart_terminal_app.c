@@ -3,6 +3,7 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <expansion/expansion.h>
+#include <gpio_remap/gpio_remap_settings.h>
 
 static bool uart_terminal_app_custom_event_callback(void* context, uint32_t event) {
     furi_assert(context);
@@ -59,6 +60,13 @@ UART_TerminalApp* uart_terminal_app_alloc() {
 
     for(int i = 0; i < SETUP_MENU_ITEMS; ++i) {
         app->setup_selected_option_index[i] = 0;
+    }
+
+    GpioRemapSettings gpio_remap;
+    gpio_remap_settings_load(&gpio_remap);
+    if(gpio_remap.esp32_uart_channel < 2) {
+        app->setup_selected_option_index[UART_PINS_ITEM_IDX] = gpio_remap.esp32_uart_channel;
+        app->new_uart_ch = gpio_remap.esp32_uart_channel;
     }
 
     app->widget = widget_alloc();

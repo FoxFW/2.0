@@ -5,6 +5,7 @@
 #include "strutil.h"
 
 #include "fox_update_downloader_icons.h"
+#include "gpio_remap_compat.h"
 #include <gui/icon_i.h>
 
 #include <string.h>
@@ -484,6 +485,10 @@ static bool probe_esp32(UpdaterApp* app, size_t pin_index, size_t baud_index) {
         if(strcmp(msg.line, "Fox ESP32 Firmware") == 0) {
             app->pin_option_index = pin_index;
             app->baud_option_index = baud_index;
+
+            GpioRemapSettings gpio_remap = {.esp32_uart_channel = (uint8_t)pin_index};
+            gpio_remap_settings_save(&gpio_remap);
+
             return true;
         }
     }
@@ -640,6 +645,12 @@ static UpdaterApp* app_alloc(bool skip_splash) {
     view_dispatcher_set_custom_event_callback(app->view_dispatcher, custom_event_callback);
 
     app->baud_option_index = BAUD_OPTION_DEFAULT_INDEX;
+
+    GpioRemapSettings gpio_remap;
+    gpio_remap_settings_load(&gpio_remap);
+    if(gpio_remap.esp32_uart_channel < app_pin_option_count()) {
+        app->pin_option_index = gpio_remap.esp32_uart_channel;
+    }
 
     app->splash = fox_splash_alloc(&I_fox_64x64, 2000, 666, fox_splash_done_cb, app);
     app->message_view = view_message_alloc(app);
