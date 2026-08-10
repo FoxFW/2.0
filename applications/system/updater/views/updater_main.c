@@ -99,8 +99,29 @@ static void updater_build_version_line(
         tag += prefix_len;
     }
 
+    // The RAM-resident updater stage (FURI_RAM_EXEC, active while flash is
+    // actually being written) appends " (RAM)" to the version string - strip
+    // it here so this screen doesn't briefly overflow off-screen with
+    // "(v2.0.4 (RAM))" before settling back to the normal "(v2.0.4)".
+    char tag_buf[24];
+    strlcpy(tag_buf, tag, sizeof(tag_buf));
+    const char* ram_suffix = " (RAM)";
+    size_t tag_len = strlen(tag_buf);
+    size_t ram_suffix_len = strlen(ram_suffix);
+    if(tag_len >= ram_suffix_len &&
+       strcmp(tag_buf + tag_len - ram_suffix_len, ram_suffix) == 0) {
+        tag_buf[tag_len - ram_suffix_len] = '\0';
+    }
+
     snprintf(origin_out, origin_out_size, "%s ", origin);
-    snprintf(tag_out, tag_out_size, "(%s)", tag);
+
+    // strlcat instead of snprintf("(%s)", ...) - tag_buf is a stack buffer,
+    // not a literal, so GCC can't statically prove the snprintf fits and
+    // flags it under -Werror=format-truncation.
+    tag_out[0] = '\0';
+    strlcat(tag_out, "(", tag_out_size);
+    strlcat(tag_out, tag_buf, tag_out_size);
+    strlcat(tag_out, ")", tag_out_size);
 }
 
 static void updater_main_draw_callback(Canvas* canvas, void* _model) {
