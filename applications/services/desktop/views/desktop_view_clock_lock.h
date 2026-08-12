@@ -14,11 +14,12 @@ void desktop_clock_lock_set_callback(DesktopClockLockView* clock_lock, DesktopCl
 // Down exit gesture.
 void desktop_clock_lock_set_ringing(DesktopClockLockView* clock_lock, bool ringing);
 
-// Left = force the backlight to stay on while this screen is showing;
-// Right = go back to the normal display timeout. Mirrors the "Keep
-// Backlight On" toggle in Fox Settings > Alarm Clock - this is just a quick
-// in-screen shortcut for the same setting.
-typedef void (*DesktopClockLockBacklightCallback)(void* context, bool keep_on);
+// Left = turn the backlight off right now. Right = turn it back on - if
+// "Keep Backlight On" (Fox Settings > Alarm Clock) is off this just turns it
+// on for the normal timeout, if it's on this restores the persistent
+// stay-on behavior. Doesn't change the saved setting, just overrides the
+// backlight for as long as this screen stays open.
+typedef void (*DesktopClockLockBacklightCallback)(void* context, bool turn_on);
 void desktop_clock_lock_set_backlight_callback(
     DesktopClockLockView* clock_lock,
     DesktopClockLockBacklightCallback callback,

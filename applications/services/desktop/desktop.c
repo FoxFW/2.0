@@ -1441,6 +1441,7 @@ static Desktop* desktop_alloc(void) {
     desktop->alarm_ringing = false;
     desktop->alarm_ringing_index = 0;
     desktop->on_clock_lock_scene = false;
+    desktop->clock_lock_backlight_manually_off = false;
     desktop->alarm_last_checked_stamp = 0xFFFF; // never a real hour*60+minute value
 
     desktop->animation_semaphore = furi_semaphore_alloc(1, 0);

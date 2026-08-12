@@ -126,6 +126,9 @@ struct Desktop {
     bool alarm_ringing;
     uint8_t alarm_ringing_index; // which settings.alarms[] entry is ringing
     bool on_clock_lock_scene;    // tracked by desktop_scene_clock_lock.c
+    bool clock_lock_backlight_manually_off; // Left-arrow override on the Fox
+                                             // Clock screen - see
+                                             // desktop_scene_clock_lock.c
 };
 
 void desktop_lock(Desktop* desktop);

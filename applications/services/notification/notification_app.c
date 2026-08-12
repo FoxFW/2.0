@@ -561,13 +561,11 @@ static void notification_process_notification_message(
     while(notification_message != NULL) {
         switch(notification_message->type) {
         case NotificationMessageTypeLedDisplayBacklight:
-            // RGB Mod Effects (Rainbow/Wave) are external case lighting, not
-            // part of the LCD - they used to get stopped here whenever the
-            // display backlight timed out (or the device auto-locked, same
-            // path), which is why the effect only ever ran for as long as
-            // the screen stayed awake. The rainbow timer now runs on its own
-            // schedule regardless of backlight state; only the RGB
-            // installed/effects settings themselves start or stop it.
+            // RGB Mod Effects (Rainbow/Wave) follow the LCD backlight's
+            // on/off state, same as v2.0.4: they start when the backlight
+            // comes on and stop when it times out or the device locks/goes
+            // to standby, so an unattended device doesn't keep the case
+            // lighting running (and drawing power) indefinitely.
             if(notification_message->data.led.value > 0x00) {
                 // Backlight ON
                 notification_apply_notification_led_layer(
@@ -578,6 +576,9 @@ static void notification_process_notification_message(
                 reset_mask |= reset_display_mask;
                 lcd_backlight_is_on = true;
 
+                //start rgb_mod_rainbow_timer when display backlight is ON and all corresponding settings is ON too
+                rainbow_timer_starter(app);
+
             } else {
                 // Backlight OFF
                 reset_mask &= ~reset_display_mask;
@@ -586,6 +587,11 @@ static void notification_process_notification_message(
 
                 if(furi_timer_is_running(app->display_timer)) {
                     furi_timer_stop(app->display_timer);
+                }
+
+                //stop rgb_mod_rainbow_timer when display backlight is OFF
+                if(furi_timer_is_running(app->rainbow_timer)) {
+                    rainbow_timer_stop(app);
                 }
             }
             break;

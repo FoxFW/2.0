@@ -12,21 +12,36 @@ static void desktop_scene_clock_lock_exit_callback(void* context) {
     view_dispatcher_send_custom_event(desktop->view_dispatcher, DesktopSceneClockLockEventExit);
 }
 
-static void desktop_scene_clock_lock_backlight_callback(void* context, bool keep_on) {
+// Left = turn the backlight off right now, regardless of the "Keep
+// Backlight On" setting. Right = turn it back on: if the setting is off this
+// is just a normal on (it'll time out on its own like any button press); if
+// the setting is on, this restores the persistent stay-on behavior. Neither
+// key changes the saved setting itself - it's a momentary override for this
+// viewing of the clock, reset the next time the screen is entered.
+static void desktop_scene_clock_lock_backlight_callback(void* context, bool turn_on) {
     Desktop* desktop = context;
-    desktop->settings.alarm_keep_backlight_all_night = keep_on ? 1 : 0;
-    desktop_settings_save(&desktop->settings);
-    notification_message(
-        desktop->notification,
-        keep_on ? &sequence_display_backlight_force_on : &sequence_display_backlight_on);
+    if(turn_on) {
+        desktop->clock_lock_backlight_manually_off = false;
+        notification_message(
+            desktop->notification,
+            desktop->settings.alarm_keep_backlight_all_night ?
+                &sequence_display_backlight_force_on :
+                &sequence_display_backlight_on);
+    } else {
+        desktop->clock_lock_backlight_manually_off = true;
+        notification_message(desktop->notification, &sequence_display_backlight_off);
+    }
 }
 
 // Ticks once a second while this screen is showing - re-asserts the
 // backlight so the normal auto-off timer never gets a chance to fire when
-// "Keep Backlight On" is enabled.
+// "Keep Backlight On" is enabled. Skipped while the user has manually
+// turned the backlight off via the Left-arrow shortcut, so that override
+// actually sticks instead of being re-forced on a second later.
 static void desktop_scene_clock_lock_tick_callback(void* context) {
     Desktop* desktop = context;
-    if(desktop->settings.alarm_keep_backlight_all_night) {
+    if(desktop->settings.alarm_keep_backlight_all_night &&
+       !desktop->clock_lock_backlight_manually_off) {
         notification_message(desktop->notification, &sequence_display_backlight_force_on);
     }
 }
@@ -34,6 +49,7 @@ static void desktop_scene_clock_lock_tick_callback(void* context) {
 void desktop_scene_clock_lock_on_enter(void* context) {
     Desktop* desktop = context;
     desktop->on_clock_lock_scene = true;
+    desktop->clock_lock_backlight_manually_off = false;
 
     // Listen for the exit trigger we wrote in the view
     desktop_clock_lock_set_callback(desktop->clock_lock_view, desktop_scene_clock_lock_exit_callback, desktop);
@@ -72,6 +88,7 @@ bool desktop_scene_clock_lock_on_event(void* context, SceneManagerEvent event) {
 void desktop_scene_clock_lock_on_exit(void* context) {
     Desktop* desktop = context;
     desktop->on_clock_lock_scene = false;
+    desktop->clock_lock_backlight_manually_off = false;
     desktop_clock_lock_set_callback(desktop->clock_lock_view, NULL, NULL);
     desktop_clock_lock_set_backlight_callback(desktop->clock_lock_view, NULL, NULL);
     desktop_clock_lock_set_tick_callback(desktop->clock_lock_view, NULL, NULL);

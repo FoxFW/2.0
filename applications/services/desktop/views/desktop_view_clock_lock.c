@@ -137,13 +137,15 @@ static bool desktop_clock_lock_input_callback(InputEvent* event, void* context) 
     }
 
     // Quick backlight shortcut, only meaningful outside the ringing state -
-    // don't want a stray Left/Right to change the backlight setting while
-    // someone's fumbling to silence an alarm.
+    // don't want a stray Left/Right to interfere with someone fumbling to
+    // silence an alarm. Left turns the backlight off now, Right turns it
+    // back on (see DesktopClockLockBacklightCallback for what "on" means
+    // relative to the Keep Backlight On setting).
     if(!ringing && event->type == InputTypeShort && clock_lock->backlight_callback) {
         if(event->key == InputKeyLeft) {
-            clock_lock->backlight_callback(clock_lock->backlight_context, true);
-        } else if(event->key == InputKeyRight) {
             clock_lock->backlight_callback(clock_lock->backlight_context, false);
+        } else if(event->key == InputKeyRight) {
+            clock_lock->backlight_callback(clock_lock->backlight_context, true);
         }
     }
 
