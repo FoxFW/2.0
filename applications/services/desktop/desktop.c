@@ -29,9 +29,14 @@ static bool s_animation_was_stalled = false;
 
 #define WALLPAPER_DIR              EXT_PATH("wallpapers")
 #define WALLPAPER_ACTIVATE_MARKER  EXT_PATH("wallpapers/.activate")
+#define WALLPAPER_CURRENT_MARKER   EXT_PATH("wallpapers/.current")
 #define DEFAULT_WALLPAPER_NAME     "Default.xbm"
 #define WALLPAPER_SIZE 1024
 #define WALLPAPER_CHECK_POLL_MS 2000
+
+// Fox Alarm Clock - a 15s scan cadence is plenty precise for a minute-
+// resolution alarm and matches the existing wifi-status poll interval below.
+#define ALARM_CHECK_POLL_MS 15000
 
 #define FOX_SETUP_FLAG_PATH      "/int/fox_setup.done"
 #define FOX_SETUP_FLAG_EXT_PATH  "/ext/System/.fox_setup.done"  /* EXT mirror — both must be absent to bypass */
@@ -284,6 +289,20 @@ static void desktop_write_xbm_text(File* f, const uint8_t* raw, size_t len) {
 
     static const char footer[] = "};\n";
     storage_file_write(f, footer, strlen(footer));
+}
+
+// Mirrors the currently-active wallpaper's exact bytes out to a fixed,
+// well-known path so FOX_WEB's Wallpaper Painter can pull "what's actually
+// on screen right now" over RPC with a single file read - no need to also
+// resolve desktop_settings.wallpaper_filename (internal flash, binary,
+// version-migrated) from the browser side.
+static void desktop_write_current_wallpaper_marker(Desktop* desktop, const uint8_t* bits) {
+    File* f = storage_file_alloc(desktop->storage);
+    if(storage_file_open(f, WALLPAPER_CURRENT_MARKER, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+        desktop_write_xbm_text(f, bits, WALLPAPER_SIZE);
+        storage_file_close(f);
+    }
+    storage_file_free(f);
 }
 
 static void desktop_ensure_wallpaper(Desktop* desktop) {
@@ -822,6 +841,12 @@ static bool desktop_custom_event_callback(void* context, uint32_t event) {
             }
         }
 
+        // A Fox Alarm Clock alarm fired while an app was running - couldn't
+        // interrupt it safely, but we're back at idle now.
+        if(desktop->alarm_ringing) {
+            scene_manager_next_scene(desktop->scene_manager, DesktopSceneClockLock);
+        }
+
     } else if(event == DesktopGlobalAutoLock) {
         if(!desktop->app_running && !desktop->locked) {
             if((desktop->settings.usb_inhibit_auto_lock) && (furi_hal_usb_is_locked())) {
@@ -1055,6 +1080,110 @@ static bool desktop_wallpaper_header_is_128x64(Storage* storage, const char* pat
     return ok;
 }
 
+#define WALLPAPER_CYCLE_NAME_MAX 64
+#define WALLPAPER_CYCLE_LIST_MAX 64
+
+// Scans WALLPAPER_DIR for valid 128x64 *.xbm files, alphabetically sorted -
+// same filter/order as FOX_WEB's Wallpaper Painter and the Fox Settings
+// wallpaper scene use, duplicated here since this needs to run from the
+// always-on Desktop service rather than a foreground app. `names` must hold
+// max_count * WALLPAPER_CYCLE_NAME_MAX bytes.
+static uint8_t desktop_list_wallpapers(
+    Desktop* desktop,
+    char (*names)[WALLPAPER_CYCLE_NAME_MAX],
+    uint8_t max_count) {
+    uint8_t count = 0;
+    File* dir = storage_file_alloc(desktop->storage);
+    if(storage_dir_open(dir, WALLPAPER_DIR)) {
+        FileInfo info;
+        char name[128];
+        while(count < max_count && storage_dir_read(dir, &info, name, sizeof(name))) {
+            if(info.flags & FSF_DIRECTORY) continue;
+            if(name[0] == '.') continue; // skip .activate / .current markers
+
+            size_t len = strlen(name);
+            if(len < 4 || strcasecmp(name + len - 4, ".xbm") != 0) continue;
+
+            char full[160];
+            snprintf(full, sizeof(full), "%s/%s", WALLPAPER_DIR, name);
+            if(!desktop_wallpaper_header_is_128x64(desktop->storage, full)) continue;
+
+            strlcpy(names[count], name, WALLPAPER_CYCLE_NAME_MAX);
+            count++;
+        }
+    }
+    storage_dir_close(dir);
+    storage_file_free(dir);
+
+    for(uint8_t i = 0; (uint8_t)(i + 1) < count; i++) {
+        uint8_t smallest = i;
+        for(uint8_t j = (uint8_t)(i + 1); j < count; j++) {
+            if(strcasecmp(names[j], names[smallest]) < 0) smallest = j;
+        }
+        if(smallest != i) {
+            char tmp[WALLPAPER_CYCLE_NAME_MAX];
+            memcpy(tmp, names[i], WALLPAPER_CYCLE_NAME_MAX);
+            memcpy(names[i], names[smallest], WALLPAPER_CYCLE_NAME_MAX);
+            memcpy(names[smallest], tmp, WALLPAPER_CYCLE_NAME_MAX);
+        }
+    }
+    return count;
+}
+
+// Long-press Right on the idle desktop - a quick way to switch wallpapers
+// without going into Fox Settings. Off -> on (keeps the previous selection
+// if it still exists, else picks the first file alphabetically). On with
+// only one file -> off (back to the default Fox background). On with 2+
+// files -> advances to the next one alphabetically, wrapping around.
+void desktop_cycle_wallpaper(Desktop* desktop) {
+    furi_assert(desktop);
+
+    char(*names)[WALLPAPER_CYCLE_NAME_MAX] =
+        malloc(WALLPAPER_CYCLE_LIST_MAX * WALLPAPER_CYCLE_NAME_MAX);
+    uint8_t count = desktop_list_wallpapers(desktop, names, WALLPAPER_CYCLE_LIST_MAX);
+
+    if(count == 0) {
+        free(names);
+        return;
+    }
+
+    if(!desktop->settings.wallpaper_enabled) {
+        bool found = false;
+        for(uint8_t i = 0; i < count; i++) {
+            if(strcmp(names[i], desktop->settings.wallpaper_filename) == 0) {
+                found = true;
+                break;
+            }
+        }
+        if(!found) {
+            strlcpy(
+                desktop->settings.wallpaper_filename,
+                names[0],
+                sizeof(desktop->settings.wallpaper_filename));
+        }
+        desktop->settings.wallpaper_enabled = 1;
+    } else if(count == 1) {
+        desktop->settings.wallpaper_enabled = 0;
+    } else {
+        uint8_t current = 0;
+        for(uint8_t i = 0; i < count; i++) {
+            if(strcmp(names[i], desktop->settings.wallpaper_filename) == 0) {
+                current = i;
+                break;
+            }
+        }
+        uint8_t next = (uint8_t)((current + 1) % count);
+        strlcpy(
+            desktop->settings.wallpaper_filename,
+            names[next],
+            sizeof(desktop->settings.wallpaper_filename));
+    }
+
+    free(names);
+    desktop_settings_save(&desktop->settings);
+    desktop_load_wallpaper(desktop);
+}
+
 // Loads (or reloads) the currently-selected wallpaper. Parses into a scratch
 // buffer first and only swaps it in if the content actually changed, so a
 // no-op reload (the common case on every periodic check) never blanks the
@@ -1069,6 +1198,7 @@ static void desktop_load_wallpaper(Desktop* desktop) {
             desktop->wallpaper_data = NULL;
         }
         furi_mutex_release(desktop->wallpaper_mutex);
+        storage_simply_remove(desktop->storage, WALLPAPER_CURRENT_MARKER);
         return;
     }
 
@@ -1087,6 +1217,7 @@ static void desktop_load_wallpaper(Desktop* desktop) {
             desktop->wallpaper_data = NULL;
         }
         furi_mutex_release(desktop->wallpaper_mutex);
+        storage_simply_remove(desktop->storage, WALLPAPER_CURRENT_MARKER);
         return;
     }
 
@@ -1100,6 +1231,7 @@ static void desktop_load_wallpaper(Desktop* desktop) {
     desktop->wallpaper_data = out;
     furi_mutex_release(desktop->wallpaper_mutex);
     free(old_data);
+    desktop_write_current_wallpaper_marker(desktop, out);
 }
 
 // Consumes a pending "activate this wallpaper" request left by the Wallpaper
@@ -1151,6 +1283,98 @@ static void desktop_wallpaper_check_timer_callback(void* context) {
     furi_assert(desktop);
     desktop_check_wallpaper_updates(desktop);
 }
+
+// --- FOX ALARM CLOCK ---
+
+// DateTime.weekday is 1=Monday..7=Sunday (see lib/datetime/datetime.c);
+// FOX_ALARM_DAY_* bits are Sunday-first for a natural on-screen Sun..Sat
+// layout, so this just maps one numbering onto the other.
+static uint8_t desktop_alarm_weekday_mask(uint8_t weekday) {
+    switch(weekday) {
+    case 1: return FOX_ALARM_DAY_MON;
+    case 2: return FOX_ALARM_DAY_TUE;
+    case 3: return FOX_ALARM_DAY_WED;
+    case 4: return FOX_ALARM_DAY_THU;
+    case 5: return FOX_ALARM_DAY_FRI;
+    case 6: return FOX_ALARM_DAY_SAT;
+    case 7: return FOX_ALARM_DAY_SUN;
+    default: return 0;
+    }
+}
+
+// Makes the alarm audible/tactile/visible right away regardless of what's
+// currently on screen, and shows the ringing Fox Clock screen immediately
+// if we're free to (idle desktop, not mid-PIN-entry, no app running). If we
+// can't safely interrupt right now, desktop_scene_main_on_enter() and the
+// DesktopGlobalAfterAppFinished handler below pick it up the moment we're
+// back at idle.
+static void desktop_trigger_alarm_ring(Desktop* desktop, uint8_t alarm_index) {
+    desktop->alarm_ringing = true;
+    desktop->alarm_ringing_index = alarm_index;
+
+    notification_message(desktop->notification, &sequence_display_backlight_force_on);
+    notification_alarm_start(
+        desktop->notification,
+        desktop->settings.alarm_beep_enabled,
+        desktop->settings.alarm_vibrate_enabled);
+
+    desktop_clock_lock_set_ringing(desktop->clock_lock_view, true);
+
+    if(!desktop->on_clock_lock_scene && !desktop->app_running && !desktop->locked) {
+        scene_manager_next_scene(desktop->scene_manager, DesktopSceneClockLock);
+    }
+}
+
+void desktop_alarm_dismiss(Desktop* desktop) {
+    if(!desktop->alarm_ringing) return;
+    desktop->alarm_ringing = false;
+    notification_alarm_stop(desktop->notification);
+    desktop_clock_lock_set_ringing(desktop->clock_lock_view, false);
+}
+
+// Scans for a due alarm at most once per real minute (guarded by
+// alarm_last_checked_stamp), regardless of how often the timer itself
+// ticks - a coarse ALARM_CHECK_POLL_MS poll is what keeps this cheap while
+// still catching every minute boundary.
+static void desktop_check_alarms(Desktop* desktop) {
+    if(desktop->settings.alarm_count == 0) return;
+
+    DateTime dt;
+    furi_hal_rtc_get_datetime(&dt);
+    uint16_t stamp = (uint16_t)dt.hour * 60 + dt.minute;
+    if(stamp == desktop->alarm_last_checked_stamp) return;
+    desktop->alarm_last_checked_stamp = stamp;
+
+    uint8_t today_mask = desktop_alarm_weekday_mask(dt.weekday);
+    bool settings_changed = false;
+
+    for(uint8_t i = 0; i < desktop->settings.alarm_count; i++) {
+        FoxAlarm* alarm = &desktop->settings.alarms[i];
+        if(!alarm->active) continue;
+        if(alarm->hour != dt.hour || alarm->minute != dt.minute) continue;
+        if(alarm->recurring && !(alarm->days_mask & today_mask)) continue;
+
+        if(!alarm->recurring) {
+            // One-time: this occurrence is it - consume it so it doesn't
+            // fire again at the same time tomorrow.
+            alarm->active = 0;
+            settings_changed = true;
+        }
+        desktop_trigger_alarm_ring(desktop, i);
+    }
+
+    if(settings_changed) {
+        desktop_settings_save(&desktop->settings);
+    }
+}
+
+static void desktop_alarm_check_timer_callback(void* context) {
+    Desktop* desktop = context;
+    furi_assert(desktop);
+    desktop_check_alarms(desktop);
+}
+
+// --- FOX ALARM CLOCK END ---
 
 static void desktop_apply_settings(Desktop* desktop) {
     desktop->in_transition = true;
@@ -1213,6 +1437,11 @@ static Desktop* desktop_alloc(void) {
     desktop->wallpaper_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     desktop->no_sd_viewport  = NULL;
     desktop->pending_slideshow = false;
+
+    desktop->alarm_ringing = false;
+    desktop->alarm_ringing_index = 0;
+    desktop->on_clock_lock_scene = false;
+    desktop->alarm_last_checked_stamp = 0xFFFF; // never a real hour*60+minute value
 
     desktop->animation_semaphore = furi_semaphore_alloc(1, 0);
     desktop->animation_manager = animation_manager_alloc();
@@ -1352,6 +1581,10 @@ static Desktop* desktop_alloc(void) {
     desktop->wallpaper_check_timer = furi_timer_alloc(
         desktop_wallpaper_check_timer_callback, FuriTimerTypePeriodic, desktop);
     furi_timer_start(desktop->wallpaper_check_timer, furi_ms_to_ticks(WALLPAPER_CHECK_POLL_MS));
+
+    desktop->alarm_check_timer =
+        furi_timer_alloc(desktop_alarm_check_timer_callback, FuriTimerTypePeriodic, desktop);
+    furi_timer_start(desktop->alarm_check_timer, furi_ms_to_ticks(ALARM_CHECK_POLL_MS));
 
     desktop->wifi_recheck_thread =
         furi_thread_alloc_ex("FoxWifiRecheck", 1024, desktop_wifi_recheck_thread, desktop);

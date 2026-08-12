@@ -126,7 +126,7 @@ void desktop_settings_scene_main_menu_on_enter(void* context) {
         desktop_settings_scene_main_menu_submenu_callback,
         app);
 
-    submenu_set_header(submenu, "Main Menu");
+    submenu_set_header(submenu, "Main Menu Apps");
     view_dispatcher_switch_to_view(app->view_dispatcher, DesktopSettingsAppViewMenu);
 }
 

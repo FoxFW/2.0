@@ -73,6 +73,16 @@ void desktop_scene_main_callback(DesktopEvent event, void* context) {
 
 void desktop_scene_main_on_enter(void* context) {
     Desktop* desktop = (Desktop*)context;
+
+    // A Fox Alarm Clock alarm fired while we couldn't safely interrupt
+    // (an app was running, or the device was PIN-locked) - now that we're
+    // back at idle, jump straight into the ringing Fox Clock screen instead
+    // of the normal desktop.
+    if(desktop->alarm_ringing) {
+        scene_manager_next_scene(desktop->scene_manager, DesktopSceneClockLock);
+        return;
+    }
+
     DesktopMainView* main_view = desktop->main_view;
 
     animation_manager_set_context(desktop->animation_manager, desktop);
@@ -146,9 +156,8 @@ bool desktop_scene_main_on_event(void* context, SceneManagerEvent event) {
                 desktop, &desktop->settings.favorite_apps[FavoriteAppRightShort]);
             consumed = true;
             break;
-        case DesktopMainEventOpenFavoriteRightLong:
-            desktop_scene_main_start_favorite(
-                desktop, &desktop->settings.favorite_apps[FavoriteAppRightLong]);
+        case DesktopMainEventCycleWallpaper:
+            desktop_cycle_wallpaper(desktop);
             consumed = true;
             break;
         case DesktopMainEventOpenFavoriteOkLong:

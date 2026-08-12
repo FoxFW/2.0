@@ -260,6 +260,65 @@ static void rainbow_timer_callback(void* context) {
 
 // --- RGB BACKLIGHT END---
 
+// --- ALARM CLOCK ---
+// Drives the audible/tactile side of Fox Alarm Clock (Fox Settings). Desktop
+// owns *when* an alarm is due (it's the only thing always running regardless
+// of which app is in the foreground); this just makes noise/vibrate until
+// told to stop, same as any other notification.
+
+#define ALARM_BEEP_FREQ  800.0f
+#define ALARM_BEEP_VOLUME 1.0f
+#define ALARM_STEP_MS      150
+
+// 1 = on, 0 = off, one array slot per ALARM_STEP_MS tick. Three short beeps,
+// a longer pause, repeat - "beep beep beep..... beep beep beep....."
+static const uint8_t alarm_pattern[] = {1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0};
+#define ALARM_PATTERN_LEN (sizeof(alarm_pattern) / sizeof(alarm_pattern[0]))
+
+static void notification_alarm_timer_callback(void* context) {
+    NotificationApp* app = context;
+    bool on = alarm_pattern[app->alarm_pattern_step % ALARM_PATTERN_LEN] != 0;
+    app->alarm_pattern_step++;
+
+    // force=true on both - an alarm is meant to wake you up even with
+    // Stealth Mode on, unlike ordinary notification sounds/vibration.
+    if(app->alarm_beep_enabled) {
+        if(on) {
+            notification_sound_on(ALARM_BEEP_FREQ, ALARM_BEEP_VOLUME, true);
+        } else {
+            notification_sound_off();
+        }
+    }
+    if(app->alarm_vibrate_enabled) {
+        if(on) {
+            notification_vibro_on(true);
+        } else {
+            notification_vibro_off();
+        }
+    }
+}
+
+void notification_alarm_start(NotificationApp* app, bool beep_enabled, bool vibrate_enabled) {
+    furi_assert(app);
+    app->alarm_beep_enabled = beep_enabled;
+    app->alarm_vibrate_enabled = vibrate_enabled;
+    app->alarm_pattern_step = 0;
+    if(furi_timer_is_running(app->alarm_timer)) {
+        furi_timer_stop(app->alarm_timer);
+    }
+    furi_timer_start(app->alarm_timer, furi_ms_to_ticks(ALARM_STEP_MS));
+}
+
+void notification_alarm_stop(NotificationApp* app) {
+    furi_assert(app);
+    if(furi_timer_is_running(app->alarm_timer)) {
+        furi_timer_stop(app->alarm_timer);
+    }
+    notification_sound_off();
+    notification_vibro_off();
+}
+// --- ALARM CLOCK END ---
+
 // --- NIGHT SHIFT ---
 
 void night_shift_timer_start(NotificationApp* app) {
@@ -288,11 +347,21 @@ void night_shift_timer_callback(void* context) {
     uint32_t time = current_date_time.hour * 60 + current_date_time.minute;
 
     // if current time not in night_shift range then current_night_shift = 1 else = settings value;
-    // set values to stock and rgb backlights
+    float new_night_shift;
     if((time > app->settings.night_shift_end) && (time < app->settings.night_shift_start)) {
-        app->current_night_shift = 1.0f;
+        new_night_shift = 1.0f;
     } else {
-        app->current_night_shift = app->settings.night_shift;
+        new_night_shift = app->settings.night_shift;
+    }
+
+    if(!float_is_equal(new_night_shift, app->current_night_shift)) {
+        app->current_night_shift = new_night_shift;
+        // Push the new multiplier to static RGB brightness right away -
+        // rainbow mode already re-applies current_night_shift on every tick
+        // on its own, so it doesn't need this.
+        if(!furi_timer_is_running(app->rainbow_timer)) {
+            rgb_backlight_update(app->settings.display_brightness * app->current_night_shift);
+        }
     }
 }
 
@@ -492,8 +561,13 @@ static void notification_process_notification_message(
     while(notification_message != NULL) {
         switch(notification_message->type) {
         case NotificationMessageTypeLedDisplayBacklight:
-            // if on (data.led.value =0xFF) - switch on and start timer
-            // if off (data.led.value =0x0) - switch off and stop timer
+            // RGB Mod Effects (Rainbow/Wave) are external case lighting, not
+            // part of the LCD - they used to get stopped here whenever the
+            // display backlight timed out (or the device auto-locked, same
+            // path), which is why the effect only ever ran for as long as
+            // the screen stayed awake. The rainbow timer now runs on its own
+            // schedule regardless of backlight state; only the RGB
+            // installed/effects settings themselves start or stop it.
             if(notification_message->data.led.value > 0x00) {
                 // Backlight ON
                 notification_apply_notification_led_layer(
@@ -504,9 +578,6 @@ static void notification_process_notification_message(
                 reset_mask |= reset_display_mask;
                 lcd_backlight_is_on = true;
 
-                //start rgb_mod_rainbow_timer when display backlight is ON and all corresponding settings is ON too
-                rainbow_timer_starter(app);
-
             } else {
                 // Backlight OFF
                 reset_mask &= ~reset_display_mask;
@@ -515,11 +586,6 @@ static void notification_process_notification_message(
 
                 if(furi_timer_is_running(app->display_timer)) {
                     furi_timer_stop(app->display_timer);
-                }
-
-                //stop rgb_mod_rainbow_timer when display backlight is OFF
-                if(furi_timer_is_running(app->rainbow_timer)) {
-                    rainbow_timer_stop(app);
                 }
             }
             break;
@@ -967,6 +1033,12 @@ int32_t notification_srv(void* p) {
 
     // define rainbow_timer and they callback
     app->rainbow_timer = furi_timer_alloc(rainbow_timer_callback, FuriTimerTypePeriodic, app);
+
+    // Fox Alarm Clock beep/vibrate driver
+    app->alarm_timer = furi_timer_alloc(notification_alarm_timer_callback, FuriTimerTypePeriodic, app);
+    app->alarm_pattern_step = 0;
+    app->alarm_beep_enabled = false;
+    app->alarm_vibrate_enabled = false;
 
     // define night_shift_demo_timer and they callback.
     // used for Setting menu to demonstrate night_shift_backlight when user change value

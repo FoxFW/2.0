@@ -99,6 +99,16 @@ struct NotificationApp {
     uint8_t rainbow_red;
     uint8_t rainbow_green;
     uint8_t rainbow_blue;
+
+    // Fox Alarm Clock - drives the "beep beep beep... beep beep beep..."
+    // pattern + matching vibration while an alarm is ringing. Owned here
+    // (not Desktop) since sound/vibration hardware access is this service's
+    // job; Desktop just calls notification_alarm_start()/_stop() when it
+    // decides an alarm is due.
+    FuriTimer* alarm_timer;
+    uint16_t alarm_pattern_step;
+    bool alarm_beep_enabled;
+    bool alarm_vibrate_enabled;
 };
 
 void notification_message_save_settings(NotificationApp* app);
@@ -115,6 +125,9 @@ uint8_t rgb_backlight_get_color_count(void);
 void set_rgb_backlight_installed_variable(uint8_t var);
 void set_rgb_backlight_white_mode_variable(uint8_t var);
 bool rgb_backlight_should_drive_white_led(void);
+
+void notification_alarm_start(NotificationApp* app, bool beep_enabled, bool vibrate_enabled);
+void notification_alarm_stop(NotificationApp* app);
 
 #ifdef __cplusplus
 }

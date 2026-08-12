@@ -7,7 +7,7 @@ typedef enum {
     DesktopMainEventOpenFavoriteLeftShort,
     DesktopMainEventOpenFavoriteLeftLong,
     DesktopMainEventOpenFavoriteRightShort,
-    DesktopMainEventOpenFavoriteRightLong,
+    DesktopMainEventCycleWallpaper, // long-press Right - hardcoded wallpaper switcher, see desktop_cycle_wallpaper()
     DesktopMainEventOpenFavoriteOkLong,
     DesktopMainEventOpenMenu,
     DesktopMainEventOpenDebug,

@@ -116,8 +116,20 @@ struct Desktop {
     bool in_transition;
     bool app_running;
     bool locked;
+
+    // Fox Alarm Clock - see desktop_check_alarms()/desktop_trigger_alarm_ring()
+    // in desktop.c. Runs regardless of which app is in the foreground, since
+    // this timer lives on the always-running Desktop service.
+    FuriTimer* alarm_check_timer;
+    uint16_t alarm_last_checked_stamp; // hour*60+minute of the last scan, so a
+                                        // match only ever fires once per minute
+    bool alarm_ringing;
+    uint8_t alarm_ringing_index; // which settings.alarms[] entry is ringing
+    bool on_clock_lock_scene;    // tracked by desktop_scene_clock_lock.c
 };
 
 void desktop_lock(Desktop* desktop);
 void desktop_unlock(Desktop* desktop);
 void desktop_set_stealth_mode_state(Desktop* desktop, bool enabled);
+void desktop_alarm_dismiss(Desktop* desktop);
+void desktop_cycle_wallpaper(Desktop* desktop);

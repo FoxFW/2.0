@@ -305,6 +305,17 @@ static void backlight_changed(VariableItem* item) {
     app->notification->settings.display_brightness = backlight_value[index];
 
     notification_message(app->notification, &sequence_display_backlight_force_on);
+
+    // RGB brightness tracks this same setting, but furi_hal_light_set() no
+    // longer pushes it there itself (see furi_hal_light.c) - push it here
+    // explicitly instead, same as every other RGB settings change does.
+    // dont update screen color if rainbow timer working - it applies this
+    // same brightness on its own on every tick anyway.
+    if(!furi_timer_is_running(app->notification->rainbow_timer)) {
+        rgb_backlight_update(
+            app->notification->settings.display_brightness *
+            app->notification->current_night_shift);
+    }
 }
 
 static void screen_changed(VariableItem* item) {

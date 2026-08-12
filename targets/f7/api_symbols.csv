@@ -3008,6 +3008,8 @@ Function,+,nfc_util_odd_parity,void,"const uint8_t*, uint8_t*, uint8_t"
 Function,+,nfc_util_odd_parity8,uint8_t,uint8_t
 Function,+,night_shift_timer_start,void,NotificationApp*
 Function,+,night_shift_timer_stop,void,NotificationApp*
+Function,+,notification_alarm_start,void,"NotificationApp*, _Bool, _Bool"
+Function,+,notification_alarm_stop,void,NotificationApp*
 Function,+,notification_internal_message,void,"NotificationApp*, const NotificationSequence*"
 Function,+,notification_internal_message_block,void,"NotificationApp*, const NotificationSequence*"
 Function,+,notification_message,void,"NotificationApp*, const NotificationSequence*"

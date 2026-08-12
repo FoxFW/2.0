@@ -332,9 +332,9 @@
           <li><a href="#name">Change Flipper Name</a></li>
           <li><a href="#battery">Battery View</a></li>
           <li><a href="#clock">Show Clock</a></li>
-          <li><a href="#status-bar-icons">Status Bar Icons</a></li>
+          <li><a href="#status-bar-icons">Battery &amp; SD Icons</a></li>
           <li><a href="#shell-color">Shell Color</a></li>
-          <li><a href="#gpio-pins">ESP32 UART Pins</a></li>
+          <li><a href="#gpio-pins">ESP32 UART</a></li>
           <li><a href="#vgm-options">VGM Options</a></li>
           <li><a href="#menu-style">Menu Style</a></li>
           <li><a href="#fav-apps">Favorite Apps</a></li>
@@ -646,8 +646,8 @@
     </tr>
     <tr>
       <td><strong>↓ Down (hold)</strong></td>
-      <td class="fixed">Toggle Clock Lock (freeze/unfreeze the clock display)</td>
-      <td>No — always fixed</td>
+      <td class="fixed">Fox Clock — a full-screen clock with an alarm clock built in (long-press Down again to exit)</td>
+      <td>No — always fixed, alarms configurable in Fox Settings → Alarm Clock</td>
     </tr>
     <tr>
       <td><strong>← Left (short)</strong></td>
@@ -666,8 +666,8 @@
     </tr>
     <tr>
       <td><strong>→ Right (hold)</strong></td>
-      <td class="cfg">Favorite App — default: Fox File Browser</td>
-      <td>Yes — Fox Settings → Favorite Right Long</td>
+      <td class="fixed">Cycles Custom Wallpaper — see <a href="#wallpaper" style="color:inherit;">Custom Wallpaper</a></td>
+      <td>No — hardcoded</td>
     </tr>
     <tr>
       <td><strong>OK (hold)</strong></td>
@@ -1008,28 +1008,55 @@
   <h3 id="wallpaper">Custom Wallpaper</h3>
   <p>
     Replaces the desktop background with a custom <strong>128 × 64 pixel</strong>
-    monochrome image stored in the <strong>ROOT of the SD Card</strong>
-    (path: <code>/ext/wallpaper.xbm</code>). If you connect your SD Card to
-    your computer and open it, you should already see a <code>wallpaper.xbm</code>
-    file in the base directory!
+    monochrome image. FoxFW can store any number of these at once in a
+    <strong><code>wallpapers</code> folder on the root of the SD Card</strong>
+    (path: <code>/ext/wallpapers/</code>) and lets you switch between them from
+    Fox Settings without reconnecting the device.
   </p>
   <p>
-    If the file is missing, FoxFW <strong>automatically generates a default
-    wallpaper</strong> from the firmware and writes it to that path. This means
-    a valid <code>wallpaper.xbm</code> is always present after the first boot.
+    If the folder is missing or empty, FoxFW <strong>automatically generates a
+    default wallpaper</strong> inside it on first boot. This means a valid
+    wallpaper is always available and selected by default.
   </p>
   <div class="box new">
-    <strong>FoxFW Wallpaper Converter <span class="badge">New</span></strong><br><br>
-    Editing a raw <code>.xbm</code> file by hand isn't fun, so we built a
-    dedicated converter tool. It turns your <code>wallpaper.xbm</code> into a
-    <code>wallpaper.bmp</code> that you can edit in MS Paint (or any similar image
-    editor), then converts it back to <code>.xbm</code> when you're ready to put
-    it back on your SD card.<br><br>
-    To use it: copy your current <code>wallpaper.xbm</code> into the same folder
+    <strong>FoxFW Wallpaper Painter <span class="badge">New</span></strong><br><br>
+    The easiest way to make a wallpaper — draw it directly in your browser, no
+    separate converter or image editor needed. The border and status bar are
+    pre-locked so you can't draw somewhere it won't show up, and you can preview
+    your drawing live on the device or save it straight to the SD card over USB
+    (which also activates it immediately). It can also import your Flipper's
+    <em>currently active</em> custom wallpaper straight into the editor, so you
+    can tweak an existing one instead of starting from scratch.
+  </div>
+
+  <div class="box new" style="margin-top:12px;">
+    <strong>FoxFW Wallpaper Converter</strong><br><br>
+    Prefer working offline in MS Paint? This older, standalone tool turns a
+    <code>.xbm</code> wallpaper into a <code>.bmp</code> that you can edit in
+    MS Paint (or any similar image editor), then converts it back to
+    <code>.xbm</code> when you're ready to put it back on your SD card.<br><br>
+    To use it: copy the wallpaper you want to edit into the same folder
     as the Wallpaper Converter and run it from there.<br><br>
     <a href="https://github.com/FoxFW/FoxFW-Wallpaper-Converter" style="color:#d4a8ff;font-weight:600;">
       github.com/FoxFW/FoxFW-Wallpaper-Converter →
     </a>
+  </div>
+
+  <div class="box new" style="margin-top:12px;">
+    <strong>FoxFW Wallpaper Showcase <span class="badge">New</span></strong><br><br>
+    Don't want to make your own? Browse community wallpapers and install one straight to your
+    SD card over USB (this activates it immediately too), or just download the file and
+    copy it over yourself.
+  </div>
+
+  <div class="setting">
+    <div class="name">Wallpaper Name</div>
+    <div class="desc">
+      Lists every valid 128×64 <code>.xbm</code> file found in
+      <code>/ext/wallpapers/</code>, alphabetically. Use <code>&lt;</code> and
+      <code>&gt;</code> to pick which one is active — the desktop updates as
+      soon as you select it.
+    </div>
   </div>
 
   <div class="setting">
@@ -1042,6 +1069,21 @@
     <div class="values">Options: <span>OFF · ON</span></div>
   </div>
 
+  <div class="box new" style="margin-top:12px;">
+    <strong>Quick switch: Hold Right on the desktop <span class="badge">New</span></strong><br><br>
+    A hardcoded shortcut for cycling wallpapers without opening Fox Settings.
+    Custom Wallpaper <strong>off</strong> → turns it on. <strong>On</strong> with
+    only one wallpaper file → turns it back off (default Fox background).
+    <strong>On</strong> with two or more files → advances to the next one
+    alphabetically, wrapping back to the first after the last.
+  </div>
+
+  <div class="box tip" style="margin-top:12px;">
+    <strong>Live updates:</strong> if you overwrite a wallpaper file over USB (e.g. with
+    qFlipper) while it's the active one, the desktop picks up the change automatically —
+    no reboot or menu visit needed.
+  </div>
+
   <p><strong>Creating your own wallpaper:</strong></p>
   <img
     class="wallpaper-preview"
@@ -1052,17 +1094,17 @@
     <li>Your image must be exactly <strong>128 × 64 px</strong>, monochrome (1-bit black and white), in XBM format.</li>
     <li>The status bar occupies roughly the top 13 pixels — keep important artwork below that.</li>
     <li>
-      <strong>GIMP:</strong> Image → Scale Image → 128×64 → Image → Mode → Indexed (1-bit) → File → Export As → <code>wallpaper.xbm</code>
+      <strong>GIMP:</strong> Image → Scale Image → 128×64 → Image → Mode → Indexed (1-bit) → File → Export As → <code>yourname.xbm</code>
     </li>
     <li>
-      <strong>ImageMagick:</strong> <code>convert input.png -resize 128x64! -monochrome wallpaper.xbm</code>
+      <strong>ImageMagick:</strong> <code>convert input.png -resize 128x64! -monochrome yourname.xbm</code>
     </li>
-    <li>Copy the file to the root of your SD card so it lives at <code>/ext/wallpaper.xbm</code>.</li>
-    <li>Toggle Custom Wallpaper ON in Fox Settings to activate it.</li>
+    <li>Copy the file into the <code>wallpapers</code> folder on the root of your SD card, so it lives at <code>/ext/wallpapers/yourname.xbm</code>.</li>
+    <li>Select it under <strong>Wallpaper Name</strong> in Fox Settings and toggle Custom Wallpaper ON.</li>
   </ul>
   <div class="box warn">
-    <strong>Validation:</strong> If Fox Settings reports "FOUND but invalid. Use 128×64 XBM format."
-    it means the file exists but the data is not a valid 128×64 XBM. Re-export using one
+    <strong>Validation:</strong> Only files that are valid 128×64 XBM images show up in the
+    Wallpaper Name list. If a file you copied over isn't appearing, re-export using one
     of the methods above and ensure the output dimensions are exactly 128×64 pixels.
   </div>
 
@@ -1123,9 +1165,9 @@
   </div>
 
   <!-- ── STATUS BAR ICONS ── -->
-  <h3 id="status-bar-icons">Status Bar Icons <span class="badge">New</span></h3>
+  <h3 id="status-bar-icons">Battery &amp; SD Icons <span class="badge">New</span></h3>
   <div class="setting">
-    <div class="name">Status Bar Icons</div>
+    <div class="name">Battery &amp; SD Icons</div>
     <div class="desc">
       Hides the small connectivity/notification icons on the right side of
       the status bar (WiFi, BLE, USB, etc). The "2.0" firmware watermark and
@@ -1147,14 +1189,14 @@
   </div>
 
   <!-- ── GPIO PINS ── -->
-  <h3 id="gpio-pins">ESP32 UART Pins <span class="badge">New</span></h3>
+  <h3 id="gpio-pins">ESP32 UART <span class="badge">New</span></h3>
   <p>
     A single global preference for which GPIO pin pair the Fox ESP32 apps
     (Commander, Terminal, Flasher, and the built-in UART Terminal) default
     to for talking to an ESP32 companion board.
   </p>
   <div class="setting">
-    <div class="name">ESP32 UART Pins</div>
+    <div class="name">ESP32 UART</div>
     <div class="desc">
       Choosing a pair here updates the shared default immediately. Each of
       those apps still has its own "UART Pins" option in its own connection
@@ -1206,7 +1248,7 @@
   <!-- ── FAVORITES ── -->
   <h3 id="fav-apps">Favorite Apps</h3>
   <p>
-    Assigns apps to the five configurable desktop button shortcuts. Each slot
+    Assigns apps to four configurable desktop button shortcuts. Each slot
     is triggered from the <strong>idle desktop screen</strong>.
   </p>
   <div class="setting">
@@ -1222,10 +1264,6 @@
     <div class="desc">Short press of Right on the desktop. Default: Fox File Browser.</div>
   </div>
   <div class="setting">
-    <div class="name">Favorite — Right Long</div>
-    <div class="desc">Hold Right on the desktop. Default: Fox File Browser.</div>
-  </div>
-  <div class="setting">
     <div class="name">Favorite — OK Long</div>
     <div class="desc">Hold OK (centre) on the desktop. Default: Fox File Browser.</div>
   </div>
@@ -1233,6 +1271,11 @@
     <strong>Tip:</strong> Any installed app (including external FAPs) can be
     assigned to a Favorite slot. Select <em>None</em> to clear a slot and
     restore its default behaviour.
+  </div>
+  <div class="box info">
+    <strong>Hold Right isn't a Favorite anymore:</strong> it's now a hardcoded
+    quick wallpaper switcher — see
+    <a href="#wallpaper" style="color:inherit;">Custom Wallpaper</a> above.
   </div>
 
   <!-- ── MAIN MENU EDITOR ── -->

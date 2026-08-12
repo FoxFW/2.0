@@ -1,7 +1,0 @@
-﻿Last Build: 2026-08-10 11:02:23
-text=715692
-rodata=153948
-data=772
-bss=5596
-FlashUsed=870412
-FreeSpace=10228

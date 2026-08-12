@@ -17,6 +17,7 @@
 #include "views/desktop_settings_view_pin_setup_howto2.h"
 #include "views/desktop_settings_view_numeric_pin.h"
 #include "views/desktop_settings_view_wallpaper.h"
+#include "views/desktop_settings_view_alarm_edit.h"
 
 // Clean import to inherit all dynamically configured scenes and views without duplicate redeclarations
 #include "scenes/desktop_settings_scene.h"
@@ -49,6 +50,7 @@ typedef struct {
     void* pin_setup_howto2_view;
     DesktopSettingsViewNumericPin* numeric_pin_view;
     DesktopSettingsViewWallpaper* wallpaper_view;
+    DesktopSettingsViewAlarmEdit* alarm_edit_view;
     DialogEx* dialog_ex;
     TextInput* text_input;
 

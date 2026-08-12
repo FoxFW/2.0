@@ -8,7 +8,7 @@
 /* NOTE: <flipper_application/flipper_application.h> removed.
  * flipper_application_load_name_and_icon() is from the flipper_application
  * library whose SDK export status we cannot verify without its application.fam.
- * The file browser for selecting favourite apps still works — icons just won't
+ * The file browser for selecting favorite apps still works — icons just won't
  * be loaded from FAP metadata (item_loader_callback returns false). */
 
 // FIXED: Stubbed counts to 0 since external apps cannot index internal arrays

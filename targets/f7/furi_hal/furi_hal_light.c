@@ -53,7 +53,16 @@ void furi_hal_light_set(Light light, uint8_t value) {
             lp5562_execute_ramp(
                 &furi_hal_i2c_handle_power, LP5562Engine1, LP5562ChannelWhite, prev, value, 100);
         }
-        rgb_backlight_update(value / 255.0f);
+        // Deliberately NOT calling rgb_backlight_update(value / 255.0f) here
+        // anymore - `value` is the LCD's transient backlight level (0 the
+        // instant the screen times out/locks, ramping mid-values during any
+        // fade, momentarily 0 during every 'w' in a furi_hal_light_sequence
+        // blink pattern), not the RGB mod's brightness *setting*. Wiring RGB
+        // straight to that made the case lighting blank out every time the
+        // screen slept or any blink sequence ran. RGB brightness now only
+        // ever comes from the RGB settings' own display_brightness value via
+        // rgb_backlight_update() - see notification_app.c and
+        // notification_settings_app.c's backlight_changed().
         // --- RGB BACKLIGHT END ---
     }
     furi_hal_i2c_release(&furi_hal_i2c_handle_power);

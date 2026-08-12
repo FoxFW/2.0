@@ -16,23 +16,29 @@
 typedef enum {
     DesktopSettingsPinSetup           = 0,
     DesktopSettingsWallpaper          = 1,
-    DesktopSettingsRgbBacklight       = 2,
-    DesktopSettingsMenuStyle          = 3,
-    DesktopSettingsChangeName         = 4,
-    /* 5 = Battery View (inline callback, no sub-scene) */
-    /* 6 = Show Clock  (inline callback, no sub-scene) */
-    /* 7 = Midnight Format (inline callback, no sub-scene) */
-    DesktopSettingsWifiIcon           = 8,  /* inline callback, no sub-scene */
-    /* 9 = Status Bar Icons (inline callback, no sub-scene) */
-    /* 10 = Shell Color (inline callback, no sub-scene) */
-    /* 11 = GPIO Pins (inline callback, no sub-scene) */
-    DesktopSettingsVgmOptions         = 12,
-    DesktopSettingsFavoriteLeftShort  = 13,
-    DesktopSettingsFavoriteLeftLong   = 14,
-    DesktopSettingsFavoriteRightShort = 15,
-    DesktopSettingsFavoriteRightLong  = 16,
-    DesktopSettingsFavoriteOkLong     = 17,
-    DesktopSettingsMainMenu           = 18,
+    DesktopSettingsChangeName         = 2,
+    DesktopSettingsMainMenu           = 3,
+    DesktopSettingsAlarmClock         = 4,
+    DesktopSettingsRgbBacklight       = 5,
+    DesktopSettingsVgmOptions         = 6,
+    DesktopSettingsMenuStyle          = 7,
+    /* 8 = Battery View (inline callback, no sub-scene) */
+    /* 9 = Show Clock (inline callback, no sub-scene) */
+    /* 10 = Midnight Format (inline callback, no sub-scene) */
+    /* 11 = WiFi Status Icon (inline callback, no sub-scene) */
+    /* 12 = Battery & SD Icons (inline callback, no sub-scene) */
+    /* 13 = Shell Color (inline callback, no sub-scene) */
+    /* 14 = ESP32 UART (inline callback, no sub-scene) */
+    DesktopSettingsFavoriteLeftShort  = 15,
+    DesktopSettingsFavoriteLeftLong   = 16,
+    DesktopSettingsFavoriteRightShort = 17,
+    DesktopSettingsFavoriteOkLong     = 18,
+    /* Favorite - Right Long is no longer user-configurable here - long-press
+     * Right on the idle desktop is now hardcoded to cycle custom wallpapers
+     * (see desktop_cycle_wallpaper() in desktop.c). The FavoriteAppRightLong
+     * storage slot is kept allocated (unused) rather than removed, since
+     * shrinking FavoriteAppNumber would retroactively resize every
+     * versioned DesktopSettings migration struct in desktop_settings.c. */
 } DesktopSettingsEntry;
 
 #define CLOCK_ENABLE_COUNT 2
@@ -150,7 +156,11 @@ void desktop_settings_scene_start_on_enter(void* context) {
 
     variable_item_list_add(list, "Security & Privacy", 0, NULL, NULL);
     variable_item_list_add(list, "Custom Wallpaper", 0, NULL, NULL);
+    variable_item_list_add(list, "Change Flipper Name", 0, NULL, app);
+    variable_item_list_add(list, "Main Menu Apps", 0, NULL, NULL);
+    variable_item_list_add(list, "Alarm Clock", 0, NULL, NULL);
     variable_item_list_add(list, "RGB Backlight", 0, NULL, NULL);
+    variable_item_list_add(list, "VGM Options", 0, NULL, NULL);
 
     item = variable_item_list_add(
         list, "Menu Style", MENU_STYLE_COUNT,
@@ -161,8 +171,6 @@ void desktop_settings_scene_start_on_enter(void* context) {
         variable_item_set_current_value_index(item, ms_idx);
         variable_item_set_current_value_text(item, menu_style_text[ms_idx]);
     }
-
-    variable_item_list_add(list, "Change Flipper Name", 0, NULL, app);
 
     item = variable_item_list_add(
         list, "Battery View", BATTERY_VIEW_COUNT,
@@ -194,7 +202,7 @@ void desktop_settings_scene_start_on_enter(void* context) {
     variable_item_set_current_value_text(item, wifi_icon_text[app->settings.wifi_icon_hidden]);
 
     item = variable_item_list_add(
-        list, "Status Bar Icons", STATUSBAR_ICONS_COUNT,
+        list, "Battery & SD Icons", STATUSBAR_ICONS_COUNT,
         desktop_settings_scene_start_statusbar_icons_changed, app);
     variable_item_set_current_value_index(item, app->settings.statusbar_show_icons);
     variable_item_set_current_value_text(
@@ -209,21 +217,16 @@ void desktop_settings_scene_start_on_enter(void* context) {
 
     gpio_remap_settings_load(&s_gpio_remap);
     item = variable_item_list_add(
-        list, "ESP32 UART Pins", GPIO_PINS_COUNT,
+        list, "ESP32 UART", GPIO_PINS_COUNT,
         desktop_settings_scene_start_gpio_pins_changed, app);
     if(s_gpio_remap.esp32_uart_channel >= GPIO_PINS_COUNT) s_gpio_remap.esp32_uart_channel = 0;
     variable_item_set_current_value_index(item, s_gpio_remap.esp32_uart_channel);
     variable_item_set_current_value_text(item, gpio_pins_text[s_gpio_remap.esp32_uart_channel]);
 
-    variable_item_list_add(list, "VGM Options", 0, NULL, NULL);
-
-    variable_item_list_add(list, "Favourite - Left Short",  0, NULL, NULL);
-    variable_item_list_add(list, "Favourite - Left Long",   0, NULL, NULL);
-    variable_item_list_add(list, "Favourite - Right Short", 0, NULL, NULL);
-    variable_item_list_add(list, "Favourite - Right Long",  0, NULL, NULL);
-    variable_item_list_add(list, "Favourite - Ok Long",     0, NULL, NULL);
-
-    variable_item_list_add(list, "Main Menu", 0, NULL, NULL);
+    variable_item_list_add(list, "Favorite - Left Short",  0, NULL, NULL);
+    variable_item_list_add(list, "Favorite - Left Long",   0, NULL, NULL);
+    variable_item_list_add(list, "Favorite - Right Short", 0, NULL, NULL);
+    variable_item_list_add(list, "Favorite - Ok Long",     0, NULL, NULL);
 
     variable_item_list_set_enter_callback(
         list, desktop_settings_scene_start_var_list_enter_callback, app);
@@ -245,7 +248,7 @@ bool desktop_settings_scene_start_on_event(void* context, SceneManagerEvent even
     if(event.type == SceneManagerEventTypeCustom) {
         /* The custom event value IS the VariableItemList item index.
          * Save it now so on_enter can restore the scroll position when the
-         * user returns from a sub-scene (Back key from Favourite editor etc.).
+         * user returns from a sub-scene (Back key from Favorite editor etc.).
          * On a fresh app launch the state is 0 so the list starts at the top. */
         scene_manager_set_scene_state(
             app->scene_manager, DesktopSettingsAppSceneStart, event.event);
@@ -254,52 +257,49 @@ bool desktop_settings_scene_start_on_event(void* context, SceneManagerEvent even
         case DesktopSettingsPinSetup:
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppScenePinMenu);
             break;
-        case DesktopSettingsMenuStyle:
-            break;
         case DesktopSettingsWallpaper:
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneWallpaperSetup);
-            break;
-        case DesktopSettingsRgbBacklight:
-            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneRgbSettings);
             break;
         case DesktopSettingsChangeName:
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneChangeName);
             break;
-        case DesktopSettingsVgmOptions:         /* = 12 */
+        case DesktopSettingsMainMenu:
+            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneMainMenu);
+            break;
+        case DesktopSettingsAlarmClock:
+            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneAlarmClock);
+            break;
+        case DesktopSettingsRgbBacklight:
+            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneRgbSettings);
+            break;
+        case DesktopSettingsVgmOptions:
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneVgmOptions);
             break;
-        case DesktopSettingsFavoriteLeftShort:  /* = 13 */
+        case DesktopSettingsMenuStyle:
+            break;
+        case DesktopSettingsFavoriteLeftShort:
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppLeftShort);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteLeftLong:   /* = 14 */
+        case DesktopSettingsFavoriteLeftLong:
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppLeftLong);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteRightShort: /* = 15 */
+        case DesktopSettingsFavoriteRightShort:
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppRightShort);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
             break;
-        case DesktopSettingsFavoriteRightLong:  /* = 16 */
-            scene_manager_set_scene_state(
-                app->scene_manager, DesktopSettingsAppSceneFavorite,
-                SCENE_STATE_SET_FAVORITE_APP | FavoriteAppRightLong);
-            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
-            break;
-        case DesktopSettingsFavoriteOkLong:     /* = 17 */
+        case DesktopSettingsFavoriteOkLong:
             scene_manager_set_scene_state(
                 app->scene_manager, DesktopSettingsAppSceneFavorite,
                 SCENE_STATE_SET_FAVORITE_APP | FavoriteAppOkLong);
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneFavorite);
-            break;
-        case DesktopSettingsMainMenu:
-            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneMainMenu);
             break;
         default:
             break;
