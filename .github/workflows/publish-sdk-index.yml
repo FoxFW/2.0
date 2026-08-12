@@ -89,7 +89,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
-          name: FoxFW2.0 ${{ steps.ver.outputs.version }}
+          # Always force this exact format - "FoxFW-vX.X.X" - on every run,
+          # first-create or re-run alike. Deliberate: this is the canonical
+          # title, and forcing it also self-corrects any typo from a manual
+          # rename in between runs.
+          name: FoxFW-v${{ steps.ver.outputs.version }}
           body: ${{ inputs.changelog }}
           files: ${{ steps.dist.outputs.dist_dir }}/*
           fail_on_unmatched_files: true
