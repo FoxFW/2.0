@@ -115,6 +115,7 @@ void notification_message_save_settings(NotificationApp* app);
 void night_shift_timer_start(NotificationApp* app);
 void night_shift_timer_stop(NotificationApp* app);
 void rgb_backlight_update(float brightness);
+void rgb_backlight_blank(void);
 void rgb_backlight_set_led_static_color(uint8_t led, uint8_t index);
 void rainbow_timer_start(NotificationApp* app);
 void rainbow_timer_stop(NotificationApp* app);

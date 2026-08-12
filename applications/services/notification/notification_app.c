@@ -181,6 +181,18 @@ void rgb_backlight_update(float brightness) {
     }
 }
 
+// Force every RGB Mod LED to off right now, without touching the stored
+// current_led[] colors/settings - rgb_backlight_update() afterward repaints
+// exactly what was showing before. No-op if the mod isn't installed.
+void rgb_backlight_blank(void) {
+    if(rgb_backlight_installed_variable > 0) {
+        for(uint8_t i = 0; i < SK6805_get_led_count(); i++) {
+            SK6805_set_led_color(i, 0, 0, 0);
+        }
+        SK6805_update();
+    }
+}
+
 // start furi timer for rainbow
 void rainbow_timer_start(NotificationApp* app) {
     if(furi_timer_is_running(app->rainbow_timer)) {
@@ -200,6 +212,31 @@ void rainbow_timer_stop(NotificationApp* app) {
 void rainbow_timer_starter(NotificationApp* app) {
     if((app->settings.rgb.rainbow_mode > 0) && (app->settings.rgb.rgb_backlight_installed)) {
         rainbow_timer_start(app);
+    }
+}
+
+// Brings the RGB Mod LEDs up to match the display backlight turning on:
+// Rainbow/Wave restart their timer (as before); static color (Rainbow Mode
+// = OFF) has no timer of its own, so it's repainted directly here instead -
+// otherwise it would stay blank forever after the first rgb_backlight_sync_off().
+static void rgb_backlight_sync_on(NotificationApp* app) {
+    rainbow_timer_starter(app);
+    if(app->settings.rgb.rgb_backlight_installed && app->settings.rgb.rainbow_mode == 0) {
+        rgb_backlight_update(app->settings.display_brightness * app->current_night_shift);
+    }
+}
+
+// Brings the RGB Mod LEDs down to match the display backlight turning off:
+// stops the Rainbow/Wave timer (which would otherwise just freeze at
+// whatever color it last rendered, not actually go dark) and blanks the
+// LEDs outright - covers static color too, which had no link to the
+// backlight at all before this.
+static void rgb_backlight_sync_off(NotificationApp* app) {
+    if(furi_timer_is_running(app->rainbow_timer)) {
+        rainbow_timer_stop(app);
+    }
+    if(app->settings.rgb.rgb_backlight_installed) {
+        rgb_backlight_blank();
     }
 }
 
@@ -356,10 +393,14 @@ void night_shift_timer_callback(void* context) {
 
     if(!float_is_equal(new_night_shift, app->current_night_shift)) {
         app->current_night_shift = new_night_shift;
-        // Push the new multiplier to static RGB brightness right away -
-        // rainbow mode already re-applies current_night_shift on every tick
-        // on its own, so it doesn't need this.
-        if(!furi_timer_is_running(app->rainbow_timer)) {
+        // Push the new multiplier to static RGB brightness right away - but
+        // only if the backlight (and therefore the RGB Mod) is actually on
+        // right now. Without the lcd_backlight_is_on check, crossing a
+        // night-shift boundary while the device is in standby would repaint
+        // the LEDs and undo rgb_backlight_sync_off()'s blanking. Rainbow
+        // mode already re-applies current_night_shift on every tick on its
+        // own once it's running again, so it doesn't need this either.
+        if(lcd_backlight_is_on && !furi_timer_is_running(app->rainbow_timer)) {
             rgb_backlight_update(app->settings.display_brightness * app->current_night_shift);
         }
     }
@@ -561,11 +602,14 @@ static void notification_process_notification_message(
     while(notification_message != NULL) {
         switch(notification_message->type) {
         case NotificationMessageTypeLedDisplayBacklight:
-            // RGB Mod Effects (Rainbow/Wave) follow the LCD backlight's
-            // on/off state, same as v2.0.4: they start when the backlight
-            // comes on and stop when it times out or the device locks/goes
-            // to standby, so an unattended device doesn't keep the case
-            // lighting running (and drawing power) indefinitely.
+            // The RGB Mod (Rainbow/Wave effects, or a static custom color)
+            // follows the LCD backlight's on/off state, same as v2.0.4 for
+            // Rainbow/Wave: it comes on when the backlight comes on and
+            // goes fully dark when it times out or the device locks/goes to
+            // standby, so an unattended device doesn't keep the case
+            // lighting running (and drawing power) indefinitely. Static
+            // color mode is included here too - previously nothing ever
+            // turned it off at all.
             if(notification_message->data.led.value > 0x00) {
                 // Backlight ON
                 notification_apply_notification_led_layer(
@@ -576,8 +620,7 @@ static void notification_process_notification_message(
                 reset_mask |= reset_display_mask;
                 lcd_backlight_is_on = true;
 
-                //start rgb_mod_rainbow_timer when display backlight is ON and all corresponding settings is ON too
-                rainbow_timer_starter(app);
+                rgb_backlight_sync_on(app);
 
             } else {
                 // Backlight OFF
@@ -589,10 +632,7 @@ static void notification_process_notification_message(
                     furi_timer_stop(app->display_timer);
                 }
 
-                //stop rgb_mod_rainbow_timer when display backlight is OFF
-                if(furi_timer_is_running(app->rainbow_timer)) {
-                    rainbow_timer_stop(app);
-                }
+                rgb_backlight_sync_off(app);
             }
             break;
         case NotificationMessageTypeLedDisplayBacklightForceOn:
@@ -605,8 +645,7 @@ static void notification_process_notification_message(
             reset_mask |= reset_display_mask;
             lcd_backlight_is_on = true;
 
-            //start rgb_mod_rainbow_timer when display backlight is ON and all corresponding settings is ON too
-            rainbow_timer_starter(app);
+            rgb_backlight_sync_on(app);
             break;
         case NotificationMessageTypeLedDisplayBacklightEnforceOn:
             if(!app->display_led_lock) {
