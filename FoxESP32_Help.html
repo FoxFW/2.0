@@ -333,6 +333,7 @@
     </ol>
     <ol start="6">
       <li><a href="#chat">Fox Chat</a></li>
+      <li><a href="#ai-chat">Fox AI Chat</a></li>
       <li><a href="#portal">Fox Portal</a></li>
       <li><a href="#update-downloader">Fox Update Downloader</a>
         <ul class="sub">
@@ -358,6 +359,7 @@
           <li><a href="#cmd-http-ref">HTTP / internet bridge</a></li>
           <li><a href="#cmd-script-ref">FoxScript</a></li>
           <li><a href="#cmd-discord-ref">FoxChat / Discord</a></li>
+          <li><a href="#cmd-ai-ref">Fox AI Chat / Gemini</a></li>
           <li><a href="#cmd-portal-ref">FoxPortal</a></li>
           <li><a href="#cmd-hw-ref">RFID / Sub-GHz / IR / GPS</a></li>
         </ul>
@@ -433,7 +435,7 @@
     <div class="mod-card">
       <div class="mname">Fox Update Downloader</div>
       <div class="mtype">Flipper app</div>
-      <div class="muse">Checks GitHub for newer FoxFW2.0 and Fox ESP32 Firmware releases, downloads them over the ESP32 bridge, and hands off to install — see <a href="#update-downloader" style="color:inherit;">Chapter 8</a>.</div>
+      <div class="muse">Checks GitHub for newer FoxFW2.0 and Fox ESP32 Firmware releases, downloads them over the ESP32 bridge, and hands off to install — see <a href="#update-downloader" style="color:inherit;">Chapter 9</a>.</div>
     </div>
   </div>
 
@@ -1091,9 +1093,70 @@
 </section>
 
 
-<!-- ══════════════════ 7 · FOX PORTAL ══════════════════ -->
-<section class="section" id="portal">
+<!-- ══════════════════ 7 · FOX AI CHAT ══════════════════ -->
+<section class="section" id="ai-chat">
   <div class="chapter-label">Chapter 7</div>
+  <h2>Fox AI Chat</h2>
+  <p>
+    Chat with Google Gemini directly from your Flipper's screen, using your
+    ESP32's WiFi connection. You'll need an active WiFi connection (set up
+    via Fox ESP32 Commander's WiFi menu) — nothing else to configure, no API
+    key to enter.
+  </p>
+
+  <div class="menu-tree">Fox AI Chat
+├── Post Message to AI
+├── Read AI Chat
+└── Clear Chat</div>
+
+  <div class="setting">
+    <div class="name">Post Message to AI</div>
+    <div class="desc">
+      Opens the keyboard for your message. If you've messaged within the
+      last 60 seconds, you'll see a <strong>Message Limit</strong> screen
+      instead — a progress bar counting up to the 60-second mark, with a
+      Back button below it. It jumps straight to the keyboard the instant
+      the cooldown clears. Once sent, a progress screen walks through
+      <em>Sending Message...</em> then <em>Receiving Reply...</em> before
+      dropping you into the chat log with your exchange at the bottom.
+    </div>
+  </div>
+  <div class="setting">
+    <div class="name">Read AI Chat</div>
+    <div class="desc">
+      Shows the full conversation in a scrolling terminal view, titled
+      "AI CHAT", scrolled to the most recent messages. Everything you've
+      ever sent and every reply is saved permanently to
+      <code>chat.ai</code> on the SD card — your messages appear as
+      <code>&lt;YourFlipperName&gt;: &lt;message&gt;</code>, replies as
+      <code>FOX-AI: &lt;reply&gt;</code>.
+    </div>
+  </div>
+  <div class="setting">
+    <div class="name">Clear Chat</div>
+    <div class="desc">
+      Deletes <code>chat.ai</code> and starts a fresh one, stamped with the
+      date and time it was created. This is the third menu item — since
+      only two show on screen at once, scroll down to reach it.
+    </div>
+  </div>
+
+  <div class="box info">
+    <strong>No API key, no setup.</strong> Every FoxFW device talks to the
+    same shared Gemini relay FoxFW runs, the same pattern Fox Chat uses for
+    Discord — the real Gemini API key lives only on that relay server, never
+    on your ESP32 or Flipper. A 60-second cooldown between messages is
+    enforced both on the ESP32 and, as a backstop, on the relay itself, to
+    keep the shared quota available for everyone.
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 8 · FOX PORTAL ══════════════════ -->
+<section class="section" id="portal">
+  <div class="chapter-label">Chapter 8</div>
   <h2>Fox Portal</h2>
   <p>
     Stands up an open WiFi network with a small enquiry-form landing page —
@@ -1249,9 +1312,9 @@
 </section>
 
 
-<!-- ══════════════════ 8 · UPDATE DOWNLOADER ══════════════════ -->
+<!-- ══════════════════ 9 · UPDATE DOWNLOADER ══════════════════ -->
 <section class="section" id="update-downloader">
-  <div class="chapter-label">Chapter 8</div>
+  <div class="chapter-label">Chapter 9</div>
   <h2>Fox Update Downloader</h2>
   <p>
     Checks GitHub for newer releases of both FoxFW and Fox ESP32 Firmware,
@@ -1342,9 +1405,9 @@
 </section>
 
 
-<!-- ══════════════════ 9 · FOX FILE DOWNLOADER ══════════════════ -->
+<!-- ══════════════════ 10 · FOX FILE DOWNLOADER ══════════════════ -->
 <section class="section" id="file-downloader">
-  <div class="chapter-label">Chapter 9</div>
+  <div class="chapter-label">Chapter 10</div>
   <h2>Fox File Downloader</h2>
   <p>
     Downloads files onto your SD card over the ESP32's internet connection —
@@ -1550,9 +1613,9 @@
 </section>
 
 
-<!-- ══════════════════ 10 · WIFI ICON ══════════════════ -->
+<!-- ══════════════════ 11 · WIFI ICON ══════════════════ -->
 <section class="section" id="wifi-icon">
-  <div class="chapter-label">Chapter 10</div>
+  <div class="chapter-label">Chapter 11</div>
   <h2>Status Bar WiFi Icon</h2>
   <p>
     Your Flipper's own desktop status bar shows a small WiFi icon,
@@ -1585,9 +1648,9 @@
 </section>
 
 
-<!-- ══════════════════ 11 · FULL COMMAND REFERENCE ══════════════════ -->
+<!-- ══════════════════ 12 · FULL COMMAND REFERENCE ══════════════════ -->
 <section class="section" id="commands">
-  <div class="chapter-label">Chapter 11</div>
+  <div class="chapter-label">Chapter 12</div>
   <h2>Full Command Reference</h2>
   <p>
     Every command the firmware understands, sent over serial at
@@ -1829,12 +1892,32 @@ repeat (3) {
   </table>
   <p>Reads reply with one <code>DISCORDMSG:&lt;HH:MM&gt;|&lt;full date and time&gt;|&lt;content&gt;</code> line per message (oldest first), ending with <code>DISCORDREADDONE</code>.</p>
 
+  <h3 id="cmd-ai-ref">Fox AI Chat (Gemini relay)</h3>
+  <table>
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>AIASK:&lt;message&gt;</code></td><td>Sends your message to the Gemini relay and waits for a reply → <code>AIREPLY:&lt;text&gt;</code> (newlines escaped as <code>\n</code>), or one of the errors below</td></tr>
+    <tr><td><code>AICOOLDOWN</code></td><td>Reports remaining cooldown seconds without making any network call → <code>COOLDOWN:&lt;n&gt;</code> (0 if clear to send)</td></tr>
+  </table>
+  <p>
+    <code>AIASK</code> errors: <code>ERROR:NOWIFI</code>, <code>ERROR:EMPTY</code>,
+    <code>ERROR:RATELIMIT:&lt;seconds&gt;</code> (still cooling down — the ESP32
+    enforces this itself before ever reaching the relay), <code>ERROR:BLOCKED</code>
+    (Gemini's own safety filter), <code>ERROR:NOREPLY</code>, or
+    <code>ERROR:HTTP:&lt;code&gt;</code>.
+  </p>
+  <div class="box info">
+    Same shared-relay pattern as Fox Chat's Discord bridge — the real Gemini
+    API key lives only in a small relay server FoxFW runs, never on your
+    ESP32 or Flipper. A 60-second cooldown between messages is enforced both
+    by the ESP32 itself and, as a backstop, by the relay server.
+  </div>
+
   <h3 id="cmd-portal-ref">Fox Portal</h3>
   <table>
     <tr><td><code>WIFIFOXPORTAL:START:&lt;ssid&gt;:&lt;date&gt;</code></td><td>Starts the portal (both arguments can be left blank)</td></tr>
     <tr><td><code>WIFIFOXPORTAL:STOP</code></td><td>Stops the access point, DNS redirect, and web server</td></tr>
     <tr><td><code>WIFIFOXPORTAL:EXPORTLOG</code></td><td>Streams every queued submission back as sequence-numbered <code>LOGFILE:&lt;name&gt;:&lt;count&gt;</code> / <code>LOGLINE:&lt;seq&gt;:&lt;content&gt;</code> / <code>LOGFILEEND:&lt;name&gt;:&lt;count&gt;</code> lines ending in <code>LOGDONE:&lt;files&gt;:&lt;lines&gt;</code> (or just <code>LOGEMPTY</code> if nothing's queued). Deletes nothing by itself. Fox Portal's own menu calls this for you - see "Submission logging" in Chapter 7.</td></tr>
-    <tr><td><code>WIFIFOXPORTAL:EXPORTCONFIRM</code></td><td>Deletes exactly the files most recently sent by <code>EXPORTLOG</code>, replies <code>OK</code>. The Flipper app only sends this after verifying every count/sequence number above and safely writing the data to its own SD card - see the verification note in Chapter 7.</td></tr>
+    <tr><td><code>WIFIFOXPORTAL:EXPORTCONFIRM</code></td><td>Deletes exactly the files most recently sent by <code>EXPORTLOG</code>, replies <code>OK</code>. The Flipper app only sends this after verifying every count/sequence number above and safely writing the data to its own SD card - see the verification note in Chapter 8.</td></tr>
     <tr><td><code>WIFIFOXPORTAL:SETTITLE:&lt;text&gt;</code></td><td>Sets the page heading (built-in default page only)</td></tr>
     <tr><td><code>WIFIFOXPORTAL:SETINTRO:&lt;text&gt;</code></td><td>Sets the intro paragraph (built-in default page only)</td></tr>
     <tr><td><code>WIFIFOXPORTAL:SETNOTE:&lt;text&gt;</code></td><td>Sets the closing note on the confirmation page (built-in default only)</td></tr>
@@ -1842,7 +1925,7 @@ repeat (3) {
     <tr><td><code>WIFIFOXPORTAL:SETPAGE:THANKS:&lt;html&gt;</code></td><td>Full override of the confirmation page (supports <code>{{FIELD:&lt;name&gt;}}</code> placeholders)</td></tr>
     <tr><td><code>WIFIFOXPORTAL:QR</code></td><td>Returns WiFi-join text for the currently active SSID</td></tr>
   </table>
-  <p>These commands are gated behind <code>SETTINGS:ATTACKS:ON</code>. See Chapter 7 for the full behavior of each — the Fox Portal app is the intended way to drive all of this.</p>
+  <p>These commands are gated behind <code>SETTINGS:ATTACKS:ON</code>. See Chapter 8 for the full behavior of each — the Fox Portal app is the intended way to drive all of this.</p>
 
   <h3 id="cmd-hw-ref">Optional hardware — RFID, Sub-GHz, IR, GPS</h3>
   <p>
@@ -1891,9 +1974,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 12 · SAFETY, LEGAL, ATTACKS TOGGLE ══════════════════ -->
+<!-- ══════════════════ 13 · SAFETY, LEGAL, ATTACKS TOGGLE ══════════════════ -->
 <section class="section" id="safety">
-  <div class="chapter-label">Chapter 12</div>
+  <div class="chapter-label">Chapter 13</div>
   <h2>Safety, Legal &amp; the Attacks Toggle</h2>
 
   <div class="box warn">
@@ -1961,9 +2044,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 13 · KNOWN LIMITATIONS ══════════════════ -->
+<!-- ══════════════════ 14 · KNOWN LIMITATIONS ══════════════════ -->
 <section class="section" id="limitations">
-  <div class="chapter-label">Chapter 13</div>
+  <div class="chapter-label">Chapter 14</div>
   <h2>Known Limitations</h2>
   <p>
     An honest list of rough edges, so nothing here catches you by surprise.
@@ -2013,9 +2096,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 14 · SUPPORT & TROUBLESHOOTING ══════════════════ -->
+<!-- ══════════════════ 15 · SUPPORT & TROUBLESHOOTING ══════════════════ -->
 <section class="section" id="support">
-  <div class="chapter-label">Chapter 14</div>
+  <div class="chapter-label">Chapter 15</div>
   <h2>Support &amp; Troubleshooting</h2>
 
   <div class="box tip">
@@ -2063,7 +2146,7 @@ repeat (3) {
   <h3>Attacks say "ERROR:DISABLED"</h3>
   <p>
     This is the Attacks safety toggle, not a fault — turn it on from Fox
-    ESP32 Commander's Settings screen (see Chapter 10).
+    ESP32 Commander's Settings screen (see Chapter 13).
   </p>
 
   <h3>Fox Chat issues</h3>

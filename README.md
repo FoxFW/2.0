@@ -293,3 +293,16 @@ Michael Joyce, also known as <b>AussieMike86</b><br>
 Adam Alioa, also known as <b>z4men</b>
   </sub>
 </div>
+
+---
+
+<div align="center">
+  <sub>Support the project</sub><br><br>
+  <a href="https://buymeacoffee.com/foxfw"><img src="docs/badges/buymeacoffee.png" alt="Buy Me a Coffee" height="40"></a>
+  &nbsp;&nbsp;
+  <a href="https://ko-fi.com/foxfw"><img src="docs/badges/kofi.png" alt="Ko-fi" height="40"></a>
+  &nbsp;&nbsp;
+  <a href="https://boosty.to/foxfw"><img src="docs/badges/boosty.png" alt="Boosty" height="40"></a>
+  &nbsp;&nbsp;
+  <a href="https://patreon.com/FoxFW"><img src="docs/badges/patreon.png" alt="Patreon" height="40"></a>
+</div>

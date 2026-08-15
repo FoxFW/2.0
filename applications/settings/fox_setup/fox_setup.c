@@ -8,6 +8,7 @@
 #include <input/input.h>
 #include <storage/storage.h>
 #include <assets_icons.h>
+#include "fox_setup_icons.h"
 
 /* Check whether a PIN is stored in Fox.data WITHOUT calling
  * desktop_pin_code_is_set() — that function lives in the firmware and would

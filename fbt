@@ -11,6 +11,14 @@ SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd -P)";
 SCONS_DEFAULT_FLAGS="--warn=target-not-built";
 SCONS_EP="python3 -m SCons";
 
+# "fbt menu" (any case) launches the interactive build menu instead of SCons
+if [ "$#" -ge 1 ]; then
+    _fbt_first_arg_lc="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')";
+    if [ "$_fbt_first_arg_lc" = "menu" ]; then
+        exec bash "$SCRIPT_PATH/scripts/fbt_build_menu.sh";
+    fi
+fi
+
 # public variables
 FBT_NO_SYNC="${FBT_NO_SYNC:-""}";
 FBT_TOOLCHAIN_PATH="${FBT_TOOLCHAIN_PATH:-$SCRIPT_PATH}";

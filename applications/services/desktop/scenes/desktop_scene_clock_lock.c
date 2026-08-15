@@ -73,7 +73,7 @@ bool desktop_scene_clock_lock_on_event(void* context, SceneManagerEvent event) {
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == DesktopSceneClockLockEventExit) {
             // If an alarm was ringing, this same exit gesture (long-press
-            // Down, or short OK while ringing) silences it first.
+            // Down/Back, or short OK while ringing) silences it first.
             if(desktop->alarm_ringing) {
                 desktop_alarm_dismiss(desktop);
             }

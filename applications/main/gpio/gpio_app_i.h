@@ -18,6 +18,7 @@
 #include "views/gpio_test.h"
 #include "views/gpio_usb_uart.h"
 #include <assets_icons.h>
+#include "gpio_icons.h"
 #include <expansion/expansion.h>
 
 struct GpioApp {

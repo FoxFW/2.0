@@ -1,5 +1,6 @@
 #include <core/check.h>
 #include <assets_icons.h>
+#include "desktop_settings_icons.h"
 #include <gui/scene_manager.h>
 #include <gui/modules/popup.h>
 

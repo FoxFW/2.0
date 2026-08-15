@@ -3,6 +3,7 @@
 #include <desktop/helpers/pin_code.h>   // SDK-style path (was absolute applications/services/...)
 #include "desktop_settings_scene.h"
 #include <assets_icons.h>
+#include "desktop_settings_icons.h"
 
 #include "../desktop_settings_app.h"
 #include "../desktop_settings_custom_event.h"

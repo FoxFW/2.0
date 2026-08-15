@@ -1,0 +1,25 @@
+App(
+    appid="csight",
+    name="CSIght (Fox Edition)",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="csight_app",
+    requires=[
+        "gui",
+        "storage",
+        "notification",
+        "expansion",
+    ],
+    stack_size=4 * 1024,
+    fap_icon="images/csight_icon_10x10.png",
+    fap_category="Fox/ESP32",
+    fap_description="WiFi CSI radar — motion/vitals/mesh sensing via Fox_ESP32_FW",
+    fap_author="CSIght (ported to Fox protocol)",
+    fap_version="3.3",
+    sources=[
+        "csight_app.c",
+        "csight_draw.c",
+        "csight_uart.c",
+        "csight_log.c",
+        "wifi/esp_at.c",
+    ],
+)

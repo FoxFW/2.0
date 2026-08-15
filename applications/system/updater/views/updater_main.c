@@ -148,14 +148,14 @@ static void updater_main_draw_callback(Canvas* canvas, void* _model) {
         char tag_part[24] = {0};
         updater_build_version_line(origin_part, sizeof(origin_part), tag_part, sizeof(tag_part));
         // I_Updating_32x40 is drawn at x=4 with a width of 32, so its right
-        // border is at x=36 - start the version line 4px past that (x=40)
+        // border is at x=36 - start the version line 9px past that (x=45)
         // to give it the extra room "FoxFW (v2.0.4)" needs at FontPrimary
         // widths.
         canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str_aligned(canvas, 40, 20, AlignLeft, AlignTop, origin_part);
+        canvas_draw_str_aligned(canvas, 45, 20, AlignLeft, AlignTop, origin_part);
         uint16_t origin_width = canvas_string_width(canvas, origin_part);
         canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str_aligned(canvas, 40 + origin_width, 20, AlignLeft, AlignTop, tag_part);
+        canvas_draw_str_aligned(canvas, 45 + origin_width, 20, AlignLeft, AlignTop, tag_part);
         canvas_draw_str_aligned(
             canvas, 64, 51, AlignCenter, AlignTop, furi_string_get_cstr(model->status));
         canvas_draw_icon(canvas, 4, 5, &I_Updating_32x40);

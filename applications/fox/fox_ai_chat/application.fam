@@ -1,0 +1,14 @@
+App(
+    appid="fox_ai_chat",
+    name="Fox AI Chat",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="fox_ai_chat_main",
+    stack_size=8 * 1024,
+    fap_category="Fox/ESP32",
+    fap_version="0.1",
+    fap_author="FoxFW",
+    order=71,
+    fap_icon="icon.png",
+    fap_icon_assets="images",
+    fap_description="Fox AI Chat - chat with Google Gemini AI via an ESP32 running Fox ESP32 Firmware",
+)

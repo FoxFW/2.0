@@ -1,4 +1,5 @@
 #include "../lfrfid_i.h"
+#include <lfrfid_icons.h>
 
 #define LFRFID_SCENE_READ_SUCCESS_MAX_HEX_WIDTH (7UL)
 

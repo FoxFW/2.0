@@ -646,7 +646,7 @@
     </tr>
     <tr>
       <td><strong>↓ Down (hold)</strong></td>
-      <td class="fixed">Fox Clock — a full-screen clock with an alarm clock built in (long-press Down again to exit)</td>
+      <td class="fixed">Fox Clock — a full-screen clock with an alarm clock built in (long-press Down or Back again to exit)</td>
       <td>No — always fixed, alarms configurable in Fox Settings → Alarm Clock</td>
     </tr>
     <tr>
@@ -688,8 +688,10 @@
     it up for the normal timeout, the same as pressing any other button. If
     it's on, Right restores the persistent stay-on behavior. Neither key
     changes the saved setting — it only affects the backlight for as long as
-    Fox Clock stays open. Long-press Down still exits back to the desktop,
-    and if an alarm is ringing, a short OK press (or holding Down) silences it.
+    Fox Clock stays open. Long-press Down or Back exits back to the desktop;
+    a short press of Back instead shows a "Press and Hold DOWN to Exit"
+    reminder for a couple of seconds. If an alarm is ringing, a short OK
+    press (or holding Down/Back) silences it.
   </div>
 
   <h3 id="lock-menu">Lock Menu (Up short)</h3>
@@ -1345,6 +1347,12 @@
       <td>Apps → Fox</td>
       <td style="text-align:center;">✓</td>
       <td>Post and read Discord channel messages directly from your Flipper using the ESP32's WiFi connection.</td>
+    </tr>
+    <tr>
+      <td><strong>Fox AI Chat</strong></td>
+      <td>Apps → Fox</td>
+      <td style="text-align:center;">✓</td>
+      <td>Chat with Google Gemini from your Flipper's screen over the ESP32's WiFi connection — no API key needed, conversation history saved permanently to the SD card.</td>
     </tr>
     <tr>
       <td><strong>Fox Portal</strong></td>

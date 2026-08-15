@@ -1,6 +1,11 @@
 @echo off
 call "%~dp0scripts\toolchain\fbtenv.cmd" env || exit /b
 
+if /I "%~1"=="menu" (
+    call "%~dp0scripts\fbt_build_menu.cmd"
+    exit /b %ERRORLEVEL%
+)
+
 set SCONS_EP=python -m SCons
 
 if [%FBT_NO_SYNC%] == [] (

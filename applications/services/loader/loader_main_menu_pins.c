@@ -19,8 +19,18 @@ void main_menu_pins_load(MainMenuPins* pins) {
             if(byte == '\n' || byte == '\r') {
                 if(line_len > 0) {
                     line[line_len] = '\0';
-                    strlcpy(
-                        pins->paths[pins->count], line, sizeof(pins->paths[pins->count]));
+                    char* sep = strchr(line, '|');
+                    if(sep) {
+                        *sep = '\0';
+                        strlcpy(
+                            pins->paths[pins->count], line, sizeof(pins->paths[pins->count]));
+                        strlcpy(
+                            pins->names[pins->count], sep + 1, sizeof(pins->names[pins->count]));
+                    } else {
+                        strlcpy(
+                            pins->paths[pins->count], line, sizeof(pins->paths[pins->count]));
+                        pins->names[pins->count][0] = '\0';
+                    }
                     pins->count++;
                     line_len = 0;
                 }
@@ -31,7 +41,15 @@ void main_menu_pins_load(MainMenuPins* pins) {
 
         if(line_len > 0 && pins->count < MAIN_MENU_PINS_MAX) {
             line[line_len] = '\0';
-            strlcpy(pins->paths[pins->count], line, sizeof(pins->paths[pins->count]));
+            char* sep = strchr(line, '|');
+            if(sep) {
+                *sep = '\0';
+                strlcpy(pins->paths[pins->count], line, sizeof(pins->paths[pins->count]));
+                strlcpy(pins->names[pins->count], sep + 1, sizeof(pins->names[pins->count]));
+            } else {
+                strlcpy(pins->paths[pins->count], line, sizeof(pins->paths[pins->count]));
+                pins->names[pins->count][0] = '\0';
+            }
             pins->count++;
         }
     }

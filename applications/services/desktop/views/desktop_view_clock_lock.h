@@ -11,7 +11,7 @@ void desktop_clock_lock_set_callback(DesktopClockLockView* clock_lock, DesktopCl
 
 // Fox Alarm Clock ringing state - shows an "ALARM" banner and accepts a
 // short OK press as an extra dismiss shortcut on top of the usual long-press
-// Down exit gesture.
+// Down/Back exit gesture.
 void desktop_clock_lock_set_ringing(DesktopClockLockView* clock_lock, bool ringing);
 
 // Left = turn the backlight off right now. Right = turn it back on - if

@@ -1,5 +1,6 @@
 #include <furi.h>
 #include <assets_icons.h>
+#include "desktop_settings_icons.h"
 #include <notification/notification.h>
 #include <notification/notification_messages.h>
 #include <gui/scene_manager.h>

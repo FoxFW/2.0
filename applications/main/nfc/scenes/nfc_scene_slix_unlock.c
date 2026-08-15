@@ -1,4 +1,5 @@
 #include "../nfc_app_i.h"
+#include "nfc_icons.h"
 
 #include <nfc/protocols/slix/slix_poller.h>
 

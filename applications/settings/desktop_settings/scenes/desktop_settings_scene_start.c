@@ -7,11 +7,7 @@
 #include "../desktop_settings_app.h"
 #include "desktop_settings_scene.h"
 #include "desktop_settings_scene_i.h"
-
-/* fox_theme_set() and fox_theme_is_active() are confirmed present in
- * api_symbols.csv with '+'. The previous Missing Imports was caused solely
- * by I_fox_64x64 / I_DolphinCommon_56x48 icon variables (now fixed via
- * fap_icon_assets). These API calls are safe to use directly. */
+#include "desktop_settings_icons.h"
 
 typedef enum {
     DesktopSettingsPinSetup           = 0,

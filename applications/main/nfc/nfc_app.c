@@ -1,4 +1,5 @@
 #include "nfc_app_i.h"
+#include "nfc_icons.h"
 #include "api/nfc_app_api_interface.h"
 #include "helpers/protocol_support/nfc_protocol_support.h"
 

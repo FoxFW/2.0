@@ -9,7 +9,10 @@
 /DIRLIST.bat
 /assets/DIRLIST.bat
 /clean_build.bat
+/clean_build.sh
 /clean_build.txt
+/fbt_build_size.txt
+/scripts/backup/
 /build_fox_apps_suite.bat
 /clean_git_locks.bat
 
@@ -109,3 +112,4 @@ scripts/deploy_esp32_boards.py
 scripts/deploy_flipper_docs.py
 build_fox_apps_suite.bat
 clean_build_output.tmp.log
+fbt_build_output.tmp.log

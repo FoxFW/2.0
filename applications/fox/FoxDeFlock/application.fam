@@ -1,0 +1,25 @@
+App(
+    appid="foxdeflock",
+    name="FoxDeFlock (Fox Edition)",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="foxdeflock_app",
+    requires=[
+        "gui",
+        "notification",
+        "expansion",
+    ],
+    stack_size=4 * 1024,
+    fap_icon="images/foxdeflock_icon_10x10.png",
+    fap_category="Fox/ESP32",
+    fap_description="Flock Safety / ALPR camera detector via Fox_ESP32_FW",
+    fap_author="Based on FlipDeFlock by ReconGrunt, ported to Fox protocol",
+    fap_version="1.0",
+    sources=[
+        "foxdeflock_app.c",
+        "foxdeflock_scan.c",
+        "wifi/esp_at.c",
+        "helpers/flock_db.c",
+        "helpers/flock_ble.c",
+        "helpers/oui_vendor.c",
+    ],
+)

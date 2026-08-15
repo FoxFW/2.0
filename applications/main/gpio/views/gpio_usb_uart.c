@@ -3,6 +3,7 @@
 #include <furi_hal.h>
 #include <gui/elements.h>
 #include <assets_icons.h>
+#include "gpio_icons.h"
 
 struct GpioUsbUart {
     View* view;

@@ -245,6 +245,12 @@ static const char*
 }
 
 static void draw_text_field(Canvas* canvas, TextInputModel* model) {
+    // Must set this explicitly - unlike draw_grid/draw_buttons, this used to
+    // rely on whatever font the canvas was left in by the previous screen,
+    // which only happened to be right after the first frame (once
+    // draw_buttons below had run once and set FontSecondary itself).
+    canvas_set_font(canvas, FontSecondary);
+
     uint8_t needed_string_width = canvas_width(canvas) - 8;
     uint8_t start_pos = 4;
 
@@ -279,8 +285,12 @@ static void draw_text_field(Canvas* canvas, TextInputModel* model) {
     uint16_t cursor_x = start_pos + canvas_string_width(canvas, before);
 
     if(model->clear_default_text) {
+        // FontSecondary's glyphs span roughly y=10-19 at this baseline
+        // (ascent 7 + descender 2 from baseline 17) - the box has to cover
+        // that whole range or the white text drawn outside it is invisible
+        // against the background, leaving only letter fragments visible.
         elements_slightly_rounded_box(
-            canvas, start_pos - 1, 14, canvas_string_width(canvas, text) + 2, 10);
+            canvas, start_pos - 1, 9, canvas_string_width(canvas, text) + 2, 10);
         canvas_set_color(canvas, ColorWhite);
         canvas_draw_str(canvas, start_pos, 17, text);
     } else if(model->in_text) {
@@ -291,7 +301,6 @@ static void draw_text_field(Canvas* canvas, TextInputModel* model) {
         // instead of a solid block - a lighter-weight hint of where a
         // typed character will land while focus is still on the grid.
         canvas_draw_str(canvas, cursor_x + 1, 18, "|");
-        canvas_draw_str(canvas, cursor_x + 2, 18, "|");
         canvas_draw_str(canvas, start_pos, 17, text);
     }
     canvas_set_color(canvas, ColorBlack);
@@ -319,6 +328,10 @@ static void text_input_view_draw_callback(Canvas* canvas, void* _model) {
 }
 
 static void text_input_handle_up(TextInputModel* model) {
+    // Any navigation away from the initial "landed on OK, name shown
+    // selected" state drops the selection - from here on, typed characters
+    // append at cursor_pos instead of replacing from the start.
+    model->clear_default_text = false;
     if(model->in_text) return;
     if(model->selected_row > 0) {
         model->selected_row--;
@@ -333,6 +346,7 @@ static void text_input_handle_up(TextInputModel* model) {
 }
 
 static void text_input_handle_down(TextInputModel* model) {
+    model->clear_default_text = false;
     if(model->in_text) {
         model->in_text = false;
         return;
@@ -344,6 +358,7 @@ static void text_input_handle_down(TextInputModel* model) {
 }
 
 static void text_input_handle_left(TextInputModel* model) {
+    model->clear_default_text = false;
     if(model->in_text) {
         if(model->cursor_pos > 0) model->cursor_pos--;
         return;
@@ -361,6 +376,7 @@ static void text_input_handle_left(TextInputModel* model) {
 }
 
 static void text_input_handle_right(TextInputModel* model) {
+    model->clear_default_text = false;
     if(model->in_text) {
         size_t len = strlen(model->text_buffer);
         if(model->cursor_pos < len) model->cursor_pos++;
@@ -416,11 +432,12 @@ static void
 
     // Inserts at cursor_pos instead of always appending at the end, so
     // typing from the grid lands wherever the cursor was last left in the
-    // text field - previously this ignored cursor_pos entirely, which is
-    // why repositioning the cursor and then going back to the keyboard to
-    // type always just appended at the end regardless.
-    size_t text_length = model->clear_default_text ? 0 : strlen(model->text_buffer);
-    size_t insert_at = model->clear_default_text ? 0 : model->cursor_pos;
+    // text field. By the time a grid key is reachable, clear_default_text
+    // has already been dropped by navigation (see text_input_handle_up/
+    // down/left/right) and cursor_pos is at the end of the string, so this
+    // naturally appends unless the user has moved the cursor since.
+    size_t text_length = strlen(model->text_buffer);
+    size_t insert_at = model->cursor_pos;
     if(insert_at > text_length) insert_at = text_length;
 
     if(text_length < (model->text_buffer_size - 1)) {
@@ -430,6 +447,11 @@ static void
             text_length - insert_at + 1);
         model->text_buffer[insert_at] = selected;
         model->cursor_pos = insert_at + 1;
+
+        if(text_length + 1 >= model->text_buffer_size - 1) {
+            model->in_buttons = true;
+            model->selected_row = 2;
+        }
     }
     model->clear_default_text = false;
 }
@@ -561,18 +583,14 @@ static void text_input_view_enter_callback(void* context) {
         {
             model->in_text = false;
             model->cursor_pos = model->text_buffer ? strlen(model->text_buffer) : 0;
-            if(model->clear_default_text) {
-                // A default value that types-over on the first keystroke
-                // (e.g. renaming a file) - land ready to type immediately.
-                model->in_buttons = false;
-                model->selected_row = 0;
-            } else {
-                // Nothing to clear-and-replace - land on OK so an
-                // unchanged/already-correct value can be confirmed with a
-                // single press; Left steps back into the grid to edit.
-                model->in_buttons = true;
-                model->selected_row = 2;
-            }
+            // Always land on OK: an unchanged/already-correct value can be
+            // confirmed with a single press. If clear_default_text is set,
+            // the value is also shown selected (draw_text_field) - moving
+            // off OK in any direction drops the selection and further
+            // typing appends at the end (see text_input_handle_up/down/
+            // left/right and the insert path in text_input_handle_ok).
+            model->in_buttons = true;
+            model->selected_row = 2;
             model->selected_column = 0;
         },
         true);

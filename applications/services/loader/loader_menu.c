@@ -5,6 +5,8 @@
 #include <assets_icons.h>
 #include <applications.h>
 #include <archive/helpers/archive_favorites.h>
+#include <storage/storage.h>
+#include <flipper_application/flipper_application.h>
 #include <string.h>
 
 #include "loader.h"
@@ -48,6 +50,9 @@ typedef struct {
     Menu* primary_menu;
     Submenu* settings_menu;
     MainMenuPins pins;
+    // menu_add_item() stores the label pointer, not a copy - these must
+    // outlive the menu, so they can't be per-iteration stack locals.
+    char pin_labels[MAIN_MENU_PINS_MAX][MAIN_MENU_PINS_PATH_LEN];
 } LoaderMenuApp;
 
 static void loader_menu_start(const char* name) {
@@ -74,9 +79,9 @@ static void loader_menu_pinned_callback(void* context, uint32_t index) {
     loader_menu_start(path);
 }
 
-// Derives a display label from a .fap path: strips directory and extension.
+// Fallback display label from a .fap path: strips directory and extension.
 // Writes into `out` (caller-owned, at least `out_size` bytes).
-static void loader_menu_pin_label(const char* path, char* out, size_t out_size) {
+static void loader_menu_pin_label_from_filename(const char* path, char* out, size_t out_size) {
     const char* slash = strrchr(path, '/');
     const char* base = slash ? slash + 1 : path;
     strlcpy(out, base, out_size);
@@ -84,6 +89,34 @@ static void loader_menu_pin_label(const char* path, char* out, size_t out_size) 
     if(len > 4 && strcmp(out + len - 4, ".fap") == 0) {
         out[len - 4] = '\0';
     }
+}
+
+// Prefers the user's rename, then the .fap manifest name, then the filename.
+static void loader_menu_pin_label(
+    Storage* storage,
+    const char* path,
+    const char* custom_name,
+    char* out,
+    size_t out_size) {
+    if(custom_name && custom_name[0] != '\0') {
+        strlcpy(out, custom_name, out_size);
+        return;
+    }
+
+    FuriString* path_str = furi_string_alloc_set_str(path);
+    FuriString* name_str = furi_string_alloc();
+    uint8_t icon_buf[FAP_MANIFEST_MAX_ICON_SIZE];
+    uint8_t* icon_ptr = icon_buf;
+
+    bool loaded = flipper_application_load_name_and_icon(path_str, storage, &icon_ptr, name_str);
+    if(loaded && !furi_string_empty(name_str)) {
+        strlcpy(out, furi_string_get_cstr(name_str), out_size);
+    } else {
+        loader_menu_pin_label_from_filename(path, out, out_size);
+    }
+
+    furi_string_free(path_str);
+    furi_string_free(name_str);
 }
 
 static void loader_menu_applications_callback(void* context, uint32_t index) {
@@ -128,17 +161,23 @@ static uint32_t loader_menu_exit(void* context) {
 static void loader_menu_build_menu(LoaderMenuApp* app, LoaderMenu* menu) {
     size_t i = 0;
 
+    Storage* storage = furi_record_open(RECORD_STORAGE);
     for(size_t p = 0; p < app->pins.count; p++) {
-        char label[MAIN_MENU_PINS_PATH_LEN];
-        loader_menu_pin_label(app->pins.paths[p], label, sizeof(label));
+        loader_menu_pin_label(
+            storage,
+            app->pins.paths[p],
+            app->pins.names[p],
+            app->pin_labels[p],
+            sizeof(app->pin_labels[p]));
         menu_add_item(
             app->primary_menu,
-            label,
-            &A_Plugins_14,
+            app->pin_labels[p],
+            &A_Star_14,
             (uint32_t)app->pins.paths[p],
             loader_menu_pinned_callback,
             (void*)menu);
     }
+    furi_record_close(RECORD_STORAGE);
 
     menu_add_item(
         app->primary_menu,

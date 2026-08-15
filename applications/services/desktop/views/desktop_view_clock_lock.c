@@ -8,6 +8,7 @@ typedef struct {
     uint8_t minute;
     bool ringing;
     bool blink_on;
+    bool show_hint;
 } ClockLockModel;
 
 struct DesktopClockLockView {
@@ -19,7 +20,16 @@ struct DesktopClockLockView {
     DesktopClockLockTickCallback tick_callback;
     void* tick_context;
     FuriTimer* timer;
+    FuriTimer* hint_timer;
 };
+
+#define HINT_DISPLAY_MS 2000
+
+static void desktop_clock_lock_hint_timer_callback(void* context) {
+    DesktopClockLockView* clock_lock = context;
+    with_view_model(
+        clock_lock->view, ClockLockModel * model, { model->show_hint = false; }, true);
+}
 
 static void desktop_clock_lock_timer_callback(void* context) {
     DesktopClockLockView* clock_lock = context;
@@ -118,6 +128,24 @@ static void desktop_clock_lock_draw_callback(Canvas* canvas, void* model) {
 
     draw_7seg_digit(canvas, x, sy, m->minute / 10);  x += SEG_W + SEG_GAP;
     draw_7seg_digit(canvas, x, sy, m->minute % 10);
+
+    // Short-press Back hint - a plain-language reminder of how to leave,
+    // since there's no on-screen exit affordance otherwise. Drawn as a
+    // filled, framed box so it stays legible over the digits behind it.
+    // Not shown while ringing - that state already has its own dismiss
+    // hint, and this would just be visual clutter on top of it.
+    if(!m->ringing && m->show_hint) {
+        const int16_t box_w = 108, box_h = 26;
+        const int16_t box_x = (128 - box_w) / 2;
+        const int16_t box_y = (64 - box_h) / 2 + 6;
+        canvas_set_color(canvas, ColorWhite);
+        canvas_draw_box(canvas, box_x, box_y, box_w, box_h);
+        canvas_set_color(canvas, ColorBlack);
+        canvas_draw_frame(canvas, box_x, box_y, box_w, box_h);
+        canvas_set_font(canvas, FontSecondary);
+        elements_multiline_text_aligned(
+            canvas, 64, box_y + box_h / 2, AlignCenter, AlignCenter, "Press and Hold DOWN\nto Exit");
+    }
 }
 
 static bool desktop_clock_lock_input_callback(InputEvent* event, void* context) {
@@ -126,7 +154,8 @@ static bool desktop_clock_lock_input_callback(InputEvent* event, void* context) 
     bool ringing = false;
     with_view_model(clock_lock->view, ClockLockModel * model, { ringing = model->ringing; }, false);
 
-    bool dismiss = (event->type == InputTypeLong && event->key == InputKeyDown) ||
+    bool dismiss = (event->type == InputTypeLong &&
+                     (event->key == InputKeyDown || event->key == InputKeyBack)) ||
                    (ringing && event->type == InputTypeShort && event->key == InputKeyOk);
 
     if(dismiss) {
@@ -149,6 +178,15 @@ static bool desktop_clock_lock_input_callback(InputEvent* event, void* context) 
         }
     }
 
+    // Short-press Back shows the "hold to exit" hint for a couple of
+    // seconds, same restriction as the backlight shortcut above - don't
+    // want it popping up over the ringing screen's own dismiss hint.
+    if(!ringing && event->type == InputTypeShort && event->key == InputKeyBack) {
+        with_view_model(
+            clock_lock->view, ClockLockModel * model, { model->show_hint = true; }, true);
+        furi_timer_start(clock_lock->hint_timer, furi_ms_to_ticks(HINT_DISPLAY_MS));
+    }
+
     return true;
 }
  
@@ -164,15 +202,17 @@ static void desktop_clock_lock_enter_callback(void* context) {
         {
             model->hour = dt.hour;
             model->minute = dt.minute;
+            model->show_hint = false;
         },
         true);
- 
+
     furi_timer_start(clock_lock->timer, furi_ms_to_ticks(1000));
 }
- 
+
 static void desktop_clock_lock_exit_callback(void* context) {
     DesktopClockLockView* clock_lock = context;
     furi_timer_stop(clock_lock->timer);
+    furi_timer_stop(clock_lock->hint_timer);
 }
  
 DesktopClockLockView* desktop_clock_lock_alloc(void) {
@@ -195,13 +235,16 @@ DesktopClockLockView* desktop_clock_lock_alloc(void) {
  
     clock_lock->timer = furi_timer_alloc(
         desktop_clock_lock_timer_callback, FuriTimerTypePeriodic, clock_lock);
- 
+    clock_lock->hint_timer = furi_timer_alloc(
+        desktop_clock_lock_hint_timer_callback, FuriTimerTypeOnce, clock_lock);
+
     return clock_lock;
 }
- 
+
 void desktop_clock_lock_free(DesktopClockLockView* clock_lock) {
     furi_assert(clock_lock);
     furi_timer_free(clock_lock->timer);
+    furi_timer_free(clock_lock->hint_timer);
     view_free(clock_lock->view);
     free(clock_lock);
 }

@@ -8,5 +8,6 @@ App(
     order=70,
     fap_libs=["assets"],
     fap_icon="icon.png",
+    fap_icon_assets="icons",
     fap_category="GPIO",
 )
