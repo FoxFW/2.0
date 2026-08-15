@@ -351,6 +351,7 @@
           <li><a href="#file-downloader-wifi">WiFi, Recon &amp; Attacks</a></li>
         </ul>
       </li>
+      <li><a href="#deflock">FoxDeFlock</a></li>
       <li><a href="#wifi-icon">Status Bar WiFi Icon</a></li>
       <li><a href="#commands">Full Command Reference</a>
         <ul class="sub">
@@ -1613,9 +1614,77 @@
 </section>
 
 
-<!-- ══════════════════ 11 · WIFI ICON ══════════════════ -->
-<section class="section" id="wifi-icon">
+<!-- ══════════════════ 11 · FOXDEFLOCK ══════════════════ -->
+<section class="section" id="deflock">
   <div class="chapter-label">Chapter 11</div>
+  <h2>FoxDeFlock</h2>
+  <p>
+    A Flock Safety / ALPR (automatic license plate reader) camera detector,
+    using your ESP32 as the WiFi/BLE radio. Based on
+    <a href="https://github.com/ReconGrunt/FlipDeFlock" target="_blank" rel="noopener">FlipDeFlock</a>
+    by ReconGrunt (GPL-3.0-or-later) — this port reuses FlipDeFlock's
+    OUI/SSID confidence-scoring and BLE-advert decoding logic verbatim,
+    rebuilt against Fox ESP32 Firmware's own command set instead of
+    FlipDeFlock's Marauder-based backend.
+  </p>
+
+  <h3>Setup</h3>
+  <p>
+    Requires Fox ESP32 Firmware wired via UART at 115200 baud (standard Fox
+    pinout). On launch the app checks for an ESP32; if it isn't found, you
+    get an <strong>ESP32 not found</strong> screen with <strong>Settings</strong>
+    (pick which UART pin pair to use — 13/14 or 15/16) and
+    <strong>Retry</strong> buttons. Nothing destructive happens if no ESP32
+    is present — the app just never sees any hits.
+  </p>
+
+  <h3>Scanning</h3>
+  <p>
+    Once connected, FoxDeFlock rotates through three scan modes every
+    ~8.5 seconds, shown in the top-right corner of the hit list:
+  </p>
+  <table>
+    <tr><th>Mode</th><th>What it scans</th></tr>
+    <tr><td><strong>WiFi:Probe</strong></td><td>WiFi probe requests</td></tr>
+    <tr><td><strong>WiFi:Beacon</strong></td><td>WiFi beacon frames</td></tr>
+    <tr><td><strong>BLE:Flock</strong></td><td>Flock external-battery BLE adverts (<code>BLETAGSCAN:FLOCK</code>)</td></tr>
+  </table>
+  <p>
+    Each hit is shown as a single row: source (WiFi/BLE), the last two MAC
+    bytes, an SSID or BLE name if one was broadcast, and a confidence code
+    (<code>CONF</code>/<code>FP?</code>/<code>LIKE</code>/<code>POSS</code>).
+    Up and Down move the selection; <strong>OK</strong> on a hit opens its
+    detail screen (full MAC, confidence, device class, source, SSID/BLE
+    name, channel/RSSI for WiFi or RSSI for BLE, and a sightings count);
+    <strong>hold OK</strong> from the hit list opens an About screen with
+    attribution. Back returns to the previous screen from either.
+  </p>
+
+  <div class="box info">
+    <strong>Precision rule.</strong> FlipDeFlock's core rule carries over
+    unchanged: a bare OUI-prefix match is never shown as a detection on its
+    own, since those address ranges are shared silicon-vendor blocks and
+    would false-positive on ordinary hardware. A hit only counts once
+    corroborated by a Flock-shaped SSID, or when the SSID alone is enough.
+  </div>
+
+  <div class="box warn">
+    <strong>Known v1 limitations:</strong> no Raven-vs-Falcon GATT
+    disambiguation (Fox ESP32 FW's <code>BLETAGSCAN:FLOCK</code> doesn't yet
+    surface BLE service UUIDs, so BLE hits report as a generic Flock battery
+    unit rather than either model by name); no GPS/mapping, no "guardian"
+    continuous-monitoring mode, no deflock.me QR handoff, no
+    signature-database sync, and no Marauder-flashing UI — FoxDeFlock only
+    ever talks to Fox ESP32 Firmware.
+  </div>
+
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 12 · WIFI ICON ══════════════════ -->
+<section class="section" id="wifi-icon">
+  <div class="chapter-label">Chapter 12</div>
   <h2>Status Bar WiFi Icon</h2>
   <p>
     Your Flipper's own desktop status bar shows a small WiFi icon,
@@ -1648,9 +1717,9 @@
 </section>
 
 
-<!-- ══════════════════ 12 · FULL COMMAND REFERENCE ══════════════════ -->
+<!-- ══════════════════ 13 · FULL COMMAND REFERENCE ══════════════════ -->
 <section class="section" id="commands">
-  <div class="chapter-label">Chapter 12</div>
+  <div class="chapter-label">Chapter 13</div>
   <h2>Full Command Reference</h2>
   <p>
     Every command the firmware understands, sent over serial at
@@ -1759,6 +1828,7 @@
     <tr><td><code>BLETAGSCAN:FINDMY</code></td><td>8s scan for Apple Find My broadcasts (AirTag and any other Find My accessory — the protocol can't tell them apart) → <code>TAG:FINDMY:&lt;mac&gt; rssi:&lt;n&gt; batt:&lt;full|medium|low|verylow|unknown&gt;</code></td></tr>
     <tr><td><code>BLETAGSCAN:SMARTTAG</code></td><td>8s scan for Samsung SmartTag broadcasts → <code>TAG:SMARTTAG:&lt;mac&gt; rssi:&lt;n&gt;</code></td></tr>
     <tr><td><code>BLETAGSCAN:TILE</code></td><td>8s scan for Tile broadcasts → <code>TAG:TILE:&lt;mac&gt; rssi:&lt;n&gt;</code></td></tr>
+    <tr><td><code>BLETAGSCAN:FLOCK</code></td><td>8s scan for Flock Safety external-battery BLE adverts (used by FoxDeFlock) → <code>TAG:FLOCK:&lt;mac&gt; rssi:&lt;n&gt; name:"&lt;name&gt;" mfg:&lt;hex&gt;</code></td></tr>
   </table>
   <p>Each ends with <code>TAGSCANDONE:&lt;count&gt;</code>. A match means a tag is broadcasting nearby right now — it is not a history of whether something has been following you.</p>
 
@@ -1974,9 +2044,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 13 · SAFETY, LEGAL, ATTACKS TOGGLE ══════════════════ -->
+<!-- ══════════════════ 14 · SAFETY, LEGAL, ATTACKS TOGGLE ══════════════════ -->
 <section class="section" id="safety">
-  <div class="chapter-label">Chapter 13</div>
+  <div class="chapter-label">Chapter 14</div>
   <h2>Safety, Legal &amp; the Attacks Toggle</h2>
 
   <div class="box warn">
@@ -2044,9 +2114,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 14 · KNOWN LIMITATIONS ══════════════════ -->
+<!-- ══════════════════ 15 · KNOWN LIMITATIONS ══════════════════ -->
 <section class="section" id="limitations">
-  <div class="chapter-label">Chapter 14</div>
+  <div class="chapter-label">Chapter 15</div>
   <h2>Known Limitations</h2>
   <p>
     An honest list of rough edges, so nothing here catches you by surprise.
@@ -2096,9 +2166,9 @@ repeat (3) {
 </section>
 
 
-<!-- ══════════════════ 15 · SUPPORT & TROUBLESHOOTING ══════════════════ -->
+<!-- ══════════════════ 16 · SUPPORT & TROUBLESHOOTING ══════════════════ -->
 <section class="section" id="support">
-  <div class="chapter-label">Chapter 15</div>
+  <div class="chapter-label">Chapter 16</div>
   <h2>Support &amp; Troubleshooting</h2>
 
   <div class="box tip">

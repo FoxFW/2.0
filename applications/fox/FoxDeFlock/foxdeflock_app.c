@@ -196,7 +196,7 @@ static void draw_detail(Canvas* c, FoxDeFlockApp* app) {
     canvas_draw_str_aligned(c, 64, 2, AlignCenter, AlignTop, mac_str);
 
     canvas_set_font(c, FontSecondary);
-    char line[40];
+    char line[64];
     snprintf(
         line,
         sizeof(line),
