@@ -12,7 +12,7 @@ static const SubGhzModePickerOption k_options[] = {
     [SUBGHZ_MODE_PICKER_AUTOMOTIVE]     = {"Automotive", "Ford, Kia, Hyundai, etc"},
     [SUBGHZ_MODE_PICKER_GARAGE]         = {"Garage/Gate/Other", "Non-Automotive Only"},
     [SUBGHZ_MODE_PICKER_JAMMER]         = {"RF Jammer", "Radio Frequency Jammer"},
-    [SUBGHZ_MODE_PICKER_TPMS]           = {"TPMS Read/Edit", "Tire Pressure Sensors"},
+    [SUBGHZ_MODE_PICKER_TPMS]           = {"TPMS", "Tire Pressure Sensors"},
     [SUBGHZ_MODE_PICKER_RADIO_SETTINGS] = {"Radio Settings", "Sub-GHz Settings/Options"},
 };
 #define OPTION_COUNT (sizeof(k_options) / sizeof(k_options[0]))

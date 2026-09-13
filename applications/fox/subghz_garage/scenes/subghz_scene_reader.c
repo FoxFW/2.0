@@ -703,6 +703,20 @@ static void subghz_scene_receiver_start_listening(SubGhz* subghz, bool switch_vi
         subghz_txrx_rx_start(subghz->txrx);
         subghz->state_notifications = SubGhzNotificationStateRx;
 
+        /* Re-apply the saved Hopping on/off preference every time a fresh
+         * listening session actually begins, rather than trusting whatever
+         * subghz->txrx's hopper_state happens to still be from a previous
+         * scene visit. This is the single choke point every "about to run
+         * the heavy rx-restart chain" path goes through (see the big
+         * comment above), so it covers the OK-press, Config-resume, and
+         * low-RAM-recovery-resume paths uniformly. The Tick handler below
+         * is what actually advances the hop once this is set - see its own
+         * comment. */
+        subghz_txrx_hopper_set_state(
+            subghz->txrx,
+            subghz->last_settings->enable_hopping ? SubGhzHopperStateRunning :
+                                                     SubGhzHopperStateOFF);
+
         subghz_read_raw_set_status(subghz->subghz_read_raw, SubGhzReadRAWStatusREC, "", threshold_rssi);
         if(switch_view) {
             view_dispatcher_switch_to_view(subghz->view_dispatcher, SubGhzViewIdReadRAW);
@@ -1376,6 +1390,23 @@ static bool subghz_scene_reader_read_on_event(void* context, SceneManagerEvent e
                 subghz_scene_receiver_stop_and_decode(subghz);
             } else {
                 notification_message(subghz->notifications, &sequence_blink_cyan_10);
+            }
+
+            /* Frequency hopping (see Settings > Hopping, subghz_scene_
+             * receiver_config.c): while genuinely idle with no activity
+             * detected yet this visit, let the hopper engine (helpers/
+             * subghz_txrx.c - stock's own, unmodified, already-linked-in
+             * hopper state machine) scan across the frequency table looking
+             * for a live signal, retuning at most once per tick. The
+             * instant s_auto_has_activity flips true above (a capture has
+             * genuinely started), this stops being called at all, freezing
+             * the radio on the frequency that just produced it for the
+             * remainder of the capture - hopper_update() itself is also
+             * gated on hopper_state (a no-op switch-case return when
+             * Hopping is OFF), so this costs nothing extra when the toggle
+             * is off. */
+            if(!s_auto_has_activity) {
+                subghz_txrx_hopper_update(subghz->txrx, subghz->last_settings->hopping_threshold);
             }
         } else if(auto_state == SubGhzReceiverAutoStateStart && !s_auto_start_cancelled) {
             /* Idle Start screen countdown - see SUBGHZ_AUTO_START_COUNTDOWN_

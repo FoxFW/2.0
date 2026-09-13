@@ -79,8 +79,13 @@ int32_t subbrute_worker_thread(void* context);
  *
  * @param instance The SubBruteWorker instance.
  * @param flipper_format Pointer to the FlipperFormat to be transmitted.
+ * @return true if the protocol encoder was found and the transmit ran;
+ *         false if `instance->protocol_name` isn't in the firmware's active
+ *         SubGhz protocol registry (see this function's own definition for
+ *         why that can happen on this firmware) - nothing was sent and the
+ *         caller should treat this attack as failed rather than continue.
  */
-void subbrute_worker_subghz_transmit(SubBruteWorker* instance, FlipperFormat* flipper_format);
+bool subbrute_worker_subghz_transmit(SubBruteWorker* instance, FlipperFormat* flipper_format);
 
 /**
  * @brief Send a callback for a SubBruteWorker instance.

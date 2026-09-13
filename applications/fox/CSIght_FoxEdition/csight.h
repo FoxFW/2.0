@@ -19,21 +19,6 @@
 #define CSIGHT_UART_BAUD     115200
 #define CSIGHT_LINE_WAIT_MS  1500
 
-// ─── Board presets ────────────────────────────────────────────────────────────
-// tx_pin / rx_pin = ESP32-side UART pins (not Flipper pins)
-// Flipper side always uses GPIO13(TX) and GPIO14(RX) by default
-typedef struct {
-    const char* name;       // shown on preset select screen
-    uint8_t     tx_pin;     // ESP32 TX pin
-    uint8_t     rx_pin;     // ESP32 RX pin
-    uint8_t     csi_tier;   // 0=none 1=limited 2=full (shown as hint)
-} BoardPreset;
-
-// Defined in csight_app.c — extern here to avoid duplicate symbol across TUs
-extern const BoardPreset BOARD_PRESETS[];
-extern const int          BOARD_PRESET_COUNT;
-#define BOARD_PRESET_CUSTOM (BOARD_PRESET_COUNT - 1)
-
 // ─── Display modes ────────────────────────────────────────────────────────────
 typedef enum {
     DisplayModeRadar     = 0,
@@ -49,12 +34,13 @@ typedef enum {
 typedef enum {
     AppStateBooting,
     AppStateEsp32Check,     // sent "info", waiting for "Fox ESP32 Firmware" reply
-    AppStateEsp32NotFound,  // probe timed out — Settings/Retry gate
+    AppStateEsp32NotFound,  // probe timed out on both UART channels — Settings/Retry gate
     AppStateMainMenu,
-    AppStatePresetSelect,
-    AppStatePinConfig,
+    AppStateConnectSettings, // manual USART/LPUART override + re-probe
     AppStateConnecting,
-    AppStateCompatCheck,
+    // AppStateCompatCheck removed 2026-09-13 - the post-handshake "ESP32
+    // DETECTED / Chip: / FW: / CSI: ..." info screen it drove is gone;
+    // handle_hello() (csight_uart.c) now goes straight to AppStateMainMenu.
     AppStateScanning,
     AppStateWebUI,
     AppStateSettings,
@@ -90,7 +76,7 @@ typedef enum {
     SettingPreset       = 9,   // one-tap sensitivity+threshold combo
     SettingScheduleStart = 10, // auto-arm schedule start hour
     SettingScheduleEnd   = 11, // auto-arm schedule end hour
-    SettingChangeBoard  = 12,
+    SettingConnection    = 12, // USART/LPUART override — see AppStateConnectSettings
 } SettingItem;
 
 // ─── Radar geometry ───────────────────────────────────────────────────────────
@@ -143,8 +129,16 @@ typedef struct {
     // handshake, same pattern as fox_file_downloader/foxhub etc:
     // ping the generic "info" command and wait for the plain-text reply
     // every Fox_ESP32_FW build sends, regardless of which app is attached.
+    // Since Fox_ESP32_FW only ever answers on one of the Flipper's two UART
+    // peripherals (shared gpio_remap setting, same as every other Fox ESP32
+    // app), the boot probe below automatically sweeps both before giving up
+    // - see csight_tick()'s AppStateEsp32Check handling - rather than making
+    // the user pick their exact board/pins from a list, which is what this
+    // edition did before ("Fox Edition" only ever talks to Fox's own
+    // firmware, so there's nothing else to identify).
     bool     esp32_probe_ok;
     uint32_t esp32_check_start_tick;
+    bool     esp32_probe_tried_alt;       // true once boot probe has swept both UART channels
     bool     esp32_check_focus_settings;  // true = "Settings" focused, false = "Retry"
 
     // Chip info (from handshake)
@@ -154,10 +148,11 @@ typedef struct {
     uint8_t fw_minor;
     bool    web_ui_active;  // ESP32 has web UI running
 
-    // Board config
-    uint8_t preset_idx;
-    uint8_t tx_pin;
-    uint8_t rx_pin;
+    // Connection — cached mirror of GpioRemapSettings.esp32_uart_channel for
+    // AppStateConnectSettings to draw/cycle; the shared gpio_remap file
+    // (gpio_remap_compat.h) is still the actual source of truth, same
+    // as the rest of the Fox ESP32 app suite.
+    uint8_t esp32_uart_channel;
     bool    config_exists;  // false = first run, show setup flow
 
     // Radar
@@ -257,9 +252,7 @@ void csight_draw_boot(Canvas* c, CSIghtApp* app);
 void csight_draw_esp32_check(Canvas* c, CSIghtApp* app);
 void csight_draw_esp32_not_found(Canvas* c, CSIghtApp* app);
 void csight_draw_main_menu(Canvas* c, CSIghtApp* app);
-void csight_draw_compat(Canvas* c, CSIghtApp* app);
-void csight_draw_preset(Canvas* c, CSIghtApp* app);
-void csight_draw_pin_config(Canvas* c, CSIghtApp* app);
+void csight_draw_connect_settings(Canvas* c, CSIghtApp* app);
 void csight_draw_radar(Canvas* c, CSIghtApp* app);
 void csight_draw_waterfall(Canvas* c, CSIghtApp* app);
 void csight_draw_proximity(Canvas* c, CSIghtApp* app);

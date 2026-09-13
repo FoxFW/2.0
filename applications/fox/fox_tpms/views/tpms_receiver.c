@@ -3,6 +3,7 @@
 #include <fox_tpms_icons.h>
 #include <math.h>
 
+#include <furi.h>
 #include <input/input.h>
 #include <gui/elements.h>
 #include <m-array.h>
@@ -41,8 +42,6 @@ struct TPMSReceiver {
     TPMSLock lock;
     uint8_t lock_count;
     FuriTimer* lock_timer;
-    FuriTimer* relearn_timer;
-    bool relearn_active;
     View* view;
     TPMSReceiverCallback callback;
     void* context;
@@ -59,6 +58,14 @@ typedef struct {
     TPMSReceiverBarShow bar_show;
     uint8_t u_rssi;
     bool external_radio;
+    /* True for the duration of an auto-retry LF pulse (tpms_scene_
+     * receiver.c's tick handler) - swaps the animated "TPMS ..." line
+     * below for "*Reposition*", telling the user the Flipper's current
+     * position just missed the sensor on the previous attempt and it's
+     * trying again now. Never set true for the guided flow's first pulse
+     * or a manual Re-Trigger - only a pulse the app fired on its own
+     * because the last one got no reply. */
+    bool show_reposition;
 } TPMSReceiverModel;
 
 void tpms_view_receiver_set_rssi(TPMSReceiver* instance, float rssi) {
@@ -74,6 +81,12 @@ void tpms_view_receiver_set_rssi(TPMSReceiver* instance, float rssi) {
             }
         },
         true);
+}
+
+void tpms_view_receiver_set_show_reposition(TPMSReceiver* instance, bool show) {
+    furi_assert(instance);
+    with_view_model(
+        instance->view, TPMSReceiverModel * model, { model->show_reposition = show; }, true);
 }
 
 void tpms_view_receiver_set_lock(TPMSReceiver* tpms_receiver, TPMSLock lock) {
@@ -200,7 +213,23 @@ void tpms_view_receiver_draw(Canvas* canvas, TPMSReceiverModel* model) {
     canvas_set_color(canvas, ColorBlack);
     canvas_set_font(canvas, FontSecondary);
 
+    /* Footer: stock elements_button_left/right (filled-box style - NOT the
+     * rounded pills used on every other Fox screen this session). Per the
+     * user's 2026-09-13 direction this old stock look is intentionally kept
+     * ONLY on subghz receiving/scanning screens like this one, nowhere else.
+     * Re-Trigger fires the same TPMSCustomEventViewReceiverRetrigger custom
+     * event as every other footer/key action on this screen (Left/OK/Back) -
+     * routed to tpms_scene_receiver.c's on_event, which pauses this screen's
+     * always-on SubGHz RX session before calling the shared
+     * tpms_relearn_lf_start() (tpms_app_i.c, the same helper the dedicated
+     * "Trigger" menu item/scene uses) and resumes RX after. It's hidden
+     * while bar_show is off its default (the brief Lock/Unlock flashes and
+     * the ToUnlockPress overlay) so it can't visually collide with that
+     * overlay's own text. */
     elements_button_left(canvas, "Config");
+    if(model->bar_show == TPMSReceiverBarShowDefault) {
+        elements_button_right(canvas, "Re-Trigger");
+    }
 
     bool scrollbar = model->history_item > 4;
     FuriString* str_buff;
@@ -231,14 +260,41 @@ void tpms_view_receiver_draw(Canvas* canvas, TPMSReceiverModel* model) {
 
     if(model->history_item == 0) {
         canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str(canvas, 4, 9, model->external_radio ? "Ext" : "Int");
-        canvas_draw_str(canvas, 68, 9, "-> to relearn");
+        canvas_draw_str_aligned(
+            canvas, 127, 1, AlignRight, AlignTop, model->external_radio ? "Ext" : "Int");
 
-        canvas_draw_icon(canvas, 4, 14, &I_fox_32x32);
+        /* Bigger Fox mascot (2026-09-13 redesign): same sitting-fox artwork
+         * as fox_32x32.png (the correct suite art style - NOT the head-
+         * profile I_fox_64x64 duplicated into fox_lab/FoxHub/fox_rf_jammer,
+         * which is a different illustration entirely), scaled up 1.25x to
+         * 40x40 and re-quantized to pure black/white so it stays crisp
+         * rather than picking up upscale gray fringing. */
+        canvas_draw_icon(canvas, 2, 3, &I_fox_40x40);
 
         canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str_aligned(canvas, 82, 22, AlignCenter, AlignCenter, "Scanning");
-        canvas_draw_str_aligned(canvas, 82, 38, AlignCenter, AlignCenter, "TPMS");
+        canvas_draw_str_aligned(canvas, 86, 14, AlignCenter, AlignCenter, "Scanning");
+
+        if(model->show_reposition) {
+            /* Auto-retry just fired because the previous pulse got no
+             * reply - see show_reposition's comment above and
+             * tpms_scene_receiver.c's tick handler. Swaps in for the
+             * animated line below for the duration of the retry pulse,
+             * then reverts on its own once that pulse ends. */
+            canvas_draw_str_aligned(canvas, 86, 30, AlignCenter, AlignCenter, "*Reposition*");
+        } else {
+            /* Animated "TPMS ." / ".." / "..." - steps once every ~330ms (a
+             * full 3-dot lap is ~1s) per the user's 2026-09-13 spec, so the
+             * idle screen has its own "something is happening" cue alongside
+             * the existing blink-green notification pulse. Free-running off
+             * furi_get_tick() instead of a stored counter/model field: this
+             * view already redraws on every 100ms scene tick regardless (see
+             * tpms_view_receiver_set_rssi(), called from
+             * tpms_scene_receiver.c's SceneManagerEventTypeTick handler). */
+            uint32_t dots = (furi_get_tick() / furi_ms_to_ticks(330)) % 3 + 1;
+            char scanning_label[16];
+            snprintf(scanning_label, sizeof(scanning_label), "TPMS %.*s", (int)dots, "...");
+            canvas_draw_str_aligned(canvas, 86, 30, AlignCenter, AlignCenter, scanning_label);
+        }
         canvas_set_font(canvas, FontSecondary);
     }
 
@@ -268,9 +324,18 @@ void tpms_view_receiver_draw(Canvas* canvas, TPMSReceiverModel* model) {
         canvas_draw_str(canvas, 74, 62, "Unlocked");
         break;
     default:
-        canvas_draw_str(canvas, 44, 62, furi_string_get_cstr(model->frequency_str));
-        canvas_draw_str(canvas, 79, 62, furi_string_get_cstr(model->preset_str));
-        canvas_draw_str(canvas, 98, 62, furi_string_get_cstr(model->history_stat_str));
+        /* Frequency/modulation line, moved up to sit directly above the
+         * footer buttons (was baseline y=62, sharing the button row) and
+         * dropped the "00/50" history-count suffix - both per the user's
+         * 2026-09-13 spec. Only shown alongside the empty-history Scanning
+         * screen: once history_item > 0 the history list itself can fill
+         * all 4 visible rows (y 0-48), which would collide with a fixed
+         * line at y=48, so the populated view simply omits it rather than
+         * risking that overlap. */
+        if(model->history_item == 0) {
+            canvas_draw_str(canvas, 44, 48, furi_string_get_cstr(model->frequency_str));
+            canvas_draw_str(canvas, 79, 48, furi_string_get_cstr(model->preset_str));
+        }
         break;
     }
 }
@@ -290,30 +355,6 @@ static void tpms_view_receiver_lock_timer_callback(void* context) {
         tpms_receiver->callback(TPMSCustomEventViewReceiverUnlock, tpms_receiver->context);
     }
     tpms_receiver->lock_count = 0;
-}
-
-static void tpms_relearn_stop(void* context) {
-    furi_assert(context);
-    TPMSReceiver* tpms_receiver = context;
-    if(tpms_receiver->relearn_active) {
-        tpms_receiver->relearn_active = false;
-        furi_timer_stop(tpms_receiver->relearn_timer);
-        furi_hal_rfid_tim_read_stop();
-    }
-}
-
-static void tpms_relearn_start(void* context) {
-    furi_assert(context);
-    TPMSReceiver* tpms_receiver = context;
-    if(tpms_receiver->relearn_active) tpms_relearn_stop(context);
-    tpms_receiver->relearn_active = true;
-    furi_hal_rfid_tim_read_start(125000, 0.5);
-    furi_timer_start(tpms_receiver->relearn_timer, 3000);
-}
-
-static void tpms_view_receiver_relearn_timer_callback(void* context) {
-    furi_assert(context);
-    tpms_relearn_stop(context);
 }
 
 bool tpms_view_receiver_input(InputEvent* event, void* context) {
@@ -371,7 +412,7 @@ bool tpms_view_receiver_input(InputEvent* event, void* context) {
     } else if(event->key == InputKeyLeft && event->type == InputTypeShort) {
         tpms_receiver->callback(TPMSCustomEventViewReceiverConfig, tpms_receiver->context);
     } else if(event->key == InputKeyRight && event->type == InputTypeShort) {
-        tpms_relearn_start(tpms_receiver);
+        tpms_receiver->callback(TPMSCustomEventViewReceiverRetrigger, tpms_receiver->context);
     } else if(event->key == InputKeyOk && event->type == InputTypeShort) {
         with_view_model(
             tpms_receiver->view,
@@ -415,7 +456,6 @@ void tpms_view_receiver_exit(void* context) {
         },
         false);
     furi_timer_stop(tpms_receiver->lock_timer);
-    tpms_relearn_stop(tpms_receiver);
 }
 
 TPMSReceiver* tpms_view_receiver_alloc() {
@@ -448,8 +488,6 @@ TPMSReceiver* tpms_view_receiver_alloc() {
         true);
     tpms_receiver->lock_timer =
         furi_timer_alloc(tpms_view_receiver_lock_timer_callback, FuriTimerTypeOnce, tpms_receiver);
-    tpms_receiver->relearn_timer = furi_timer_alloc(
-        tpms_view_receiver_relearn_timer_callback, FuriTimerTypeOnce, tpms_receiver);
     return tpms_receiver;
 }
 
@@ -473,7 +511,6 @@ void tpms_view_receiver_free(TPMSReceiver* tpms_receiver) {
         },
         false);
     furi_timer_free(tpms_receiver->lock_timer);
-    furi_timer_free(tpms_receiver->relearn_timer);
     view_free(tpms_receiver->view);
     free(tpms_receiver);
 }

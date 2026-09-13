@@ -22,7 +22,7 @@ static void long_wait_draw_cb(Canvas* canvas, void* model) {
     char label[24];
     snprintf(label, sizeof(label), "Next (%lu)", (unsigned long)app->long_wait_seconds_left);
     canvas_set_font(canvas, FontSecondary);
-    fox_chill_draw_next_button(canvas, label);
+    fox_chill_draw_next_button(canvas, true, label);
 }
 
 static bool long_wait_input_cb(InputEvent* event, void* context) {
@@ -31,12 +31,15 @@ static bool long_wait_input_cb(InputEvent* event, void* context) {
 
     switch(event->key) {
     case InputKeyOk:
-    case InputKeyRight:
+        // Sole activator now - this is a single button, not labeled
+        // "Back", so per the 2026-09-13 footer-button audit's key-binding
+        // cleanup it no longer also fires on Right.
         fox_chill_goto_menu(app);
         return true;
     case InputKeyUp:
     case InputKeyDown:
     case InputKeyLeft:
+    case InputKeyRight:
         return true;
     case InputKeyBack:
         return false;

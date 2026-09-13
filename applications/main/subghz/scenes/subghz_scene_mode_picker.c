@@ -17,7 +17,7 @@ void subghz_blank_transition_draw_cb(Canvas* canvas, void* ctx);
 #define CC1101_EXT_PROBE_FAP_PATH EXT_PATH("apps/Sub-GHz/subghz_garage_cc1101_check.fap")
 #define CC1101_PROBE_RELAUNCH_PATH EXT_PATH("subghz/.cc1101_probe_relaunch")
 #define SUBGHZ_GARAGE_FAP_PATH EXT_PATH("apps/Sub-GHz/subghz_garage.fap")
-#define SUBGHZ_TPMS_FAP_PATH EXT_PATH("apps/Sub-GHz/fox_tpms.fap")
+#define SUBGHZ_TPMS_FAP_PATH EXT_PATH("apps/Fox/fox_tpms.fap")
 #define SUBGHZ_RF_JAMMER_FAP_PATH EXT_PATH("apps/Fox/fox_rf_jammer.fap")
 
 static void subghz_scene_mode_picker_callback(void* context, uint32_t index) {

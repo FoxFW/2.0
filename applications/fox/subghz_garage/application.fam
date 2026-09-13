@@ -2,6 +2,10 @@ App(
     appid="subghz_garage",
     name="Sub-GHz: Garage/Gate/Other",
     apptype=FlipperAppType.EXTERNAL,
+    # 14x14 home-screen Apps-menu icon; only the main app gets this (the
+    # ~50 PLUGIN entries below are protocol/CC1101 plugins, never listed
+    # in that menu themselves). See assets/icons/Fox/fox_generic_14x14.png.
+    icon="I_fox_generic_14x14",
     targets=["f7"],
     entry_point="subghz_app",
     requires=[

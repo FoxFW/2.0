@@ -960,6 +960,18 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
 // way, and previously saw nothing on screen while a large external .fap
 // (NFC's is the worst case) was read off the SD card.
 static void loader_show_loading_for_launch(Loader* loader, const char* app_name) {
+    /* FFB ("ffb" appid, applications/fox/fox_file_browser) is a small, fast-
+     * loading .fap - by the time the spinner would appear, FFB's own start
+     * screen is usually already ready, so all the 400ms minimum-show floor
+     * in loading.c (added for other apps' flashing) accomplishes here is
+     * forcing a spinner to sit on screen for up to 400ms *after* FFB could
+     * have just been shown, making launch feel slower rather than smoother.
+     * Skip the spinner entirely for FFB specifically; every other app
+     * launched through this path keeps it, since a slow SD read can
+     * otherwise leave a blank screen for a while with nothing to indicate
+     * it's not just an outright hang. */
+    if(app_name && strstr(app_name, "ffb")) return;
+
     view_holder_set_view(loader->view_holder, loading_get_view(loader->loading));
     view_holder_send_to_front(loader->view_holder);
     loader_load_watchdog_arm(loader, app_name);

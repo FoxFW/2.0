@@ -4,9 +4,43 @@ App(
     apptype=FlipperAppType.MENUEXTERNAL,
     entry_point="subbrute_app",
     requires=["gui","dialogs"],
+    # 14x14 icon for the home-screen Apps menu (loader_menu.c's
+    # FLIPPER_EXTERNAL_APPS list) - a *different* icon from fap_icon below,
+    # which is only the 10x10 shown by the "Applications" .fap file browser
+    # (loader_applications.c). MENUEXTERNAL apps' FLIPPER_EXTERNAL_APPS
+    # entry is compiled straight into firmware (scripts/fbt_tools/
+    # fbt_apps.py's get_external_app_descr(): `.icon = &{app.icon}`), so
+    # this has to reference a globally-compiled Icon symbol from
+    # assets/icons/, not anything under this app's own fap_icon_assets
+    # folder (images/) - those only get compiled into this app's own .fap,
+    # which firmware's build can't see. Source PNG lives at
+    # assets/icons/SubGhz/subbrute_14x14.png, right next to the built-in
+    # Sub-GHz app's own I_subghz_1_14x14 - unset, this silently falls back
+    # to NULL/the generic Apps icon in that menu (that's what task #77
+    # reported: "no icon of its own, using the generic Apps icon").
+    icon="I_subbrute_14x14",
     stack_size=2 * 1024,
     order=11,
     fap_icon="icon.png",
     fap_category="Sub-GHz",
     fap_icon_assets="images",
+    # SUBGHZ_GARAGE_HAS_GENERIC_GLOBAL: FoxFW2.0's own lib/subghz/blocks/
+    # generic.h always carries the SubGhzBlockGenericGlobal addition
+    # (counter/button override + endless_tx) natively - it's not a fork-
+    # specific extra here, unlike on the cross-fork _COMPATIBLE copies this
+    # cdefine also gates. helpers/subghz_generic_global_compat.h's #else
+    # fallback (taken when this is unset) declares its own static
+    # `subghz_block_generic_global` with the same name the real one in
+    # lib/subghz/blocks/generic.h uses - and protocols/protocols_common.h
+    # includes that real header unconditionally, so leaving this unset
+    # collides the two declarations and fails to build (confirmed: every
+    # one of the 8 vendored protocol .c files under protocols/ references
+    # `subghz_block_generic_global.<field>` directly, assuming the real
+    # struct). Setting it - exactly matching every cdefines list in
+    # ../../fox/subghz_garage/application.fam - makes the compat header
+    # use the real accessors instead, which also makes Counter/Button
+    # BruteForce actually vary the transmitted value (the #else fallback's
+    # own comment: without the real override, it "compiles and runs but
+    # resends the same counter every time").
+    cdefines=["SUBGHZ_GARAGE_HAS_GENERIC_GLOBAL=1"],
 )

@@ -8,11 +8,15 @@
 
 #define TAG "SubGhzProtocolKiaV5"
 
+// min_count_bit_for_found must match the exact bit count the decoder writes to
+// generic.data_count_bit below - subghz_block_generic_deserialize_check_count_bit()
+// does an equality check, not >=, so any mismatch breaks re-deserializing a saved/
+// history frame (surfaces as "Protocol not found!" when entering Full Dpad).
 static const SubGhzBlockConst subghz_protocol_kia_v5_const = {
     .te_short = 400,
     .te_long = 800,
     .te_delta = 150,
-    .min_count_bit_for_found = 64,
+    .min_count_bit_for_found = 67,
 };
 
 static const uint8_t keystore_bytes[] = {0x53, 0x54, 0x46, 0x52, 0x4b, 0x45, 0x30, 0x30};

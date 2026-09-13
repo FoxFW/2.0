@@ -5,7 +5,9 @@
 
 #include "../tagtinker_app.h"
 #include "../views/tagtinker_font.h"
+#include "tagtinker_icons.h"
 #include <furi_hal.h>
+#include <gui/icon.h>
 #include <storage/storage.h>
 
 typedef struct {
@@ -745,14 +747,62 @@ static void transmit_draw_cb(Canvas* canvas, void* _model) {
         canvas_draw_str_aligned(canvas, 64, 30, AlignCenter, AlignTop, "Flipped ;)");
     }
 
-    /* Bottom action hint. */
+    /* Bottom action button. */
     canvas_set_font(canvas, FontSecondary);
-    if(app->tx_spam) {
-        canvas_draw_str_aligned(canvas, 64, 55, AlignCenter, AlignTop, "[<-] Stop Repeat");
-    } else {
+    {
+        // Real centered filled pill with the actual I_ButtonCenter_7x7 icon,
+        // matching fox_lab/message_view.c's message_draw_one_button()
+        // reference exactly (icon_gap=3/pad_x=10 included) - this app now
+        // carries its own images/ButtonCenter_7x7.png
+        // (fap_icon_assets="images" in application.fam), the same per-app-
+        // local-copy convention fox_lab/fox_chameleon/etc. already use,
+        // rather than the hand-drawn back-arrow glyph this screen used as a
+        // stand-in before. OK-and-Back-activated via transmit_input_cb()
+        // below, since this is simultaneously "the only button" and "a back
+        // button" - both keys satisfy it per the user's 2026-09-13
+        // direction. This screen used to draw plain "[<-] Label" hint text
+        // with no button box at all and no InputKeyOk handling whatsoever
+        // (only the default scene-manager Back path worked) - flagged as
+        // "Pattern C-incorrect" by the 2026-09-13 footer-button audit
+        // (FOOTER_BUTTON_AUDIT.md project doc).
+        const char* label = app->tx_spam ? "Stop Repeat" : (app->tx_active ? "Cancel" : "Back");
+        const Icon* icon = &I_ButtonCenter_7x7;
+        int32_t icon_w = icon_get_width(icon);
+        int32_t icon_h = icon_get_height(icon);
+        int32_t icon_gap = 3;
+        int32_t pad_x = 10;
+        int32_t content_w = icon_w + icon_gap + (int32_t)canvas_string_width(canvas, label);
+        int32_t btn_w = content_w + pad_x * 2;
+        int32_t btn_h = 11;
+        int32_t btn_x = (128 - btn_w) / 2;
+        int32_t btn_y = 64 - btn_h;
+
+        canvas_set_color(canvas, ColorBlack);
+        canvas_draw_rbox(canvas, btn_x, btn_y, btn_w, btn_h, 3);
+        canvas_set_color(canvas, ColorWhite);
+
+        int32_t gx = btn_x + (btn_w - content_w) / 2;
+        int32_t gy_icon = btn_y + (btn_h - icon_h) / 2;
+        canvas_draw_icon(canvas, gx, gy_icon, icon);
         canvas_draw_str_aligned(
-            canvas, 64, 55, AlignCenter, AlignTop, app->tx_active ? "[<-] Cancel" : "[<-] Back");
+            canvas, gx + icon_w + icon_gap, btn_y + btn_h / 2, AlignLeft, AlignCenter, label);
+
+        canvas_set_color(canvas, ColorBlack);
     }
+}
+
+static bool transmit_input_cb(InputEvent* event, void* context) {
+    TagTinkerApp* app = context;
+    if(event->type != InputTypeShort || event->key != InputKeyOk) return false;
+
+    // OK now does exactly what Back already does on this screen (stop a
+    // repeating transmit, cancel an in-progress one, or navigate back once
+    // idle) by invoking the same scene-manager back-event path Back uses,
+    // rather than duplicating tagtinker_scene_transmit_on_event()'s
+    // tx_active/scene-chain-fallback logic. See the button drawn in
+    // transmit_draw_cb() above.
+    scene_manager_handle_back_event(app->scene_manager);
+    return true;
 }
 
 void tagtinker_scene_transmit_on_enter(void* context) {
@@ -762,6 +812,7 @@ void tagtinker_scene_transmit_on_enter(void* context) {
         view_allocate_model(app->transmit_view, ViewModelTypeLockFree, sizeof(TxViewModel));
         view_set_context(app->transmit_view, app);
         view_set_draw_callback(app->transmit_view, transmit_draw_cb);
+        view_set_input_callback(app->transmit_view, transmit_input_cb);
         app->transmit_view_allocated = true;
     }
 

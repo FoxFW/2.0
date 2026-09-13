@@ -126,7 +126,7 @@ static DialogMessageButton foxfw_info_screen4(DialogsApp* dialogs, DialogMessage
 
     const char* screen_header = " Friends of FoxFW Team\n";
 
-    const char* screen_text = "@VYNKO  @MitchMalik\n@ArthurK  @Greml1n\n@rrboys795  @ABaguanfa";
+    const char* screen_text = "@VYNKO  @Baguanfa\n@MitchMalik  @Greml1n\n@ArthurK @rrboys795";
     dialog_message_set_header(message, screen_header, 0, 0, AlignLeft, AlignTop);
     dialog_message_set_text(message, screen_text, 0, 11, AlignLeft, AlignTop);
     result = dialog_message_show(dialogs, message);

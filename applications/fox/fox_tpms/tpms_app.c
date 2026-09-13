@@ -35,6 +35,17 @@ TPMSApp* tpms_app_alloc() {
     // GUI
     app->gui = furi_record_open(RECORD_GUI);
 
+    // Startup loading wheel - attached directly to the GUI (no
+    // ViewDispatcher yet) so something is on screen immediately, before the
+    // SD-card subghz_setting_load() and CC1101 probe work below runs. Freed
+    // by the Start scene's on_enter once it has the box list ready to show
+    // (see tpms_scene_start.c) - this is the same fix subghz_garage's
+    // subghz_alloc() uses for the identical apps-menu-flash bug.
+    app->startup_loading = loading_alloc();
+    app->startup_holder = view_holder_alloc();
+    view_holder_attach_to_gui(app->startup_holder, app->gui);
+    view_holder_set_view(app->startup_holder, loading_get_view(app->startup_loading));
+
     // View Dispatcher
     app->view_dispatcher = view_dispatcher_alloc();
     app->scene_manager = scene_manager_alloc(&tpms_scene_handlers, app);
@@ -69,6 +80,11 @@ TPMSApp* tpms_app_alloc() {
     app->widget = widget_alloc();
     view_dispatcher_add_view(app->view_dispatcher, TPMSViewWidget, widget_get_view(app->widget));
 
+    // Box List (redesigned Start scene + Vehicle Make picker)
+    app->box_list = tpms_box_list_alloc();
+    view_dispatcher_add_view(
+        app->view_dispatcher, TPMSViewBoxList, tpms_box_list_get_view(app->box_list));
+
     // Receiver
     app->tpms_receiver = tpms_view_receiver_alloc();
     view_dispatcher_add_view(
@@ -97,12 +113,34 @@ TPMSApp* tpms_app_alloc() {
 
     //init Worker & Protocol & History
     app->lock = TPMSLockOff;
-    app->txrx = malloc(sizeof(TPMSTxRx));
+    // calloc, not malloc - txrx_state, rx_key_state, hopper_idx_frequency
+    // and idx_menu_chosen all get *read* by tpms_scene_receiver.c on the
+    // very first time Receiver is ever entered, before anything in this app
+    // has had a chance to assign them (their explicit assignments all live
+    // inside that scene's own on_enter/on_event, gated on already being in
+    // a particular state). TPMSTxRxStateIDLE and TPMSRxKeyStateIDLE are both
+    // enum value 0, so zeroed memory happens to read as the correct "not
+    // started yet" state for both - a plain malloc() only does that by
+    // accident, depending on what garbage was already sitting in that heap
+    // chunk from whatever this app instance's memory last held.
+    app->txrx = calloc(1, sizeof(TPMSTxRx));
     app->txrx->preset = malloc(sizeof(SubGhzRadioPreset));
     app->txrx->preset->name = furi_string_alloc();
     tpms_preset_init(app, "AM650", subghz_setting_get_default_frequency(app->setting), NULL, 0);
 
     app->txrx->hopper_state = TPMSHopperStateOFF;
+
+    // Guided vehicle flow / LF relearn state - see the struct fields'
+    // comments in tpms_app_i.h. malloc() above doesn't zero this memory, so
+    // these all need an explicit default here.
+    app->active_vehicle_group = -1;
+    app->vehicle_step_index = 0;
+    app->lf_relearn_timer = NULL;
+    app->lf_relearn_active = false;
+    app->lf_auto_retrigger_armed = false;
+    app->lf_auto_retrigger_countdown = 0;
+    app->lf_relearn_is_retry = false;
+
     app->txrx->history = tpms_history_alloc();
     app->txrx->worker = subghz_worker_alloc();
     app->txrx->environment = subghz_environment_alloc();
@@ -112,8 +150,19 @@ TPMSApp* tpms_app_alloc() {
 
     subghz_devices_init();
 
-    app->txrx->radio_device =
-        radio_device_loader_set(app->txrx->radio_device, SubGhzRadioDeviceTypeExternalCC1101);
+    // NULL, not app->txrx->radio_device - this is this app instance's very
+    // first radio device acquisition, and app->txrx came from a plain
+    // malloc() a few lines up (not zeroed), so reading that field here
+    // before it's ever been assigned would hand radio_device_loader_set()
+    // whatever garbage byte pattern happened to be left in that heap chunk.
+    // When no external CC1101 is connected, that function's "already have a
+    // device, so end() it before getting a new one" branch fires on
+    // whatever non-NULL garbage it was given - i.e. it can call
+    // subghz_devices_end() on a bogus pointer. That is silent heap/hardware-
+    // state corruption, not a crash at the call site, so it would not show
+    // up as a fault in this app - it would show up later, in whatever app
+    // happens to allocate next and stumble into the corrupted heap.
+    app->txrx->radio_device = radio_device_loader_set(NULL, SubGhzRadioDeviceTypeExternalCC1101);
 
     subghz_devices_reset(app->txrx->radio_device);
     subghz_devices_idle(app->txrx->radio_device);
@@ -127,7 +176,7 @@ TPMSApp* tpms_app_alloc() {
 
     furi_hal_power_suppress_charge_enter();
 
-    scene_manager_next_scene(app->scene_manager, TPMSSceneReceiver);
+    scene_manager_next_scene(app->scene_manager, TPMSSceneStart);
 
     return app;
 }
@@ -151,6 +200,19 @@ void tpms_app_free(TPMSApp* app) {
     //  Widget
     view_dispatcher_remove_view(app->view_dispatcher, TPMSViewWidget);
     widget_free(app->widget);
+
+    // Box List
+    view_dispatcher_remove_view(app->view_dispatcher, TPMSViewBoxList);
+    tpms_box_list_free(app->box_list);
+
+    // LF relearn trigger
+    if(app->lf_relearn_active) {
+        tpms_relearn_lf_stop(app);
+    }
+    if(app->lf_relearn_timer) {
+        furi_timer_free(app->lf_relearn_timer);
+        app->lf_relearn_timer = NULL;
+    }
 
     // Receiver
     view_dispatcher_remove_view(app->view_dispatcher, TPMSViewReceiver);
@@ -185,6 +247,19 @@ void tpms_app_free(TPMSApp* app) {
     // Notifications
     furi_record_close(RECORD_NOTIFICATION);
     app->notifications = NULL;
+
+    // Startup loading wheel - normally already freed by the Start scene's
+    // on_enter (see tpms_app_alloc()), this only fires if the app is torn
+    // down before ever reaching a scene.
+    if(app->startup_holder) {
+        view_holder_set_view(app->startup_holder, NULL);
+        view_holder_free(app->startup_holder);
+        app->startup_holder = NULL;
+    }
+    if(app->startup_loading) {
+        loading_free(app->startup_loading);
+        app->startup_loading = NULL;
+    }
 
     // Close records
     furi_record_close(RECORD_GUI);

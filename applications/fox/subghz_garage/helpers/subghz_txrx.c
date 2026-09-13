@@ -1370,12 +1370,40 @@ bool subghz_txrx_protocol_is_serializable(SubGhzTxRx* instance) {
 bool subghz_txrx_protocol_is_transmittable(SubGhzTxRx* instance, bool check_type) {
     furi_assert(instance);
     const SubGhzProtocol* protocol = instance->decoder_result->protocol;
-    if(check_type) {
-        return ((protocol->flag & SubGhzProtocolFlag_Send) == SubGhzProtocolFlag_Send) &&
-               protocol->encoder->deserialize && protocol->type == SubGhzProtocolTypeStatic;
+
+    if((protocol->flag & SubGhzProtocolFlag_Send) != SubGhzProtocolFlag_Send) {
+        return false;
     }
-    return ((protocol->flag & SubGhzProtocolFlag_Send) == SubGhzProtocolFlag_Send) &&
-           protocol->encoder->deserialize;
+    if(check_type && protocol->type != SubGhzProtocolTypeStatic) {
+        return false;
+    }
+
+    /* protocol->encoder here belongs to whichever registry is CURRENTLY
+     * loaded - and every caller of this function (the Transmitter scene's
+     * "can I show a Send button" check, on Saved > Emulate) runs before
+     * any TX has actually been attempted, so the only thing loaded so far
+     * is one of the RX-only group plugins. Per protocol_groups.h's own
+     * comment, those are compiled RX_ONLY (no encoders at all) for every
+     * protocol listed in subghz_garage_tx_protocol_map (protocol_groups.c)
+     * - which is effectively all of them (Princeton included) - so
+     * `protocol->encoder->deserialize` was NULL here unconditionally,
+     * reporting every single saved signal as non-transmittable and
+     * leaving the Transmitter view with no button to draw and no input
+     * handling at all (can_be_sent gates on show_button in
+     * views/transmitter.c), even though subghz_txrx_tx_start() would have
+     * happily loaded the real per-protocol TX plugin and sent it, the
+     * moment a "Send" press could ever have reached it. Ask by protocol
+     * NAME whether a dedicated TX plugin exists instead - the exact same
+     * lookup subghz_txrx_tx_start() itself uses to route a real send - and
+     * only fall back to the loaded encoder pointer for a protocol that
+     * isn't in that list (the "generic gen_data_protocol path" automotive
+     * protocols such as Kia/VAG/PSA/Ford, which keep a real encoder in
+     * every registry they're loaded into and were never affected by this). */
+    SubGhzGarageTxProtocol tx_protocol;
+    if(subghz_garage_tx_protocol_for_name(protocol->name, &tx_protocol)) {
+        return true;
+    }
+    return protocol->encoder->deserialize != NULL;
 }
 
 void subghz_txrx_receiver_set_filter(SubGhzTxRx* instance, SubGhzProtocolFlag filter) {

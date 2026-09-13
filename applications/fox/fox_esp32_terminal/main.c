@@ -101,6 +101,10 @@ bool app_expect_line(App* app, const char* expected, uint32_t timeout_ms) {
 void app_show_terminal(App* app) {
     if(app == NULL) return;
     terminal_unpause(app);
+    // Default focus to "Send", matching what OK used to do unconditionally
+    // before this screen had a real focus model - see app.h's comment on
+    // terminal_bar_focus_left.
+    app->terminal_bar_focus_left = false;
     app->current_view = FoxTerminalViewTerminal;
     if(app->view_dispatcher != NULL) {
         view_dispatcher_switch_to_view(app->view_dispatcher, FoxTerminalViewTerminal);

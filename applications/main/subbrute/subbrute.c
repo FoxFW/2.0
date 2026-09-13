@@ -22,7 +22,13 @@ static void subbrute_tick_event_callback(void* context) {
 }
 
 SubBruteState* subbrute_alloc() {
-    SubBruteState* instance = malloc(sizeof(SubBruteState));
+    // calloc, not malloc - defense in depth. instance->radio_device below is
+    // deliberately read while still unassigned (this is this instance's
+    // first-ever radio device acquisition), so it needs to be a real NULL
+    // rather than whatever garbage a plain malloc() happens to leave there -
+    // same bug and same fix as fox_tpms/tpms_app.c's tpms_app_alloc()
+    // (2026-09-13 audit, COMMIT_LOG.md item 37).
+    SubBruteState* instance = calloc(1, sizeof(SubBruteState));
 
     memset(instance->text_store, 0, sizeof(instance->text_store));
     instance->file_path = furi_string_alloc();
@@ -48,9 +54,14 @@ SubBruteState* subbrute_alloc() {
 
     subghz_devices_init();
 
-    // init radio device
-    instance->radio_device = subbrute_radio_device_loader_set(
-        instance->radio_device, SubGhzRadioDeviceTypeExternalCC1101);
+    // init radio device - explicitly NULL, not instance->radio_device: this
+    // is unconditionally this app instance's first-ever radio device
+    // acquisition, and subbrute_radio_device_loader_set() conditionally
+    // tears down whatever pointer it's handed when no external CC1101 is
+    // connected (the common case), so reading the not-yet-assigned field
+    // here (as this used to) could hand it live garbage instead.
+    instance->radio_device =
+        subbrute_radio_device_loader_set(NULL, SubGhzRadioDeviceTypeExternalCC1101);
 
     subghz_devices_reset(instance->radio_device);
     subghz_devices_idle(instance->radio_device);

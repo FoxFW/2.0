@@ -35,6 +35,7 @@ typedef enum {
     TPMSViewWidget,
     TPMSViewNumberInput,
     TPMSViewByteInput,
+    TPMSViewBoxList,
 } TPMSView;
 
 /** Editable fields on the Receiver Info screen. */

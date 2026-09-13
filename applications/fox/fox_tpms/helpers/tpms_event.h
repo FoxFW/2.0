@@ -11,6 +11,7 @@ typedef enum {
     TPMSCustomEventViewReceiverBack,
     TPMSCustomEventViewReceiverOffDisplay,
     TPMSCustomEventViewReceiverUnlock,
+    TPMSCustomEventViewReceiverRetrigger,
 
     TPMSCustomEventTpmsEditPressure,
     TPMSCustomEventTpmsEditTemperature,

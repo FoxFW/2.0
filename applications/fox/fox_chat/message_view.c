@@ -149,14 +149,18 @@ static bool message_input_cb(InputEvent* event, void* context) {
     }
 
     if(app->message_view_wifi_not_connected) {
+        // Single OK-style "Commander" button drawn above, with no left/right
+        // focus toggle - Right used to also fire it, an undocumented extra
+        // binding flagged by the 2026-09-13 footer-button audit
+        // (FOOTER_BUTTON_AUDIT.md project doc). Only OK activates it now.
         switch(event->key) {
-        case InputKeyRight:
         case InputKeyOk:
             app_launch_commander(app);
             return true;
         case InputKeyUp:
         case InputKeyDown:
         case InputKeyLeft:
+        case InputKeyRight:
             return true;
         case InputKeyBack:
         default:

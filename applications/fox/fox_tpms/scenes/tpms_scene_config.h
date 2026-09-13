@@ -1,4 +1,6 @@
 ADD_SCENE(tpms, start, Start)
+ADD_SCENE(tpms, vehicle_make, VehicleMake)
+ADD_SCENE(tpms, vehicle_steps, VehicleSteps)
 ADD_SCENE(tpms, receiver, Receiver)
 ADD_SCENE(tpms, relearn_config, Relearn)
 ADD_SCENE(tpms, receiver_config, ReceiverConfig)

@@ -2,6 +2,7 @@ App(
     appid="fox_update_downloader",
     name="Fox Update Downloader",
     apptype=FlipperAppType.EXTERNAL,
+    icon="I_fox_generic_14x14",  # 14x14 Apps-menu icon; see assets/icons/Fox/fox_generic_14x14.png
     entry_point="fox_update_downloader_main",
     requires=[
         "gui",
@@ -12,7 +13,6 @@ App(
     stack_size=8 * 1024,
     fap_category="Fox/ESP32",
     fap_version="0.1",
-    order=30,
     fap_author="FoxFW",
     fap_icon="icon.png",
     fap_icon_assets="images",

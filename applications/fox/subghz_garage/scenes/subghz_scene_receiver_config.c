@@ -65,36 +65,17 @@ const float raw_threshold_rssi_value[RAW_THRESHOLD_RSSI_COUNT] = {
     -40.0f,
 };
 
-#define HOPPING_MODE_COUNT 12
-const char* const hopping_mode_text[HOPPING_MODE_COUNT] = {
-    "OFF",
-    "-90dBm",
-    "-85dBm",
-    "-80dBm",
-    "-75dBm",
-    "-70dBm",
-    "-65dBm",
-    "-60dBm",
-    "-55dBm",
-    "-50dBm",
-    "-45dBm",
-    "-40dBm",
-
-};
-const float hopping_mode_value[HOPPING_MODE_COUNT] = {
-    NAN,
-    -90.0f,
-    -85.0f,
-    -80.0f,
-    -75.0f,
-    -70.0f,
-    -65.0f,
-    -60.0f,
-    -55.0f,
-    -50.0f,
-    -45.0f,
-    -40.0f,
-};
+/* Trimmed-down Hopping: a plain On/Off toggle (COMBO_BOX_COUNT/combobox_text,
+ * defined below) rather than the full 12-level RSSI-threshold picker stock
+ * exposes. We still drive the exact same stock hopper engine (helpers/
+ * subghz_txrx.c: subghz_txrx_hopper_update() et al - untouched, already
+ * fully implemented and already linked in regardless of this toggle, so
+ * enabling it costs no extra flash), just with a single fixed "stay"
+ * threshold instead of a user-configurable one. -90dBm matches this app's
+ * pre-existing default (see hopping_threshold's default in subghz_last_
+ * settings.c) - close enough to the CC1101's noise floor to treat almost
+ * any real transmission as "stay", without configurable knobs to expose. */
+#define SUBGHZ_GARAGE_HOPPING_RSSI_THRESHOLD (-90.0f)
 
 #define COMBO_BOX_COUNT 2
 
@@ -198,9 +179,7 @@ uint8_t subghz_scene_receiver_config_hopper_value_index(void* context) {
             (VariableItem*)scene_manager_get_scene_state(
                 subghz->scene_manager, SubGhzSceneReceiverConfig),
             " -----");
-        return value_index_float(
-            subghz->last_settings->hopping_threshold, hopping_mode_value, HOPPING_MODE_COUNT);
-        ;
+        return 1;
     }
 }
 
@@ -270,13 +249,13 @@ static void subghz_scene_receiver_config_set_preset(VariableItem* item) {
 
 static void subghz_scene_receiver_config_set_hopping(VariableItem* item) {
     SubGhz* subghz = variable_item_get_context(item);
-    uint8_t index = variable_item_get_current_value_index(item);
+    uint8_t index = variable_item_get_current_value_index(item); // 0=OFF, 1=ON
     SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
     VariableItem* frequency_item = (VariableItem*)scene_manager_get_scene_state(
         subghz->scene_manager, SubGhzSceneReceiverConfig);
     FURI_LOG_I(TAG, "set_hopping: enter, index=%d", (int)index);
 
-    variable_item_set_current_value_text(item, hopping_mode_text[index]);
+    variable_item_set_current_value_text(item, combobox_text[index]);
 
     if(index == 0) {
         char text_buf[10] = {0};
@@ -303,16 +282,13 @@ static void subghz_scene_receiver_config_set_hopping(VariableItem* item) {
             preset.data_size);
         variable_item_set_current_value_index(
             frequency_item, subghz_setting_get_frequency_default_index(setting));
-        variable_item_set_item_label(item, "Hopping");
     } else {
         variable_item_set_current_value_text(frequency_item, " -----");
         variable_item_set_current_value_index(
             frequency_item, subghz_setting_get_frequency_default_index(setting));
-
-        variable_item_set_item_label(item, "Hopping RSSI");
     }
     subghz->last_settings->enable_hopping = index != 0;
-    subghz->last_settings->hopping_threshold = hopping_mode_value[index];
+    subghz->last_settings->hopping_threshold = SUBGHZ_GARAGE_HOPPING_RSSI_THRESHOLD;
     subghz_txrx_hopper_set_state(
         subghz->txrx, index != 0 ? SubGhzHopperStateRunning : SubGhzHopperStateOFF);
     FURI_LOG_I(TAG, "set_hopping: done");
@@ -407,17 +383,18 @@ void subghz_scene_receiver_config_on_enter(void* context) {
     FURI_LOG_I(TAG, "on_enter: modulation added, checking hopping");
     if(scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneReadRAW) !=
        SubGhzCustomEventManagerSet) {
-        // Hopping
+        // Hopping - trimmed-down On/Off toggle (see subghz_scene_receiver_config_set_hopping
+        // and subghz_txrx_hopper_update() in helpers/subghz_txrx.c for what runs behind it)
         value_index = subghz_scene_receiver_config_hopper_value_index(subghz);
         item = variable_item_list_add(
             subghz->variable_item_list,
-            value_index ? "Hopping RSSI" : "Hopping",
-            HOPPING_MODE_COUNT,
+            "Hopping",
+            COMBO_BOX_COUNT,
             subghz_scene_receiver_config_set_hopping,
             subghz);
 
         variable_item_set_current_value_index(item, value_index);
-        variable_item_set_current_value_text(item, hopping_mode_text[value_index]);
+        variable_item_set_current_value_text(item, combobox_text[value_index]);
     }
 
     FURI_LOG_I(TAG, "on_enter: hopping done, checking bin raw");

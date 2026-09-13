@@ -10,6 +10,8 @@ typedef void (*TPMSReceiverCallback)(TPMSCustomEvent event, void* context);
 
 void tpms_view_receiver_set_rssi(TPMSReceiver* instance, float rssi);
 
+void tpms_view_receiver_set_show_reposition(TPMSReceiver* instance, bool show);
+
 void tpms_view_receiver_set_lock(TPMSReceiver* tpms_receiver, TPMSLock keyboard);
 
 void tpms_view_receiver_set_callback(

@@ -2,7 +2,7 @@
 
 #include <storage/storage.h>
 #include <lib/flipper_format/flipper_format_i.h>
-#include <lib/subghz/subghz_protocol_registry.h>
+#include "protocols/protocol_items.h"
 
 #define TAG "SubBruteDevice"
 
@@ -16,8 +16,17 @@ SubBruteDevice* subbrute_device_alloc(const SubGhzDevice* radio_device) {
     instance->decoder_result = NULL;
     instance->receiver = NULL;
     instance->environment = subghz_environment_alloc();
+    /* Point at SubBrute's own private protocol registry (protocols/
+     * protocol_items.c), not core's - see that file's header comment
+     * (task #76). subghz_receiver_search_decoder_base_by_name() below is
+     * used to validate the selected attack's decoder exists before letting
+     * subbrute_scene_start.c proceed; with the shrunk core registry this
+     * silently failed for CAME/Nice FLO/Chamberlain/Linear/Ansonic/Holtek,
+     * and subbrute_scene_start.c hard-crashes the whole app
+     * (furi_crash("Invalid attack set!")) whenever this lookup fails - the
+     * actual "instant crash on selecting CAME" the user reported. */
     subghz_environment_set_protocol_registry(
-        instance->environment, (void*)&subghz_protocol_registry);
+        instance->environment, (void*)&subbrute_subghz_protocol_registry);
 
     instance->radio_device = radio_device;
 

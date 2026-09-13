@@ -5,6 +5,7 @@
 #include "connect_settings.h"
 #include "chat_list_view.h"
 #include "chat_detail_view.h"
+#include "chat_save_view.h"
 #include "gpio_remap_compat.h"
 
 #include <string.h>
@@ -483,6 +484,11 @@ static bool navigation_callback(void* context) {
         return true;
     }
 
+    if(app->current_view == FoxCommanderViewChatSaveResult) {
+        chat_save_result_view_dismiss(app);
+        return true;
+    }
+
     if(app->current_view == FoxCommanderViewConnectSettings) {
         app->current_view = FoxCommanderViewMessage;
         view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewMessage);
@@ -507,6 +513,7 @@ static App* app_alloc(bool skip_splash) {
     }
 
     app->gui = furi_record_open(RECORD_GUI);
+    app->notifications = furi_record_open(RECORD_NOTIFICATION);
     app->view_dispatcher = view_dispatcher_alloc();
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
     view_dispatcher_set_navigation_event_callback(app->view_dispatcher, navigation_callback);
@@ -537,6 +544,7 @@ static App* app_alloc(bool skip_splash) {
 
     app->chat_list_view = chat_list_view_alloc(app);
     app->chat_detail_view = chat_detail_view_alloc(app);
+    app->chat_save_result_view = chat_save_result_view_alloc(app);
 
     view_dispatcher_add_view(
         app->view_dispatcher, FoxCommanderViewSplash, fox_splash_get_view(app->splash));
@@ -551,6 +559,8 @@ static App* app_alloc(bool skip_splash) {
     view_dispatcher_add_view(app->view_dispatcher, FoxCommanderViewChatList, app->chat_list_view);
     view_dispatcher_add_view(
         app->view_dispatcher, FoxCommanderViewChatDetail, app->chat_detail_view);
+    view_dispatcher_add_view(
+        app->view_dispatcher, FoxCommanderViewChatSaveResult, app->chat_save_result_view);
 
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
@@ -584,6 +594,7 @@ static void app_free(App* app) {
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewConnectSettings);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewChatList);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewChatDetail);
+    view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewChatSaveResult);
 
     fox_splash_free(app->splash);
     submenu_free(app->submenu);
@@ -594,7 +605,9 @@ static void app_free(App* app) {
     message_view_free(app->message_view);
     chat_list_view_free(app->chat_list_view);
     chat_detail_view_free(app->chat_detail_view);
+    chat_save_result_view_free(app->chat_save_result_view);
     view_dispatcher_free(app->view_dispatcher);
+    furi_record_close(RECORD_NOTIFICATION);
     furi_record_close(RECORD_GUI);
 
     furi_string_free(app->log);

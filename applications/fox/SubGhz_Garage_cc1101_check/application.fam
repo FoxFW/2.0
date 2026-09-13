@@ -2,6 +2,7 @@ App(
     appid="subghz_garage_cc1101_check",
     name="CC1101 External Probe for SubGhz Garage",
     apptype=FlipperAppType.EXTERNAL,
+    icon="I_fox_generic_14x14",  # 14x14 Apps-menu icon; see assets/icons/Fox/fox_generic_14x14.png
     entry_point="subghz_garage_cc1101_check_app",
     # Same reasoning as subghz_garage's own stack_size bump: this app loads
     # an external .fal radio-device plugin at runtime (PluginManager/ELF

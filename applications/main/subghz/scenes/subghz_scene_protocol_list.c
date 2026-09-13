@@ -45,6 +45,25 @@ typedef struct {
     size_t  group;
     bool    enabled;   /* updated in callback; used by apply_items_to_filter */
     VariableItem* item;
+    /* Row label ("  <protocol name>"), OWNED by this ctx. Required because
+     * variable_item_list_add() stores the const char* it's given by
+     * reference (see VariableItemList's own struct: `const char* label;`,
+     * never copied) - it does NOT duplicate the string the way
+     * variable_item_set_current_value_text() does internally via
+     * furi_string_set(). A label built in a function-local stack buffer
+     * (as this used to be, one `char label[32]` declared inside the
+     * per-protocol loop below) becomes a dangling pointer the instant
+     * protocol_list_populate() returns and its stack frame is torn down;
+     * every row's `label` pointer then ends up reading whatever the same
+     * reused stack slot last held - in practice, uniformly, the last
+     * protocol name written into it. That's the confirmed root cause of a
+     * real-hardware bug where every per-protocol row read the same single
+     * protocol's name (whichever one happened to populate last) instead of
+     * its own. g_proto_ctx (this struct's array) is heap-allocated and
+     * lives for as long as the scene may still redraw, so a buffer stored
+     * here - unlike the old stack buffer - stays valid for the pointer's
+     * entire real lifetime. */
+    char label[32];
 } ProtoItemCtx;
 
 static ProtoItemCtx*   g_proto_ctx       = NULL;
@@ -247,10 +266,14 @@ static void protocol_list_populate(SubGhz* subghz) {
             g_proto_ctx[ci].group          = g;
             g_proto_ctx[ci].enabled        = enabled;
 
-            char label[32];
-            snprintf(label, sizeof(label), "  %s", proto->name);
+            /* Written directly into the ctx's own persistent buffer, not a
+             * local stack variable - see the ProtoItemCtx::label comment
+             * above for why (variable_item_list_add() keeps this pointer
+             * by reference, never copies it). */
+            snprintf(
+                g_proto_ctx[ci].label, sizeof(g_proto_ctx[ci].label), "  %s", proto->name);
             VariableItem* it = variable_item_list_add(
-                list, label, 2, proto_toggle_cb, (void*)(uintptr_t)(ci + 1));
+                list, g_proto_ctx[ci].label, 2, proto_toggle_cb, (void*)(uintptr_t)(ci + 1));
             variable_item_set_current_value_index(it, enabled ? 1 : 0);
             variable_item_set_current_value_text(it, proto_toggle_labels[enabled ? 1 : 0]);
             g_proto_ctx[ci].item = it;

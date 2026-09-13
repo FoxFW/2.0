@@ -2,10 +2,12 @@
 #include "chameleon_protocol.h"
 #include "key_dictionary.h"
 #include "gpio_remap_compat.h"
+#include "fox_chameleon_icons.h"
 
 #include <storage/storage.h>
 #include <furi_hal_rtc.h>
 #include <gui/elements.h>
+#include <gui/icon.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -20,6 +22,7 @@ static void check_button_callback(GuiButtonType result, InputType type, void* co
 static void render_main_menu(App* app);
 static void ensure_dir_path(Storage* storage, const char* path);
 static void app_render_log(App* app);
+static bool navigation_callback(void* context);
 
 typedef struct {
     FuriHalSerialId serial_id;
@@ -710,15 +713,6 @@ static size_t terminal_wrap_log(
     return count;
 }
 
-#define TERMINAL_BACK_ARROW_W 9
-static void terminal_draw_back_arrow(Canvas* canvas, int32_t x, int32_t y) {
-    for(int32_t dy = 0; dy < 2; dy++) {
-        canvas_draw_line(canvas, x, y + dy, x + 6, y + dy);
-        canvas_draw_line(canvas, x, y + dy, x + 3, y - 3 + dy);
-        canvas_draw_line(canvas, x, y + dy, x + 3, y + 3 + dy);
-    }
-}
-
 static void terminal_draw_cb(Canvas* canvas, void* model) {
     UNUSED(model);
     App* app = s_terminal_view_app;
@@ -778,27 +772,49 @@ static void terminal_draw_cb(Canvas* canvas, void* model) {
     }
 
     {
+        // Centered filled pill with the real I_ButtonCenter_7x7 icon,
+        // matching fox_lab/message_view.c's message_draw_one_button()
+        // reference exactly (icon_gap/pad_x included) - this app now carries
+        // its own images/ButtonCenter_7x7.png (fap_icon_assets="images" in
+        // application.fam), the same per-app-local-copy convention
+        // fox_lab/fox_esp32_terminal/etc. already use, rather than the
+        // hand-drawn back-arrow glyph this screen used as a stand-in before.
+        // Per the user's 2026-09-13 direction ("a single button should be
+        // centered with the ButtonCenter_7x7"). This screen used to draw a
+        // right-aligned white box with a black outline and no icon at all,
+        // and had no InputKeyOk handling - flagged as "Pattern C-incorrect"
+        // by the 2026-09-13 footer-button audit (FOOTER_BUTTON_AUDIT.md
+        // project doc). See terminal_input_cb() below.
         canvas_set_font(canvas, FontSecondary);
-        uint16_t hide_text_w = canvas_string_width(canvas, "Hide");
+        const char* label = "Hide";
+        const Icon* icon = &I_ButtonCenter_7x7;
+        int32_t icon_w = icon_get_width(icon);
+        int32_t icon_h = icon_get_height(icon);
+        int32_t icon_gap = 3;
+        int32_t pad_x = 10;
+        int32_t content_w = icon_w + icon_gap + (int32_t)canvas_string_width(canvas, label);
+        int32_t btn_w = content_w + pad_x * 2;
 
-        int32_t pad = 3;
-        int32_t icon_gap = 4;
-        int32_t btn_w = pad + TERMINAL_BACK_ARROW_W + icon_gap + (int32_t)hide_text_w + pad;
-
-        int32_t btn_x2 = 124;
-        int32_t btn_x1 = btn_x2 - btn_w;
         int32_t btn_y2 = 63;
         int32_t btn_y1 = btn_y2 - TERMINAL_HIDE_BTN_H;
+        int32_t btn_x1 = (128 - btn_w) / 2;
 
-        canvas_set_color(canvas, ColorWhite);
-        canvas_draw_box(canvas, btn_x1, btn_y1, btn_w, TERMINAL_HIDE_BTN_H);
         canvas_set_color(canvas, ColorBlack);
-        canvas_draw_rframe(canvas, btn_x1, btn_y1, btn_w, TERMINAL_HIDE_BTN_H, 2);
+        canvas_draw_rbox(canvas, btn_x1, btn_y1, btn_w, TERMINAL_HIDE_BTN_H, 2);
+        canvas_set_color(canvas, ColorWhite);
 
-        terminal_draw_back_arrow(canvas, btn_x1 + pad, btn_y1 + TERMINAL_HIDE_BTN_H / 2);
-
+        int32_t gx = btn_x1 + (btn_w - content_w) / 2;
+        int32_t gy_icon = btn_y1 + (TERMINAL_HIDE_BTN_H - icon_h) / 2;
+        canvas_draw_icon(canvas, gx, gy_icon, icon);
         canvas_draw_str_aligned(
-            canvas, btn_x2 - pad, btn_y1 + TERMINAL_HIDE_BTN_H / 2, AlignRight, AlignCenter, "Hide");
+            canvas,
+            gx + icon_w + icon_gap,
+            btn_y1 + TERMINAL_HIDE_BTN_H / 2,
+            AlignLeft,
+            AlignCenter,
+            label);
+
+        canvas_set_color(canvas, ColorBlack);
     }
 }
 
@@ -812,12 +828,28 @@ static bool terminal_input_cb(InputEvent* event, void* context) {
         with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
         return true;
     case InputKeyDown:
-
         app->terminal_scroll++;
         with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
         return true;
-    case InputKeyBack:
+    case InputKeyOk:
+        // "Hide" is this screen's only button - OK activates it now (it had
+        // no InputKeyOk handling at all before). It isn't labeled "Back",
+        // but does the exact same thing Back already does here, so this
+        // just invokes that same handler directly instead of duplicating
+        // its esp32_detected branching - see the 2026-09-13 footer-button
+        // audit (FOOTER_BUTTON_AUDIT.md project doc).
+        if(event->type == InputTypeShort) {
+            navigation_callback(app);
+        }
+        return true;
     case InputKeyLeft:
+    case InputKeyRight:
+        // Previously both silently duplicated Back's exit (Right fell
+        // through to the same `default: return false` as Back). Neither is
+        // "Back" or "OK", so per the audit's key-binding cleanup they're
+        // now harmless no-ops instead of secretly re-triggering exit.
+        return true;
+    case InputKeyBack:
         return false;
     default:
         return false;

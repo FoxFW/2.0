@@ -1,10 +1,11 @@
 /**
  * @file ram_monitor.c
- * @brief Temporary diagnostic app - shows the same numbers as the CLI
- * "free" command, refreshed live, so RAM use can be watched on-screen
- * while plugging/unplugging qFlipper (no need to disconnect qFlipper just
- * to get a CLI session). Not meant to be a permanent app - delete this
- * folder once done with it.
+ * @brief Diagnostic app - shows the same numbers as the CLI "free" command,
+ * refreshed live, so RAM use can be watched on-screen while
+ * plugging/unplugging qFlipper (no need to disconnect qFlipper just to get
+ * a CLI session). Started as a throwaway scratch tool, but kept around
+ * permanently - most users will never open it, but it's useful enough to
+ * leave in the Apps list.
  */
 
 #include <furi.h>

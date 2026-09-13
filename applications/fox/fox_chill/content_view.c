@@ -125,12 +125,24 @@ static void content_draw_cb(Canvas* canvas, void* model) {
             total);
     }
 
+    // Two-button footer when an answer exists ("Ans"/"Q" left, "Next"
+    // right), one button otherwise - Left/Right move which side is
+    // focused (filled vs outlined), OK activates whichever that is.
+    // Previously both buttons were always drawn filled and Left/Right
+    // each fired a different action directly with no focus step; fixed
+    // per the 2026-09-13 footer-button audit (FOOTER_BUTTON_AUDIT.md
+    // project doc), which flagged this exact screen as "Pattern A."
     if(app->content_has_answer) {
         fox_chill_draw_left_pill_button(
-            canvas, &I_ButtonLeft_4x7, showing_answer ? "Q" : "Ans", 2);
+            canvas,
+            app->content_focus_left,
+            &I_ButtonLeft_4x7,
+            showing_answer ? "Q" : "Ans",
+            2);
+        fox_chill_draw_next_button(canvas, !app->content_focus_left, "Next");
+    } else {
+        fox_chill_draw_next_button(canvas, true, "Next");
     }
-
-    fox_chill_draw_next_button(canvas, "Next");
 }
 
 static bool content_input_cb(InputEvent* event, void* context) {
@@ -138,19 +150,30 @@ static bool content_input_cb(InputEvent* event, void* context) {
     if(event->type != InputTypeShort && event->type != InputTypeRepeat) return false;
 
     switch(event->key) {
-    case InputKeyOk:
-    case InputKeyRight:
-        if(event->type == InputTypeShort) {
-            fox_chill_pick_random(app, app->content_kind);
-            fox_chill_save_note_read(app, app->content_kind);
-            content_flash_new(app);
+    case InputKeyLeft:
+        if(event->type == InputTypeShort && app->content_has_answer &&
+           !app->content_focus_left) {
+            app->content_focus_left = true;
             with_view_model(app->content_view, uint8_t * _m, { UNUSED(_m); }, true);
         }
         return true;
-    case InputKeyLeft:
-        if(event->type == InputTypeShort && app->content_has_answer) {
-            app->content_answer_shown = !app->content_answer_shown;
-            app->content_scroll = 0;
+    case InputKeyRight:
+        if(event->type == InputTypeShort && app->content_has_answer &&
+           app->content_focus_left) {
+            app->content_focus_left = false;
+            with_view_model(app->content_view, uint8_t * _m, { UNUSED(_m); }, true);
+        }
+        return true;
+    case InputKeyOk:
+        if(event->type == InputTypeShort) {
+            if(app->content_has_answer && app->content_focus_left) {
+                app->content_answer_shown = !app->content_answer_shown;
+                app->content_scroll = 0;
+            } else {
+                fox_chill_pick_random(app, app->content_kind);
+                fox_chill_save_note_read(app, app->content_kind);
+                content_flash_new(app);
+            }
             with_view_model(app->content_view, uint8_t * _m, { UNUSED(_m); }, true);
         }
         return true;
@@ -185,6 +208,9 @@ void content_view_free(View* view) {
 }
 
 void content_view_show(App* app, ContentKind kind) {
+    // Default focus to the right/"Next" button, matching what OK used to
+    // do unconditionally before this screen had a real focus model.
+    app->content_focus_left = false;
     fox_chill_pick_random(app, kind);
     fox_chill_save_note_read(app, kind);
     content_flash_new(app);

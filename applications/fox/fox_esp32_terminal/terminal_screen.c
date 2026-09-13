@@ -8,6 +8,64 @@ static App* s_terminal_view_app = NULL;
 #define TERMINAL_BOTTOM_BAR_H 16
 #define TERMINAL_POLL_MAX_DRAIN 64
 
+/* Two separate focus-based boxes (filled = focused, outlined = not),
+ * matching fox_lab/message_view.c's message_draw_two_buttons() reference -
+ * this screen used to draw one continuous inverted bar with no focus
+ * concept at all (not even two separate boxes), flagged as "the plainest
+ * example" of Pattern A by the 2026-09-13 footer-button audit
+ * (FOOTER_BUTTON_AUDIT.md project doc). See terminal_input_cb() below. */
+static void
+    terminal_draw_two_buttons(Canvas* canvas, bool focus_left, const char* left_label) {
+    int32_t bar_y = 64 - TERMINAL_BOTTOM_BAR_H;
+    int32_t btn_gap = 4;
+    int32_t btn_w = (128 - btn_gap * 3) / 2;
+    int32_t left_x = btn_gap;
+    int32_t right_x = btn_gap * 2 + btn_w;
+    const char* right_label = "Send";
+
+    canvas_set_font(canvas, FontSecondary);
+    canvas_set_color(canvas, ColorBlack);
+    if(focus_left) {
+        canvas_draw_rbox(canvas, left_x, bar_y, btn_w, TERMINAL_BOTTOM_BAR_H, 3);
+        canvas_set_color(canvas, ColorWhite);
+        canvas_draw_str_aligned(
+            canvas,
+            left_x + btn_w / 2,
+            bar_y + TERMINAL_BOTTOM_BAR_H / 2,
+            AlignCenter,
+            AlignCenter,
+            left_label);
+        canvas_set_color(canvas, ColorBlack);
+        canvas_draw_rframe(canvas, right_x, bar_y, btn_w, TERMINAL_BOTTOM_BAR_H, 3);
+        canvas_draw_str_aligned(
+            canvas,
+            right_x + btn_w / 2,
+            bar_y + TERMINAL_BOTTOM_BAR_H / 2,
+            AlignCenter,
+            AlignCenter,
+            right_label);
+    } else {
+        canvas_draw_rframe(canvas, left_x, bar_y, btn_w, TERMINAL_BOTTOM_BAR_H, 3);
+        canvas_draw_str_aligned(
+            canvas,
+            left_x + btn_w / 2,
+            bar_y + TERMINAL_BOTTOM_BAR_H / 2,
+            AlignCenter,
+            AlignCenter,
+            left_label);
+        canvas_draw_rbox(canvas, right_x, bar_y, btn_w, TERMINAL_BOTTOM_BAR_H, 3);
+        canvas_set_color(canvas, ColorWhite);
+        canvas_draw_str_aligned(
+            canvas,
+            right_x + btn_w / 2,
+            bar_y + TERMINAL_BOTTOM_BAR_H / 2,
+            AlignCenter,
+            AlignCenter,
+            right_label);
+    }
+    canvas_set_color(canvas, ColorBlack);
+}
+
 static void terminal_draw_cb(Canvas* canvas, void* model) {
     UNUSED(model);
     App* app = s_terminal_view_app;
@@ -19,21 +77,8 @@ static void terminal_draw_cb(Canvas* canvas, void* model) {
     wrap_render_draw(
         canvas, "TERMINAL", text, text_len, 64 - TERMINAL_BOTTOM_BAR_H, &app->terminal_scroll);
 
-    int32_t bar_y = 64 - TERMINAL_BOTTOM_BAR_H;
-    canvas_set_color(canvas, ColorBlack);
-    canvas_draw_box(canvas, 0, bar_y, 128, TERMINAL_BOTTOM_BAR_H);
-    canvas_set_color(canvas, ColorWhite);
-    canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str_aligned(
-        canvas,
-        4,
-        bar_y + TERMINAL_BOTTOM_BAR_H / 2,
-        AlignLeft,
-        AlignCenter,
-        app->terminal_paused ? "< Resume" : "< Pause");
-    canvas_draw_str_aligned(
-        canvas, 124, bar_y + TERMINAL_BOTTOM_BAR_H / 2, AlignRight, AlignCenter, "Send >");
-    canvas_set_color(canvas, ColorBlack);
+    terminal_draw_two_buttons(
+        canvas, app->terminal_bar_focus_left, app->terminal_paused ? "Resume" : "Pause");
 }
 
 static bool terminal_input_cb(InputEvent* event, void* context) {
@@ -55,18 +100,35 @@ static bool terminal_input_cb(InputEvent* event, void* context) {
         }
         return true;
     case InputKeyLeft:
-        if(app->terminal_paused) {
-            terminal_unpause(app);
-        } else {
-            app->terminal_paused = true;
-        }
-        if(app->terminal_view != NULL) {
-            with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
+        if(event->type == InputTypeShort && !app->terminal_bar_focus_left) {
+            app->terminal_bar_focus_left = true;
+            if(app->terminal_view != NULL) {
+                with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
+            }
         }
         return true;
     case InputKeyRight:
+        if(event->type == InputTypeShort && app->terminal_bar_focus_left) {
+            app->terminal_bar_focus_left = false;
+            if(app->terminal_view != NULL) {
+                with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
+            }
+        }
+        return true;
     case InputKeyOk:
-        app_show_send_command(app, true);
+        if(event->type != InputTypeShort) return true;
+        if(app->terminal_bar_focus_left) {
+            if(app->terminal_paused) {
+                terminal_unpause(app);
+            } else {
+                app->terminal_paused = true;
+            }
+            if(app->terminal_view != NULL) {
+                with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
+            }
+        } else {
+            app_show_send_command(app, true);
+        }
         return true;
     case InputKeyBack:
         return false;

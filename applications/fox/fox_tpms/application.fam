@@ -2,6 +2,7 @@ App(
     appid="fox_tpms",
     name="Fox TPMS",
     apptype=FlipperAppType.EXTERNAL,
+    icon="I_fox_generic_14x14",  # 14x14 Apps-menu icon; see assets/icons/Fox/fox_generic_14x14.png
     targets=["f7"],
     entry_point="tpms_app",
     requires=["gui"],
@@ -11,7 +12,7 @@ App(
     fap_version="1.0",
     fap_weburl="https://github.com/wosk/flipperzero-tpms",
     fap_description="Read and edit TPMS tire-pressure sensor signals over SubGHz",
-    fap_category="Sub-GHz",
+    fap_category="Fox",
     fap_icon_assets="images",
     fap_exclude_libs=["gcc"],
     cdefines=["FOX_TPMS_HAS_GENERIC_GLOBAL=1"],

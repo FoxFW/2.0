@@ -1,5 +1,19 @@
 # FoxFW Lab — Browser WebUI for FOX_WEB (Design Doc, v2)
 
+> **Superseded.** What actually shipped ("Option B") skipped the FOX_WEB/
+> Web-Serial staging plan below entirely and went straight to §9's "v2,
+> still" ESP32-hosted goal: the page (`foxlab_src/foxfw-lab.html`, compiled
+> into `Fox_ESP32_FW/foxlab_page.h`) is served directly by the ESP32 over
+> its own `FoxLAB` WiFi AP, reached at `http://192.168.4.1/` — no FOX_WEB
+> hosting, no Web Serial, no USB at all. Both tabs described below still
+> exist (FLIPPER: file browser/screen mirror/terminal via a real Flipper
+> RPC session tunneled over WiFi through the ESP32; ESP32: the same WiFi/
+> BLE/GPS/IR/SubGHz/AI command console), just reached over WiFi/WebSocket
+> instead of Web Serial. See the READMEs in this repo and in `Fox_ESP32_FW`
+> ("FoxLAB" sections) for the current, accurate description; treat
+> everything below as historical design-process context, not current
+> architecture.
+
 Design only, no code written yet. Supersedes the v1 draft of this file,
 which only covered the ESP32 command-console half of the ask. Revised
 after reading the user's actual notes file, which describes something much

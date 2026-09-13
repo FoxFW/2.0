@@ -3,11 +3,11 @@ App(
     name="Fox ESP32 Flasher",
     fap_version=(1, 0),
     apptype=FlipperAppType.EXTERNAL,
+    icon="I_fox_generic_14x14",  # 14x14 Apps-menu icon; see assets/icons/Fox/fox_generic_14x14.png
     entry_point="fox_esp32_flasher_app",
     requires=["gui", "storage", "dialogs"],
     stack_size=6 * 1024,
     fap_author="FoxFW",
-    order=40,
     fap_icon="images/icon_10x10.png",
     fap_icon_assets="images",
     resources="sd_resources",

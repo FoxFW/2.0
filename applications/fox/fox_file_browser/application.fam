@@ -2,6 +2,7 @@ App(
     appid="ffb",
     name="Fox File Browser",
     apptype=FlipperAppType.EXTERNAL,
+    icon="I_fox_generic_14x14",  # 14x14 Apps-menu icon; see assets/icons/Fox/fox_generic_14x14.png
     entry_point="ffb_app",
     requires=[
         "gui",
@@ -16,5 +17,4 @@ App(
     fap_icon="icon.png",
     fap_icon_assets="images",
     sources=["*.c*"],
-    order=10,
 )

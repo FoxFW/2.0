@@ -1,111 +1,14 @@
 #include "csight.h"
 #include "csight_log.h"
+#include "gpio_remap_compat.h"
 #include <notification/notification_messages.h>
 
 #define TAG         "CSIght"
 #define CONFIG_PATH EXT_PATH("apps_data/csight/config.bin")
 
-// ─── Board presets — defined here, extern'd in header ─────────────────────────
-const BoardPreset BOARD_PRESETS[] = {
-    // ── Official Flipper expansion boards ─────────────────────────────────────
-    // FZ WiFi Dev Board uses ESP32-S2 — UART0 pins are GPIO43/44 on S2
-    { "FZ WiFi Dev Board",        43, 44,  1 },  // ESP32-S2: limited CSI
-    { "FlipMods Mini WiFi",       43, 44,  1 },  // ESP32-S2: limited CSI
-    { "FlipMods Combo",          15, 16,  1 },
-    { "FEBERIS (BPM Circuits)",   1,  3,  1 },
-    { "Marauder DblBarrel 5G",   15, 16,  1 },
-
-    // ── Espressif DevKits ─────────────────────────────────────────────────────
-    { "ESP32 DevKit V1",          1,  3,  1 },
-    { "ESP32 DevKit V4",          1,  3,  1 },
-    { "ESP32-S2 DevKit",          43, 44,  1 },  // S2: limited CSI, UART0=GPIO43/44
-    { "ESP32-S3 DevKitC-1",      43, 44,  2 },
-    { "ESP32-S3 DevKitM-1",      43, 44,  2 },
-    { "ESP32-C3 DevKitC-02",     21, 20,  2 },
-    { "ESP32-C3 DevKitM-1",      21, 20,  2 },
-    { "ESP32-C6 DevKitC-1",      16, 17,  2 },
-    { "ESP32-C6 DevKitM-1",      16, 17,  2 },
-    { "ESP32-C61 DevKitC-1",     16, 17,  2 },
-    { "ESP32-C5 DevKitC-1",       6,  7,  2 },  // Best CSI; needs IDF v5.5.2+
-
-    // ── Seeed XIAO ────────────────────────────────────────────────────────────
-    { "XIAO ESP32-C3",            21, 20,  2 },
-    { "XIAO ESP32-S3",            43, 44,  2 },
-    { "XIAO ESP32-C6",            16, 17,  2 },
-
-    // ── Popular mini/cheap boards ─────────────────────────────────────────────
-    { "C3 Super Mini",            21, 20,  2 },
-    { "C3 Mini (generic)",        21, 20,  2 },
-    { "ESP32-S3 Zero",            43, 44,  2 },
-    { "LOLIN S2 Mini",            43, 44,  1 },  // S2: limited CSI
-    { "LOLIN S3 Mini",            43, 44,  2 },
-    { "ESP32 Nano (Arduino)",      1,  3,  1 },
-    { "TTGO T-Display",            1,  3,  1 },
-    { "TTGO T-Display S3",        43, 44,  2 },
-    { "Lilygo T-Display S3",      43, 44,  2 },
-    { "Lilygo T7 S3",             43, 44,  2 },
-    { "Lilygo T-OI Plus (C3)",    21, 20,  2 },
-    { "DFRobot Beetle C3",        21, 20,  2 },
-    { "FireBeetle 2 ESP32-S3",    43, 44,  2 },
-    { "ESP32-CAM (AI-Thinker)",    1,  3,  1 },
-
-    // ── Adafruit ──────────────────────────────────────────────────────────────
-    { "Adafruit ESP32 Feather",    1,  3,  1 },
-    { "Adafruit Feather ESP32-S2", 43, 44,  1 },  // S2: limited CSI
-    { "Adafruit QT Py S2",         43, 44,  1 },  // S2: limited CSI
-    { "Adafruit QT Py S3",        43, 44,  2 },
-    { "Adafruit QT Py C3",        21, 20,  2 },
-    { "Adafruit Feather S3",      43, 44,  2 },
-
-    // ── SparkFun ──────────────────────────────────────────────────────────────
-    { "SparkFun ESP32 Thing",      1,  3,  1 },
-    { "SparkFun Thing Plus",       1,  3,  1 },
-    { "SparkFun C6 Qwiic",        16, 17,  2 },
-
-    // ── Lolin / WEMOS ─────────────────────────────────────────────────────────
-    { "LOLIN D32",                 1,  3,  1 },
-    { "LOLIN D32 Pro",             1,  3,  1 },
-    { "WEMOS D1 Mini32",           1,  3,  1 },
-    { "LOLIN S3",                 43, 44,  2 },
-    { "LOLIN C3 Mini",            21, 20,  2 },
-
-    // ── M5Stack ───────────────────────────────────────────────────────────────
-    { "M5Stack Core",              1,  3,  1 },
-    { "M5Stack Core2",             1,  3,  1 },
-    { "M5Stack CoreS3",           43, 44,  2 },
-    { "M5Stamp C3",               21, 20,  2 },
-    { "M5Stamp S3",               43, 44,  2 },
-    { "M5StickC Plus",             1,  3,  1 },
-    { "M5StickC Plus2",            1,  3,  1 },
-    { "M5AtomS3",                 43, 44,  2 },
-
-    // ── Unexpected Maker ──────────────────────────────────────────────────────
-    { "TinyS3",                   43, 44,  2 },
-    { "FeatherS3",                43, 44,  2 },
-    { "FeatherS2",                43, 44,  1 },  // S2: limited CSI
-    { "TinyS2",                   43, 44,  1 },  // S2: limited CSI
-    { "ProS3",                    43, 44,  2 },
-    { "NanoS3",                   43, 44,  2 },
-
-    // ── Olimex ────────────────────────────────────────────────────────────────
-    { "Olimex ESP32-EVB",          1,  3,  1 },
-    { "Olimex ESP32-S3",          43, 44,  2 },
-
-    // ── NodeMCU ───────────────────────────────────────────────────────────────
-    { "NodeMCU-32S",               1,  3,  1 },
-    { "NodeMCU ESP-C3-32S",       21, 20,  2 },
-
-    // ── Custom ────────────────────────────────────────────────────────────────
-    { "Custom...",                 0,  0,  0 },
-};
-const int BOARD_PRESET_COUNT = (int)(sizeof(BOARD_PRESETS) / sizeof(BOARD_PRESETS[0]));
-
 // ─── Config struct ────────────────────────────────────────────────────────────
 typedef struct {
     uint8_t  magic;           // CONFIG_MAGIC = struct is valid
-    uint8_t  preset_idx;
-    uint8_t  tx_pin;
-    uint8_t  rx_pin;
     uint8_t  sensitivity;
     uint8_t  display_mode;
     uint8_t  wifi_channel;    // 0 = auto, 1-13 = manual
@@ -118,7 +21,7 @@ typedef struct {
     uint8_t  schedule_end_hour;
 } CSIghtConfig;
 
-#define CONFIG_MAGIC 0xCB  // bumped: schedule_start/end_hour added (v3.3)
+#define CONFIG_MAGIC 0xCC  // bumped: preset_idx/tx_pin/rx_pin dropped, board-preset UI removed (v3.4)
 
 // ─── Config I/O ──────────────────────────────────────────────────────────────
 void csight_config_save(CSIghtApp* app) {
@@ -129,9 +32,6 @@ void csight_config_save(CSIghtApp* app) {
     if(storage_file_open(file, CONFIG_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
         CSIghtConfig cfg = {
             .magic           = CONFIG_MAGIC,
-            .preset_idx      = app->preset_idx,
-            .tx_pin          = app->tx_pin,
-            .rx_pin          = app->rx_pin,
             .sensitivity     = app->sensitivity,
             .display_mode    = (uint8_t)app->display_mode,
             .wifi_channel    = app->wifi_channel,
@@ -160,9 +60,6 @@ bool csight_config_load(CSIghtApp* app) {
         CSIghtConfig cfg;
         if(storage_file_read(file, &cfg, sizeof(cfg)) == sizeof(cfg)
            && cfg.magic == CONFIG_MAGIC) {
-            app->preset_idx      = cfg.preset_idx < (uint8_t)BOARD_PRESET_COUNT ? cfg.preset_idx : 0;
-            app->tx_pin          = (cfg.tx_pin  != 0xFF) ? cfg.tx_pin  : 13;
-            app->rx_pin          = (cfg.rx_pin  != 0xFF) ? cfg.rx_pin  : 14;
             app->sensitivity     = cfg.sensitivity <= 10 ? cfg.sensitivity : 5;
             app->display_mode    = cfg.display_mode <= (uint8_t)DisplayModeHeatmap ?
                                    (DisplayMode)cfg.display_mode : DisplayModeRadar;
@@ -192,9 +89,6 @@ bool csight_config_load(CSIghtApp* app) {
 
     if(!loaded) {
         // First run defaults
-        app->preset_idx      = 0;
-        app->tx_pin          = 13;
-        app->rx_pin          = 14;
         app->sensitivity     = 5;
         app->display_mode    = DisplayModeRadar;
         app->wifi_channel    = 0;   // 0 = not yet auto-selected
@@ -308,6 +202,7 @@ void csight_tick(CSIghtApp* app) {
             csight_uart_init(app);
             csight_send_probe(app);
             app->esp32_probe_ok         = false;
+            app->esp32_probe_tried_alt  = false;
             app->esp32_check_start_tick = furi_get_tick();
             app->state                  = AppStateEsp32Check;
             app->boot_frame             = 0;
@@ -319,8 +214,32 @@ void csight_tick(CSIghtApp* app) {
             csight_send_handshake(app);
             app->state = AppStateConnecting;
         } else if(furi_get_tick() - app->esp32_check_start_tick > furi_ms_to_ticks(1500)) {
-            app->esp32_check_focus_settings = true;
-            app->state                      = AppStateEsp32NotFound;
+            if(!app->esp32_probe_tried_alt) {
+                // Fox_ESP32_FW only ever answers on one of the Flipper's two
+                // UART peripherals (USART or LPUART - the shared gpio_remap
+                // setting every Fox ESP32 app reads/writes). Rather than
+                // making the user pick their board/pins from a list ("Fox
+                // Edition" only ever talks to Fox's own firmware, so there's
+                // nothing else to identify), automatically flip to the other
+                // channel and try once more before giving up - the same
+                // two-channel sweep fox_esp32_terminal's action_check_esp32()
+                // does at boot.
+                app->esp32_probe_tried_alt = true;
+                csight_uart_deinit(app);
+                GpioRemapSettings gpio_remap;
+                gpio_remap_settings_load(&gpio_remap);
+                gpio_remap.esp32_uart_channel =
+                    (gpio_remap.esp32_uart_channel == GpioRemapEsp32UartLpuart)
+                        ? GpioRemapEsp32UartUsart
+                        : GpioRemapEsp32UartLpuart;
+                gpio_remap_settings_save(&gpio_remap);
+                csight_uart_init(app); // re-reads gpio_remap, now the alt channel
+                csight_send_probe(app);
+                app->esp32_check_start_tick = furi_get_tick();
+            } else {
+                app->esp32_check_focus_settings = false; // default focus "Retry"
+                app->state                      = AppStateEsp32NotFound;
+            }
         }
     }
 
@@ -380,7 +299,7 @@ void csight_tick(CSIghtApp* app) {
     }
 }
 
-// Board preset/pin config is reached from two different places: the initial
+// AppStateConnectSettings is reached from two different places: the initial
 // ESP32-not-found gate (no connection yet — committing should re-run the
 // probe) and the mid-session Settings menu (already connected — committing
 // should just return to the main menu without interrupting anything).
@@ -388,8 +307,16 @@ static void settings_committed(CSIghtApp* app) {
     if(app->esp32_probe_ok) {
         app->state = AppStateMainMenu;
     } else {
+        // Not connected yet - the UART channel may have just been changed on
+        // the Connection screen, so reopen it (csight_uart_init re-reads the
+        // shared gpio_remap setting) before probing again, and let the
+        // two-channel auto-sweep run fresh in case the newly picked channel
+        // isn't it either.
+        csight_uart_deinit(app);
+        csight_uart_init(app);
         csight_send_probe(app);
         app->esp32_probe_ok         = false;
+        app->esp32_probe_tried_alt  = false;
         app->esp32_check_start_tick = furi_get_tick();
         app->state                  = AppStateEsp32Check;
     }
@@ -407,10 +334,14 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
                 app->esp32_check_focus_settings = !app->esp32_check_focus_settings;
             } else if(key == InputKeyOk) {
                 if(app->esp32_check_focus_settings) {
-                    app->state = AppStatePresetSelect;
+                    GpioRemapSettings gpio_remap;
+                    gpio_remap_settings_load(&gpio_remap);
+                    app->esp32_uart_channel = gpio_remap.esp32_uart_channel;
+                    app->state = AppStateConnectSettings;
                 } else {
                     csight_send_probe(app);
                     app->esp32_probe_ok         = false;
+                    app->esp32_probe_tried_alt  = false; // full two-channel sweep again
                     app->esp32_check_start_tick = furi_get_tick();
                     app->state                  = AppStateEsp32Check;
                 }
@@ -455,50 +386,20 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
             }
             break;
 
-        // ── Compat check — shown after handshake ───────────────────────────────
-        case AppStateCompatCheck:
-            if(key == InputKeyOk && app->csi_support > 0) {
-                app->state = AppStatePresetSelect;
-            }
-            if(key == InputKeyBack) {
-                app->state = AppStateMainMenu;
-            }
-            break;
-
-        // ── Board preset select ────────────────────────────────────────────────
-        case AppStatePresetSelect:
-            if(key == InputKeyUp && app->preset_idx > 0) {
-                app->preset_idx--;
-            } else if(key == InputKeyDown && app->preset_idx < (uint8_t)(BOARD_PRESET_COUNT - 1)) {
-                app->preset_idx++;
+        // ── Connection settings — manual USART/LPUART override + re-probe ──────
+        case AppStateConnectSettings:
+            if(key == InputKeyLeft || key == InputKeyRight) {
+                app->esp32_uart_channel = (app->esp32_uart_channel == GpioRemapEsp32UartLpuart)
+                                               ? GpioRemapEsp32UartUsart
+                                               : GpioRemapEsp32UartLpuart;
+                GpioRemapSettings gpio_remap = {.esp32_uart_channel = app->esp32_uart_channel};
+                gpio_remap_settings_save(&gpio_remap);
             } else if(key == InputKeyOk) {
-                if(app->preset_idx != (uint8_t)BOARD_PRESET_CUSTOM) {
-                    app->tx_pin = BOARD_PRESETS[app->preset_idx].tx_pin;
-                    app->rx_pin = BOARD_PRESETS[app->preset_idx].rx_pin;
-                    app->config_exists = true;
-                    csight_config_save(app);
-                    settings_committed(app);
-                } else {
-                    app->state = AppStatePinConfig;
-                }
-            } else if(key == InputKeyBack) {
-                app->state = AppStateSettings;
-            }
-            break;
-
-        // ── Custom pin config ──────────────────────────────────────────────────
-        case AppStatePinConfig:
-            if(key == InputKeyUp   && app->tx_pin < 39) app->tx_pin++;
-            if(key == InputKeyDown && app->tx_pin > 0)  app->tx_pin--;
-            if(key == InputKeyRight && app->rx_pin < 39) app->rx_pin++;
-            if(key == InputKeyLeft  && app->rx_pin > 0)  app->rx_pin--;
-            if(key == InputKeyOk) {
                 app->config_exists = true;
                 csight_config_save(app);
                 settings_committed(app);
-            }
-            if(key == InputKeyBack) {
-                app->state = AppStatePresetSelect;
+            } else if(key == InputKeyBack) {
+                app->state = app->esp32_probe_ok ? AppStateSettings : AppStateEsp32NotFound;
             }
             break;
 
@@ -569,8 +470,11 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
                     if(app->log_enabled) csight_log_init(app); // (re)create file if needed
                 } else if(app->settings_idx == (uint8_t)SettingTestAlert) {
                     notification_message(app->notifications, &sequence_blink_red_100);
-                } else if(app->settings_idx == (uint8_t)SettingChangeBoard) {
-                    app->state = AppStatePresetSelect;
+                } else if(app->settings_idx == (uint8_t)SettingConnection) {
+                    GpioRemapSettings gpio_remap;
+                    gpio_remap_settings_load(&gpio_remap);
+                    app->esp32_uart_channel = gpio_remap.esp32_uart_channel;
+                    app->state = AppStateConnectSettings;
                 }
             }
             if(app->settings_idx == (uint8_t)SettingSensitivity) {
@@ -684,14 +588,8 @@ static void draw_cb(Canvas* c, void* ctx) {
         case AppStateMainMenu:
             csight_draw_main_menu(c, app);
             break;
-        case AppStateCompatCheck:
-            csight_draw_compat(c, app);
-            break;
-        case AppStatePresetSelect:
-            csight_draw_preset(c, app);
-            break;
-        case AppStatePinConfig:
-            csight_draw_pin_config(c, app);
+        case AppStateConnectSettings:
+            csight_draw_connect_settings(c, app);
             break;
         case AppStateScanning:
             switch(app->display_mode) {

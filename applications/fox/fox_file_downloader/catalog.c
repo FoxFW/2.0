@@ -135,7 +135,10 @@ static bool catalog_disclaimer_input(InputEvent* event, void* context) {
 
     switch(event->key) {
     case InputKeyOk:
-    case InputKeyBack:
+        // Only "[OK]" is drawn on this screen's button - Back used to
+        // silently dismiss it too, an undocumented extra binding flagged by
+        // the 2026-09-13 footer-button audit (FOOTER_BUTTON_AUDIT.md project
+        // doc). Only OK dismisses it now.
         if(app->catalog_disclaimer_is_mismatch) {
             if(app->download_return_view == FoxDownloaderViewMenu) {
                 app_switch_to_menu(app, app->menu_return_context);

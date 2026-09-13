@@ -56,6 +56,7 @@ companion firmware, **Fox ESP32 Firmware**, flashed once to the ESP32 itself.
 | App | What it does |
 |---|---|
 | **FoxHub** | The main control hub — WiFi recon and attacks, BLE scanning and tag detection, an HTTP/WebSocket bridge, the FoxScript engine, and a raw Terminal |
+| **FoxLAB** | Opens a full browser control page hosted directly on the ESP32 — no USB, no PC. See below. |
 | **Fox ESP32 Detector** | Diagnostic tool — scans every GPIO pin pair and baud rate to identify a connected ESP32 and confirm your wiring |
 | **Fox ESP32 Flasher** | Flash Fox ESP32 Firmware onto a connected board directly from the Flipper — no PC, no browser, no files to download |
 | **Fox Update Downloader** | Checks GitHub for newer FoxFW and Fox ESP32 Firmware releases, downloads them over the ESP32 bridge, and hands off to install |
@@ -75,6 +76,34 @@ separate repository: **[github.com/FoxFW/Fox_ESP32_FW](https://github.com/FoxFW/
 The complete walkthrough for every app above — menus, commands, and board
 compatibility — is in `FoxESP32_Help.html`, also linked from the
 [Full User Guide](https://foxfw.github.io/fox-web/).
+
+### FoxLAB — browser control, entirely over WiFi
+
+**FoxLAB** works differently from the rest of the suite above: instead of an
+on-device menu, opening it starts a `FoxLAB` WiFi hotspot (password
+`88888888`) that any phone, tablet, or laptop can join, then serves its
+control page from the ESP32 itself at `http://192.168.4.1/` (most devices
+can also reach it at `http://foxlab.local/` — handy, but the IP is the one
+that always works, so use it if the name doesn't resolve). No PC, no USB
+cable, no separate app to install — join the hotspot, open that address in
+a browser, and it's a two-tab control panel:
+
+- **ESP32 tab** — the same WiFi/BLE/GPS/IR/SubGHz/AI command console as
+  FoxHub above, now driven over WiFi (HTTP + WebSocket) instead of a menu.
+- **Flipper tab** — dashboard, file browser, a live screen mirror with
+  remote D-pad input, NFC tools, a Paint canvas, a community showcase, a
+  remote FAP compiler, a pulse plotter, a Sub-GHz signal viewer, and
+  settings (clock sync, reboot) — all tunneled over WiFi through the ESP32
+  to a small companion service that FoxLAB itself runs (the Fox Remote
+  protocol, "FLPR" — not stock Flipper RPC). That means the **FoxLAB app
+  has to stay open on the Flipper** for this tab to work, not closed —
+  closing it, or the Flipper losing power or its UART connection to the
+  ESP32, disconnects the page, which says so clearly if it happens. There's
+  no CLI terminal on this tab.
+
+Both tabs reconnect automatically if the WiFi link drops. Every browser on
+the `FoxLAB` network reaches the same page, so this also works as a way to
+hand a teammate control without handing over the physical devices.
 
 ---
 

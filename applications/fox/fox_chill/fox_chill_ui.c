@@ -10,7 +10,12 @@ void fox_chill_draw_double_border(Canvas* canvas, int32_t x, int32_t y, int32_t 
     canvas_draw_rframe(canvas, x + 1, y + 1, w - 2, h - 2, 2);
 }
 
-void fox_chill_draw_next_button(Canvas* canvas, const char* label) {
+/* focused: filled pill + white icon/text when true (the default - most
+ * call sites are single-button screens where this is always true, i.e.
+ * Pattern C-correct/always-focused), an outlined pill + black icon/text
+ * when false (used only by content_view.c, when this is the unfocused
+ * side of its two-button footer - see that file's content_input_cb()). */
+void fox_chill_draw_next_button(Canvas* canvas, bool focused, const char* label) {
     const Icon* icon = &I_ButtonCenter_7x7;
     int32_t icon_w = icon_get_width(icon);
     int32_t icon_h = icon_get_height(icon);
@@ -25,8 +30,12 @@ void fox_chill_draw_next_button(Canvas* canvas, const char* label) {
     int32_t btn_x = (128 - btn_w) / 2;
 
     canvas_set_color(canvas, ColorBlack);
-    canvas_draw_rbox(canvas, btn_x, btn_y, btn_w, btn_h, 3);
-    canvas_set_color(canvas, ColorWhite);
+    if(focused) {
+        canvas_draw_rbox(canvas, btn_x, btn_y, btn_w, btn_h, 3);
+        canvas_set_color(canvas, ColorWhite);
+    } else {
+        canvas_draw_rframe(canvas, btn_x, btn_y, btn_w, btn_h, 3);
+    }
     int32_t gx = btn_x + pad;
     canvas_draw_icon(canvas, gx, btn_y + (btn_h - icon_h) / 2, icon);
     canvas_draw_str_aligned(
@@ -36,6 +45,7 @@ void fox_chill_draw_next_button(Canvas* canvas, const char* label) {
 
 void fox_chill_draw_left_pill_button(
     Canvas* canvas,
+    bool focused,
     const Icon* icon,
     const char* label,
     int32_t x) {
@@ -51,8 +61,12 @@ void fox_chill_draw_left_pill_button(
     int32_t btn_w = group_w + pad * 2;
 
     canvas_set_color(canvas, ColorBlack);
-    canvas_draw_rbox(canvas, x, btn_y, btn_w, btn_h, 3);
-    canvas_set_color(canvas, ColorWhite);
+    if(focused) {
+        canvas_draw_rbox(canvas, x, btn_y, btn_w, btn_h, 3);
+        canvas_set_color(canvas, ColorWhite);
+    } else {
+        canvas_draw_rframe(canvas, x, btn_y, btn_w, btn_h, 3);
+    }
     int32_t gx = x + pad;
     canvas_draw_icon(canvas, gx, btn_y + (btn_h - icon_h) / 2, icon);
     canvas_draw_str_aligned(

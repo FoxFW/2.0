@@ -3,7 +3,9 @@
 #include <gui/gui.h>
 #include <gui/view_port.h>
 #include <gui/elements.h>
+#include <gui/icon.h>
 #include <input/input.h>
+#include "subghz_frequency_analyzer_icons.h"
 #include <loader/loader.h>
 #include <storage/storage.h>
 #include <notification/notification.h>
@@ -420,10 +422,19 @@ static void draw_cb(Canvas* canvas, void* ctx) {
                             subghz_setting_get_preset_name(app->setting, app->preset_idx));
 
     if(app->screen == FAScreenConfig) {
-        canvas_set_color(canvas, ColorBlack);
+        /* Approved "Popup window" pattern (documented 2026-09-13,
+         * FOOTER_BUTTON_AUDIT.md project doc): a full-canvas modal that
+         * blanks whatever screen is underneath, framed with a plain
+         * canvas_draw_frame() border, normal black-on-background colors
+         * throughout - same foreground/background convention every other
+         * screen in the suite uses, not the inverted white-on-black "dark
+         * mode" look this overlay had before (canvas_draw_box() filled the
+         * whole canvas ColorBlack, then everything else drew in ColorWhite
+         * on top of it). Fixed per the user's 2026-09-13 direction. */
+        canvas_set_color(canvas, ColorWhite);
         canvas_draw_box(canvas, 0, 0, 128, 64);
 
-        canvas_set_color(canvas, ColorWhite);
+        canvas_set_color(canvas, ColorBlack);
         canvas_draw_frame(canvas, 4, 6, 120, 52);
 
         canvas_set_font(canvas, FontSecondary);
@@ -436,10 +447,47 @@ static void draw_cb(Canvas* canvas, void* ctx) {
         canvas_draw_str(canvas, 8,  34, "<");
         canvas_draw_str(canvas, 116, 34, ">");
 
-        canvas_set_color(canvas, ColorWhite);
-        canvas_draw_rframe(canvas, 44, 49, 40, 11, 3);
-        canvas_draw_str_aligned(canvas, 64, 54, AlignCenter, AlignCenter, "[OK] Apply");
-        canvas_set_color(canvas, ColorBlack);
+        {
+            // Filled black pill with the real I_ButtonCenter_7x7 icon,
+            // matching fox_lab/message_view.c's message_draw_one_button()
+            // reference exactly (icon_gap=3/pad_x=10 included) - this app
+            // now carries its own images/ButtonCenter_7x7.png
+            // (fap_icon_assets="images" in application.fam), the same
+            // per-app-local-copy convention fox_lab/fox_chameleon/etc.
+            // already use, rather than the hand-drawn checkmark glyph this
+            // screen used as a stand-in before. Previously an outlined box
+            // that was never filled, with the literal "[OK] Apply" text
+            // instead of an icon - flagged as "Pattern C-incorrect" by the
+            // 2026-09-13 footer-button audit. Also moved up from y=49 to
+            // y=42 so its bottom edge (42+11=53) clears the popup frame's
+            // bottom edge (6+52=58) by 5px instead of overrunning it by 2px.
+            // Input handling here was already correct (OK applies,
+            // Left/Right cycle the preset) - only the visual needed fixing.
+            const char* label = "Apply";
+            const Icon* icon = &I_ButtonCenter_7x7;
+            int32_t icon_w = icon_get_width(icon);
+            int32_t icon_h = icon_get_height(icon);
+            int32_t icon_gap = 3;
+            int32_t pad_x = 10;
+            canvas_set_font(canvas, FontSecondary);
+            int32_t content_w = icon_w + icon_gap + (int32_t)canvas_string_width(canvas, label);
+            int32_t btn_w = content_w + pad_x * 2;
+            int32_t btn_h = 11;
+            int32_t btn_x = (128 - btn_w) / 2;
+            int32_t btn_y = 42;
+
+            canvas_set_color(canvas, ColorBlack);
+            canvas_draw_rbox(canvas, btn_x, btn_y, btn_w, btn_h, 3);
+            canvas_set_color(canvas, ColorWhite);
+
+            int32_t gx = btn_x + (btn_w - content_w) / 2;
+            int32_t gy_icon = btn_y + (btn_h - icon_h) / 2;
+            canvas_draw_icon(canvas, gx, gy_icon, icon);
+            canvas_draw_str_aligned(
+                canvas, gx + icon_w + icon_gap, btn_y + btn_h / 2, AlignLeft, AlignCenter, label);
+
+            canvas_set_color(canvas, ColorBlack);
+        }
     }
 
     furi_mutex_release(app->mutex);

@@ -1,5 +1,6 @@
 #include "land_rover_v0.h"
 
+#include <lib/subghz/blocks/custom_btn_i.h>
 #include <string.h>
 
 #define TAG "LandRoverV0"
@@ -738,6 +739,12 @@ SubGhzProtocolStatus subghz_protocol_decoder_land_rover_v0_deserialize(
         instance->generic.serial = instance->serial;
         instance->generic.btn    = instance->button;
         instance->generic.cnt    = instance->count;
+
+        // Land Rover V0 mapping: Up=0x02 (Lock), OK=0x04 (Unlock). 2 buttons.
+        if(subghz_custom_btn_get_original() == 0) {
+            subghz_custom_btn_set_original(instance->generic.btn);
+        }
+        subghz_custom_btn_set_max(2);
     }
 
     return ret;
@@ -902,6 +909,26 @@ SubGhzProtocolStatus subghz_protocol_encoder_land_rover_v0_deserialize(
         flipper_format_rewind(flipper_format);
         if(lr_ff_read_u32(flipper_format, LAND_ROVER_V0_FF_BTNSIG, &u32))
             instance->command_signature = u32 & 0xFFFFFFU;
+
+        // Land Rover V0 mapping: Up=0x02 (Lock), OK=0x04 (Unlock).
+        {
+            const uint8_t original_btn = instance->button;
+            if(subghz_custom_btn_get_original() == 0) {
+                subghz_custom_btn_set_original(original_btn);
+            }
+            subghz_custom_btn_set_max(2);
+            uint8_t custom_btn_id = subghz_custom_btn_get();
+            uint8_t new_btn = original_btn;
+            switch(custom_btn_id) {
+            case SUBGHZ_CUSTOM_BTN_UP: new_btn = LAND_ROVER_V0_BTN_LOCK;   break;
+            case SUBGHZ_CUSTOM_BTN_OK: new_btn = LAND_ROVER_V0_BTN_UNLOCK; break;
+            default: break;
+            }
+            if(new_btn != original_btn && new_btn != 0U) {
+                instance->button = new_btn;
+                have_button = true;
+            }
+        }
 
         if(have_button) {
             const uint32_t sig = land_rover_v0_signature_from_button(instance->button);

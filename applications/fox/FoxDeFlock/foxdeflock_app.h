@@ -44,7 +44,7 @@ typedef struct {
 typedef enum {
     FoxDeFlockStateEsp32Check,
     FoxDeFlockStateEsp32NotFound,
-    FoxDeFlockStatePinSelect,
+    FoxDeFlockStateConnectSettings,
     FoxDeFlockStateScanning,
     FoxDeFlockStatePaused,
     FoxDeFlockStateDetail,
@@ -72,6 +72,17 @@ typedef struct {
     bool esp32_probe_ok;
     uint32_t esp32_check_start_tick;
     bool esp32_check_focus_settings;
+    /* Set once the boot/retry probe has already auto-flipped to the other
+     * UART channel and failed there too - one more timeout after that
+     * goes to Esp32NotFound instead of flipping again. Matches
+     * CSIght_FoxEdition's own AppStateEsp32Check two-channel sweep
+     * (csight_app.c), itself modeled on fox_esp32_terminal's
+     * action_check_esp32() - every Fox ESP32 app auto-tries both
+     * channels before ever asking the user. Reset to false at every
+     * *fresh* start of the check (boot, Esp32NotFound's Retry, Connect
+     * Settings' OK-retry); set true only by the in-flight auto-flip
+     * itself. */
+    bool esp32_probe_tried_alt;
     FoxDeFlockScanMode scan_mode;
     uint32_t mode_started_tick;
 

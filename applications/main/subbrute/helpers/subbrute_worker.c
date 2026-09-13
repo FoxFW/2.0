@@ -4,7 +4,7 @@
 #include <toolbox/stream/stream.h>
 #include <flipper_format.h>
 #include <flipper_format_i.h>
-#include <lib/subghz/subghz_protocol_registry.h>
+#include "../protocols/protocol_items.h"
 // use to clear custom_btn
 #include <lib/subghz/blocks/custom_btn.h>
 
@@ -36,8 +36,11 @@ SubBruteWorker* subbrute_worker_alloc(const SubGhzDevice* radio_device) {
     instance->decoder_result = NULL;
     instance->transmitter = NULL;
     instance->environment = subghz_environment_alloc();
+    /* Point at SubBrute's own private protocol registry (../protocols/
+     * protocol_items.c) instead of core's shrunk one - see that file's
+     * header comment (task #76). */
     subghz_environment_set_protocol_registry(
-        instance->environment, (void*)&subghz_protocol_registry);
+        instance->environment, (void*)&subbrute_subghz_protocol_registry);
 
     instance->transmit_mode = false;
 
@@ -304,9 +307,15 @@ bool subbrute_worker_transmit_current_key(SubBruteWorker* instance, uint64_t ste
             instance->opencode);
     }
 
-    subbrute_worker_subghz_transmit(instance, flipper_format);
-
-    result = true;
+    result = subbrute_worker_subghz_transmit(instance, flipper_format);
+    if(!result) {
+        // See subbrute_worker_subghz_transmit()'s own comment - protocol not
+        // in this firmware's active registry. Flag it the same way the
+        // scenes already react to for other worker errors, rather than
+        // silently doing nothing on "Resend".
+        instance->state = SubBruteWorkerStateIDLE;
+        subbrute_worker_send_callback(instance);
+    }
 #ifdef FURI_DEBUG
     FURI_LOG_W(TAG, "Manual transmit done");
 #endif
@@ -342,7 +351,7 @@ void subbrute_worker_set_callback(
     instance->context = context;
 }
 
-void subbrute_worker_subghz_transmit(SubBruteWorker* instance, FlipperFormat* flipper_format) {
+bool subbrute_worker_subghz_transmit(SubBruteWorker* instance, FlipperFormat* flipper_format) {
     const uint8_t timeout = instance->tx_timeout_ms;
     while(instance->transmit_mode) {
         furi_delay_ms(timeout);
@@ -357,6 +366,42 @@ void subbrute_worker_subghz_transmit(SubBruteWorker* instance, FlipperFormat* fl
 
     instance->transmitter =
         subghz_transmitter_alloc_init(instance->environment, instance->protocol_name);
+
+    /* Real-hardware report, 2026-09-12: picking a CAME (also reproduced by
+     * NICE/Chamberlain/Linear/Ansonic/Holtek/SMC5326 - anything other than
+     * the two Princeton-based brands) attack and pressing Start crashed the
+     * Flipper instantly ("Flipper crashed and was rebooted"). Root cause:
+     * lib/subghz/protocols/protocol_items.c deliberately comments these
+     * protocols out of the core firmware's subghz_protocol_registry now
+     * that the external Garage/Gate app owns their auto-detect duty (see
+     * that file's own comment). This vendored SubBrute app used to point
+     * its SubGhzEnvironment straight at that same shrunk core registry, so
+     * subghz_transmitter_alloc_init() silently returned NULL for any
+     * protocol name no longer in it, and the very next line used to call
+     * subghz_transmitter_deserialize(NULL, ...), whose furi_check(instance)
+     * is a hard crash on a NULL Flipper device, not a recoverable error -
+     * exactly the reboot the report described.
+     *
+     * Fixed two ways: subbrute_worker_alloc() above now points this
+     * environment at ../protocols/protocol_items.c's private registry,
+     * SubBrute's own vendored copy of exactly the protocols it needs
+     * (mirroring applications/fox/subghz_garage's proven pattern for the
+     * same "external .fap can't link core's non-exported protocol structs"
+     * problem), so all 8 brand groups - including these - resolve and
+     * transmit again. The NULL guard below stays anyway as defense in
+     * depth: if instance->protocol_name is ever something outside even
+     * this private registry (e.g. a Load File attack on a protocol this
+     * app doesn't vendor), this fails that one transmit cleanly instead of
+     * crashing the device. */
+    if(instance->transmitter == NULL) {
+        FURI_LOG_E(
+            TAG,
+            "Protocol \"%s\" is not in this firmware's active SubGhz registry - cannot transmit",
+            instance->protocol_name);
+        instance->transmit_mode = false;
+        return false;
+    }
+
     subghz_transmitter_deserialize(instance->transmitter, flipper_format);
 
     subghz_devices_reset(instance->radio_device);
@@ -387,6 +432,8 @@ void subbrute_worker_subghz_transmit(SubBruteWorker* instance, FlipperFormat* fl
     //test_read_full_stream(stream, "Transmit data");
 
     subghz_custom_btns_reset();
+
+    return true;
 }
 
 void subbrute_worker_send_callback(SubBruteWorker* instance) {
@@ -455,7 +502,16 @@ int32_t subbrute_worker_thread(void* context) {
         //furi_delay_ms(SUBBRUTE_MANUAL_TRANSMIT_INTERVAL / 4);
 #endif
 
-        subbrute_worker_subghz_transmit(instance, flipper_format);
+        if(!subbrute_worker_subghz_transmit(instance, flipper_format)) {
+            // See subbrute_worker_subghz_transmit()'s own comment - protocol
+            // not in this firmware's active registry. Stop the bruteforce
+            // right away instead of spinning through every remaining step
+            // transmitting nothing; IDLE here routes to the same "unable to
+            // continue" error path the scenes already use for other worker
+            // errors (see subbrute_scene_setup/run_attack_device_state_changed).
+            local_state = SubBruteWorkerStateIDLE;
+            break;
+        }
 
         if(instance->step + 1 > instance->max_value) {
 #ifdef FURI_DEBUG

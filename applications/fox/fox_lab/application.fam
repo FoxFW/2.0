@@ -1,0 +1,14 @@
+App(
+    appid="fox_lab",
+    name="FoxLAB",
+    apptype=FlipperAppType.EXTERNAL,
+    icon="I_fox_generic_14x14",  # 14x14 Apps-menu icon; see assets/icons/Fox/fox_generic_14x14.png
+    entry_point="fox_lab_main",
+    stack_size=8 * 1024,
+    fap_category="Fox/ESP32",
+    fap_version="0.1",
+    fap_author="FoxFW",
+    fap_icon="icon.png",
+    fap_icon_assets="images",
+    fap_description="FoxLAB - flips the FoxHUB WiFi portal (foxfw-lab.html) on/off on an ESP32 running Fox ESP32 Firmware",
+)

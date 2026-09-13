@@ -2,12 +2,15 @@ App(
     appid="ram_monitor",
     name="RAM Monitor",
     apptype=FlipperAppType.EXTERNAL,
+    icon="I_fox_generic_14x14",  # 14x14 Apps-menu icon; see assets/icons/Fox/fox_generic_14x14.png
     entry_point="ram_monitor_app",
     requires=["gui"],
     stack_size=1 * 1024,
-    fap_category="Debug",
-    fap_description="Temporary RAM/heap diagnostic display (same numbers as CLI 'free') - delete when done testing.",
-    # No fap_icon - it's optional (elfmanifest.py just skips embedding one
-    # if unset), and generating a real 10x10 PNG isn't worth it for a
-    # throwaway tool. Shows with a blank/default icon in the Apps list.
+    fap_icon="icon.png",
+    fap_category="Fox",
+    fap_description="RAM/heap diagnostic display (same numbers as CLI 'free'), kept as a permanent tool.",
+    # This started as a throwaway "delete when done testing" scratch app
+    # with no icon of its own - kept permanently instead (most users will
+    # never open it, but it's useful enough to leave in), so it now gets
+    # the same 10x10 "F in a box" fap_icon every other kept Fox app uses.
 )

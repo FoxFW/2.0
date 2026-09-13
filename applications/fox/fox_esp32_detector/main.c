@@ -628,7 +628,10 @@ static bool result_table_input_cb(InputEvent* event, void* context) {
     if(event->type != InputTypeShort) return false;
     switch(event->key) {
     case InputKeyOk:
-    case InputKeyRight:
+        // Single OK-style "Rescan" button drawn below the result table, with
+        // no left/right focus toggle - Right used to also fire it, an
+        // undocumented extra binding flagged by the 2026-09-13 footer-button
+        // audit (FOOTER_BUTTON_AUDIT.md project doc). Only OK activates it now.
         start_scan(app);
         return true;
     default:

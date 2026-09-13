@@ -1,10 +1,9 @@
 #include "csight.h"
-#include <gui/elements.h>
+#include "gpio_remap_compat.h"
 
 // ─── Screen constants ─────────────────────────────────────────────────────────
 #define SCREEN_W         128
 #define SCREEN_H          64
-#define PRESET_VISIBLE     5
 
 // ─── Trig lookup — defined here, extern'd in header ──────────────────────────
 const int8_t SIN64[64] = {
@@ -101,11 +100,27 @@ void csight_draw_esp32_check(Canvas* c, CSIghtApp* app) {
     draw_centered_str(c, 38, dots);
 }
 
+#define CSIGHT_BUTTON_H 13
+#define CSIGHT_BUTTON_PAD_X 4
+#define CSIGHT_BUTTON_GAP 6
+#define CSIGHT_BUTTON_R 3
+
+/* Focus-then-confirm two-button bar (Left/Right toggles focus, OK
+ * confirms) - was drawn as plain sharp-cornered canvas_draw_box()/frame()
+ * rectangles with text manually offset by a fixed (+4,+9), inconsistent
+ * with the suite's established rounded-pill button look (same
+ * canvas_draw_rbox()/canvas_draw_rframe() + centered-text pattern already
+ * used by restart_confirm_view.c and FoxDeFlock's own identical fix, per
+ * the 2026-09-13 footer-button audit - FOOTER_BUTTON_AUDIT.md flagged
+ * this exact screen alongside FoxDeFlock's as "right input model,
+ * off-brand visuals"). Geometry (position/size/gap) is unchanged - only
+ * the corner style and text centering were brought in line with the rest
+ * of the Fox suite. */
 static void draw_two_buttons(Canvas* c, bool left_focused, const char* left, const char* right) {
-    int y = 50, h = 13;
-    int lw = canvas_string_width(c, left) + 8;
-    int rw = canvas_string_width(c, right) + 8;
-    int gap = 6;
+    int y = 50, h = CSIGHT_BUTTON_H;
+    int lw = canvas_string_width(c, left) + CSIGHT_BUTTON_PAD_X * 2;
+    int rw = canvas_string_width(c, right) + CSIGHT_BUTTON_PAD_X * 2;
+    int gap = CSIGHT_BUTTON_GAP;
     int total = lw + gap + rw;
     int lx = (SCREEN_W - total) / 2;
     int rx = lx + lw + gap;
@@ -113,23 +128,23 @@ static void draw_two_buttons(Canvas* c, bool left_focused, const char* left, con
     canvas_set_font(c, FontSecondary);
 
     if(left_focused) {
-        canvas_draw_box(c, lx, y, lw, h);
+        canvas_draw_rbox(c, lx, y, lw, h, CSIGHT_BUTTON_R);
         canvas_set_color(c, ColorWhite);
-        canvas_draw_str(c, lx + 4, y + 9, left);
+        canvas_draw_str_aligned(c, lx + lw / 2, y + h / 2, AlignCenter, AlignCenter, left);
         canvas_set_color(c, ColorBlack);
     } else {
-        canvas_draw_frame(c, lx, y, lw, h);
-        canvas_draw_str(c, lx + 4, y + 9, left);
+        canvas_draw_rframe(c, lx, y, lw, h, CSIGHT_BUTTON_R);
+        canvas_draw_str_aligned(c, lx + lw / 2, y + h / 2, AlignCenter, AlignCenter, left);
     }
 
     if(!left_focused) {
-        canvas_draw_box(c, rx, y, rw, h);
+        canvas_draw_rbox(c, rx, y, rw, h, CSIGHT_BUTTON_R);
         canvas_set_color(c, ColorWhite);
-        canvas_draw_str(c, rx + 4, y + 9, right);
+        canvas_draw_str_aligned(c, rx + rw / 2, y + h / 2, AlignCenter, AlignCenter, right);
         canvas_set_color(c, ColorBlack);
     } else {
-        canvas_draw_frame(c, rx, y, rw, h);
-        canvas_draw_str(c, rx + 4, y + 9, right);
+        canvas_draw_rframe(c, rx, y, rw, h, CSIGHT_BUTTON_R);
+        canvas_draw_str_aligned(c, rx + rw / 2, y + h / 2, AlignCenter, AlignCenter, right);
     }
 }
 
@@ -146,85 +161,29 @@ void csight_draw_esp32_not_found(Canvas* c, CSIghtApp* app) {
     draw_two_buttons(c, app->esp32_check_focus_settings, "Settings", "Retry");
 }
 
-// ─── Compatibility check ──────────────────────────────────────────────────────
-void csight_draw_compat(Canvas* c, CSIghtApp* app) {
+// ─── Connection settings ──────────────────────────────────────────────────────
+// Replaces the old 60-entry "SELECT BOARD" preset list + custom pin-config
+// screen. "Fox Edition" only ever talks to Fox_ESP32_FW, which only ever
+// answers on one of the Flipper's two UART peripherals (the shared
+// gpio_remap setting every Fox ESP32 app reads/writes) - so the only real
+// choice left is USART vs LPUART, and the boot probe already sweeps both
+// automatically (see csight_tick()). This screen is just the manual
+// override + re-probe for when that auto-sweep needs a nudge.
+void csight_draw_connect_settings(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
 
     canvas_set_font(c, FontPrimary);
-    canvas_draw_str(c, 2, 12, "ESP32 DETECTED");
+    draw_centered_str(c, 10, "Connection");
+    canvas_draw_line(c, 0, 13, SCREEN_W, 13);
 
     canvas_set_font(c, FontSecondary);
-
+    const char* pin_label =
+        (app->esp32_uart_channel == GpioRemapEsp32UartLpuart) ? "15/16 (LPUART)" : "13/14 (USART)";
     char line[32];
-    snprintf(line, sizeof(line), "Chip: %s", app->chip_name);
-    canvas_draw_str(c, 2, 26, line);
+    snprintf(line, sizeof(line), "\x11 Pins: %s \x10", pin_label);
+    draw_centered_str(c, 32, line);
 
-    snprintf(line, sizeof(line), "FW:   v%d.%d", app->fw_major, app->fw_minor);
-    canvas_draw_str(c, 2, 36, line);
-
-    const char* support_str;
-    if(app->csi_support == 2)      support_str = "CSI: FULL [OK]";
-    else if(app->csi_support == 1) support_str = "CSI: LIMITED [!]";
-    else                            support_str = "CSI: NONE  [X]";
-    canvas_draw_str(c, 2, 46, support_str);
-
-    if(app->csi_support == 0) {
-        canvas_draw_str(c, 2, 58, "Not compatible");
-    } else {
-        canvas_draw_str(c, 2, 58, "[OK] Continue");
-    }
-}
-
-// ─── Preset select ────────────────────────────────────────────────────────────
-void csight_draw_preset(Canvas* c, CSIghtApp* app) {
-    canvas_clear(c);
-
-    canvas_set_font(c, FontPrimary);
-    canvas_draw_str(c, 2, 10, "SELECT BOARD");
-    canvas_draw_line(c, 0, 12, SCREEN_W, 12);
-
-    canvas_set_font(c, FontSecondary);
-
-    int start = (int)app->preset_idx - 2;
-    if(start < 0) start = 0;
-    if(start > BOARD_PRESET_COUNT - PRESET_VISIBLE)
-        start = BOARD_PRESET_COUNT - PRESET_VISIBLE;
-
-    for(int i = 0; i < PRESET_VISIBLE; i++) {
-        int idx = start + i;
-        if(idx >= BOARD_PRESET_COUNT) break;
-
-        int y = 22 + i * 10;
-        bool selected = (idx == (int)app->preset_idx);
-
-        if(selected) {
-            canvas_draw_box(c, 0, y - 8, SCREEN_W - 12, 10);
-            canvas_set_color(c, ColorWhite);
-        }
-
-        canvas_draw_str(c, 3, y, BOARD_PRESETS[idx].name);
-
-        if(!selected) {
-            const char* tier_str;
-            if     (BOARD_PRESETS[idx].csi_tier == 2) tier_str = "F";
-            else if(BOARD_PRESETS[idx].csi_tier == 1) tier_str = "L";
-            else                                       tier_str = "X";
-            canvas_draw_str(c, SCREEN_W - 10, y, tier_str);
-        }
-
-        if(selected) canvas_set_color(c, ColorBlack);
-    }
-
-    // Scrollbar - dotted track + solid position block, matching FOX_CHILL's
-    // style (elements_scrollbar_pos) instead of a plain solid bar with no
-    // track.
-    elements_scrollbar_pos(c, SCREEN_W, 14, SCREEN_H - 14, app->preset_idx, (size_t)BOARD_PRESET_COUNT);
-
-    // Legend
-    uint8_t tier = BOARD_PRESETS[app->preset_idx].csi_tier;
-    const char* legend = (tier == 2) ? "CSI: Full" :
-                         (tier == 1) ? "CSI: Limited" : "CSI: None";
-    canvas_draw_str(c, 2, SCREEN_H - 1, legend);
+    draw_centered_str(c, 62, "[OK] Retry   [Back] Return");
 }
 
 // ─── Radar display ────────────────────────────────────────────────────────────
@@ -311,9 +270,19 @@ void csight_draw_radar(Canvas* c, CSIghtApp* app) {
     canvas_draw_frame(c, px, 45, 32, 5);
     if(prox_w > 0) canvas_draw_box(c, px, 45, prox_w, 5);
 
-    char sens_str[12];
-    snprintf(sens_str, sizeof(sens_str), "SENS: %d", app->sensitivity);
-    canvas_draw_str(c, px, 52, sens_str);
+    // Sensitivity used to be its own text row at y=52, right below the
+    // RANGE bar above (which ends at y=49) - only a 3px gap, not enough
+    // clearance for a text baseline, so this label's glyphs overlapped the
+    // bottom of that bar. Whenever the bar was mostly filled (black,
+    // low-proximity readings) the overlapping text pixels landed on an
+    // already-black background and became unreadable - the illegible row
+    // the user reported seeing on this screen. Fixed by folding it into
+    // the MOTION label's row instead of stacking a new line under the bar,
+    // which sidesteps the cramped vertical spacing entirely.
+    char sens_str[8];
+    snprintf(sens_str, sizeof(sens_str), "S:%d", app->sensitivity);
+    int sens_w = (int)canvas_string_width(c, sens_str);
+    canvas_draw_str(c, 126 - sens_w, 30, sens_str);
 
     // Control hints
     canvas_draw_str(c, px, 62, "\x11\x10 mode");
@@ -437,7 +406,7 @@ static const char* SETTINGS_LABELS[SETTINGS_COUNT] = {
     "Quiet/Busy Preset",
     "Schedule Start",
     "Schedule End",
-    "Change Board",
+    "Connection",
 };
 
 void csight_draw_settings(Canvas* c, CSIghtApp* app) {
@@ -447,9 +416,14 @@ void csight_draw_settings(Canvas* c, CSIghtApp* app) {
     canvas_draw_line(c, 0, 12, SCREEN_W, 12);
     canvas_set_font(c, FontSecondary);
 
-    // Scrolling window: show 4 items at a time, centered around the selection
-    // where possible, so all SETTINGS_COUNT items fit legibly on a 64px screen.
-    #define VISIBLE_ROWS 4
+    // Scrolling window: show 3 items at a time, centered around the selection
+    // where possible. Previously 4 - but the 4th row's highlight box (y-8 to
+    // y+2 = 49-59) sat only 3px above the "[Back] save" hint text baseline at
+    // y=62, and FontSecondary's ascent reaches up far enough from that
+    // baseline to land inside the box - i.e. inside the selected row's
+    // inverted colors whenever that row was the highlighted one. 3 rows
+    // keeps the same layout with a comfortable gap instead.
+    #define VISIBLE_ROWS 3
     int top = (int)app->settings_idx - 1;
     if(top < 0) top = 0;
     if(top > SETTINGS_COUNT - VISIBLE_ROWS) top = SETTINGS_COUNT - VISIBLE_ROWS;
@@ -494,7 +468,7 @@ void csight_draw_settings(Canvas* c, CSIghtApp* app) {
                 snprintf(val, sizeof(val), "%02d:00", app->schedule_end_hour);
             }
         }
-        if(i == (int)SettingChangeBoard)  snprintf(val, sizeof(val), ">");
+        if(i == (int)SettingConnection)   snprintf(val, sizeof(val), ">");
 
         int vw = canvas_string_width(c, val);
         canvas_draw_str(c, SCREEN_W - vw - 3, y, val);
@@ -570,30 +544,6 @@ void csight_draw_proximity(Canvas* c, CSIghtApp* app) {
 }
 
 // ─── Pin config ───────────────────────────────────────────────────────────────
-void csight_draw_pin_config(Canvas* c, CSIghtApp* app) {
-    canvas_clear(c);
-    canvas_set_font(c, FontPrimary);
-    canvas_draw_str(c, 2, 10, "Custom Pin Setup");
-    canvas_draw_line(c, 0, 12, SCREEN_W, 12);
-
-    canvas_set_font(c, FontSecondary);
-
-    // TX pin row
-    char tx_str[20];
-    snprintf(tx_str, sizeof(tx_str), "ESP TX: GPIO %d", app->tx_pin);
-    canvas_draw_str(c, 4, 26, tx_str);
-    canvas_draw_str(c, SCREEN_W - 26, 26, "\x12\x11"); // up/down arrows
-
-    // RX pin row
-    char rx_str[20];
-    snprintf(rx_str, sizeof(rx_str), "ESP RX: GPIO %d", app->rx_pin);
-    canvas_draw_str(c, 4, 40, rx_str);
-    canvas_draw_str(c, SCREEN_W - 26, 40, "\x10\x0f"); // left/right arrows
-
-    canvas_draw_str(c, 2, 52, "Flipper TX=13 RX=14");
-    canvas_draw_str(c, 2, 62, "[OK] Save  [Back] Cancel");
-}
-
 // ─── Vitals ───────────────────────────────────────────────────────────────────
 void csight_draw_vitals(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);

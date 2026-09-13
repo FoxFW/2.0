@@ -67,11 +67,25 @@ static void draw_esp32_check(Canvas* c, FoxDeFlockApp* app) {
     draw_centered_str(c, 38, dots);
 }
 
+#define FOXDEFLOCK_BUTTON_H 13
+#define FOXDEFLOCK_BUTTON_PAD_X 4
+#define FOXDEFLOCK_BUTTON_GAP 6
+#define FOXDEFLOCK_BUTTON_R 3
+
+/* Focus-then-confirm two-button bar (Left/Right toggles focus, OK
+ * confirms) - was drawn as plain sharp-cornered canvas_draw_box()/frame()
+ * rectangles with text manually offset by a fixed (+4,+9), inconsistent
+ * with the suite's established rounded-pill button look (same
+ * canvas_draw_rbox()/canvas_draw_rframe() + centered-text pattern already
+ * used by restart_confirm_view.c and the TPMS box list, per the
+ * 2026-09-13 footer-button audit). Geometry (position/size/gap) is
+ * unchanged - only the corner style and text centering were brought in
+ * line with the rest of the Fox suite. */
 static void draw_two_buttons(Canvas* c, bool left_focused, const char* left, const char* right) {
-    int y = 48, h = 13;
-    int lw = canvas_string_width(c, left) + 8;
-    int rw = canvas_string_width(c, right) + 8;
-    int gap = 6;
+    int y = 48, h = FOXDEFLOCK_BUTTON_H;
+    int lw = canvas_string_width(c, left) + FOXDEFLOCK_BUTTON_PAD_X * 2;
+    int rw = canvas_string_width(c, right) + FOXDEFLOCK_BUTTON_PAD_X * 2;
+    int gap = FOXDEFLOCK_BUTTON_GAP;
     int total = lw + gap + rw;
     int lx = (128 - total) / 2;
     int rx = lx + lw + gap;
@@ -79,23 +93,23 @@ static void draw_two_buttons(Canvas* c, bool left_focused, const char* left, con
     canvas_set_font(c, FontSecondary);
 
     if(left_focused) {
-        canvas_draw_box(c, lx, y, lw, h);
+        canvas_draw_rbox(c, lx, y, lw, h, FOXDEFLOCK_BUTTON_R);
         canvas_set_color(c, ColorWhite);
-        canvas_draw_str(c, lx + 4, y + 9, left);
+        canvas_draw_str_aligned(c, lx + lw / 2, y + h / 2, AlignCenter, AlignCenter, left);
         canvas_set_color(c, ColorBlack);
     } else {
-        canvas_draw_frame(c, lx, y, lw, h);
-        canvas_draw_str(c, lx + 4, y + 9, left);
+        canvas_draw_rframe(c, lx, y, lw, h, FOXDEFLOCK_BUTTON_R);
+        canvas_draw_str_aligned(c, lx + lw / 2, y + h / 2, AlignCenter, AlignCenter, left);
     }
 
     if(!left_focused) {
-        canvas_draw_box(c, rx, y, rw, h);
+        canvas_draw_rbox(c, rx, y, rw, h, FOXDEFLOCK_BUTTON_R);
         canvas_set_color(c, ColorWhite);
-        canvas_draw_str(c, rx + 4, y + 9, right);
+        canvas_draw_str_aligned(c, rx + rw / 2, y + h / 2, AlignCenter, AlignCenter, right);
         canvas_set_color(c, ColorBlack);
     } else {
-        canvas_draw_frame(c, rx, y, rw, h);
-        canvas_draw_str(c, rx + 4, y + 9, right);
+        canvas_draw_rframe(c, rx, y, rw, h, FOXDEFLOCK_BUTTON_R);
+        canvas_draw_str_aligned(c, rx + rw / 2, y + h / 2, AlignCenter, AlignCenter, right);
     }
 }
 
@@ -110,22 +124,23 @@ static void draw_esp32_not_found(Canvas* c, FoxDeFlockApp* app) {
     draw_two_buttons(c, app->esp32_check_focus_settings, "Settings", "Retry");
 }
 
-static void draw_pin_select(Canvas* c, FoxDeFlockApp* app) {
+/* Manual USART/LPUART override + re-probe - reached only from the
+ * Esp32NotFound gate's "Settings" button, same role and same on-screen
+ * layout as CSIght_FoxEdition's csight_draw_connect_settings() (this
+ * app has no post-connect Settings menu of its own to reach it from a
+ * second way, unlike CSight). Left/Right flips the channel immediately
+ * (and saves it), OK commits + retries, Back returns to Esp32NotFound. */
+static void draw_connect_settings(Canvas* c, FoxDeFlockApp* app) {
     canvas_set_font(c, FontPrimary);
-    draw_centered_str(c, 4, "ESP32 UART pins");
+    draw_centered_str(c, 10, "Connection");
+    canvas_draw_line(c, 0, 13, 128, 13);
 
     canvas_set_font(c, FontSecondary);
-    for(size_t i = 0; i < PIN_OPTION_COUNT; i++) {
-        int y = 22 + (int)i * 14;
-        bool selected = (i == app->pin_option_index);
-        if(selected) {
-            canvas_draw_box(c, 8, y, 112, 12);
-            canvas_set_color(c, ColorWhite);
-        }
-        canvas_draw_str(c, 14, y + 9, PIN_OPTIONS[i].label);
-        if(selected) canvas_set_color(c, ColorBlack);
-    }
-    elements_button_center(c, "OK");
+    char line[32];
+    snprintf(line, sizeof(line), "\x11 Pins: %s \x10", PIN_OPTIONS[app->pin_option_index].label);
+    draw_centered_str(c, 32, line);
+
+    draw_centered_str(c, 62, "[OK] Retry   [Back] Return");
 }
 
 static void draw_hit_row(Canvas* c, int y, const FoxDeFlockHit* h, bool selected) {
@@ -256,8 +271,8 @@ static void draw_cb(Canvas* c, void* ctx) {
     case FoxDeFlockStateEsp32NotFound:
         draw_esp32_not_found(c, app);
         break;
-    case FoxDeFlockStatePinSelect:
-        draw_pin_select(c, app);
+    case FoxDeFlockStateConnectSettings:
+        draw_connect_settings(c, app);
         break;
     case FoxDeFlockStateScanning:
     case FoxDeFlockStatePaused:
@@ -302,22 +317,24 @@ static void handle_input(FoxDeFlockApp* app, InputKey key, InputType type) {
             app->esp32_check_focus_settings = !app->esp32_check_focus_settings;
         } else if(key == InputKeyOk && type == InputTypeShort) {
             if(app->esp32_check_focus_settings) {
-                app->state = FoxDeFlockStatePinSelect;
+                app->state = FoxDeFlockStateConnectSettings;
             } else {
+                app->esp32_probe_tried_alt = false; // fresh two-channel sweep
                 start_esp32_check(app);
             }
         }
         break;
 
-    case FoxDeFlockStatePinSelect:
-        if((key == InputKeyUp || key == InputKeyDown) && type == InputTypeShort) {
+    case FoxDeFlockStateConnectSettings:
+        if((key == InputKeyLeft || key == InputKeyRight) && type == InputTypeShort) {
             app->pin_option_index = (app->pin_option_index + 1) % PIN_OPTION_COUNT;
-        } else if(key == InputKeyOk && type == InputTypeShort) {
             app->serial_id = PIN_OPTIONS[app->pin_option_index].serial_id;
             GpioRemapSettings remap = {
                 .esp32_uart_channel = (uint8_t)app->pin_option_index,
             };
             gpio_remap_settings_save(&remap);
+        } else if(key == InputKeyOk && type == InputTypeShort) {
+            app->esp32_probe_tried_alt = false; // fresh two-channel sweep
             start_esp32_check(app);
         } else if(key == InputKeyBack && type == InputTypeShort) {
             app->state = FoxDeFlockStateEsp32NotFound;
@@ -359,8 +376,26 @@ static void timer_cb(void* ctx) {
         if(app->esp32_probe_ok) {
             start_scanning(app);
         } else if(furi_get_tick() - app->esp32_check_start_tick > furi_ms_to_ticks(ESP32_CHECK_TIMEOUT_MS)) {
-            app->state = FoxDeFlockStateEsp32NotFound;
-            app->esp32_check_focus_settings = false;
+            if(!app->esp32_probe_tried_alt) {
+                // Fox ESP32 FW only ever answers on one of the Flipper's two
+                // UART peripherals (the shared gpio_remap setting every Fox
+                // ESP32 app reads/writes) - auto-flip to the other channel
+                // and try once more before asking the user, matching
+                // CSIght_FoxEdition's own two-channel sweep (csight_app.c's
+                // AppStateEsp32Check handling, itself modeled on
+                // fox_esp32_terminal's action_check_esp32()).
+                app->esp32_probe_tried_alt = true;
+                app->pin_option_index = (app->pin_option_index + 1) % PIN_OPTION_COUNT;
+                app->serial_id = PIN_OPTIONS[app->pin_option_index].serial_id;
+                GpioRemapSettings remap = {
+                    .esp32_uart_channel = (uint8_t)app->pin_option_index,
+                };
+                gpio_remap_settings_save(&remap);
+                start_esp32_check(app); // re-allocates esp_at on the new channel
+            } else {
+                app->state = FoxDeFlockStateEsp32NotFound;
+                app->esp32_check_focus_settings = false;
+            }
         }
     } else if(app->state == FoxDeFlockStateScanning) {
         foxdeflock_scan_drain(app);
@@ -421,7 +456,7 @@ int32_t foxdeflock_app(void* p) {
         if(furi_message_queue_get(app->event_queue, &event, 10) == FuriStatusOk) {
             if(event.key == InputKeyBack && event.type == InputTypeLong &&
                app->state != FoxDeFlockStateDetail && app->state != FoxDeFlockStateAbout &&
-               app->state != FoxDeFlockStatePinSelect) {
+               app->state != FoxDeFlockStateConnectSettings) {
                 running = false;
             } else {
                 handle_input(app, event.key, event.type);

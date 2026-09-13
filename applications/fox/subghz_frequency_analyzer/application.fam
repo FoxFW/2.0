@@ -2,6 +2,7 @@ App(
     appid="subghz_frequency_analyzer",
     name="Frequency Analyzer",
     apptype=FlipperAppType.EXTERNAL,
+    icon="I_fox_generic_14x14",  # 14x14 Apps-menu icon; see assets/icons/Fox/fox_generic_14x14.png
     entry_point="subghz_frequency_analyzer_app",
     requires=[
         "gui",
@@ -10,6 +11,7 @@ App(
     order=32,
     fap_category="Sub-GHz",
     fap_icon="icon.png",
+    fap_icon_assets="images",
     fap_description="Scans your configured frequency list to identify an unknown remote's transmit frequency",
     fap_version=(1, 0),
 )

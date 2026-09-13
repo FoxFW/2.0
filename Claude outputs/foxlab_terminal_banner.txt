@@ -1,0 +1,25 @@
+                                       /\  /\
+                                      /  \/  \
+                                     /        \
+                           ,--------'    o     \
+                         -<                      )
+                           `--------.        ,--'
+                                     \      /
+                                      \    /
+                                       \  /
+                                        \/
+
+ _____ _____  ___        _    ____
+|  ___/ _ \ \/ / |      / \  | __ )
+| |_ | | | \  /| |     / _ \ |  _ \
+|  _|| |_| /  \| |___ / ___ \| |_) |
+|_|   \___/_/\_\_____/_/   \_\____/
+
+Welcome to the FoxLAB Terminal.
+
+This is a raw line into the Fox ESP32 Firmware's own command dispatcher
+- the same one every tab above ultimately talks to. Anything it doesn't
+recognize is just echoed back, so there's nothing here that typing the
+wrong thing can break. Try "info" or "[LIST]" to see what it knows.
+
+Firmware: querying…

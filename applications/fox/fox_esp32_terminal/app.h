@@ -69,6 +69,15 @@ typedef struct {
     View* terminal_view;
     size_t terminal_scroll;
     bool terminal_paused;
+    /* Which footer button is focused ("Pause"/"Resume" on the left, "Send"
+     * on the right) - Left/Right only move this, OK activates whichever
+     * side it's on. Previously Left toggled pause directly and Right/OK
+     * both opened Send with no focus step at all (one continuous inverted
+     * bar, not even two separate boxes) - flagged as the plainest example
+     * of "Pattern A" by the 2026-09-13 footer-button audit
+     * (FOOTER_BUTTON_AUDIT.md project doc). Defaults to Send focused (see
+     * app_show_terminal()) since that's what OK used to do unconditionally. */
+    bool terminal_bar_focus_left;
 
     size_t terminal_paused_skipped_lines;
     FuriTimer* terminal_poll_timer;

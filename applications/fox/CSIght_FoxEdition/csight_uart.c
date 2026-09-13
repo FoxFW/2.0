@@ -90,7 +90,18 @@ static void handle_hello(CSIghtApp* app, const char* body) {
     // "just works" feel from the app's point of view.
     csight_send_start(app);
 
-    app->state = app->config_exists ? AppStateMainMenu : AppStateCompatCheck;
+    // Straight to the main menu on every successful handshake, first run or
+    // not - per the user's 2026-09-13 direction, csight_draw_esp32_check()'s
+    // "Detecting ESP32..." pages (csight_app.c's AppStateEsp32Check, shown
+    // just before this handshake fires) are meant to be the entire connect
+    // experience. This used to gate on app->config_exists and detour
+    // first-run users through a separate ported-from-stock-CSIght "ESP32
+    // DETECTED / Chip: / FW: / CSI: ..." info screen (AppStateCompatCheck,
+    // now removed) before reaching the menu; that screen never actually
+    // blocked anything unfixable (even its own "not compatible" case just
+    // fell through to the main menu on Back), so dropping it loses no real
+    // protection, only an extra tap the very first time the app ever ran.
+    app->state = AppStateMainMenu;
 }
 
 static void handle_motion(CSIghtApp* app, const char* body) {

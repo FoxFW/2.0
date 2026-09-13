@@ -42,6 +42,10 @@ App(
     appid="proto_pirate",
     name="ProtoPirate (Fox Edition)",
     apptype=FlipperAppType.EXTERNAL,
+    # 14x14 home-screen Apps-menu icon; only the main app gets this (the
+    # PLUGIN entries below are never listed in that menu). See
+    # assets/icons/Fox/fox_generic_14x14.png.
+    icon="I_fox_generic_14x14",
     targets=["f7"],
     entry_point="protopirate_app",
     requires=["gui"],

@@ -7,6 +7,7 @@
 #include <gui/view_dispatcher.h>
 #include <gui/modules/submenu.h>
 #include <gui/modules/text_input.h>
+#include <notification/notification.h>
 
 #include "esp_at.h"
 #include "fox_splash.h"
@@ -20,6 +21,7 @@ typedef enum {
     FoxCommanderViewConnectSettings,
     FoxCommanderViewChatList,
     FoxCommanderViewChatDetail,
+    FoxCommanderViewChatSaveResult,
 } FoxCommanderView;
 
 typedef enum {
@@ -45,6 +47,7 @@ typedef struct {
 typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
+    NotificationApp* notifications;
 
     FoxSplash* splash;
 
@@ -90,6 +93,11 @@ typedef struct {
     size_t chat_message_selected;
     size_t chat_message_scroll;
     size_t chat_detail_scroll;
+
+    View* chat_save_result_view;
+    FuriTimer* chat_save_result_timer;
+    char chat_save_result_line1[32];
+    char chat_save_result_line2[48];
 
     bool launch_commander;
 } App;
