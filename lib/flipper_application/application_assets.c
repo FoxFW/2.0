@@ -2,8 +2,6 @@
 #include <toolbox/path.h>
 #include <storage/storage_i.h>
 
-// #define ELF_ASSETS_DEBUG_LOG 1
-
 #ifndef ELF_ASSETS_DEBUG_LOG
 #undef FURI_LOG_D
 #define FURI_LOG_D(...)
@@ -53,14 +51,12 @@ static uint8_t* flipper_application_assets_alloc_and_load_data(File* file, size_
     uint8_t* data = NULL;
     uint32_t length = 0;
 
-    // read data length
     if(storage_file_read(file, &length, sizeof(length)) != sizeof(length)) {
         return NULL;
     }
 
     data = malloc(length);
 
-    // read data
     if(storage_file_read(file, (void*)data, length) != length) {
         free((void*)data);
         return NULL;
@@ -99,7 +95,6 @@ static bool flipper_application_assets_process_files(
             break;
         }
 
-        // read file size
         if(storage_file_read(file, &length, sizeof(length)) != sizeof(length)) {
             break;
         }
@@ -114,7 +109,6 @@ static bool flipper_application_assets_process_files(
             break;
         }
 
-        // copy data to file
         if(!storage_file_copy_to_file(file, destination, length)) {
             FURI_LOG_E(TAG, "Can't copy data to file: %s", furi_string_get_cstr(file_path));
             break;
@@ -210,11 +204,11 @@ static AssetsSignatureResult flipper_application_assets_process_signature(
         flipper_application_assets_alloc_signature_file_path(app_name);
 
     do {
-        // read signature
+
         *signature_data =
             flipper_application_assets_alloc_and_load_data(file, signature_data_size);
 
-        if(*signature_data == NULL) { //-V547
+        if(*signature_data == NULL) {
             FURI_LOG_E(TAG, "Can't read signature");
             break;
         }
@@ -274,7 +268,6 @@ bool flipper_application_assets_load(File* file, const char* elf_path, size_t of
             break;
         }
 
-        // read header
         if(storage_file_read(file, &header, sizeof(header)) != sizeof(header)) {
             break;
         }
@@ -287,7 +280,6 @@ bool flipper_application_assets_load(File* file, const char* elf_path, size_t of
             break;
         }
 
-        // process signature
         AssetsSignatureResult signature_result = flipper_application_assets_process_signature(
             storage, file, app_name, &signature_data, &signature_data_size);
 
@@ -301,7 +293,6 @@ bool flipper_application_assets_load(File* file, const char* elf_path, size_t of
         } else {
             FURI_LOG_D(TAG, "Assets signature not equal, loading");
 
-            // remove old assets
             FuriString* full_path = flipper_application_assets_alloc_app_full_path(app_name);
             storage_simply_remove_recursive(storage, furi_string_get_cstr(full_path));
             furi_string_free(full_path);
@@ -317,19 +308,16 @@ bool flipper_application_assets_load(File* file, const char* elf_path, size_t of
             break;
         }
 
-        // process directories
         if(header.dirs_count &&
            !flipper_application_assets_process_dirs(storage, file, app_name, header.dirs_count)) {
             break;
         }
 
-        // process files
         if(header.files_count && !flipper_application_assets_process_files(
                                      storage, file, app_name, header.files_count)) {
             break;
         }
 
-        // write signature
         FuriString* signature_file_path =
             flipper_application_assets_alloc_signature_file_path(app_name);
         File* signature_file = storage_file_alloc(storage);

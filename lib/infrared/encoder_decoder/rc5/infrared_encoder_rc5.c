@@ -16,14 +16,14 @@ void infrared_encoder_rc5_reset(void* encoder_ptr, const InfraredMessage* messag
     infrared_common_encoder_reset(common_encoder);
 
     uint32_t* data = (void*)common_encoder->data;
-    /* RC5 */
-    *data |= 0x01; // start bit
+
+    *data |= 0x01;
     if(message->protocol == InfraredProtocolRC5) {
-        *data |= 0x02; // start bit
+        *data |= 0x02;
     }
     *data |= encoder->toggle_bit ? 0x04 : 0;
-    *data |= (reverse(message->address) >> 3) << 3; /* address 5 bit */
-    *data |= (reverse(message->command) >> 2) << 8; /* command 6 bit */
+    *data |= (reverse(message->address) >> 3) << 3;
+    *data |= (reverse(message->command) >> 2) << 8;
 
     common_encoder->data[0] = ~common_encoder->data[0];
     common_encoder->data[1] = ~common_encoder->data[1];

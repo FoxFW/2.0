@@ -2,12 +2,6 @@
 
 #include "base.h"
 
-/*
- * Allstar Firefly 318ALD31K gate remote (Supertex ED-9 encoder IC).
- * 318 MHz OOK. Static 18-bit trinary DIP-switch code (9 DIP positions, 2
- * bits each): '+'=0b11, '0'=0b10, '-'=0b00. 600us short / 4000us long
- * timing, ~30440us inter-frame gap. Not rolling - fixed per-DIP-setting code.
- */
 #define SUBGHZ_PROTOCOL_ALLSTAR_FIREFLY_NAME "Allstar Firefly"
 
 typedef struct SubGhzProtocolDecoderAllstarFirefly SubGhzProtocolDecoderAllstarFirefly;

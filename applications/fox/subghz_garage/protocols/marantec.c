@@ -172,7 +172,7 @@ static void subghz_protocol_encoder_marantec_get_upload(SubGhzProtocolEncoderMar
     }
     instance->encoder.size_upload = index;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 uint8_t subghz_protocol_marantec_crc8(uint8_t* data, size_t len) {
     uint8_t crc = 0x01;
@@ -244,7 +244,7 @@ LevelDuration subghz_protocol_encoder_marantec_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_marantec_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

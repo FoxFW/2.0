@@ -65,7 +65,6 @@ typedef union {
     uint8_t bytes[SLIX_BLOCK_SIZE];
 } SlixCounter;
 
-// Same behaviour as iso15693_3_error_response_parse
 bool slix_error_response_parse(SlixError* error, const BitBuffer* buf);
 
 SlixError slix_process_iso15693_3_error(Iso15693_3Error iso15693_3_error);
@@ -76,7 +75,6 @@ SlixError slix_read_signature_response_parse(SlixSignature data, const BitBuffer
 
 SlixError slix_get_random_number_response_parse(SlixRandomNumber* data, const BitBuffer* buf);
 
-// Setters
 void slix_set_password(SlixData* data, SlixPasswordType password_type, SlixPassword password);
 
 void slix_set_privacy_mode(SlixData* data, bool set);

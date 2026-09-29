@@ -8,8 +8,6 @@
 #include "desktop_settings_scene.h"
 #include "desktop_settings_scene_i.h"
 
-// Top toggles are fixed low indices; alarms start at ALARM_ITEM_BASE so the
-// list can grow up to FOX_ALARM_MAX_COUNT without colliding with them.
 #define ALARM_ITEM_KEEP_BACKLIGHT 0
 #define ALARM_ITEM_BEEP           1
 #define ALARM_ITEM_VIBRATE        2
@@ -155,7 +153,7 @@ bool desktop_settings_scene_alarm_clock_on_event(void* context, SceneManagerEven
                 alarm->hour = 8;
                 alarm->minute = 0;
                 alarm->days_mask = 0;
-                alarm->active = 0; // harmless until the user actually configures it
+                alarm->active = 0;
                 alarm->recurring = 0;
                 uint8_t new_index = app->settings.alarm_count;
                 app->settings.alarm_count++;

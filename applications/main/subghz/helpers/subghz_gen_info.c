@@ -25,7 +25,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 433920000,
             .data.name = SUBGHZ_PROTOCOL_PRINCETON_NAME,
-            .data.key = (key & 0x00FFFFF0) | 0x4, // btn 0x1, 0x2, 0x4, 0x8
+            .data.key = (key & 0x00FFFFF0) | 0x4,
             .data.bits = 24,
             .data.te = 400};
         break;
@@ -35,7 +35,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 315000000,
             .data.name = SUBGHZ_PROTOCOL_PRINCETON_NAME,
-            .data.key = (key & 0x00FFFFF0) | 0x4, // btn 0x1, 0x2, 0x4, 0x8
+            .data.key = (key & 0x00FFFFF0) | 0x4,
             .data.bits = 24,
             .data.te = 400};
         break;
@@ -45,7 +45,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 430500000,
             .data.name = SUBGHZ_PROTOCOL_PRINCETON_NAME,
-            .data.key = (key & 0x00FFFF00) | 0x30, // btn 0x30(UP), 0x03(STOP), 0x0C(DOWN)
+            .data.key = (key & 0x00FFFF00) | 0x30,
             .data.bits = 24,
             .data.te = 357};
         break;
@@ -55,7 +55,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 433920000,
             .data.name = SUBGHZ_PROTOCOL_NICE_FLO_NAME,
-            .data.key = (key & 0x00000FF0) | 0x1, // btn 0x1, 0x2, 0x4
+            .data.key = (key & 0x00000FF0) | 0x1,
             .data.bits = 12,
             .data.te = 0};
         break;
@@ -65,7 +65,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 433920000,
             .data.name = SUBGHZ_PROTOCOL_NICE_FLO_NAME,
-            .data.key = (key & 0x00FFFFF0) | 0x4, // btn 0x1, 0x2, 0x4, 0x8
+            .data.key = (key & 0x00FFFFF0) | 0x4,
             .data.bits = 24,
             .data.te = 0};
         break;
@@ -75,7 +75,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 433920000,
             .data.name = SUBGHZ_PROTOCOL_CAME_NAME,
-            .data.key = (key & 0x00000FF0) | 0x1, // btn 0x1, 0x2, 0x4
+            .data.key = (key & 0x00000FF0) | 0x1,
             .data.bits = 12,
             .data.te = 0};
         break;
@@ -85,7 +85,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 433920000,
             .data.name = SUBGHZ_PROTOCOL_CAME_NAME,
-            .data.key = (key & 0x00FFFFF0) | 0x4, // btn 0x1, 0x2, 0x4, 0x8
+            .data.key = (key & 0x00FFFFF0) | 0x4,
             .data.bits = 24,
             .data.te = 0};
         break;
@@ -95,7 +95,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 868350000,
             .data.name = SUBGHZ_PROTOCOL_CAME_NAME,
-            .data.key = (key & 0x00000FF0) | 0x1, // btn 0x1, 0x2, 0x4
+            .data.key = (key & 0x00000FF0) | 0x1,
             .data.bits = 12,
             .data.te = 0};
         break;
@@ -105,7 +105,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 868350000,
             .data.name = SUBGHZ_PROTOCOL_CAME_NAME,
-            .data.key = (key & 0x00FFFFF0) | 0x4, // btn 0x1, 0x2, 0x4, 0x8
+            .data.key = (key & 0x00FFFFF0) | 0x4,
             .data.bits = 24,
             .data.te = 0};
         break;
@@ -115,7 +115,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 433920000,
             .data.name = SUBGHZ_PROTOCOL_ROGER_NAME,
-            .data.key = (key & 0xFFFF000) | 0x0000101, // button code 0x1 and (crc?) is 0x01
+            .data.key = (key & 0xFFFF000) | 0x0000101,
             .data.bits = 28,
             .data.te = 0};
         break;
@@ -145,7 +145,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 433920000,
             .data.name = SUBGHZ_PROTOCOL_CAME_TWEE_NAME,
-            .data.key = 0x003FFF7200000000 | ((key & 0x0FFFFFF0) ^ 0xE0E0E0EE), // ????
+            .data.key = 0x003FFF7200000000 | ((key & 0x0FFFFFF0) ^ 0xE0E0E0EE),
             .data.bits = 54,
             .data.te = 0};
         break;
@@ -154,7 +154,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .type = GenData,
             .mod = "AM650",
             .freq = 433920000,
-            .data.name = SUBGHZ_PROTOCOL_GATE_TX_NAME, // btn 0xF, 0xC, 0xA, 0x6 (?)
+            .data.name = SUBGHZ_PROTOCOL_GATE_TX_NAME,
             .data.key = subghz_protocol_blocks_reverse_key((key & 0x00F0FF00) | 0xF0040, 24),
             .data.bits = 24,
             .data.te = 0};
@@ -164,7 +164,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .type = GenData,
             .mod = "AM650",
             .freq = 433920000,
-            .data.name = SUBGHZ_PROTOCOL_GANGQI_NAME, // Add button 0xD arm and crc sum to the end
+            .data.name = SUBGHZ_PROTOCOL_GANGQI_NAME,
             .data.key = gangqi_key,
             .data.bits = 34,
             .data.te = 0};
@@ -174,7 +174,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .type = GenData,
             .mod = "AM650",
             .freq = 433920000,
-            .data.name = SUBGHZ_PROTOCOL_HOLLARM_NAME, // Add button 0x2 and crc sum to the end
+            .data.name = SUBGHZ_PROTOCOL_HOLLARM_NAME,
             .data.key = (key & 0x000FFF0000) | 0xF0B0002200 |
                         ((((((key & 0x000FFF0000) | 0xF0B0002200) >> 32) & 0xFF) +
                           ((((key & 0x000FFF0000) | 0xF0B0002200) >> 24) & 0xFF) +
@@ -189,7 +189,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .type = GenData,
             .mod = "AM650",
             .freq = 433920000,
-            .data.name = SUBGHZ_PROTOCOL_REVERSRB2_NAME, // 64bits no buttons
+            .data.name = SUBGHZ_PROTOCOL_REVERSRB2_NAME,
             .data.key = (key & 0x00000FFFFFFFF000) | 0xFFFFF00000000000 | 0x0000000000000A00,
             .data.bits = 64,
             .data.te = 0};
@@ -199,7 +199,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .type = GenData,
             .mod = "AM650",
             .freq = 868350000,
-            .data.name = SUBGHZ_PROTOCOL_MARANTEC24_NAME, // Add button code 0x8 to the end
+            .data.name = SUBGHZ_PROTOCOL_MARANTEC24_NAME,
             .data.key = (key & 0xFFFFF0) | 0x000008,
             .data.bits = 24,
             .data.te = 0};
@@ -210,7 +210,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 433920000,
             .data.name =
-                SUBGHZ_PROTOCOL_MARANTEC_NAME, // Button code is 0x4 and crc sum to the end
+                SUBGHZ_PROTOCOL_MARANTEC_NAME,
             .data.key = marantec_key,
             .data.bits = 49,
             .data.te = 0};
@@ -221,7 +221,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .mod = "AM650",
             .freq = 868350000,
             .data.name =
-                SUBGHZ_PROTOCOL_MARANTEC_NAME, // Button code is 0x4 and crc sum to the end
+                SUBGHZ_PROTOCOL_MARANTEC_NAME,
             .data.key = marantec_key,
             .data.bits = 49,
             .data.te = 0};
@@ -734,7 +734,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .type = GenSecPlus2,
             .mod = "AM650",
             .freq = 310000000,
-            .sec_plus_2.serial = (key & 0x7FFFF3FC), // 850LM pairing
+            .sec_plus_2.serial = (key & 0x7FFFF3FC),
             .sec_plus_2.btn = 0x68,
             .sec_plus_2.cnt = 0xE500000};
         break;
@@ -743,7 +743,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .type = GenSecPlus2,
             .mod = "AM650",
             .freq = 315000000,
-            .sec_plus_2.serial = (key & 0x7FFFF3FC), // 850LM pairing
+            .sec_plus_2.serial = (key & 0x7FFFF3FC),
             .sec_plus_2.btn = 0x68,
             .sec_plus_2.cnt = 0xE500000};
         break;
@@ -752,7 +752,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .type = GenSecPlus2,
             .mod = "AM650",
             .freq = 390000000,
-            .sec_plus_2.serial = (key & 0x7FFFF3FC), // 850LM pairing
+            .sec_plus_2.serial = (key & 0x7FFFF3FC),
             .sec_plus_2.btn = 0x68,
             .sec_plus_2.cnt = 0xE500000};
         break;
@@ -761,7 +761,7 @@ void subghz_scene_set_type_fill_generation_infos(GenInfo* infos_dest, SetType ty
             .type = GenSecPlus2,
             .mod = "AM650",
             .freq = 433920000,
-            .sec_plus_2.serial = (key & 0x7FFFF3FC), // 850LM pairing
+            .sec_plus_2.serial = (key & 0x7FFFF3FC),
             .sec_plus_2.btn = 0x68,
             .sec_plus_2.cnt = 0xE500000};
         break;

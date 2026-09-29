@@ -43,20 +43,15 @@ typedef struct {
 #define NOTIFICATION_SETTINGS_PATH    INT_PATH(NOTIFICATION_SETTINGS_FILE_NAME)
 
 typedef struct {
-    //Common settings
+
     uint8_t rgb_backlight_installed;
 
-    // 0 = RGB only (stock white LED off, matches Momentum firmware's
-    // behavior), 1 = RGB + White (stock white LED still ramps alongside
-    // the RGB LEDs - FoxFW's original/default behavior)
     uint8_t white_backlight_mode;
 
-    // static gradient mode settings
     uint8_t led_2_color_index;
     uint8_t led_1_color_index;
     uint8_t led_0_color_index;
 
-    // rainbow mode setings
     uint32_t rainbow_mode;
     uint32_t rainbow_speed_ms;
     uint16_t rainbow_step;
@@ -100,11 +95,6 @@ struct NotificationApp {
     uint8_t rainbow_green;
     uint8_t rainbow_blue;
 
-    // Fox Alarm Clock - drives the "beep beep beep... beep beep beep..."
-    // pattern + matching vibration while an alarm is ringing. Owned here
-    // (not Desktop) since sound/vibration hardware access is this service's
-    // job; Desktop just calls notification_alarm_start()/_stop() when it
-    // decides an alarm is due.
     FuriTimer* alarm_timer;
     uint16_t alarm_pattern_step;
     bool alarm_beep_enabled;

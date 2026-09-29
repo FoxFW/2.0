@@ -46,7 +46,6 @@ typedef struct {
 
 static BleGlue* ble_glue = NULL;
 
-// static int32_t ble_glue_shci_thread(void* argument);
 static void ble_sys_status_not_callback(SHCI_TL_CmdStatus_t status);
 static void ble_sys_user_event_callback(void* pPayload);
 static void ble_glue_clear_shared_memory(void);
@@ -67,8 +66,6 @@ static void furi_hal_bt_hardfault_check(void* context) {
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
 void ble_glue_init(void) {
     ble_glue = malloc(sizeof(BleGlue));
     ble_glue->status = BleGlueStatusStartup;
@@ -80,25 +77,21 @@ void ble_glue_init(void) {
     APPD_Init();
 #endif
 
-    // Initialize all transport layers
     TL_MM_Config_t tl_mm_config;
     SHCI_TL_HciInitConf_t SHci_Tl_Init_Conf;
-    // Reference table initialization
+
     TL_Init();
 
     ble_glue->shci_mtx = furi_mutex_alloc(FuriMutexTypeNormal);
-    // Take mutex, SHCI will release it in most unusual way later
+
     furi_check(furi_mutex_acquire(ble_glue->shci_mtx, FuriWaitForever) == FuriStatusOk);
 
-    // FreeRTOS system task creation
     ble_event_thread_start();
 
-    // System channel initialization
     SHci_Tl_Init_Conf.p_cmdbuffer = (uint8_t*)&ble_glue_cmd_buff;
     SHci_Tl_Init_Conf.StatusNotCallBack = ble_sys_status_not_callback;
     shci_init(ble_sys_user_event_callback, (void*)&SHci_Tl_Init_Conf);
 
-    /**< Memory Manager channel initialization */
     tl_mm_config.p_BleSpareEvtBuffer = ble_spare_event_buff;
     tl_mm_config.p_SystemSpareEvtBuffer = ble_glue_spare_event_buff;
     tl_mm_config.p_AsynchEvtPool = ble_event_pool;
@@ -106,11 +99,6 @@ void ble_glue_init(void) {
     TL_MM_Init(&tl_mm_config);
     TL_Enable();
 
-    /*
-     * From now, the application is waiting for the ready event ( VS_HCI_C2_Ready )
-     * received on the system channel before starting the Stack
-     * This system event is received with ble_sys_user_event_callback()
-     */
 }
 
 const BleGlueC2Info* ble_glue_get_c2_info(void) {
@@ -248,7 +236,7 @@ void ble_glue_stop(void) {
     furi_check(ble_glue);
 
     ble_event_thread_stop();
-    // Free resources
+
     furi_mutex_free(ble_glue->shci_mtx);
     ble_glue->shci_mtx = NULL;
     furi_timer_free(ble_glue->hardfault_check_timer);
@@ -299,7 +287,7 @@ BleGlueCommandResult ble_glue_force_c2_mode(BleGlueC2Mode desired_mode) {
         uint8_t fus_state = SHCI_C2_FUS_GetState(&error_code);
         FURI_LOG_D(TAG, "FUS state: %X, error = %x", fus_state, error_code);
         if(fus_state == SHCI_FUS_CMD_NOT_SUPPORTED) {
-            // Second call to SHCI_C2_FUS_GetState() restarts whole MCU & boots FUS
+
             fus_state = SHCI_C2_FUS_GetState(&error_code);
             FURI_LOG_D(TAG, "FUS state#2: %X, error = %x", fus_state, error_code);
             return BleGlueCommandResultRestartPending;
@@ -326,15 +314,6 @@ static void ble_sys_status_not_callback(SHCI_TL_CmdStatus_t status) {
     }
 }
 
-/*
- * The type of the payload for a system user event is tSHCI_UserEvtRxParam
- * When the system event is both :
- *    - a ready event (subevtcode = SHCI_SUB_EVT_CODE_READY)
- *    - reported by the FUS (sysevt_ready_rsp == FUS_FW_RUNNING)
- * The buffer shall not be released
- * ( eg ((tSHCI_UserEvtRxParam*)pPayload)->status shall be set to SHCI_TL_UserEventFlow_Disable )
- * When the status is not filled, the buffer is released by default
- */
 static void ble_sys_user_event_callback(void* pPayload) {
     UNUSED(pPayload);
 
@@ -434,7 +413,7 @@ BleGlueCommandResult ble_glue_fus_wait_operation(void) {
 }
 
 const BleGlueHardfaultInfo* ble_glue_get_hardfault_info(void) {
-    /* AN5289, 4.8.2 */
+
     const BleGlueHardfaultInfo* info = (BleGlueHardfaultInfo*)(SRAM2A_BASE);
     if(info->magic != BLE_GLUE_HARDFAULT_INFO_MAGIC) {
         return NULL;

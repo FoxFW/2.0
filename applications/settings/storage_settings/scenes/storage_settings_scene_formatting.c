@@ -51,7 +51,7 @@ void storage_settings_scene_formatting_on_enter(void* context) {
         dialog_ex_set_text(
             dialog_ex, storage_error_get_desc(error), 64, 32, AlignCenter, AlignCenter);
     } else {
-        // [NO_DOLPHIN] dialog_ex_set_icon(dialog_ex, 48, 6, &I_DolphinDone_80x58);
+
         dialog_ex_set_header(dialog_ex, "Formatted", 5, 10, AlignLeft, AlignTop);
         NotificationApp* notification = furi_record_open(RECORD_NOTIFICATION);
         notification_message(notification, &sequence_single_vibro);

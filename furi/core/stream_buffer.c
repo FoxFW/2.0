@@ -8,7 +8,6 @@
 
 #include "event_loop_link_i.h"
 
-// Internal FreeRTOS member names
 #define xTriggerLevelBytes uxDummy1[3]
 
 struct FuriStreamBuffer {
@@ -17,26 +16,17 @@ struct FuriStreamBuffer {
     uint8_t buffer[];
 };
 
-// IMPORTANT: container MUST be the FIRST struct member
 static_assert(offsetof(FuriStreamBuffer, container) == 0);
-// IMPORTANT: buffer MUST be the LAST struct member
+
 static_assert(offsetof(FuriStreamBuffer, buffer) == sizeof(FuriStreamBuffer));
 
 FuriStreamBuffer* furi_stream_buffer_alloc(size_t size, size_t trigger_level) {
     furi_check(size != 0);
 
-    // Actual FreeRTOS usable buffer size seems to be one less
     const size_t buffer_size = size + 1;
 
     FuriStreamBuffer* stream_buffer = malloc(sizeof(FuriStreamBuffer) + buffer_size);
 
-    /* xStreamBufferCreateStatic only zeroes sizeof(StreamBuffer_t) bytes (the
-     * FreeRTOS-internal container).  The FuriEventLoopLink that follows it in
-     * FuriStreamBuffer is NOT covered and retains heap garbage on recycled
-     * allocations.  furi_stream_buffer_receive / send both call
-     * furi_event_loop_link_notify which dereferences item_in / item_out, so a
-     * non-NULL garbage value causes an immediate panic.  Zero the link
-     * explicitly so it is safe regardless of heap state. */
     stream_buffer->event_loop_link.item_in  = NULL;
     stream_buffer->event_loop_link.item_out = NULL;
 
@@ -51,7 +41,6 @@ FuriStreamBuffer* furi_stream_buffer_alloc(size_t size, size_t trigger_level) {
 void furi_stream_buffer_free(FuriStreamBuffer* stream_buffer) {
     furi_check(stream_buffer);
 
-    // Event Loop must be disconnected
     furi_check(!stream_buffer->event_loop_link.item_in);
     furi_check(!stream_buffer->event_loop_link.item_out);
 

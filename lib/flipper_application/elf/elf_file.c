@@ -14,8 +14,6 @@
 #define RESOLVER_THREAD_YIELD_STEP 30
 #define FAST_RELOCATION_VERSION    1
 
-// #define ELF_DEBUG_LOG 1
-
 #ifndef ELF_DEBUG_LOG
 #undef FURI_LOG_D
 #define FURI_LOG_D(...)
@@ -25,10 +23,6 @@
 
 #define TRAMPOLINE_CODE_SIZE 6
 
-/**
-ldr r12, [pc, #2]
-bx r12
-*/
 const uint8_t trampoline_code_little_endian[TRAMPOLINE_CODE_SIZE] =
     {0xdf, 0xf8, 0x02, 0xc0, 0x60, 0x47};
 
@@ -36,10 +30,6 @@ typedef struct {
     uint8_t code[TRAMPOLINE_CODE_SIZE];
     uint32_t addr;
 } FURI_PACKED JMPTrampoline;
-
-/**************************************************************************************************/
-/********************************************* Caches *********************************************/
-/**************************************************************************************************/
 
 static bool address_cache_get(AddressCache_t cache, int symEntry, Elf32_Addr* symAddr) {
     Elf32_Addr* addr = AddressCache_get(cache, symEntry);
@@ -54,10 +44,6 @@ static bool address_cache_get(AddressCache_t cache, int symEntry, Elf32_Addr* sy
 static void address_cache_put(AddressCache_t cache, int symEntry, Elf32_Addr symAddr) {
     AddressCache_set_at(cache, symEntry, symAddr);
 }
-
-/**************************************************************************************************/
-/********************************************** ELF ***********************************************/
-/**************************************************************************************************/
 
 static void elf_file_maybe_release_fd(ELFFile* elf) {
     if(elf->fd) {
@@ -213,16 +199,18 @@ __attribute__((unused)) static const char* elf_reloc_type_to_str(int symt) {
 
 static JMPTrampoline* elf_create_trampoline(Elf32_Addr addr) {
     JMPTrampoline* trampoline = malloc(sizeof(JMPTrampoline));
+    if(!trampoline) {
+        return NULL;
+    }
     memcpy(trampoline->code, trampoline_code_little_endian, TRAMPOLINE_CODE_SIZE);
     trampoline->addr = addr;
     return trampoline;
 }
 
-static void elf_relocate_jmp_call(ELFFile* elf, Elf32_Addr relAddr, int type, Elf32_Addr symAddr) {
+static bool elf_relocate_jmp_call(ELFFile* elf, Elf32_Addr relAddr, int type, Elf32_Addr symAddr) {
     int offset, hi, lo, s, j1, j2, i1, i2, imm10, imm11;
     int to_thumb, is_call, blx_bit = 1 << 12;
 
-    /* Get initial offset */
     hi = ((uint16_t*)relAddr)[0];
     lo = ((uint16_t*)relAddr)[1];
     s = (hi >> 10) & 1;
@@ -238,21 +226,14 @@ static void elf_relocate_jmp_call(ELFFile* elf, Elf32_Addr relAddr, int type, El
     to_thumb = symAddr & 1;
     is_call = (type == R_ARM_THM_PC22);
 
-    /* Store offset */
     int offset_copy = offset;
 
-    /* Compute final offset */
     offset += symAddr - relAddr;
     if(!to_thumb && is_call) {
-        blx_bit = 0; /* bl -> blx */
-        offset = (offset + 3) & -4; /* Compute offset from aligned PC */
+        blx_bit = 0;
+        offset = (offset + 3) & -4;
     }
 
-    /* Check that relocation is possible
-    * offset must not be out of range
-    * if target is to be entered in arm mode:
-        - bit 1 must not set
-        - instruction must be a call (bl) or a jump to PLT */
     if(!to_thumb || offset >= 0x1000000 || offset < -0x1000000) {
         if(to_thumb || (symAddr & 2) || (!is_call)) {
             FURI_LOG_D(
@@ -263,20 +244,24 @@ static void elf_relocate_jmp_call(ELFFile* elf, Elf32_Addr relAddr, int type, El
 
             Elf32_Addr addr;
             if(!address_cache_get(elf->trampoline_cache, symAddr, &addr)) {
-                addr = (Elf32_Addr)elf_create_trampoline(symAddr);
+                JMPTrampoline* trampoline = elf_create_trampoline(symAddr);
+                if(!trampoline) {
+                    FURI_LOG_E(TAG, "  Failed to allocate trampoline, out of memory");
+                    return false;
+                }
+                addr = (Elf32_Addr)trampoline;
                 address_cache_put(elf->trampoline_cache, symAddr, addr);
             }
 
             offset = offset_copy;
             offset += (int)addr - relAddr;
             if(!to_thumb && is_call) {
-                blx_bit = 0; /* bl -> blx */
-                offset = (offset + 3) & -4; /* Compute offset from aligned PC */
+                blx_bit = 0;
+                offset = (offset + 3) & -4;
             }
         }
     }
 
-    /* Compute and store final offset */
     s = (offset >> 24) & 1;
     i1 = (offset >> 23) & 1;
     i2 = (offset >> 22) & 1;
@@ -287,40 +272,32 @@ static void elf_relocate_jmp_call(ELFFile* elf, Elf32_Addr relAddr, int type, El
     (*(uint16_t*)relAddr) = (uint16_t)((hi & 0xf800) | (s << 10) | imm10);
     (*(uint16_t*)(relAddr + 2)) =
         (uint16_t)((lo & 0xc000) | (j1 << 13) | blx_bit | (j2 << 11) | imm11);
+
+    return true;
 }
 
 static void elf_relocate_mov(Elf32_Addr relAddr, int type, Elf32_Addr symAddr) {
     uint16_t upper_insn = ((uint16_t*)relAddr)[0];
     uint16_t lower_insn = ((uint16_t*)relAddr)[1];
 
-    /* MOV*<C> <Rd>,#<imm16>
-     *
-     * i = upper[10]
-     * imm4 = upper[3:0]
-     * imm3 = lower[14:12]
-     * imm8 = lower[7:0]
-     *
-     * imm16 = imm4:i:imm3:imm8
-     */
-    uint32_t i = (upper_insn >> 10) & 1; /* upper[10] */
-    uint32_t imm4 = upper_insn & 0x000F; /* upper[3:0] */
-    uint32_t imm3 = (lower_insn >> 12) & 0x7; /* lower[14:12] */
-    uint32_t imm8 = lower_insn & 0x00FF; /* lower[7:0] */
+    uint32_t i = (upper_insn >> 10) & 1;
+    uint32_t imm4 = upper_insn & 0x000F;
+    uint32_t imm3 = (lower_insn >> 12) & 0x7;
+    uint32_t imm8 = lower_insn & 0x00FF;
 
-    int32_t addend = (imm4 << 12) | (i << 11) | (imm3 << 8) | imm8; /* imm16 */
+    int32_t addend = (imm4 << 12) | (i << 11) | (imm3 << 8) | imm8;
 
     uint32_t addr = (symAddr + addend);
     if(type == R_ARM_THM_MOVT_ABS) {
-        addr >>= 16; /* upper 16 bits */
+        addr >>= 16;
     } else {
-        addr &= 0x0000FFFF; /* lower 16 bits */
+        addr &= 0x0000FFFF;
     }
 
-    /* Re-encode */
-    ((uint16_t*)relAddr)[0] = (upper_insn & 0xFBF0) | (((addr >> 11) & 1) << 10) /* i */
-                              | ((addr >> 12) & 0x000F); /* imm4 */
-    ((uint16_t*)relAddr)[1] = (lower_insn & 0x8F00) | (((addr >> 8) & 0x7) << 12) /* imm3 */
-                              | (addr & 0x00FF); /* imm8 */
+    ((uint16_t*)relAddr)[0] = (upper_insn & 0xFBF0) | (((addr >> 11) & 1) << 10)
+                              | ((addr >> 12) & 0x000F);
+    ((uint16_t*)relAddr)[1] = (lower_insn & 0x8F00) | (((addr >> 8) & 0x7) << 12)
+                              | (addr & 0x00FF);
 }
 
 static bool elf_relocate_symbol(ELFFile* elf, Elf32_Addr relAddr, int type, Elf32_Addr symAddr) {
@@ -337,7 +314,9 @@ static bool elf_relocate_symbol(ELFFile* elf, Elf32_Addr relAddr, int type, Elf3
     case R_ARM_THM_PC22:
     case R_ARM_CALL:
     case R_ARM_THM_JUMP24:
-        elf_relocate_jmp_call(elf, relAddr, type, symAddr);
+        if(!elf_relocate_jmp_call(elf, relAddr, type, symAddr)) {
+            return false;
+        }
         FURI_LOG_D(
             TAG, "  R_ARM_THM_CALL/JMP relocated is 0x%08X", (unsigned int)*((uint32_t*)relAddr));
         break;
@@ -431,9 +410,6 @@ static bool elf_relocate(ELFFile* elf, ELFSection* s) {
     return false;
 }
 
-/**************************************************************************************************/
-/************************************ Internal FAP interfaces *************************************/
-/**************************************************************************************************/
 typedef enum {
     SectionTypeUnused = 1 << 0,
     SectionTypeData = 1 << 1,
@@ -491,7 +467,7 @@ static ELFLoadSectionResult
     furi_kernel_unlock();
 
     if(section_header->sh_type == SHT_NOBITS) {
-        // BSS section, no data to load
+
         return ELFLoadSectionResultSuccess;
     }
 
@@ -515,7 +491,7 @@ static SectionTypeInfo elf_preload_section(
     SectionTypeInfo info;
 
 #ifdef ELF_DEBUG_LOG
-    // log section name, type and flags
+
     FuriString* flags_string = furi_string_alloc();
     if(section_header->sh_flags & SHF_WRITE) furi_string_cat(flags_string, "W");
     if(section_header->sh_flags & SHF_ALLOC) furi_string_cat(flags_string, "A");
@@ -542,10 +518,6 @@ static SectionTypeInfo elf_preload_section(
     furi_string_free(flags_string);
 #endif
 
-    // ignore .ARM and .rel.ARM sections
-    // TODO FL-3525: how to do it not by name?
-    // .ARM: type 0x70000001, flags SHF_ALLOC | SHF_LINK_ORDER
-    // .rel.ARM: type 0x9, flags SHT_REL
     if(str_prefix(name, ".ARM.") || str_prefix(name, ".rel.ARM.") ||
        str_prefix(name, ".fast.rel.ARM.")) {
         FURI_LOG_D(TAG, "Ignoring ARM section");
@@ -555,7 +527,6 @@ static SectionTypeInfo elf_preload_section(
         return info;
     }
 
-    // Load allocable section
     if(section_header->sh_flags & SHF_ALLOC) {
         ELFSection* section_p = elf_file_get_or_put_section(elf, name);
         section_p->sec_idx = section_idx;
@@ -581,7 +552,6 @@ static SectionTypeInfo elf_preload_section(
         return info;
     }
 
-    // Load link info section
     if(section_header->sh_flags & SHF_INFO_LINK) {
         info.type = SectionTypeRelData;
 
@@ -599,7 +569,6 @@ static SectionTypeInfo elf_preload_section(
         return info;
     }
 
-    // Load fast rel section
     if(str_prefix(name, ".fast.rel")) {
         name = name + strlen(".fast.rel");
         ELFSection* section_p = elf_file_get_or_put_section(elf, name);
@@ -617,7 +586,6 @@ static SectionTypeInfo elf_preload_section(
         return info;
     }
 
-    // Load symbol table
     if(strcmp(name, ".symtab") == 0) {
         FURI_LOG_D(TAG, "Found .symtab section");
         elf->symbol_table = section_header->sh_offset;
@@ -628,7 +596,6 @@ static SectionTypeInfo elf_preload_section(
         return info;
     }
 
-    // Load string table
     if(strcmp(name, ".strtab") == 0) {
         FURI_LOG_D(TAG, "Found .strtab section");
         elf->symbol_table_strings = section_header->sh_offset;
@@ -638,7 +605,6 @@ static SectionTypeInfo elf_preload_section(
         return info;
     }
 
-    // Load debug link section
     if(strcmp(name, ".gnu_debuglink") == 0) {
         FURI_LOG_D(TAG, "Found .gnu_debuglink section");
         info.type = SectionTypeDebugLink;
@@ -779,7 +745,7 @@ static bool elf_relocate_section(ELFFile* elf, ELFSection* section) {
         FURI_LOG_D(TAG, "Relocating section");
         return elf_relocate(elf, section);
     } else {
-        FURI_LOG_D(TAG, "No relocation index"); /* Not an error */
+        FURI_LOG_D(TAG, "No relocation index");
     }
     return true;
 }
@@ -803,10 +769,6 @@ static void elf_file_call_section_list(ELFSection* section, bool reverse_order) 
     }
 }
 
-/**************************************************************************************************/
-/********************************************* Public *********************************************/
-/**************************************************************************************************/
-
 ELFFile* elf_file_alloc(Storage* storage, const ElfApiInterface* api_interface) {
     ELFFile* elf = malloc(sizeof(ELFFile));
     elf->fd = storage_file_alloc(storage);
@@ -818,13 +780,12 @@ ELFFile* elf_file_alloc(Storage* storage, const ElfApiInterface* api_interface) 
 }
 
 void elf_file_free(ELFFile* elf) {
-    // furi_check(!elf->init_array_called);
+
     if(elf->init_array_called) {
         FURI_LOG_W(TAG, "Init array was called, but fini array wasn't");
         elf_file_call_section_list(elf->fini_array, true);
     }
 
-    // free sections data
     {
         ELFSectionDict_it_t it;
         for(ELFSectionDict_it(it, elf->sections); !ELFSectionDict_end_p(it);
@@ -843,7 +804,6 @@ void elf_file_free(ELFFile* elf) {
         ELFSectionDict_clear(elf->sections);
     }
 
-    // free trampoline data
     {
         AddressCache_it_t it;
         for(AddressCache_it(it, elf->trampoline_cache); !AddressCache_end_p(it);
@@ -944,7 +904,6 @@ ElfProcessSectionResult elf_process_section(
     FuriString* section_name = furi_string_alloc();
     Elf32_Shdr section_header;
 
-    // find section
     for(size_t section_idx = 1; section_idx < elf->sections_count; section_idx++) {
         furi_string_reset(section_name);
         if(!elf_read_section(elf, section_idx, &section_header, section_name)) {
@@ -957,11 +916,11 @@ ElfProcessSectionResult elf_process_section(
         }
     }
 
-    if(result != ElfProcessSectionResultNotFound) { //-V547
+    if(result != ElfProcessSectionResultNotFound) {
         if(process_section(elf->fd, section_header.sh_offset, section_header.sh_size, context)) {
             result = ElfProcessSectionResultSuccess;
         } else {
-            result = ElfProcessSectionResultCannotProcess; //-V1048
+            result = ElfProcessSectionResultCannotProcess;
         }
     }
 
@@ -986,7 +945,6 @@ ELFFileLoadStatus elf_file_load_sections(ELFFile* elf) {
         }
     }
 
-    /* Fixing up entry point */
     if(status == ELFFileLoadStatusSuccess) {
         ELFSection* text_section = elf_file_get_section(elf, ".text");
 
@@ -1043,13 +1001,11 @@ const ElfApiInterface* elf_file_get_api_interface(ELFFile* elf_file) {
 }
 
 void elf_file_init_debug_info(ELFFile* elf, ELFDebugInfo* debug_info) {
-    // set entry
+
     debug_info->entry = elf->entry;
 
-    // copy debug info
     memcpy(&debug_info->debug_link_info, &elf->debug_link_info, sizeof(ELFDebugLinkInfo));
 
-    // init mmap
     debug_info->mmap_entry_count = ELFSectionDict_size(elf->sections);
     debug_info->mmap_entries = malloc(sizeof(ELFMemoryMapEntry) * debug_info->mmap_entry_count);
     uint32_t mmap_entry_idx = 0;
@@ -1069,10 +1025,9 @@ void elf_file_init_debug_info(ELFFile* elf, ELFDebugInfo* debug_info) {
 }
 
 void elf_file_clear_debug_info(ELFDebugInfo* debug_info) {
-    // clear debug info
+
     memset(&debug_info->debug_link_info, 0, sizeof(ELFDebugLinkInfo));
 
-    // clear mmap
     if(debug_info->mmap_entries) {
         free(debug_info->mmap_entries);
         debug_info->mmap_entries = NULL;

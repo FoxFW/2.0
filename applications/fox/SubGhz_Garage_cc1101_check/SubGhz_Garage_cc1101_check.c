@@ -1,10 +1,3 @@
-/* Probes for an external CC1101 module, caches the result to a flag file
- * so Garage/Gate/Other can trust it instead of paying the plugin-load
- * cost to check itself. Launched from Mode Picker (marker file carries
- * Garage's own launch args) or directly from the Apps menu - both open
- * Garage/Gate/Other after the probe. Desktop's own periodic background
- * check runs the same probe inline instead of launching this app. */
-
 #include <furi.h>
 #include <storage/storage.h>
 #include <loader/loader.h>
@@ -19,8 +12,6 @@
 #define CC1101_PROBE_RELAUNCH_PATH EXT_PATH("subghz/.cc1101_probe_relaunch")
 #define SUBGHZ_GARAGE_FAP_PATH     EXT_PATH("apps/Sub-GHz/subghz_garage.fap")
 
-/* Returns true if a Mode-Picker-style relaunch marker was found and acted
- * on (Garage already enqueued), false otherwise. */
 static bool subghz_garage_cc1101_check_relaunch_garage_if_requested(void) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     if(!storage_file_exists(storage, CC1101_PROBE_RELAUNCH_PATH)) {
@@ -58,9 +49,6 @@ static void subghz_garage_cc1101_check_blank_draw_cb(Canvas* canvas, void* ctx) 
 int32_t subghz_garage_cc1101_check_app(void* p) {
     UNUSED(p);
 
-    /* Cover the screen for this app's whole (brief) runtime, same trick as
-     * subghz_scene_start_launch_and_exit() - without it, this being
-     * headless let the Apps menu flash through underneath. */
     Gui* gui = furi_record_open(RECORD_GUI);
     ViewPort* blank_viewport = view_port_alloc();
     view_port_draw_callback_set(blank_viewport, subghz_garage_cc1101_check_blank_draw_cb, NULL);
@@ -93,8 +81,7 @@ int32_t subghz_garage_cc1101_check_app(void* p) {
     FURI_LOG_I(TAG, "External CC1101 %s", connected ? "detected" : "not detected");
 
     if(!subghz_garage_cc1101_check_relaunch_garage_if_requested()) {
-        /* No Mode-Picker marker was pending - the only other caller is a
-         * manual launch from the Apps menu, so open Garage/Gate/Other now. */
+
         FURI_LOG_I(TAG, "Launched from Apps menu - opening Garage/Gate/Other");
         Loader* loader = furi_record_open(RECORD_LOADER);
         loader_enqueue_launch(loader, SUBGHZ_GARAGE_FAP_PATH, NULL, LoaderDeferredLaunchFlagNone);

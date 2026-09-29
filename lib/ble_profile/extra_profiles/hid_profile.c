@@ -17,13 +17,12 @@
 #define BLE_PROFILE_HID_KB_MAX_KEYS   (6)
 #define BLE_PROFILE_CONSUMER_MAX_KEYS (1)
 
-// Report ids cant be 0
 enum HidReportId {
     ReportIdKeyboard = 1,
     ReportIdMouse = 2,
     ReportIdConsumer = 3,
 };
-// Report numbers corresponded to the report id with an offset of 1
+
 enum HidInputNumber {
     ReportNumberKeyboard = 0,
     ReportNumberMouse = 1,
@@ -47,9 +46,8 @@ typedef struct {
     uint16_t key[BLE_PROFILE_CONSUMER_MAX_KEYS];
 } FURI_PACKED FuriHalBtHidConsumerReport;
 
-// keyboard+mouse+consumer hid report
 static const uint8_t ble_profile_hid_report_map_data[] = {
-    // Keyboard Report
+
     HID_USAGE_PAGE(HID_PAGE_DESKTOP),
     HID_USAGE(HID_DESKTOP_KEYBOARD),
     HID_COLLECTION(HID_APPLICATION_COLLECTION),
@@ -80,7 +78,7 @@ static const uint8_t ble_profile_hid_report_map_data[] = {
     HID_USAGE_MAXIMUM(101),
     HID_INPUT(HID_IOF_DATA | HID_IOF_ARRAY | HID_IOF_ABSOLUTE),
     HID_END_COLLECTION,
-    // Mouse Report
+
     HID_USAGE_PAGE(HID_PAGE_DESKTOP),
     HID_USAGE(HID_DESKTOP_MOUSE),
     HID_COLLECTION(HID_APPLICATION_COLLECTION),
@@ -109,7 +107,7 @@ static const uint8_t ble_profile_hid_report_map_data[] = {
     HID_INPUT(HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_RELATIVE),
     HID_END_COLLECTION,
     HID_END_COLLECTION,
-    // Consumer Report
+
     HID_USAGE_PAGE(HID_PAGE_CONSUMER),
     HID_USAGE(HID_CONSUMER_CONTROL),
     HID_COLLECTION(HID_APPLICATION_COLLECTION),
@@ -148,17 +146,15 @@ static FuriHalBleProfileBase* ble_profile_hid_start(FuriHalBleProfileParams prof
     profile->dev_info_svc = ble_svc_dev_info_start();
     profile->hid_svc = ble_svc_hid_start();
 
-    // Configure HID Keyboard
     profile->kb_report = malloc(sizeof(FuriHalBtHidKbReport));
     profile->mouse_report = malloc(sizeof(FuriHalBtHidMouseReport));
     profile->consumer_report = malloc(sizeof(FuriHalBtHidConsumerReport));
 
-    // Configure Report Map characteristic
     ble_svc_hid_update_report_map(
         profile->hid_svc,
         ble_profile_hid_report_map_data,
         sizeof(ble_profile_hid_report_map_data));
-    // Configure HID Information characteristic
+
     uint8_t hid_info_val[4] = {
         HID_INFO_BASE_USB_SPECIFICATION & 0x00ff,
         (HID_INFO_BASE_USB_SPECIFICATION & 0xff00) >> 8,
@@ -249,7 +245,7 @@ bool ble_profile_hid_consumer_key_press(FuriHalBleProfileBase* profile, uint16_t
 
     BleProfileHid* hid_profile = (BleProfileHid*)profile;
     FuriHalBtHidConsumerReport* consumer_report = hid_profile->consumer_report;
-    for(uint8_t i = 0; i < BLE_PROFILE_CONSUMER_MAX_KEYS; i++) { //-V1008
+    for(uint8_t i = 0; i < BLE_PROFILE_CONSUMER_MAX_KEYS; i++) {
         if(consumer_report->key[i] == 0) {
             consumer_report->key[i] = button;
             break;
@@ -268,7 +264,7 @@ bool ble_profile_hid_consumer_key_release(FuriHalBleProfileBase* profile, uint16
 
     BleProfileHid* hid_profile = (BleProfileHid*)profile;
     FuriHalBtHidConsumerReport* consumer_report = hid_profile->consumer_report;
-    for(uint8_t i = 0; i < BLE_PROFILE_CONSUMER_MAX_KEYS; i++) { //-V1008
+    for(uint8_t i = 0; i < BLE_PROFILE_CONSUMER_MAX_KEYS; i++) {
         if(consumer_report->key[i] == button) {
             consumer_report->key[i] = 0;
             break;
@@ -287,7 +283,7 @@ bool ble_profile_hid_consumer_key_release_all(FuriHalBleProfileBase* profile) {
 
     BleProfileHid* hid_profile = (BleProfileHid*)profile;
     FuriHalBtHidConsumerReport* consumer_report = hid_profile->consumer_report;
-    for(uint8_t i = 0; i < BLE_PROFILE_CONSUMER_MAX_KEYS; i++) { //-V1008
+    for(uint8_t i = 0; i < BLE_PROFILE_CONSUMER_MAX_KEYS; i++) {
         consumer_report->key[i] = 0;
     }
     return ble_svc_hid_update_input_report(
@@ -373,10 +369,8 @@ bool ble_profile_hid_mouse_scroll(FuriHalBleProfileBase* profile, int8_t delta) 
     return state;
 }
 
-// AN5289: 4.7, in order to use flash controller interval must be at least 25ms + advertisement, which is 30 ms
-// Since we don't use flash controller anymore interval can be lowered to 7.5ms
 #define CONNECTION_INTERVAL_MIN (0x0006)
-// Up to 45 ms
+
 #define CONNECTION_INTERVAL_MAX (0x24)
 
 static GapConfig template_config = {
@@ -402,17 +396,15 @@ static void ble_profile_hid_get_config(GapConfig* config, FuriHalBleProfileParam
 
     furi_check(config);
     memcpy(config, &template_config, sizeof(GapConfig));
-    // Set mac address
+
     memcpy(config->mac_address, furi_hal_version_get_ble_mac(), sizeof(config->mac_address));
 
-    // Change MAC address for HID profile
     config->mac_address[2]++;
     if(hid_profile_params) {
         config->mac_address[0] ^= hid_profile_params->mac_xor;
         config->mac_address[1] ^= hid_profile_params->mac_xor >> 8;
     }
 
-    // Set advertise name
     const char* clicker_str = "Control";
     if(hid_profile_params && hid_profile_params->device_name_prefix) {
         clicker_str = hid_profile_params->device_name_prefix;

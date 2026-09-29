@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 #include "../picopass_keys.h"
 
 void picopass_scene_read_factory_success_widget_callback(
@@ -19,7 +18,6 @@ void picopass_scene_read_factory_success_on_enter(void* context) {
     FuriString* title = furi_string_alloc_set("Factory Default");
     FuriString* subtitle = furi_string_alloc_set("");
 
-    dolphin_deed(DolphinDeedNfcReadSuccess);
 
     // Send notification
     notification_message(picopass->notifications, &sequence_success);

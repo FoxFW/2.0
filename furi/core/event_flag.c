@@ -16,7 +16,6 @@ struct FuriEventFlag {
     FuriEventLoopLink event_loop_link;
 };
 
-// IMPORTANT: container MUST be the FIRST struct member
 static_assert(offsetof(FuriEventFlag, container) == 0);
 
 FuriEventFlag* furi_event_flag_alloc(void) {
@@ -24,10 +23,6 @@ FuriEventFlag* furi_event_flag_alloc(void) {
 
     FuriEventFlag* instance = malloc(sizeof(FuriEventFlag));
 
-    /* xEventGroupCreateStatic only zeroes sizeof(StaticEventGroup_t) bytes.
-     * FuriEventLoopLink follows the container and is NOT covered; zero it
-     * explicitly so furi_event_flag_set/clear/wait notify calls are safe on
-     * recycled heap allocations. */
     instance->event_loop_link.item_in  = NULL;
     instance->event_loop_link.item_out = NULL;
 
@@ -39,7 +34,6 @@ FuriEventFlag* furi_event_flag_alloc(void) {
 void furi_event_flag_free(FuriEventFlag* instance) {
     furi_check(!FURI_IS_IRQ_MODE());
 
-    // Event Loop must be disconnected
     furi_check(!instance->event_loop_link.item_in);
     furi_check(!instance->event_loop_link.item_out);
 
@@ -75,7 +69,6 @@ uint32_t furi_event_flag_set(FuriEventFlag* instance, uint32_t flags) {
 
     FURI_CRITICAL_EXIT();
 
-    /* Return event flags after setting */
     return rflags;
 }
 
@@ -93,9 +86,7 @@ uint32_t furi_event_flag_clear(FuriEventFlag* instance, uint32_t flags) {
         if(xEventGroupClearBitsFromISR(hEventGroup, (EventBits_t)flags) == pdFAIL) {
             rflags = (uint32_t)FuriStatusErrorResource;
         } else {
-            /* xEventGroupClearBitsFromISR only registers clear operation in the timer command queue. */
-            /* Yield is required here otherwise clear operation might not execute in the right order. */
-            /* See https://github.com/FreeRTOS/FreeRTOS-Kernel/issues/93 for more info.               */
+
             portYIELD_FROM_ISR(pdTRUE);
         }
     } else {
@@ -107,7 +98,6 @@ uint32_t furi_event_flag_clear(FuriEventFlag* instance, uint32_t flags) {
     }
     FURI_CRITICAL_EXIT();
 
-    /* Return event flags before clearing */
     return rflags;
 }
 
@@ -123,7 +113,6 @@ uint32_t furi_event_flag_get(FuriEventFlag* instance) {
         rflags = xEventGroupGetBits(hEventGroup);
     }
 
-    /* Return current event flags */
     return rflags;
 }
 
@@ -178,7 +167,6 @@ uint32_t furi_event_flag_wait(
         furi_event_loop_link_notify(&instance->event_loop_link, FuriEventLoopEventOut);
     }
 
-    /* Return event flags before clearing */
     return rflags;
 }
 

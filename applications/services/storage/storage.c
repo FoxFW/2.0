@@ -18,7 +18,6 @@ static void storage_app_sd_icon_draw_callback(Canvas* canvas, void* context) {
     furi_assert(context);
     Storage* app = context;
 
-    // here we don't care about thread race when reading / writing status
     switch(app->storage[ST_EXT].status) {
     case StorageStatusNotReady:
         break;
@@ -43,7 +42,6 @@ Storage* storage_app_alloc(void) {
 
     storage_ext_init(&app->storage[ST_EXT]);
 
-    // sd icon gui
     app->sd_gui.enabled = (app->storage[ST_EXT].status != StorageStatusNotReady);
     app->sd_gui.view_port = view_port_alloc();
     view_port_set_width(app->sd_gui.view_port, icon_get_width(ICON_SD_MOUNTED));
@@ -65,7 +63,6 @@ void storage_tick(Storage* app) {
         }
     }
 
-    // storage not enabled but was enabled (sd card unmount)
     if(app->storage[ST_EXT].status == StorageStatusNotReady && app->sd_gui.enabled == true) {
         app->sd_gui.enabled = false;
         view_port_enabled_set(app->sd_gui.view_port, false);
@@ -75,7 +72,6 @@ void storage_tick(Storage* app) {
         furi_pubsub_publish(app->pubsub, &event);
     }
 
-    // storage enabled (or in error state) but was not enabled (sd card mount)
     if((app->storage[ST_EXT].status == StorageStatusOK ||
         app->storage[ST_EXT].status == StorageStatusNotMounted ||
         app->storage[ST_EXT].status == StorageStatusNoFS ||

@@ -107,13 +107,11 @@ Iso14443_3aError
     furi_check(instance->tx_buffer);
     furi_check(instance->rx_buffer);
 
-    // Reset Iso14443_3a poller state
     memset(&instance->col_res, 0, sizeof(instance->col_res));
     memset(instance->data, 0, sizeof(Iso14443_3aData));
     bit_buffer_reset(instance->tx_buffer);
     bit_buffer_reset(instance->rx_buffer);
 
-    // Halt if necessary
     if(instance->state != Iso14443_3aPollerStateIdle) {
         iso14443_3a_poller_halt(instance);
         instance->state = Iso14443_3aPollerStateIdle;
@@ -213,7 +211,7 @@ Iso14443_3aError
                     sizeof(instance->col_res.sel_resp));
                 FURI_LOG_T(TAG, "Sel resp: %02X", instance->col_res.sel_resp.sak);
                 if(instance->col_res.sel_req.nfcid[0] == ISO14443_3A_POLLER_SDD_CL) {
-                    // Copy part of UID
+
                     memcpy(
                         &instance->data->uid[instance->data->uid_len],
                         &instance->col_res.sel_req.nfcid[1],

@@ -69,7 +69,7 @@ const GpioPin gpio_usb_dm = {.port = GPIOA, .pin = LL_GPIO_PIN_11};
 const GpioPin gpio_usb_dp = {.port = GPIOA, .pin = LL_GPIO_PIN_12};
 
 const GpioPinRecord gpio_pins[] = {
-    // 5V: 1
+
     {.pin = &gpio_ext_pa7,
      .name = "PA7",
      .channel = FuriHalAdcChannel12,
@@ -102,15 +102,13 @@ const GpioPinRecord gpio_pins[] = {
      .channel = FuriHalAdcChannel4,
      .number = 7,
      .debug = false},
-    // GND: 8
-    // Space
-    // 3v3: 9
+
     {.pin = &gpio_swclk,
      .name = "PA14",
      .channel = FuriHalAdcChannelNone,
      .number = 10,
      .debug = true},
-    // GND: 11
+
     {.pin = &gpio_swdio,
      .name = "PA13",
      .channel = FuriHalAdcChannelNone,
@@ -141,9 +139,7 @@ const GpioPinRecord gpio_pins[] = {
      .channel = FuriHalAdcChannelNone,
      .number = 17,
      .debug = true},
-    // GND: 18
 
-    /* Dangerous pins, may damage hardware */
     {.pin = &gpio_speaker,
      .name = "PB8",
      .channel = FuriHalAdcChannelNone,
@@ -197,32 +193,28 @@ void furi_hal_resources_init_early(void) {
 
     furi_hal_resources_init_input_pins(GpioModeInput);
 
-    // Explicit, surviving reset, pulls
     LL_PWR_EnablePUPDCfg();
-    LL_PWR_EnableGPIOPullDown(LL_PWR_GPIO_A, LL_PWR_GPIO_BIT_8); // gpio_vibro
-    LL_PWR_EnableGPIOPullDown(LL_PWR_GPIO_B, LL_PWR_GPIO_BIT_8); // gpio_speaker
-    LL_PWR_EnableGPIOPullDown(LL_PWR_GPIO_B, LL_PWR_GPIO_BIT_9); // gpio_infrared_tx
+    LL_PWR_EnableGPIOPullDown(LL_PWR_GPIO_A, LL_PWR_GPIO_BIT_8);
+    LL_PWR_EnableGPIOPullDown(LL_PWR_GPIO_B, LL_PWR_GPIO_BIT_8);
+    LL_PWR_EnableGPIOPullDown(LL_PWR_GPIO_B, LL_PWR_GPIO_BIT_9);
 
-    // SD Card stepdown control
     furi_hal_gpio_write(&gpio_periph_power, 1);
     furi_hal_gpio_init(&gpio_periph_power, GpioModeOutputOpenDrain, GpioPullNo, GpioSpeedLow);
 
-    // Display pins
     furi_hal_gpio_write(&gpio_display_rst_n, 0);
     furi_hal_gpio_init_simple(&gpio_display_rst_n, GpioModeOutputPushPull);
-    LL_PWR_EnableGPIOPullUp(LL_PWR_GPIO_B, LL_PWR_GPIO_BIT_0); // gpio_display_rst_n
+    LL_PWR_EnableGPIOPullUp(LL_PWR_GPIO_B, LL_PWR_GPIO_BIT_0);
     furi_hal_gpio_write(&gpio_display_di, 0);
     furi_hal_gpio_init_simple(&gpio_display_di, GpioModeOutputPushPull);
-    LL_PWR_EnableGPIOPullDown(LL_PWR_GPIO_B, LL_PWR_GPIO_BIT_1); // gpio_display_di
+    LL_PWR_EnableGPIOPullDown(LL_PWR_GPIO_B, LL_PWR_GPIO_BIT_1);
 
-    // Hard reset USB
     furi_hal_gpio_write(&gpio_usb_dm, 1);
     furi_hal_gpio_write(&gpio_usb_dp, 1);
     furi_hal_gpio_init_simple(&gpio_usb_dm, GpioModeOutputOpenDrain);
     furi_hal_gpio_init_simple(&gpio_usb_dp, GpioModeOutputOpenDrain);
     furi_hal_gpio_write(&gpio_usb_dm, 0);
     furi_hal_gpio_write(&gpio_usb_dp, 0);
-    furi_delay_us(5); // Device Driven disconnect: 2.5us + extra to compensate cables
+    furi_delay_us(5);
     furi_hal_gpio_write(&gpio_usb_dm, 1);
     furi_hal_gpio_write(&gpio_usb_dp, 1);
     furi_hal_gpio_init_simple(&gpio_usb_dm, GpioModeAnalog);
@@ -230,7 +222,6 @@ void furi_hal_resources_init_early(void) {
     furi_hal_gpio_write(&gpio_usb_dm, 0);
     furi_hal_gpio_write(&gpio_usb_dp, 0);
 
-    // External header pins
     furi_hal_resources_init_gpio_pins(GpioModeAnalog);
 }
 
@@ -245,10 +236,9 @@ void furi_hal_resources_deinit_early(void) {
 }
 
 void furi_hal_resources_init(void) {
-    // Button pins
+
     furi_hal_resources_init_input_pins(GpioModeInterruptRiseFall);
 
-    // SD pins
     furi_hal_gpio_init(&gpio_sdcard_cd, GpioModeInput, GpioPullNo, GpioSpeedLow);
     furi_hal_gpio_write(&gpio_sdcard_cd, 0);
 

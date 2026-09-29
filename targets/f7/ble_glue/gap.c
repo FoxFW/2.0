@@ -67,19 +67,13 @@ static void gap_verify_connection_parameters(Gap* gap) {
         gap->connection_params.slave_latency,
         gap->connection_params.supervisor_timeout);
 
-    // Send connection parameters request update if necessary
     GapConnectionParamsRequest* params = &gap->config->conn_param;
 
-    // Desired max connection interval depends on how many negotiation rounds we had in the past
-    // In the first negotiation round we want connection interval to be minimum
-    // If platform disagree then we request wider range
     uint16_t connection_interval_max = gap->negotiation_round ? params->conn_int_max :
                                                                 params->conn_int_min;
 
-    // We do care about lower connection interval bound a lot: if it's lower than 30ms 2nd core will not allow us to use flash controller
     bool negotiation_failed = params->conn_int_min > gap->connection_params.conn_interval;
 
-    // We don't care about upper bound till connection become secure
     if(gap->is_secure) {
         negotiation_failed |= connection_interval_max < gap->connection_params.conn_interval;
     }
@@ -96,8 +90,7 @@ static void gap_verify_connection_parameters(Gap* gap) {
                gap->connection_params.slave_latency,
                gap->connection_params.supervisor_timeout)) {
             FURI_LOG_E(TAG, "Failed to request connection parameters update");
-            // The other side is not in the mood
-            // But we are open to try it again
+
             gap->negotiation_round = 0;
         } else {
             gap->negotiation_round++;
@@ -107,7 +100,7 @@ static void gap_verify_connection_parameters(Gap* gap) {
             TAG,
             "Connection interval suits us. Spent %u rounds to negotiate",
             gap->negotiation_round);
-        // Looks like the other side is open to negotiation
+
         gap->negotiation_round = 0;
     }
 }
@@ -138,10 +131,10 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
         }
         gap->is_secure = false;
         gap->negotiation_round = 0;
-        // Enterprise sleep
+
         furi_delay_us(666 + 666);
         if(gap->enable_adv) {
-            // Restart advertising
+
             gap_advertise_start(GapStateAdvFast);
         }
         GapEvent event = {.type = GapEventTypeDisconnected};
@@ -186,17 +179,15 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             gap->connection_params.slave_latency = event->Conn_Latency;
             gap->connection_params.supervisor_timeout = event->Supervision_Timeout;
 
-            // Stop advertising as connection completed
             furi_timer_stop(gap->advertise_timer);
 
-            // Update connection status and handle
             gap->state = GapStateConnected;
             gap->service.connection_handle = event->Connection_Handle;
 
             gap_verify_connection_parameters(gap);
 
             if(gap->config->pairing_method != GapPairingNone) {
-                // Start pairing by sending security request
+
                 aci_gap_slave_security_req(event->Connection_Handle);
             }
         } break;
@@ -216,8 +207,8 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             break;
 
         case ACI_GAP_PASS_KEY_REQ_VSEVT_CODE: {
-            // Generate random PIN code
-            uint32_t pin = rand() % 999999; //-V1064
+
+            uint32_t pin = rand() % 999999;
             aci_gap_pass_key_resp(gap->service.connection_handle, pin);
             if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagLock)) {
                 FURI_LOG_I(TAG, "Pass key request event. Pin: ******");
@@ -231,7 +222,7 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
         case ACI_ATT_EXCHANGE_MTU_RESP_VSEVT_CODE: {
             aci_att_exchange_mtu_resp_event_rp0* pr = (void*)blue_evt->data;
             FURI_LOG_I(TAG, "Rx MTU size: %d", pr->Server_RX_MTU);
-            // Set maximum packet size given header size is 3 bytes
+
             GapEvent event = {
                 .type = GapEventTypeUpdateMTU, .data.max_packet_size = pr->Server_RX_MTU - 3};
             gap->on_event_cb(event, gap->context);
@@ -280,7 +271,7 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             } else {
                 FURI_LOG_I(TAG, "Pairing complete");
                 GapEvent event = {.type = GapEventTypeConnected};
-                gap->on_event_cb(event, gap->context); //-V595
+                gap->on_event_cb(event, gap->context);
             }
             break;
 
@@ -334,29 +325,22 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
     tBleStatus status;
     uint32_t srd_bd_addr[2];
 
-    // Configure mac address
     aci_hal_write_config_data(
         CONFIG_DATA_PUBADDR_OFFSET, CONFIG_DATA_PUBADDR_LEN, gap->config->mac_address);
 
-    /* Static random Address
-     * The two upper bits shall be set to 1
-     * The lowest 32bits is read from the UDN to differentiate between devices
-     * The RNG may be used to provide a random number on each power on
-     */
     srd_bd_addr[1] = 0x0000ED6E;
     srd_bd_addr[0] = LL_FLASH_GetUDN();
     aci_hal_write_config_data(
         CONFIG_DATA_RANDOM_ADDRESS_OFFSET, CONFIG_DATA_RANDOM_ADDRESS_LEN, (uint8_t*)srd_bd_addr);
-    // Set Identity root key used to derive LTK and CSRK
+
     aci_hal_write_config_data(CONFIG_DATA_IR_OFFSET, CONFIG_DATA_IR_LEN, root_keys->irk);
-    // Set Encryption root key used to derive LTK and CSRK
+
     aci_hal_write_config_data(CONFIG_DATA_ER_OFFSET, CONFIG_DATA_ER_LEN, root_keys->erk);
-    // Set TX Power to 0 dBm
+
     aci_hal_set_tx_power_level(1, 0x19);
-    // Initialize GATT interface
+
     aci_gatt_init();
-    // Initialize GAP interface
-    // Skip first symbol AD_TYPE_COMPLETE_LOCAL_NAME
+
     char* name = gap->service.adv_name + 1;
     aci_gap_init(
         GAP_PERIPHERAL_ROLE,
@@ -366,7 +350,6 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
         &gap->service.dev_name_char_handle,
         &gap->service.appearance_char_handle);
 
-    // Set GAP characteristics
     status = aci_gatt_update_char_value(
         gap->service.gap_svc_handle,
         gap->service.dev_name_char_handle,
@@ -388,9 +371,9 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
     if(status) {
         FURI_LOG_E(TAG, "Failed updating appearence characteristic: %d", status);
     }
-    // Set default PHY
+
     hci_le_set_default_phy(ALL_PHYS_PREFERENCE, TX_2M_PREFERRED, RX_2M_PREFERRED);
-    // Set I/O capability
+
     uint8_t auth_req_mitm_mode = MITM_PROTECTION_REQUIRED;
     uint8_t auth_req_use_fixed_pin = USE_FIXED_PIN_FOR_PAIRING_FORBIDDEN;
     bool keypress_supported = false;
@@ -400,14 +383,14 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
         aci_gap_set_io_capability(IO_CAP_DISPLAY_YES_NO);
         keypress_supported = true;
     } else if(gap->config->pairing_method == GapPairingNone) {
-        // "Just works" pairing method (iOS accepts it, it seems Android and Linux don't)
+
         auth_req_mitm_mode = MITM_PROTECTION_NOT_REQUIRED;
         auth_req_use_fixed_pin = USE_FIXED_PIN_FOR_PAIRING_ALLOWED;
-        // If "just works" isn't supported, we want the numeric comparaison method
+
         aci_gap_set_io_capability(IO_CAP_DISPLAY_YES_NO);
         keypress_supported = true;
     }
-    // Setup  authentication
+
     aci_gap_set_authentication_requirement(
         gap->config->bonding_mode,
         auth_req_mitm_mode,
@@ -418,7 +401,7 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
         auth_req_use_fixed_pin,
         0,
         CFG_IDENTITY_ADDRESS);
-    // Configure whitelist
+
     aci_gap_configure_whitelist();
 }
 
@@ -430,18 +413,18 @@ static void gap_advertise_start(GapState new_state) {
     FURI_LOG_D(TAG, "Start: %d", new_state);
 
     if(new_state == GapStateAdvFast) {
-        min_interval = 0x80; // 80 ms
-        max_interval = 0xa0; // 100 ms
+        min_interval = 0x80;
+        max_interval = 0xa0;
     } else {
-        min_interval = 0x0640; // 1 s
-        max_interval = 0x0fa0; // 2.5 s
+        min_interval = 0x0640;
+        max_interval = 0x0fa0;
     }
-    // Stop advertising timer
+
     furi_timer_stop(gap->advertise_timer);
 
     if((new_state == GapStateAdvLowPower) &&
        ((gap->state == GapStateAdvFast) || (gap->state == GapStateAdvLowPower))) {
-        // Stop advertising
+
         status = aci_gap_set_non_discoverable();
         if(status) {
             FURI_LOG_E(TAG, "set_non_discoverable failed %d", status);
@@ -454,7 +437,6 @@ static void gap_advertise_start(GapState new_state) {
         hci_le_set_scan_response_data(gap->service.mfg_data_len, gap->service.mfg_data);
     }
 
-    // Configure advertising
     status = aci_gap_set_discoverable(
         ADV_IND,
         min_interval,
@@ -481,7 +463,7 @@ static void gap_advertise_stop(void) {
     tBleStatus ret;
     if(gap->state > GapStateIdle) {
         if(gap->state == GapStateConnected) {
-            // Terminate connection
+
             ret = aci_gap_terminate(gap->service.connection_handle, 0x13);
             if(ret != BLE_STATUS_SUCCESS) {
                 FURI_LOG_E(TAG, "terminate failed %d", ret);
@@ -489,7 +471,7 @@ static void gap_advertise_stop(void) {
                 FURI_LOG_D(TAG, "terminate success");
             }
         }
-        // Stop advertising
+
         furi_timer_stop(gap->advertise_timer);
         ret = aci_gap_set_non_discoverable();
         if(ret != BLE_STATUS_SUCCESS) {
@@ -545,31 +527,28 @@ bool gap_init(
 
     gap = malloc(sizeof(Gap));
     gap->config = config;
-    // Create advertising timer
+
     gap->advertise_timer = furi_timer_alloc(gap_advertise_timer_callback, FuriTimerTypeOnce, NULL);
-    // Initialization of GATT & GAP layer
+
     gap->service.adv_name = config->adv_name;
     gap_init_svc(gap, root_keys);
     ble_event_dispatcher_init();
-    // Initialization of the GAP state
+
     gap->state_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     gap->state = GapStateIdle;
     gap->service.connection_handle = 0xFFFF;
     gap->enable_adv = true;
 
-    // Command queue allocation
     gap->command_queue = furi_message_queue_alloc(8, sizeof(GapCommand));
 
-    // Thread configuration
     gap->thread = furi_thread_alloc_ex("BleGapDriver", 1024, gap_app, gap);
     furi_thread_start(gap->thread);
 
-    // Set initial state
     gap->is_secure = false;
     gap->negotiation_round = 0;
 
     if(gap->config->mfg_data_len > 0) {
-        // Offset by 2 for length + AD_TYPE_MANUFACTURER_SPECIFIC_DATA
+
         gap->service.mfg_data_len = 2;
         set_manufacturer_data(gap->config->mfg_data, gap->config->mfg_data_len);
     }
@@ -588,7 +567,6 @@ bool gap_init(
         furi_crash("Invalid UUID type");
     }
 
-    // Set callback
     gap->on_event_cb = on_event_cb;
     gap->context = context;
 
@@ -615,13 +593,15 @@ void gap_thread_stop(void) {
         furi_message_queue_put(gap->command_queue, &command, FuriWaitForever);
         furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
         furi_thread_join(gap->thread);
+        furi_kernel_lock();
         furi_thread_free(gap->thread);
         gap->thread = NULL;
-        // Free resources
+
         furi_mutex_free(gap->state_mutex);
         gap->state_mutex = NULL;
         furi_message_queue_free(gap->command_queue);
         gap->command_queue = NULL;
+        furi_kernel_unlock();
         furi_timer_free(gap->advertise_timer);
         gap->advertise_timer = NULL;
 

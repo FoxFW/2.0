@@ -9,7 +9,6 @@
 #include <gui/modules/text_input.h>
 
 #include "esp_at.h"
-#include "fox_splash.h"
 #include "qrcodegen.h"
 
 #define FOX_QR_MAX_VERSION 10
@@ -20,7 +19,6 @@
 #define FOX_PORTAL_HTML_TRANSFER_MAX 1024
 
 typedef enum {
-    FoxCommanderViewSplash,
     FoxCommanderViewMenu,
     FoxCommanderViewMessage,
     FoxCommanderViewTerminal,
@@ -43,8 +41,6 @@ typedef enum {
 typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
-
-    FoxSplash* splash;
 
     Submenu* submenu;
     TextInput* text_input;

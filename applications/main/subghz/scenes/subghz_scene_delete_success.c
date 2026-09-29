@@ -1,4 +1,4 @@
-#include "../subghz_i.h" // IWYU pragma: keep
+#include "../subghz_i.h"
 #include "../helpers/subghz_custom_event.h"
 
 void subghz_scene_delete_success_popup_callback(void* context) {
@@ -10,9 +10,8 @@ void subghz_scene_delete_success_popup_callback(void* context) {
 void subghz_scene_delete_success_on_enter(void* context) {
     SubGhz* subghz = context;
 
-    // Setup view
     Popup* popup = subghz->popup;
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 2, &I_DolphinMafia_119x62);
+
     popup_set_header(popup, "Deleted", 80, 19, AlignLeft, AlignBottom);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, subghz);

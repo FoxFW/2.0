@@ -5,10 +5,6 @@
 
 #include <furi.h>
 
-/*
- * Private functions
- */
-
 static inline uint32_t furi_event_loop_timer_get_elapsed_time(const FuriEventLoopTimer* timer) {
     return xTaskGetTickCount() - timer->start_time;
 }
@@ -47,14 +43,14 @@ static void furi_event_loop_schedule_timer(FuriEventLoop* instance, FuriEventLoo
     } else {
         TimerList_push_front(instance->timer_list, timer);
     }
-    // At this point, TimerList_front() points to the first timer to expire
+
 }
 
 static void furi_event_loop_timer_enqueue_request(
     FuriEventLoopTimer* timer,
     FuriEventLoopTimerRequest request) {
     if(timer->request != FuriEventLoopTimerRequestNone) {
-        // You cannot change your mind after calling furi_event_loop_timer_free()
+
         furi_check(timer->request != FuriEventLoopTimerRequestFree);
         TimerQueue_unlink(timer);
     }
@@ -70,10 +66,6 @@ static void furi_event_loop_timer_enqueue_request(
         FuriEventLoopFlagTimer,
         eSetBits);
 }
-
-/*
- * Private API
- */
 
 uint32_t furi_event_loop_get_timer_wait_time(const FuriEventLoop* instance) {
     uint32_t wait_time = FuriWaitForever;
@@ -119,7 +111,7 @@ bool furi_event_loop_process_expired_timers(FuriEventLoop* instance) {
     if(TimerList_empty_p(instance->timer_list)) {
         return false;
     }
-    // The front() element contains the earliest-expiring timer
+
     FuriEventLoopTimer* timer = TimerList_front(instance->timer_list);
 
     if(!furi_event_loop_timer_is_expired(timer)) {
@@ -142,10 +134,6 @@ bool furi_event_loop_process_expired_timers(FuriEventLoop* instance) {
     timer->callback(timer->context);
     return true;
 }
-
-/*
- * Public timer API
- */
 
 FuriEventLoopTimer* furi_event_loop_timer_alloc(
     FuriEventLoop* instance,

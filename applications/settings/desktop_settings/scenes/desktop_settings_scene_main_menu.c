@@ -9,13 +9,9 @@
 #include "desktop_settings_scene.h"
 #include "desktop_settings_scene_i.h"
 
-// Format shared with applications/services/loader/loader_main_menu_pins.c —
-// keep these three in sync with that file. Duplicated (not a shared header)
-// because external .fap apps can't reliably include another app's private
-// headers; the two sides only agree via this plain-text file on disk.
 #define MAIN_MENU_PINS_MAX       12
 #define MAIN_MENU_PINS_PATH_LEN  128
-#define MAIN_MENU_PINS_NAME_LEN  7 // 6-char custom label + NUL
+#define MAIN_MENU_PINS_NAME_LEN  7
 #define MAIN_MENU_PINS_FILE_NAME ".main_menu.pins"
 
 typedef struct {

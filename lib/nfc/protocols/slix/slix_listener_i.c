@@ -12,8 +12,6 @@ typedef SlixError (*SlixRequestHandler)(
     size_t data_size,
     uint8_t flags);
 
-// Helper functions
-
 static bool
     slix_listener_is_password_lock_enabled(SlixListener* instance, SlixPasswordType password_type) {
     return !instance->session_state.password_match[password_type];
@@ -55,7 +53,6 @@ static SlixError slix_listener_set_password(
 
         SlixListenerSessionState* session_state = &instance->session_state;
 
-        // With AcceptAllPassword capability set skip password validation
         if(instance->data->capabilities == SlixCapabilitiesAcceptAllPasswords) {
             session_state->password_match[password_type] = true;
             break;
@@ -95,9 +92,9 @@ static SlixError slix_listener_write_password(
         SlixListenerSessionState* session_state = &instance->session_state;
 
         if(session_state->password_match[password_type]) {
-            // TODO FL-3634: check for password lock
+
             slix_set_password(slix_data, password_type, password);
-            // Require another SET_PASSWORD command with the new password
+
             session_state->password_match[password_type] = false;
         } else {
             error = SlixErrorWrongPassword;
@@ -108,7 +105,6 @@ static SlixError slix_listener_write_password(
     return error;
 }
 
-// Custom SLIX request handlers
 static SlixError slix_listener_default_handler(
     SlixListener* instance,
     const uint8_t* data,
@@ -119,7 +115,6 @@ static SlixError slix_listener_default_handler(
     UNUSED(data_size);
     UNUSED(flags);
 
-    // Empty placeholder handler
     return SlixErrorNotSupported;
 }
 
@@ -344,39 +339,36 @@ static SlixError slix_listener_read_signature_handler(
     return SlixErrorNone;
 }
 
-// Custom SLIX commands handler table
 static const SlixRequestHandler slix_request_handler_table[SLIX_CMD_CUSTOM_COUNT] = {
-    slix_listener_default_handler, // SLIX_CMD_SET_EAS (0xA2U)
-    slix_listener_default_handler, // SLIX_CMD_RESET_EAS (0xA3U)
-    slix_listener_default_handler, // SLIX_CMD_LOCK_EAS (0xA4U)
-    slix_listener_default_handler, // SLIX_CMD_EAS_ALARM (0xA5U)
-    slix_listener_default_handler, // SLIX_CMD_PASSWORD_PROTECT_EAS_AFI (0xA6U)
-    slix_listener_default_handler, // SLIX_CMD_WRITE_EAS_ID (0xA7U)
-    slix_listener_default_handler, // UNUSED (0xA8U)
-    slix_listener_default_handler, // UNUSED (0xA9U)
-    slix_listener_default_handler, // UNUSED (0xAAU)
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
     slix_listener_get_nxp_system_info_handler,
-    slix_listener_default_handler, // UNUSED (0xACU)
-    slix_listener_default_handler, // UNUSED (0xADU)
-    slix_listener_default_handler, // UNUSED (0xAEU)
-    slix_listener_default_handler, // UNUSED (0xAFU)
-    slix_listener_default_handler, // SLIX_CMD_INVENTORY_PAGE_READ (0xB0U)
-    slix_listener_default_handler, // SLIX_CMD_INVENTORY_PAGE_READ_FAST (0xB1U)
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
     slix_listener_get_random_number_handler,
     slix_listener_set_password_handler,
     slix_listener_write_password_handler,
-    slix_listener_default_handler, // SLIX_CMD_64_BIT_PASSWORD_PROTECTION (0xB5U)
+    slix_listener_default_handler,
     slix_listener_protect_page_handler,
-    slix_listener_default_handler, // SLIX_CMD_LOCK_PAGE_PROTECTION_CONDITION (0xB7U)
-    slix_listener_default_handler, // UNUSED (0xB8U)
-    slix_listener_default_handler, // SLIX_CMD_DESTROY (0xB9U)
+    slix_listener_default_handler,
+    slix_listener_default_handler,
+    slix_listener_default_handler,
     slix_listener_enable_privacy_handler,
-    slix_listener_default_handler, // UNUSED (0xBBU)
-    slix_listener_default_handler, // SLIX_CMD_STAY_QUIET_PERSISTENT (0xBCU)
+    slix_listener_default_handler,
+    slix_listener_default_handler,
     slix_listener_read_signature_handler,
 };
-
-// ISO15693-3 Protocol extension handlers
 
 static Iso15693_3Error
     slix_listener_iso15693_3_inventory_extension_handler(SlixListener* instance, va_list args) {
@@ -391,7 +383,7 @@ static Iso15693_3Error
 
     do {
         const uint32_t block_num = va_arg(args, uint32_t);
-        // SLIX Counter has no read protection
+
         if(block_num == SLIX_COUNTER_BLOCK_NUM) break;
 
         if(slix_is_block_protected(instance->data, SlixPasswordTypeRead, block_num)) {
@@ -450,7 +442,6 @@ static Iso15693_3Error
     do {
         const uint32_t block_num = va_arg(args, uint32_t);
 
-        // SLIX counter cannot be locked
         if(block_num == SLIX_COUNTER_BLOCK_NUM) {
             error = Iso15693_3ErrorInternal;
             break;
@@ -484,7 +475,7 @@ static Iso15693_3Error slix_listener_iso15693_3_read_multi_block_extension_handl
     const uint32_t block_index_end = va_arg(args, uint32_t);
 
     for(uint32_t i = block_index_start; i <= block_index_end; ++i) {
-        // SLIX Counter has no read protection
+
         if(i == SLIX_COUNTER_BLOCK_NUM) continue;
 
         if(slix_is_block_protected(instance->data, SlixPasswordTypeRead, i)) {
@@ -503,7 +494,7 @@ static Iso15693_3Error slix_listener_iso15693_3_write_multi_block_extension_hand
     va_list args) {
     UNUSED(instance);
     UNUSED(args);
-    // No mention of this command in SLIX docs, assuming not supported
+
     return Iso15693_3ErrorNotSupported;
 }
 
@@ -517,12 +508,11 @@ static Iso15693_3Error slix_listener_iso15693_3_write_lock_afi_extension_handler
                Iso15693_3ErrorNone;
 }
 
-// Extended ISO15693-3 standard commands handler table (NULL = no extension)
 static const Iso15693_3ExtensionHandlerTable slix_iso15693_extension_handler_table = {
     .mandatory =
         {
             (Iso15693_3ExtensionHandler)slix_listener_iso15693_3_inventory_extension_handler,
-            (Iso15693_3ExtensionHandler)NULL // ISO15693_3_CMD_STAY_QUIET (0x02U)
+            (Iso15693_3ExtensionHandler)NULL
         },
     .optional =
         {
@@ -532,14 +522,14 @@ static const Iso15693_3ExtensionHandlerTable slix_iso15693_extension_handler_tab
             (Iso15693_3ExtensionHandler)slix_listener_iso15693_3_read_multi_block_extension_handler,
             (Iso15693_3ExtensionHandler)
                 slix_listener_iso15693_3_write_multi_block_extension_handler,
-            (Iso15693_3ExtensionHandler)NULL, // ISO15693_3_CMD_SELECT (0x25U)
-            (Iso15693_3ExtensionHandler)NULL, // ISO15693_3_CMD_RESET_TO_READY (0x26U)
+            (Iso15693_3ExtensionHandler)NULL,
+            (Iso15693_3ExtensionHandler)NULL,
             (Iso15693_3ExtensionHandler)slix_listener_iso15693_3_write_lock_afi_extension_handler,
             (Iso15693_3ExtensionHandler)slix_listener_iso15693_3_write_lock_afi_extension_handler,
-            (Iso15693_3ExtensionHandler)NULL, // ISO15693_3_CMD_WRITE_DSFID (0x29U)
-            (Iso15693_3ExtensionHandler)NULL, // ISO15693_3_CMD_LOCK_DSFID (0x2AU)
-            (Iso15693_3ExtensionHandler)NULL, // ISO15693_3_CMD_GET_SYS_INFO (0x2BU)
-            (Iso15693_3ExtensionHandler)NULL, // ISO15693_3_CMD_GET_BLOCKS_SECURITY (0x2CU)
+            (Iso15693_3ExtensionHandler)NULL,
+            (Iso15693_3ExtensionHandler)NULL,
+            (Iso15693_3ExtensionHandler)NULL,
+            (Iso15693_3ExtensionHandler)NULL,
         },
 };
 
@@ -604,7 +594,6 @@ SlixError slix_listener_process_request(SlixListener* instance, const BitBuffer*
         SlixRequestHandler handler = slix_request_handler_table[command - SLIX_CMD_CUSTOM_START];
         error = handler(instance, request_data, request_data_size, request->flags);
 
-        // It's a trick! Send no reply.
         if(error == SlixErrorFormat || error == SlixErrorWrongPassword ||
            error == SlixErrorNotSupported)
             break;

@@ -7,35 +7,23 @@
 #include <stm32wbxx_ll_dma.h>
 #include <stm32wbxx_ll_tim.h>
 
-/**
- * To enable debug output on an additional pin, set DIGITAL_SIGNAL_DEBUG_OUTPUT_PIN to the required
- * GpioPin variable. It can be passed at compile time via the --extra-define fbt switch.
- * NOTE: This pin must be on the same GPIO port as the main pin.
- *
- * Example:
- * ./fbt --extra-define=DIGITAL_SIGNAL_DEBUG_OUTPUT_PIN=gpio_ext_pb3
- */
 #ifdef DIGITAL_SIGNAL_DEBUG_OUTPUT_PIN
 #include <furi_hal.h>
 #endif
 
 #define TAG "DigitalSequence"
 
-/* Special value used to indicate the end of DMA ring buffer. */
 #define DIGITAL_SEQUENCE_TIMER_MAX 0xFFFFFFFFUL
 
-/* Time to wait in loops before returning */
 #define DIGITAL_SEQUENCE_LOCK_WAIT_MS    10UL
 #define DIGITAL_SEQUENCE_LOCK_WAIT_TICKS (DIGITAL_SEQUENCE_LOCK_WAIT_MS * 1000 * 64)
 
 #define DIGITAL_SEQUENCE_GPIO_BUFFER_SIZE 2
 
-/* Maximum capacity of the DMA ring buffer. */
 #define DIGITAL_SEQUENCE_RING_BUFFER_SIZE 128
 
 #define DIGITAL_SEQUENCE_RING_BUFFER_MIN_FREE_SIZE 2
 
-/* Maximum amount of registered signals. */
 #define DIGITAL_SEQUENCE_BANK_SIZE 32
 
 typedef enum {
@@ -200,7 +188,7 @@ static inline void digital_sequence_finish(DigitalSequence* sequence) {
         const uint32_t prev_timer = DWT->CYCCNT;
 
         do {
-            /* Special value has been loaded into the timer, signaling the end of transmission. */
+
             if(TIM2->ARR == DIGITAL_SEQUENCE_TIMER_MAX) {
                 break;
             }
@@ -315,27 +303,19 @@ void digital_sequence_transmit(DigitalSequence* sequence) {
 
             if(is_last_value) {
                 if(signal_next != NULL) {
-                    /* Special case: signal boundary. Depending on whether the adjacent levels are equal or not,
-                     * they will be combined to a single one or handled separately. */
+
                     const bool end_level = signal_current->start_level ^
                                            ((signal_current->size % 2) == 0);
 
-                    /* If the adjacent levels are equal, carry the current period duration over to the next signal. */
                     if(end_level == signal_next->start_level) {
                         reload_value_carry = reload_value;
                     }
                 } else {
-                    /** Special case: during the last period of the last signal, hold the output level indefinitely.
-                     * @see digital_signal.h
-                     *
-                     * Setting reload_value_carry to a non-zero value will prevent the respective period from being
-                     * added to the DMA ring buffer. */
+
                     reload_value_carry = 1;
                 }
             }
 
-            /* A non-zero reload_value_carry means that the level was the same on the both sides of the signal boundary
-             * and the two respective periods were combined to one. */
             if(reload_value_carry == 0) {
                 digital_sequence_enqueue_period(sequence, reload_value);
             }
@@ -354,10 +334,8 @@ void digital_sequence_transmit(DigitalSequence* sequence) {
             }
         }
 
-        /* Exit the loop here when no further signals are available */
         if(signal_next == NULL) break;
 
-        /* Prevent the rounding error from accumulating by distributing it across multiple periods. */
         remainder_ticks += signal_current->remainder;
         if(remainder_ticks >= DIGITAL_SIGNAL_T_TIM_DIV2) {
             remainder_ticks -= DIGITAL_SIGNAL_T_TIM;

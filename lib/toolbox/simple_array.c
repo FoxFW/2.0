@@ -84,7 +84,6 @@ bool simple_array_is_equal(const SimpleArray* instance, const SimpleArray* other
     furi_check(instance);
     furi_check(other);
 
-    // Equal if the same object
     if(instance == other) return true;
 
     return (instance->config == other->config) && (instance->count == other->count) &&

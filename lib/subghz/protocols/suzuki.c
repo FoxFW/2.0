@@ -331,6 +331,18 @@ void subghz_protocol_decoder_suzuki_get_string(void *context, FuriString *output
     SubGhzProtocolDecoderSuzuki *instance = context;
     
     uint64_t data = instance->generic.data;
+
+    subghz_custom_btn_set_max(4);
+    uint8_t selected = subghz_custom_btn_get() == SUBGHZ_CUSTOM_BTN_OK ?
+                      subghz_custom_btn_get_original() :
+                      subghz_custom_btn_get();
+    uint8_t display_btn = suzuki_custom_to_btn(selected);
+    if(display_btn != (uint8_t)((data >> 12) & 0xF)) {
+        data = (data & ~((uint64_t)0xFULL << 12)) | ((uint64_t)(display_btn & 0xF) << 12);
+        uint8_t new_crc = suzuki_calculate_crc(data);
+        data = (data & ~((uint64_t)0xFFULL << 4)) | ((uint64_t)new_crc << 4);
+    }
+
     uint32_t key_high = (data >> 32) & 0xFFFFFFFF;
     uint32_t key_low = data & 0xFFFFFFFF;
     uint8_t received_crc = (data >> 4) & 0xFF;
@@ -351,8 +363,8 @@ void subghz_protocol_decoder_suzuki_get_string(void *context, FuriString *output
         key_low,
         instance->generic.serial,
         instance->generic.cnt,
-        instance->generic.btn,
-        suzuki_get_button_name(instance->generic.btn),
+        display_btn,
+        suzuki_get_button_name(display_btn),
         received_crc,
         crc_valid ? "(OK)" : "(FAIL)");
 }

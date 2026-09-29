@@ -1,15 +1,3 @@
-/**
- * @file subghz_protocol_filter.c
- * @brief Persistent per-protocol ON/OFF filter for the SubGHz app.
- *
- * Storage format: a raw array of uint8_t, one byte per protocol index.
- *   0x01 = enabled (default)
- *   0x00 = disabled
- *
- * Using one byte per entry (rather than a packed bitmask) keeps the read
- * and write code simple and the file size negligible (<256 bytes).
- */
-
 #include "subghz_protocol_filter.h"
 #include <stdlib.h>
 #include <string.h>
@@ -18,16 +6,14 @@
 
 #define TAG "SubGhzGarageProtocolFilter"
 
-
 struct SubGhzGarageProtocolFilter {
-    uint8_t enabled[SUBGHZ_FILTER_MAX_PROTOCOLS]; /* 0x00=off  0x01=on */
+    uint8_t enabled[SUBGHZ_FILTER_MAX_PROTOCOLS];
 };
-
 
 SubGhzGarageProtocolFilter* subghz_garage_protocol_filter_alloc(void) {
     SubGhzGarageProtocolFilter* inst = malloc(sizeof(SubGhzGarageProtocolFilter));
     furi_assert(inst);
-    /* All enabled by default */
+
     memset(inst->enabled, 0x01, sizeof(inst->enabled));
     return inst;
 }
@@ -38,15 +24,14 @@ void subghz_garage_protocol_filter_free(SubGhzGarageProtocolFilter* instance) {
 }
 
 void subghz_garage_protocol_filter_save(SubGhzGarageProtocolFilter* instance) {
-    /* No-op: filter is saved inside last_subghz.settings via subghz_save_all(). */
+
     (void)instance;
 }
 
 void subghz_garage_protocol_filter_load(SubGhzGarageProtocolFilter* instance) {
-    /* No-op: filter is loaded from last_subghz.settings in subghz.c on startup. */
+
     (void)instance;
 }
-
 
 void subghz_garage_protocol_filter_reset(SubGhzGarageProtocolFilter* instance) {
     furi_assert(instance);
@@ -55,7 +40,7 @@ void subghz_garage_protocol_filter_reset(SubGhzGarageProtocolFilter* instance) {
 
 bool subghz_garage_protocol_filter_is_enabled(const SubGhzGarageProtocolFilter* instance, size_t index) {
     furi_assert(instance);
-    if(index >= SUBGHZ_FILTER_MAX_PROTOCOLS) return true; /* unknown → allow */
+    if(index >= SUBGHZ_FILTER_MAX_PROTOCOLS) return true;
     return instance->enabled[index] != 0x00;
 }
 
@@ -78,7 +63,6 @@ size_t subghz_garage_protocol_filter_enabled_count(const SubGhzGarageProtocolFil
     }
     return count;
 }
-
 
 void subghz_garage_protocol_filter_get_raw(const SubGhzGarageProtocolFilter* instance,
                                      uint8_t* out, size_t count) {

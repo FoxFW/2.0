@@ -1,5 +1,4 @@
 #include "../infrared_app_i.h"
-#include <dolphin/dolphin.h>
 
 void infrared_scene_learn_enter_name_on_enter(void* context) {
     InfraredApp* infrared = context;
@@ -48,7 +47,6 @@ bool infrared_scene_learn_enter_name_on_event(void* context, SceneManagerEvent e
 
             if(!INFRARED_ERROR_PRESENT(error)) {
                 scene_manager_next_scene(scene_manager, InfraredSceneLearnDone);
-                dolphin_deed(DolphinDeedIrSave);
             } else {
                 infrared_show_error_message(
                     infrared,

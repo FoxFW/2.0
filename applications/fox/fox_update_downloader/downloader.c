@@ -406,16 +406,6 @@ static bool download_one(
         return false;
     }
 
-    // Arm the raw-mode trigger BEFORE asking the peer to start streaming, so
-    // the esp_at worker thread flips into raw mode itself the instant it
-    // recognises the BEGIN line - synchronously, with no gap in which the
-    // first bytes of the binary stream could be mistaken for text and lost.
-    // (Previously esp_at_begin_raw() was only called after this function had
-    // already woken up from wait_for_line_prefix(), which left a real race
-    // window - the peer starts sending raw bytes right after the BEGIN line,
-    // and the worker thread could consume several of them as "text" before
-    // this thread got scheduled again, silently corrupting the start of the
-    // downloaded file every time it lost the race.)
     esp_at_arm_raw_trigger(app->esp_at, "[DOWNLOAD/STREAM/BEGIN]");
     esp_at_send(app->esp_at, "[DOWNLOAD/STREAM]");
     if(wait_for_line_prefix(
@@ -427,9 +417,6 @@ static bool download_one(
         if(out_bytes) *out_bytes = resume_offset;
         return false;
     }
-    // By the time wait_for_line_prefix() returns WaitOk here, raw_mode is
-    // already true - the worker thread set it itself while processing the
-    // very same BEGIN line, before it could touch any subsequent byte.
 
     static uint8_t stream_buf[DL_STREAM_FRAME_MAX];
     bool success = false;

@@ -97,7 +97,6 @@ static bool banapass_read(Nfc* nfc, NfcDevice* device) {
         data->type = type;
         MfClassicDeviceKeys keys = {};
 
-        // Access Code Read Attempt
         for(size_t i = 0; i < mf_classic_get_total_sectors_num(data->type); i++) {
             bit_lib_num_to_bytes_be(
                 banapass_keys_if_access_code[i].a, sizeof(MfClassicKey), keys.key_a[i].data);
@@ -115,7 +114,6 @@ static bool banapass_read(Nfc* nfc, NfcDevice* device) {
             break;
         }
 
-        // Value Block Read Attempt
         for(size_t i = 0; i < mf_classic_get_total_sectors_num(data->type); i++) {
             bit_lib_num_to_bytes_be(
                 banapass_keys_if_value_block[i].a, sizeof(MfClassicKey), keys.key_a[i].data);
@@ -148,7 +146,7 @@ static bool banapass_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // verify key
+
         MfClassicSectorTrailer* sec_tr = mf_classic_get_sector_trailer_by_sector(data, 0);
         uint64_t key_a = bit_lib_bytes_to_num_be(sec_tr->key_a.data, 6);
         uint64_t key_b = bit_lib_bytes_to_num_be(sec_tr->key_b.data, 6);
@@ -159,18 +157,15 @@ static bool banapass_parse(const NfcDevice* device, FuriString* parsed_data) {
             parsed_data, "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::");
         furi_string_cat_str(parsed_data, "\nBandai Namco Passport\n");
 
-        // banapass Magic is stored at block 1, byte 2-7
         uint8_t magic_bytes[6];
         for(int i = 0; i < 6; i++) {
             magic_bytes[i] = data->block[1].data[2 + i];
         }
 
-        // verify banapass magic
         if(magic_bytes[0] != 'N' || magic_bytes[1] != 'B' || magic_bytes[2] != 'G' ||
            magic_bytes[3] != 'I' || magic_bytes[4] != 'C')
             break;
 
-        // banapass checksum is stored at block 1, starts from byte 8-15
         uint8_t check_sum[8];
         for(int i = 0; i < 8; i++) {
             check_sum[i] = data->block[1].data[8 + i];
@@ -198,7 +193,7 @@ static bool banapass_parse(const NfcDevice* device, FuriString* parsed_data) {
                 int32_t value = 0;
                 uint8_t addr = 0;
                 bool value_found = mf_classic_block_to_value(
-                    &data->block[2], &value, &addr); // block 2 is value block
+                    &data->block[2], &value, &addr);
                 if(value_found) {
                     furi_string_cat_printf(parsed_data, "\nValue: %08lX", value);
                 } else {
@@ -212,7 +207,7 @@ static bool banapass_parse(const NfcDevice* device, FuriString* parsed_data) {
                 break;
 
             case banapass_key_b_access_code:
-                // banapass access code is stored as decimal hex representation in block 2, starts from byte 6, len 10 bytes
+
                 uint8_t access_code[10];
 
                 furi_string_cat_printf(parsed_data, "\nAccess Code:\n");
@@ -263,7 +258,6 @@ static bool banapass_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin banapass_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = banapass_verify,
@@ -271,14 +265,12 @@ static const NfcSupportedCardsPlugin banapass_plugin = {
     .parse = banapass_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor banapass_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &banapass_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* banapass_plugin_ep(void) {
     return &banapass_plugin_descriptor;
 }

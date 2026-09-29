@@ -3,30 +3,30 @@
 #include <furi.h>
 
 #define ST25R3916_WRITE_MODE \
-    (0U << 6) /*!< ST25R3916 Operation Mode: Write                                */
+    (0U << 6)
 #define ST25R3916_READ_MODE \
-    (1U << 6) /*!< ST25R3916 Operation Mode: Read                                 */
+    (1U << 6)
 #define ST25R3916_CMD_MODE \
-    (3U << 6) /*!< ST25R3916 Operation Mode: Direct Command                       */
+    (3U << 6)
 #define ST25R3916_FIFO_LOAD \
-    (0x80U) /*!< ST25R3916 Operation Mode: FIFO Load                            */
+    (0x80U)
 #define ST25R3916_FIFO_READ \
-    (0x9FU) /*!< ST25R3916 Operation Mode: FIFO Read                            */
+    (0x9FU)
 #define ST25R3916_PT_A_CONFIG_LOAD \
-    (0xA0U) /*!< ST25R3916 Operation Mode: Passive Target Memory A-Config Load  */
+    (0xA0U)
 #define ST25R3916_PT_F_CONFIG_LOAD \
-    (0xA8U) /*!< ST25R3916 Operation Mode: Passive Target Memory F-Config Load  */
+    (0xA8U)
 #define ST25R3916_PT_TSN_DATA_LOAD \
-    (0xACU) /*!< ST25R3916 Operation Mode: Passive Target Memory TSN Load       */
+    (0xACU)
 #define ST25R3916_PT_MEM_READ \
-    (0xBFU) /*!< ST25R3916 Operation Mode: Passive Target Memory Read           */
+    (0xBFU)
 
 #define ST25R3916_CMD_LEN \
-    (1U) /*!< ST25R3916 CMD length                                           */
+    (1U)
 #define ST25R3916_FIFO_DEPTH (512U)
 #define ST25R3916_BUF_LEN \
     (ST25R3916_CMD_LEN +  \
-     ST25R3916_FIFO_DEPTH) /*!< ST25R3916 communication buffer: CMD + FIFO length    */
+     ST25R3916_FIFO_DEPTH)
 
 static void st25r3916_reg_tx_byte(const FuriHalSpiBusHandle* handle, uint8_t byte) {
     uint8_t val = byte;
@@ -50,7 +50,7 @@ void st25r3916_read_burst_regs(
     furi_hal_gpio_write(handle->cs, false);
 
     if(reg_start & ST25R3916_SPACE_B) {
-        // Send direct command first
+
         st25r3916_reg_tx_byte(handle, ST25R3916_CMD_SPACE_B_ACCESS);
     }
     st25r3916_reg_tx_byte(handle, (reg_start & ~ST25R3916_SPACE_B) | ST25R3916_READ_MODE);
@@ -77,7 +77,7 @@ void st25r3916_write_burst_regs(
     furi_hal_gpio_write(handle->cs, false);
 
     if(reg_start & ST25R3916_SPACE_B) {
-        // Send direct command first
+
         st25r3916_reg_tx_byte(handle, ST25R3916_CMD_SPACE_B_ACCESS);
     }
     st25r3916_reg_tx_byte(handle, (reg_start & ~ST25R3916_SPACE_B) | ST25R3916_WRITE_MODE);

@@ -66,12 +66,12 @@ bool iso14443_3a_load(Iso14443_3aData* data, FlipperFormat* ff, uint32_t version
     bool parsed = false;
 
     do {
-        // Common to all format versions
+
         if(!flipper_format_read_hex(ff, ISO14443_3A_ATQA_KEY, data->atqa, 2)) break;
         if(!flipper_format_read_hex(ff, ISO14443_3A_SAK_KEY, &data->sak, 1)) break;
 
         if(version > NFC_LSB_ATQA_FORMAT_VERSION) {
-            // Swap ATQA bytes for newer versions
+
             FURI_SWAP(data->atqa[0], data->atqa[1]);
         }
 
@@ -88,12 +88,11 @@ bool iso14443_3a_save(const Iso14443_3aData* data, FlipperFormat* ff) {
     bool saved = false;
 
     do {
-        // Save ATQA in MSB order for correct companion apps display
+
         const uint8_t atqa[2] = {data->atqa[1], data->atqa[0]};
         if(!flipper_format_write_comment_cstr(ff, ISO14443_3A_PROTOCOL_NAME " specific data"))
             break;
 
-        // Write ATQA and SAK
         if(!flipper_format_write_hex(ff, ISO14443_3A_ATQA_KEY, atqa, 2)) break;
         if(!flipper_format_write_hex(ff, ISO14443_3A_SAK_KEY, &data->sak, 1)) break;
         saved = true;

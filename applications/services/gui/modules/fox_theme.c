@@ -2,7 +2,6 @@
 #include <storage/storage.h>
 #include <furi_hal.h>
 
-/* 0 = Classic, 1 = Fox, 2 = Carousel, 3 = Slider, 4 = Tiny, 255 = not yet loaded from file */
 static uint8_t g_fox_theme = 255u;
 
 uint8_t fox_theme_get_style(void) {
@@ -20,8 +19,7 @@ uint8_t fox_theme_get_style(void) {
             storage_file_free(f);
             furi_record_close(RECORD_STORAGE);
         }
-        /* Don't call fox_theme_set_style() here - this can run from a GUI
-         * draw callback, and writing to storage from there is unsafe. */
+
         g_fox_theme = found ? ((val <= 4u) ? val : 1u) : 1u;
     }
     return g_fox_theme;

@@ -3,8 +3,6 @@
 
 #define TAG "StorageGlue"
 
-/****************** storage file ******************/
-
 void storage_file_init(StorageFile* obj) {
     obj->file = NULL;
     obj->file_data = NULL;
@@ -17,7 +15,7 @@ void storage_file_init_set(StorageFile* obj, const StorageFile* src) {
     obj->path = furi_string_alloc_set(src->path);
 }
 
-void storage_file_set(StorageFile* obj, const StorageFile* src) { //-V524
+void storage_file_set(StorageFile* obj, const StorageFile* src) {
     obj->file = src->file;
     obj->file_data = src->file_data;
     furi_string_set(obj->path, src->path);
@@ -26,8 +24,6 @@ void storage_file_set(StorageFile* obj, const StorageFile* src) { //-V524
 void storage_file_clear(StorageFile* obj) {
     furi_string_free(obj->path);
 }
-
-/****************** storage data ******************/
 
 void storage_data_init(StorageData* storage) {
     storage->data = NULL;
@@ -72,8 +68,6 @@ void storage_data_timestamp(StorageData* storage) {
 uint32_t storage_data_get_timestamp(StorageData* storage) {
     return storage->timestamp;
 }
-
-/****************** storage glue ******************/
 
 static StorageFile* storage_get_file(const File* file, StorageData* storage) {
     StorageFile* storage_file_ref = NULL;

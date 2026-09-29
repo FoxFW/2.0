@@ -22,14 +22,13 @@ static void gui_line_free(WidgetElement* gui_line) {
 }
 
 WidgetElement* widget_element_line_create(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2) {
-    // Allocate and init model
+
     GuiLineModel* model = malloc(sizeof(GuiLineModel));
     model->x1 = x1;
     model->y1 = y1;
     model->x2 = x2;
     model->y2 = y2;
 
-    // Allocate and init Element
     WidgetElement* gui_line = malloc(sizeof(WidgetElement));
     gui_line->parent = NULL;
     gui_line->input = NULL;

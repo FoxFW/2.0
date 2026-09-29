@@ -203,7 +203,7 @@ LevelDuration subghz_protocol_encoder_linear_delta3_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_linear_delta3_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

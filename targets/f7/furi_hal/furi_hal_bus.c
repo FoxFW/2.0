@@ -3,7 +3,6 @@
 
 #include <stm32wbxx_ll_bus.h>
 
-/* Bus bitmask definitions */
 #define FURI_HAL_BUS_IGNORE (0x0U)
 
 #define FURI_HAL_BUS_AHB1_GRP1                                                           \
@@ -34,7 +33,6 @@
 #define FURI_HAL_BUS_AHB3_GRP1                                                          \
     (LL_AHB3_GRP1_PERIPH_QUADSPI | LL_AHB3_GRP1_PERIPH_PKA | LL_AHB3_GRP1_PERIPH_AES2 | \
      LL_AHB3_GRP1_PERIPH_RNG | LL_AHB3_GRP1_PERIPH_HSEM | LL_AHB3_GRP1_PERIPH_IPCC)
-//   LL_AHB3_GRP1_PERIPH_FLASH enabled by default
 
 #define FURI_HAL_BUS_APB1_GRP1                                                       \
     (LL_APB1_GRP1_PERIPH_TIM2 | LL_APB1_GRP1_PERIPH_LCD | LL_APB1_GRP1_PERIPH_SPI2 | \
@@ -44,7 +42,6 @@
 #define FURI_HAL_BUS_APB1_GRP2 (LL_APB1_GRP2_PERIPH_LPUART1 | LL_APB1_GRP2_PERIPH_LPTIM2)
 #define FURI_HAL_BUS_APB3_GRP1 (LL_APB3_GRP1_PERIPH_RF)
 
-/* Test macro definitions */
 #define FURI_HAL_BUS_IS_ALL_CLEAR(reg, value) (READ_BIT((reg), (value)) == 0UL)
 #define FURI_HAL_BUS_IS_ALL_SET(reg, value)   (READ_BIT((reg), (value)) == (value))
 
@@ -66,7 +63,6 @@
     (FURI_HAL_BUS_IS_CLOCK_DISABLED(bus, (value), __VA_ARGS__) && \
      FURI_HAL_BUS_IS_RESET_ASSERTED(bus, (value), __VA_ARGS__))
 
-/* Control macro definitions */
 #define FURI_HAL_BUS_RESET_ASSERT(bus, value, grp)   LL_##bus##_GRP##grp##_ForceReset(value)
 #define FURI_HAL_BUS_RESET_DEASSERT(bus, value, grp) LL_##bus##_GRP##grp##_ReleaseReset(value)
 
@@ -139,16 +135,13 @@ static const uint32_t furi_hal_bus[] = {
     [FuriHalBusTIM17] = LL_APB2_GRP1_PERIPH_TIM17,
     [FuriHalBusSAI1] = LL_APB2_GRP1_PERIPH_SAI1,
 
-    [FuriHalBusAPB3_GRP1] = FURI_HAL_BUS_IGNORE, // APB3_GRP1 clocking cannot be changed
+    [FuriHalBusAPB3_GRP1] = FURI_HAL_BUS_IGNORE,
     [FuriHalBusRF] = LL_APB3_GRP1_PERIPH_RF,
 };
 
 void furi_hal_bus_init_early(void) {
     FURI_CRITICAL_ENTER();
 
-    // FURI_HAL_BUS_PERIPH_DISABLE(AHB1, FURI_HAL_BUS_AHB1_GRP1, 1);
-    // FURI_HAL_BUS_PERIPH_DISABLE(AHB2, FURI_HAL_BUS_AHB2_GRP1, 1);
-    // FURI_HAL_BUS_PERIPH_DISABLE(AHB3, FURI_HAL_BUS_AHB3_GRP1, 1);
     FURI_HAL_BUS_PERIPH_DISABLE(APB1, FURI_HAL_BUS_APB1_GRP1, 1);
     FURI_HAL_BUS_PERIPH_DISABLE(APB1, FURI_HAL_BUS_APB1_GRP2, 2);
     FURI_HAL_BUS_PERIPH_DISABLE(APB2, FURI_HAL_BUS_APB2_GRP1, 1);
@@ -161,9 +154,6 @@ void furi_hal_bus_init_early(void) {
 void furi_hal_bus_deinit_early(void) {
     FURI_CRITICAL_ENTER();
 
-    // FURI_HAL_BUS_PERIPH_ENABLE(AHB1, FURI_HAL_BUS_AHB1_GRP1, 1);
-    // FURI_HAL_BUS_PERIPH_ENABLE(AHB2, FURI_HAL_BUS_AHB2_GRP1, 1);
-    // FURI_HAL_BUS_PERIPH_ENABLE(AHB3, FURI_HAL_BUS_AHB3_GRP1, 1);
     FURI_HAL_BUS_PERIPH_ENABLE(APB1, FURI_HAL_BUS_APB1_GRP1, 1);
     FURI_HAL_BUS_PERIPH_ENABLE(APB1, FURI_HAL_BUS_APB1_GRP2, 2);
     FURI_HAL_BUS_PERIPH_ENABLE(APB2, FURI_HAL_BUS_APB2_GRP1, 1);
@@ -182,13 +172,13 @@ void furi_hal_bus_enable(FuriHalBus bus) {
 
     FURI_CRITICAL_ENTER();
     if(bus < FuriHalBusAHB2_GRP1) {
-        // furi_check(FURI_HAL_BUS_IS_PERIPH_DISABLED(AHB1, value));
+
         FURI_HAL_BUS_PERIPH_ENABLE(AHB1, value, 1);
     } else if(bus < FuriHalBusAHB3_GRP1) {
-        // furi_check(FURI_HAL_BUS_IS_PERIPH_DISABLED(AHB2, value));
+
         FURI_HAL_BUS_PERIPH_ENABLE(AHB2, value, 1);
     } else if(bus < FuriHalBusAPB1_GRP1) {
-        // furi_check(FURI_HAL_BUS_IS_PERIPH_DISABLED(AHB3, value));
+
         FURI_HAL_BUS_PERIPH_ENABLE(AHB3, value, 1);
     } else if(bus < FuriHalBusAPB1_GRP2) {
         furi_check(FURI_HAL_BUS_IS_PERIPH_DISABLED(APB1, value, 1));
@@ -215,13 +205,13 @@ void furi_hal_bus_reset(FuriHalBus bus) {
 
     FURI_CRITICAL_ENTER();
     if(bus < FuriHalBusAHB2_GRP1) {
-        // furi_check(FURI_HAL_BUS_IS_PERIPH_ENABLED(AHB1, value));
+
         FURI_HAL_BUS_PERIPH_RESET(AHB1, value, 1);
     } else if(bus < FuriHalBusAHB3_GRP1) {
-        // furi_check(FURI_HAL_BUS_IS_PERIPH_ENABLED(AHB2, value));
+
         FURI_HAL_BUS_PERIPH_RESET(AHB2, value, 1);
     } else if(bus < FuriHalBusAPB1_GRP1) {
-        // furi_check(FURI_HAL_BUS_IS_PERIPH_ENABLED(AHB3, value));
+
         FURI_HAL_BUS_PERIPH_RESET(AHB3, value, 1);
     } else if(bus < FuriHalBusAPB1_GRP2) {
         furi_check(FURI_HAL_BUS_IS_PERIPH_ENABLED(APB1, value, 1));
@@ -248,13 +238,13 @@ void furi_hal_bus_disable(FuriHalBus bus) {
 
     FURI_CRITICAL_ENTER();
     if(bus < FuriHalBusAHB2_GRP1) {
-        // furi_check(FURI_HAL_BUS_IS_PERIPH_ENABLED(AHB1, value));
+
         FURI_HAL_BUS_PERIPH_DISABLE(AHB1, value, 1);
     } else if(bus < FuriHalBusAHB3_GRP1) {
-        // furi_check(FURI_HAL_BUS_IS_PERIPH_ENABLED(AHB2, value));
+
         FURI_HAL_BUS_PERIPH_DISABLE(AHB2, value, 1);
     } else if(bus < FuriHalBusAPB1_GRP1) {
-        // furi_check(FURI_HAL_BUS_IS_PERIPH_ENABLED(AHB3, value));
+
         FURI_HAL_BUS_PERIPH_DISABLE(AHB3, value, 1);
     } else if(bus < FuriHalBusAPB1_GRP2) {
         furi_check(FURI_HAL_BUS_IS_PERIPH_ENABLED(APB1, value, 1));

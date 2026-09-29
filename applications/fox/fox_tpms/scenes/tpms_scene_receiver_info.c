@@ -8,8 +8,6 @@ void tpms_scene_receiver_info_callback(TPMSCustomEvent event, void* context) {
     view_dispatcher_send_custom_event(app->view_dispatcher, event);
 }
 
-// TPMS Receiver Info view action callback - translate view-level actions into
-// custom events tpms_scene_receiver_info_on_event handles below.
 static void tpms_scene_receiver_info_tpms_action(TPMSReceiverInfoAction action, void* context) {
     furi_assert(context);
     TPMSApp* app = context;
@@ -36,11 +34,6 @@ static void tpms_scene_receiver_info_tpms_action(TPMSReceiverInfoAction action, 
     }
 }
 
-// Toggle TPMS_NO_BATT -> 0 (ok) -> 1 (low) -> TPMS_NO_BATT and persist into
-// the history item. Battery only lives in the over-the-air payload for
-// PMV107J (and, as a raw pass-through byte, Citroen) - tpms_pack() re-encodes
-// data for those; for protocols with no real battery bit (Schrader, Ford,
-// Renault) it's a harmless no-op that leaves data unchanged.
 static void tpms_scene_receiver_info_toggle_battery(TPMSApp* app) {
     TPMSBlockGeneric generic = {0};
     const char* protocol_name =

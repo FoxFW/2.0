@@ -32,7 +32,7 @@ bool ibutton_scene_retry_confirm_on_event(void* context, SceneManagerEvent event
     bool consumed = false;
 
     if(event.type == SceneManagerEventTypeBack) {
-        consumed = true; // Ignore Back button presses
+        consumed = true;
     } else if(event.type == SceneManagerEventTypeCustom) {
         consumed = true;
         if(event.event == GuiButtonTypeLeft) {

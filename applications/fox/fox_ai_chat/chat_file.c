@@ -98,8 +98,6 @@ bool chat_file_load(FuriString* out) {
         furi_string_right(out, cut);
     }
 
-    /* trailing newline from the last appended line looks odd as a blank
-     * final row in the terminal view */
     while(furi_string_size(out) > 0 &&
           furi_string_get_char(out, furi_string_size(out) - 1) == '\n') {
         furi_string_left(out, furi_string_size(out) - 1);

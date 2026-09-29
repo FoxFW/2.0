@@ -8,7 +8,6 @@ extern "C" {
 
 #define ST25TB_UID_SIZE (8U)
 
-//#define ST25TB_FDT_FC (4205U)
 #define ST25TB_FDT_FC           (8494U)
 #define ST25TB_GUARD_TIME_US    (5000U)
 #define ST25TB_POLL_POLL_MIN_US (1280U)

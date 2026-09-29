@@ -53,45 +53,24 @@ void protocol_fdx_b_decoder_start(ProtocolFDXB* protocol) {
 static bool protocol_fdx_b_can_be_decoded(ProtocolFDXB* protocol) {
     bool result = false;
 
-    /*
-    msb		lsb
-    0   10000000000	  Header pattern. 11 bits.
-    11    1nnnnnnnn	
-    20    1nnnnnnnn	  38 bit (12 digit) National code.
-    29    1nnnnnnnn	  eg. 000000001008 (decimal).
-    38    1nnnnnnnn	
-    47    1nnnnnncc	  10 bit (3 digit) Country code.
-    56    1cccccccc	  eg. 999 (decimal).
-    65    1s-------	  1 bit data block status flag.
-    74    1-------a	  1 bit animal application indicator.
-    83    1xxxxxxxx	  16 bit checksum.
-    92    1xxxxxxxx	
-    101   1eeeeeeee	  24 bits of extra data if present.
-    110   1eeeeeeee	  eg. $123456.
-    119   1eeeeeeee	
-    */
-
     do {
-        // check 11 bits preamble
+
         if(bit_lib_get_bits_16(protocol->encoded_data, 0, 11) != 0b10000000000) break;
-        // check next 11 bits preamble
+
         if(bit_lib_get_bits_16(protocol->encoded_data, 128, 11) != 0b10000000000) break;
-        // check control bits
+
         if(!bit_lib_test_parity(protocol->encoded_data, 3, 13 * 9, BitLibParityAlways1, 9)) break;
 
-        // compute checksum
         uint8_t crc_data[8];
         for(size_t i = 0; i < 8; i++) {
             bit_lib_copy_bits(crc_data, i * 8, 8, protocol->encoded_data, 12 + 9 * i);
         }
         uint16_t crc_res = bit_lib_crc16(crc_data, 8, 0x1021, 0x0000, false, false, 0x0000);
 
-        // read checksum
         uint16_t crc_ex = 0;
         bit_lib_copy_bits((uint8_t*)&crc_ex, 8, 8, protocol->encoded_data, 84);
         bit_lib_copy_bits((uint8_t*)&crc_ex, 0, 8, protocol->encoded_data, 93);
 
-        // compare checksum
         if(crc_res != crc_ex) break;
 
         result = true;
@@ -101,49 +80,15 @@ static bool protocol_fdx_b_can_be_decoded(ProtocolFDXB* protocol) {
 }
 
 void protocol_fdx_b_decode(ProtocolFDXB* protocol) {
-    // remove parity
+
     bit_lib_remove_bit_every_nth(protocol->encoded_data, 3, 14 * 9, 9);
 
-    // remove header pattern
     for(size_t i = 0; i < 11; i++)
         bit_lib_push_bit(protocol->encoded_data, FDX_B_ENCODED_BYTE_FULL_SIZE, 0);
 
-    // 0  nnnnnnnn
-    // 8  nnnnnnnn	  38 bit (12 digit) National code.
-    // 16 nnnnnnnn	  eg. 000000001008 (decimal).
-    // 24 nnnnnnnn
-    // 32 nnnnnncc	  10 bit (3 digit) Country code.
-    // 40 cccccccc	  eg. 999 (decimal).
-    // 48 s-------	  1 bit data block status flag.
-    // 56 -------a	  1 bit animal application indicator.
-    // 64 xxxxxxxx	  16 bit checksum.
-    // 72 xxxxxxxx
-    // 80 eeeeeeee	  24 bits of extra data if present.
-    // 88 eeeeeeee	  eg. $123456.
-    // 96 eeeeeeee
-
-    // copy data without checksum
     bit_lib_copy_bits(protocol->data, 0, 64, protocol->encoded_data, 0);
     bit_lib_copy_bits(protocol->data, 64, 24, protocol->encoded_data, 80);
 
-    // const BitLibRegion regions_encoded[] = {
-    //     {'n', 0, 38},
-    //     {'c', 38, 10},
-    //     {'b', 48, 16},
-    //     {'x', 64, 16},
-    //     {'e', 80, 24},
-    // };
-
-    // bit_lib_print_regions(regions_encoded, 5, protocol->encoded_data, FDX_B_ENCODED_BIT_SIZE);
-
-    // const BitLibRegion regions_decoded[] = {
-    //     {'n', 0, 38},
-    //     {'c', 38, 10},
-    //     {'b', 48, 16},
-    //     {'e', 64, 24},
-    // };
-
-    // bit_lib_print_regions(regions_decoded, 4, protocol->data, FDXB_DECODED_DATA_SIZE * 8);
 }
 
 bool protocol_fdx_b_decoder_feed(ProtocolFDXB* protocol, bool level, uint32_t duration) {
@@ -152,7 +97,6 @@ bool protocol_fdx_b_decoder_feed(ProtocolFDXB* protocol, bool level, uint32_t du
 
     bool pushed = false;
 
-    // Bi-Phase Manchester decoding
     if(duration >= FDX_B_SHORT_TIME_LOW && duration <= FDX_B_SHORT_TIME_HIGH) {
         if(protocol->last_short == false) {
             protocol->last_short = true;
@@ -166,11 +110,11 @@ bool protocol_fdx_b_decoder_feed(ProtocolFDXB* protocol, bool level, uint32_t du
             pushed = true;
             bit_lib_push_bit(protocol->encoded_data, FDX_B_ENCODED_BYTE_FULL_SIZE, true);
         } else {
-            // reset
+
             protocol->last_short = false;
         }
     } else {
-        // reset
+
         protocol->last_short = false;
     }
 
@@ -212,13 +156,12 @@ LevelDuration protocol_fdx_b_encoder_yield(ProtocolFDXB* protocol) {
 
     bool bit = bit_lib_get_bit(protocol->encoded_data, protocol->encoded_index);
 
-    // Bi-Phase Manchester encoder
     if(bit) {
-        // one long pulse for 1
+
         duration = FDX_B_LONG_TIME / 8;
         bit_lib_increment_index(protocol->encoded_index, FDX_B_ENCODED_BIT_SIZE);
     } else {
-        // two short pulses for 0
+
         duration = FDX_B_SHORT_TIME / 8;
         if(protocol->last_short) {
             bit_lib_increment_index(protocol->encoded_index, FDX_B_ENCODED_BIT_SIZE);
@@ -230,18 +173,6 @@ LevelDuration protocol_fdx_b_encoder_yield(ProtocolFDXB* protocol) {
 
     return level_duration_make(protocol->last_level, duration);
 }
-
-// 0  nnnnnnnn
-// 8  nnnnnnnn	  38 bit (12 digit) National code.
-// 16 nnnnnnnn	  eg. 000000001008 (decimal).
-// 24 nnnnnnnn
-// 32 nnnnnnnn	  10 bit (3 digit) Country code.
-// 40 cccccccc	  eg. 999 (decimal).
-// 48 s-------	  1 bit data block status flag.
-// 56 -------a	  1 bit animal application indicator.
-// 64 eeeeeeee	  24 bits of extra data if present.
-// 72 eeeeeeee	  eg. $123456.
-// 80 eeeeeeee
 
 static uint64_t protocol_fdx_b_get_national_code(const uint8_t* data) {
     uint64_t national_code = bit_lib_get_bits_32(data, 0, 32);
@@ -276,10 +207,9 @@ static bool protocol_fdx_b_get_temp(const uint8_t* data, float* temp) {
 }
 
 void protocol_fdx_b_render_data(ProtocolFDXB* protocol, FuriString* result) {
-    // 38 bits of national code
+
     uint64_t national_code = protocol_fdx_b_get_national_code(protocol->data);
 
-    // 10 bit of country code
     uint16_t country_code = protocol_fdx_b_get_country_code(protocol->data);
 
     bool block_status = bit_lib_get_bit(protocol->data, 48);
@@ -332,10 +262,9 @@ void protocol_fdx_b_render_data(ProtocolFDXB* protocol, FuriString* result) {
 }
 
 void protocol_fdx_b_render_brief_data(ProtocolFDXB* protocol, FuriString* result) {
-    // 38 bits of national code
+
     uint64_t national_code = protocol_fdx_b_get_national_code(protocol->data);
 
-    // 10 bit of country code
     uint16_t country_code = protocol_fdx_b_get_country_code(protocol->data);
     Storage* storage = furi_record_open(RECORD_STORAGE);
     FuriString* country_two_letter = furi_string_alloc();
@@ -369,7 +298,6 @@ bool protocol_fdx_b_write_data(ProtocolFDXB* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_fdx_b_encoder_start(protocol);
     protocol_fdx_b_decode(protocol);
 

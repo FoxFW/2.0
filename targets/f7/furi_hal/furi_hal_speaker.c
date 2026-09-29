@@ -16,8 +16,6 @@
 
 static FuriMutex* furi_hal_speaker_mutex = NULL;
 
-// #define FURI_HAL_SPEAKER_NEW_VOLUME
-
 void furi_hal_speaker_init(void) {
     furi_assert(furi_hal_speaker_mutex == NULL);
     furi_hal_speaker_mutex = furi_mutex_alloc(FuriMutexTypeNormal);

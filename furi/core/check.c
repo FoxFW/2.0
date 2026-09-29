@@ -17,7 +17,6 @@
 PLACE_IN_SECTION("MB_MEM2") const char* __furi_check_message = NULL;
 PLACE_IN_SECTION("MB_MEM2") uint32_t __furi_check_registers[13] = {0};
 
-/** Load r12 value to __furi_check_message and store registers to __furi_check_registers */
 #define GET_MESSAGE_AND_STORE_REGISTERS()               \
     asm volatile("ldr r11, =__furi_check_message    \n" \
                  "str r12, [r11]                    \n" \
@@ -28,13 +27,6 @@ PLACE_IN_SECTION("MB_MEM2") uint32_t __furi_check_registers[13] = {0};
                  :                                      \
                  : "memory");
 
-/** Restore registers and halt MCU
- * 
- * - Always use it with GET_MESSAGE_AND_STORE_REGISTERS
- * - If debugger is(was) connected this routine will raise bkpt
- * - If debugger is not connected then endless loop
- * 
- */
 #define RESTORE_REGISTERS_AND_HALT_MCU(debug)           \
     register bool r0 asm("r0") = debug;                 \
     asm volatile("cbnz  r0, with_debugger%=         \n" \
@@ -69,7 +61,7 @@ static void __furi_put_uint32_as_hex(uint32_t data) {
 }
 
 static void __furi_print_register_info(void) {
-    // Print registers
+
     for(uint8_t i = 0; i < 12; i++) {
         furi_log_puts("\r\n\tr");
         __furi_put_uint32_as_text(i);
@@ -159,8 +151,6 @@ FURI_NORETURN void __furi_crash_implementation(void) {
     __furi_print_heap_info();
     __furi_print_bt_stack_info();
 
-    // Check if debug enabled by DAP
-    // https://developer.arm.com/documentation/ddi0403/d/Debug-Architecture/ARMv7-M-Debug/Debug-register-support-in-the-SCS/Debug-Halting-Control-and-Status-Register--DHCSR?lang=en
     bool debug = CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk;
 #ifdef FURI_NDEBUG
     if(debug) {
@@ -201,8 +191,6 @@ FURI_NORETURN void __furi_halt_implementation(void) {
     furi_log_puts("\r\nSystem halted. Bye-bye!\r\n");
     furi_log_puts("\033[0m\r\n");
 
-    // Check if debug enabled by DAP
-    // https://developer.arm.com/documentation/ddi0403/d/Debug-Architecture/ARMv7-M-Debug/Debug-register-support-in-the-SCS/Debug-Halting-Control-and-Status-Register--DHCSR?lang=en
     bool debug = CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk;
     RESTORE_REGISTERS_AND_HALT_MCU(debug);
 

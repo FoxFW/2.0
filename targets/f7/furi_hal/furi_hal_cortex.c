@@ -10,7 +10,6 @@ void furi_hal_cortex_init_early(void) {
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
     DWT->CYCCNT = 0U;
 
-    /* Enable instruction prefetch */
     SET_BIT(FLASH->ACR, FLASH_ACR_PRFTEN);
 }
 
@@ -46,7 +45,6 @@ void furi_hal_cortex_timer_wait(FuriHalCortexTimer cortex_timer) {
         ;
 }
 
-// Duck ST
 #undef COMP0
 #undef COMP1
 #undef COMP2

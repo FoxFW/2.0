@@ -75,6 +75,7 @@
 #include "kia_v6.h"
 #include "suzuki.h"
 #include "mitsubishi_v0.h"
+#include "mitsubishi_v0a.h"
 #include "mazda_siemens.h"
 #include "star_line.h"
 #include "scher_khan.h"
@@ -92,6 +93,8 @@
 #include "fiat_v1.h"
 #include "fiat_v2.h"
 #include "renault_v0.h"
-#include "land_rover_v0.h" // ported from ARF but left disabled below - ARF itself doesn't enable it yet
-#include "toyota.h" // ported from ARF but left disabled below - ARF itself doesn't enable it yet
+#include "renault_v1.h"
+#include "gm.h"
+#include "land_rover_v0.h"
+#include "toyota.h"
 #include "x10.h"

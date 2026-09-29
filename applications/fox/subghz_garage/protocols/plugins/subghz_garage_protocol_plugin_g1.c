@@ -1,8 +1,6 @@
 #include "../subghz_garage_protocol_plugin.h"
 #include "../protocol_groups.h"
 
-/* Group 1 - General: generic learning/fixed-code ICs not tied to one
- * gate/garage brand. */
 static const SubGhzProtocol* const subghz_garage_protocol_registry_g1_items[] = {
     &subghz_protocol_raw,
     &subghz_protocol_bin_raw,

@@ -36,7 +36,7 @@ MfUltralightError mf_ultralight_poller_auth_pwd(
     furi_check(instance);
     furi_check(data);
 
-    uint8_t auth_cmd[5] = {MF_ULTRALIGHT_CMD_PWD_AUTH}; //-V1009
+    uint8_t auth_cmd[5] = {MF_ULTRALIGHT_CMD_PWD_AUTH};
     memcpy(&auth_cmd[1], data->password.data, MF_ULTRALIGHT_AUTH_PASSWORD_SIZE);
     bit_buffer_copy_bytes(instance->tx_buffer, auth_cmd, sizeof(auth_cmd));
 
@@ -126,7 +126,7 @@ MfUltralightError mf_ultralight_poller_authenticate_start(
         uint8_t encRndB[MF_ULTRALIGHT_C_AUTH_RND_BLOCK_SIZE] = {0};
         uint8_t auth_cmd[2] = {MF_ULTRALIGHT_CMD_AUTH, 0x00};
         ret = mf_ultralight_poller_send_authenticate_cmd(
-            instance, auth_cmd, sizeof(auth_cmd), true, encRndB /* instance->encRndB */);
+            instance, auth_cmd, sizeof(auth_cmd), true, encRndB );
 
         if(ret != MfUltralightErrorNone) break;
 
@@ -166,7 +166,7 @@ MfUltralightError mf_ultralight_poller_authenticate_end(
     furi_check(request);
     furi_check(response);
 
-    uint8_t auth_cmd[MF_ULTRALIGHT_C_ENCRYPTED_PACK_SIZE] = {0xAF}; //-V1009
+    uint8_t auth_cmd[MF_ULTRALIGHT_C_ENCRYPTED_PACK_SIZE] = {0xAF};
     memcpy(&auth_cmd[1], request, MF_ULTRALIGHT_C_AUTH_DATA_SIZE);
     bit_buffer_copy_bytes(instance->tx_buffer, auth_cmd, sizeof(auth_cmd));
 
@@ -222,7 +222,7 @@ MfUltralightError mf_ultralight_poller_read_page_from_sector(
             instance->rx_buffer,
             MF_ULTRALIGHT_POLLER_STANDARD_FWT_FC);
         if(error != Iso14443_3aErrorTimeout) {
-            // This is NOT a typo! The tag ACKs by not sending a response within 1ms.
+
             FURI_LOG_D(TAG, "Sector %u select NAK'd", sector);
             ret = MfUltralightErrorProtocol;
             break;

@@ -40,7 +40,6 @@ static bool rw1990_read_and_compare(OneWireHost* host, const uint8_t* data, size
 bool rw1990_write_v1(OneWireHost* host, const uint8_t* data, size_t data_size) {
     onewire_host_set_timings_default(host);
 
-    // Unlock sequence
     onewire_host_reset(host);
     onewire_host_write(host, RW1990_1_CMD_WRITE_RECORD_FLAG);
     furi_delay_us(10);
@@ -48,30 +47,26 @@ bool rw1990_write_v1(OneWireHost* host, const uint8_t* data, size_t data_size) {
     onewire_host_write_bit(host, false);
     furi_delay_us(5000);
 
-    // Write data
     onewire_host_reset(host);
     onewire_host_write(host, RW1990_1_CMD_WRITE_ROM);
 
     for(size_t i = 0; i < data_size; ++i) {
-        // inverted key for RW1990.1
+
         rw1990_write_byte(host, ~(data[i]));
         furi_delay_us(30000);
     }
 
-    // Lock sequence
     onewire_host_write(host, RW1990_1_CMD_WRITE_RECORD_FLAG);
 
     onewire_host_write_bit(host, true);
     furi_delay_us(10000);
 
-    // TODO FL-3528: Better error handling
     return rw1990_read_and_compare(host, data, data_size);
 }
 
 bool rw1990_write_v2(OneWireHost* host, const uint8_t* data, size_t data_size) {
     onewire_host_set_timings_default(host);
 
-    // Unlock sequence
     onewire_host_reset(host);
     onewire_host_write(host, RW1990_2_CMD_WRITE_RECORD_FLAG);
     furi_delay_us(10);
@@ -79,7 +74,6 @@ bool rw1990_write_v2(OneWireHost* host, const uint8_t* data, size_t data_size) {
     onewire_host_write_bit(host, true);
     furi_delay_us(5000);
 
-    // Write data
     onewire_host_reset(host);
     onewire_host_write(host, RW1990_2_CMD_WRITE_ROM);
 
@@ -88,12 +82,10 @@ bool rw1990_write_v2(OneWireHost* host, const uint8_t* data, size_t data_size) {
         furi_delay_us(30000);
     }
 
-    // Lock sequence
     onewire_host_write(host, RW1990_2_CMD_WRITE_RECORD_FLAG);
 
     onewire_host_write_bit(host, false);
     furi_delay_us(10000);
 
-    // TODO Fl-3528: Better error handling
     return rw1990_read_and_compare(host, data, data_size);
 }

@@ -25,7 +25,7 @@ void bit_lib_set_bits(uint8_t* data, size_t position, uint8_t byte, uint8_t leng
 
     for(uint8_t i = 0; i < length; ++i) {
         uint8_t shift = (length - 1) - i;
-        bit_lib_set_bit(data, position + i, (byte >> shift) & 1); //-V610
+        bit_lib_set_bit(data, position + i, (byte >> shift) & 1);
     }
 }
 
@@ -38,7 +38,7 @@ uint8_t bit_lib_get_bits(const uint8_t* data, size_t position, uint8_t length) {
     if(shift == 0) {
         return data[position / 8] >> (8 - length);
     } else {
-        // TODO FL-3534: fix read out of bounds
+
         uint8_t value = (data[position / 8] << (shift));
         value |= data[position / 8 + 1] >> (8 - shift);
         value = value >> (8 - length);
@@ -196,14 +196,14 @@ size_t bit_lib_add_parity(
             bit_lib_set_bit(
                 dest, dest_position + j++, bit_lib_get_bit(data, position + word + bit));
         }
-        // if parity fails then return 0
+
         switch(parity) {
         case BitLibParityAlways0:
             bit_lib_set_bit(dest, dest_position + j++, 0);
-            break; // marker bit which should be a 0
+            break;
         case BitLibParityAlways1:
             bit_lib_set_bit(dest, dest_position + j++, 1);
-            break; // marker bit which should be a 1
+            break;
         default:
             bit_lib_set_bit(
                 dest,
@@ -214,8 +214,7 @@ size_t bit_lib_add_parity(
         bit_count += parity_length;
         parity_word = 0;
     }
-    // if we got here then all the parities passed
-    // return bit count
+
     return bit_count;
 }
 
@@ -290,11 +289,10 @@ void bit_lib_print_regions(
     size_t region_count,
     const uint8_t* data,
     size_t length) {
-    // print data
+
     bit_lib_print_bits(data, length);
     printf("\r\n");
 
-    // print regions
     for(size_t c = 0; c < length; ++c) {
         bool print = false;
 
@@ -312,7 +310,6 @@ void bit_lib_print_regions(
     }
     printf("\r\n");
 
-    // print regions data
     for(size_t c = 0; c < length; ++c) {
         bool print = false;
 

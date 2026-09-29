@@ -186,7 +186,7 @@ static Iso15693ParserCommand iso15693_parser_parse_1_out_of_4(Iso15693Parser* in
     const uint8_t bit_patterns_1_out_of_4[] = {0x02, 0x08, 0x20, 0x80};
 
     for(size_t i = 0; i < instance->bytes_to_process; i++) {
-        // Check next pattern
+
         size_t j = 0;
         for(j = 0; j < COUNT_OF(bit_patterns_1_out_of_4); j++) {
             if(instance->bitstream_buff[i] == bit_patterns_1_out_of_4[j]) {
@@ -223,7 +223,7 @@ static Iso15693ParserCommand iso15693_parser_parse_1_out_of_256(Iso15693Parser* 
     const uint8_t eof = 0x04;
 
     for(size_t i = instance->byte_idx; i < instance->bytes_to_process; i++) {
-        // Check EoF
+
         if(instance->next_byte_part == 0) {
             if(instance->bitstream_buff[i] == eof) {
                 instance->frame_parsed = true;

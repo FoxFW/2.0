@@ -32,7 +32,6 @@ static void nfc_listener_list_alloc(NfcListener* instance) {
     instance->list.head->child = NULL;
     instance->list.tail = instance->list.head;
 
-    // Build linked list
     do {
         NfcProtocol parent_protocol = nfc_protocol_get_parent(instance->list.head->protocol);
         if(parent_protocol == NfcProtocolInvalid) break;
@@ -45,7 +44,6 @@ static void nfc_listener_list_alloc(NfcListener* instance) {
         instance->list.head = parent;
     } while(true);
 
-    // Allocate listener instances
     NfcListenerListElement* iter = instance->list.head;
     NfcDeviceData* data_tmp = nfc_device_get_data_ptr(instance->nfc_dev, iter->protocol);
     iter->listener = iter->listener_api->alloc(instance->nfc, data_tmp);
@@ -62,7 +60,7 @@ static void nfc_listener_list_alloc(NfcListener* instance) {
 }
 
 static void nfc_listener_list_free(NfcListener* instance) {
-    // Free listener instances
+
     do {
         instance->list.head->listener_api->free(instance->list.head->listener);
         NfcListenerListElement* child = instance->list.head->child;

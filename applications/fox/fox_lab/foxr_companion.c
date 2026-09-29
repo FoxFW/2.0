@@ -22,51 +22,14 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* FoxLAB Companion - see foxr_companion.h for the overview. This file is
- * the whole Fox Remote ("FLPR") command surface: device/power/storage
- * info, file browsing, screen streaming, remote input, clock read/write,
- * reboot, and (task #54) notification/locale/menu-theme settings, all
- * built directly on this firmware's Storage/Gui/Input/Notification/Locale
- * APIs, answering plain
- * "[FLPR/...]" text lines relayed over from the browser by the ESP32 -
- * see the Fox Remote Protocol design doc for the full wire format and the
- * reasoning behind it (in particular: why this replaces the stock
- * Expansion/RPC protocol entirely, rather than trying to fix it further).
- *
- * Deliberately NOT used here: rpc_gui_screen_suppress.h's RAM-protection
- * hooks (confirmed present in targets/f7/api_symbols.csv, so linking
- * against them would be safe). They're skipped anyway because they'd be a
- * no-op for this app: rpc_gui_screen_stream_is_suppressed() only ever goes
- * true while some OTHER app (SubGhz Read) is both running AND has called
- * rpc_gui_screen_stream_set_suppressed(true) - but the Flipper OS only
- * ever runs one app at a time, so SubGhz Read can't be doing that at any
- * moment fox_lab's own framebuffer callback could possibly fire. There's
- * no scenario where this app's screen stream and SubGhz Read's RAM
- * pressure coexist.
- */
-
 #define FOXR_MAX_NAME_LEN     255
 #define FOXR_READ_CHUNK_RAW   900
-#define FOXR_WRITE_CHUNK_RAW  400 /* decode buffer - matches the protocol's ~360-byte chunk budget with margin */
-#define FOXR_SCREEN_MIN_INTERVAL_MS 500 /* throttle - the Flipper's screen can redraw far faster than this line-oriented UART protocol needs to keep up with for a mirror; capping cuts UART/CPU load during streaming */
+#define FOXR_WRITE_CHUNK_RAW  400
+#define FOXR_SCREEN_MIN_INTERVAL_MS 500
 
-/* Persistent activity log on the SD card - every command this companion
- * handles gets written here, in full, regardless of what the 6-line
- * in-memory ring buffer (foxr_companion_log_snapshot(), shown on the
- * FoxLAB Active screen - flpr_view.c) is currently able to display. The
- * on-screen view only ever shows the last few entries; this file is the
- * complete, unfiltered history for later review off the device. Two lines
- * per command, written together: a short "Terminal" line (exactly what
- * the on-screen log shows) and a longer "TextFile" line with everything
- * that's useful for debugging after the fact - a timestamp, the full raw
- * command as received, the full reply as sent, and a heap snapshot
- * (current free, total, and the all-time-low watermark since boot). */
 #define FOXR_LOG_DIR  EXT_PATH("apps_data/fox_lab")
 #define FOXR_LOG_FILE EXT_PATH("apps_data/fox_lab/flpr_log.txt")
-/* Longest real reply that needs to fit uncut: [FLPR/INFO/OK]'s
- * hardware_name=<up to 32>|firmware_version=<up to 32> can run to ~110
- * chars on its own; 160 leaves real margin without being wasteful (this
- * buffer lives in FoxrCompanion, one instance per app session). */
+
 #define FOXR_LAST_REPLY_MAX 160
 
 typedef enum {
@@ -81,46 +44,29 @@ struct FoxrCompanion {
     Storage* storage;
     FuriPubSub* input_events;
 
-    /* Activity log ring buffer for the FoxLAB Companion screen. */
     FuriMutex* log_mutex;
     char log_lines[FOXR_LOG_LINES][FOXR_LOG_LINE_MAX];
     size_t log_count;
     size_t log_next;
     uint32_t log_version;
 
-    /* Most recent line actually sent back over the UART (via foxr_reply()/
-     * foxr_replyf() below) - captured so the end-of-dispatch log entry can
-     * report what actually happened, not just what was asked for. For a
-     * multi-line reply (e.g. FILES/LIST's ITEM lines followed by one final
-     * OK/ERR), this naturally ends up holding that last, outcome-bearing
-     * line by the time dispatch finishes. */
     char last_reply[FOXR_LAST_REPLY_MAX];
 
-    /* Write-session state - persists across separate WRITE/START, /CHUNK,
-     * /END dispatch calls, unlike reads which are handled fully
-     * synchronously within a single dispatch call. */
     File* write_file;
     bool write_active;
 
-    /* Screen-stream state. */
     bool screen_active;
     FuriThread* screen_thread;
     uint8_t* screen_frame_buf;
     size_t screen_frame_size;
     char* screen_line_buf;
-    size_t screen_b64_capacity; /* capacity of screen_line_buf *after* the "[FLPR/SCREEN/FRAME]" prefix */
+    size_t screen_b64_capacity;
 
-    /* Input held-key bookkeeping - mirrors the stock RPC layer's own
-     * (rpc_gui.c's RpcGuiSystem::input_key_counter/input_counter). */
     uint32_t input_key_counter[InputKeyMAX];
     uint32_t input_counter;
 
-    /* Owned by App (app.h) - see foxr_companion_alloc()'s param comment in
-     * the header. May be NULL (nothing to flag). */
     volatile bool* restart_pending_flag;
 };
-
-/* ── Base64 (self-contained - no dependency on an unverified toolbox header) ── */
 
 static const char kFoxrB64Alphabet[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -184,13 +130,8 @@ static size_t foxr_b64_decode(const char* in, size_t in_len, uint8_t* out, size_
     return out_len;
 }
 
-/* Formats a uint64_t as a plain decimal string, self-contained rather than
- * relying on vsnprintf's %llu - see foxr_handle_storage()'s comment for why
- * this file doesn't trust that conversion on this toolchain. `out_capacity`
- * should be at least 21 (20 digits + NUL, uint64_t's max) for any value to
- * come through untruncated; every call site below uses 24. */
 static void foxr_u64_to_str(uint64_t value, char* out, size_t out_capacity) {
-    char digits[20]; /* UINT64_MAX is 20 decimal digits, no NUL needed here */
+    char digits[20];
     size_t n = 0;
     if(value == 0) {
         digits[n++] = '0';
@@ -206,8 +147,6 @@ static void foxr_u64_to_str(uint64_t value, char* out, size_t out_capacity) {
     }
     out[out_len] = '\0';
 }
-
-/* ── Reply helpers ─────────────────────────────────────────────────── */
 
 static void foxr_capture_last_reply(FoxrCompanion* c, const char* text) {
     strncpy(c->last_reply, text, sizeof(c->last_reply) - 1);
@@ -256,8 +195,6 @@ static const char* foxr_fs_error_code(FS_Error err) {
     }
 }
 
-/* ── Activity log ──────────────────────────────────────────────────── */
-
 static void foxr_log_add(FoxrCompanion* c, const char* text) {
     furi_mutex_acquire(c->log_mutex, FuriWaitForever);
     strncpy(c->log_lines[c->log_next], text, FOXR_LOG_LINE_MAX - 1);
@@ -288,15 +225,6 @@ void foxr_companion_log_snapshot(
     furi_mutex_release(c->log_mutex);
 }
 
-/* Appends both log lines for one command to the SD card log file
- * (FOXR_LOG_FILE). Opened, written, and closed fresh every call rather
- * than kept open for the session, so a completed entry is always actually
- * on the card (not sitting in an FS write cache) even if the app is later
- * killed uncleanly - one command per call here, not the screen-stream
- * frame rate, so the extra open/close overhead is a non-issue. Silently
- * does nothing if the card is missing/unmounted or the write fails - the
- * in-memory ring buffer (foxr_log_add() above) still works regardless, so
- * the on-screen log is never affected by SD card problems. */
 static void foxr_log_persist(
     FoxrCompanion* c,
     const char* terminal_line,
@@ -315,15 +243,6 @@ static void foxr_log_persist(
     snprintf(line1, sizeof(line1), "LOG:Terminal:%s\r\n", terminal_line);
     storage_file_write(file, line1, strlen(line1));
 
-    /* "free" and everything else useful for debugging after the fact,
-     * per the user's request: a real timestamp, the exact request and
-     * reply lines, and a heap snapshot (current free / total, plus the
-     * all-time-low watermark since boot - the single most useful number
-     * for tracking down a slow leak or a RAM ceiling like the one
-     * subghz_garage runs close to). request_line can be as long as a full
-     * FLPR line (ESP_AT_LINE_MAX, currently 512) - malloc'd rather than a
-     * stack buffer since this whole call chain runs on the router's own
-     * thread (esp_at_router.c), which has a deliberately small stack. */
     size_t line2_cap = ESP_AT_LINE_MAX + FOXR_LAST_REPLY_MAX + 128;
     char* line2 = malloc(line2_cap);
     snprintf(
@@ -349,14 +268,6 @@ static void foxr_log_persist(
     storage_file_free(file);
 }
 
-/* Called once per dispatched [FLPR/...] command, after it's been fully
- * handled - see foxr_companion_dispatch() below. Logs both to the
- * in-memory ring buffer (what the FoxLAB Active screen shows live) and to
- * the persistent SD card file (the complete, unfiltered history) in one
- * call, so every single command that comes through is captured in both
- * places the same way - nothing added to the on-screen log without also
- * landing in the file, and nothing skipped just because the screen only
- * has room for a few lines. */
 static void foxr_log_event(FoxrCompanion* c, const char* tag, const char* request_line) {
     const char* status = "?";
     if(strstr(c->last_reply, "/OK") != NULL) {
@@ -365,9 +276,6 @@ static void foxr_log_event(FoxrCompanion* c, const char* tag, const char* reques
         status = "ERR";
     }
 
-    /* Screen is narrow (FOXR_LOG_LINE_MAX=40) - drop the "FLPR/" prefix,
-     * every logged tag has it, so it's implied rather than repeated on
-     * every line. */
     const char* short_tag = (strncmp(tag, "FLPR/", 5) == 0) ? tag + 5 : tag;
     char terminal_line[FOXR_LOG_LINE_MAX];
     snprintf(terminal_line, sizeof(terminal_line), "%s %s", short_tag, status);
@@ -375,8 +283,6 @@ static void foxr_log_event(FoxrCompanion* c, const char* tag, const char* reques
     foxr_log_add(c, terminal_line);
     foxr_log_persist(c, terminal_line, request_line, c->last_reply);
 }
-
-/* ── Device / power / storage info ────────────────────────────────── */
 
 typedef struct {
     char hardware_name[32];
@@ -402,8 +308,7 @@ static void foxr_handle_info(FoxrCompanion* c) {
     furi_hal_info_get(foxr_info_capture_cb, '_', &cap);
     if(!cap.got_hw) snprintf(cap.hardware_name, sizeof(cap.hardware_name), "Flipper");
     if(!cap.got_fw) snprintf(cap.firmware_version, sizeof(cap.firmware_version), "unknown");
-    /* Defensive: a '|' in either value would break the reply's own field
-     * separator - shouldn't happen for these two keys, but cheap to guard. */
+
     for(char* p = cap.hardware_name; *p; p++)
         if(*p == '|') *p = '_';
     for(char* p = cap.firmware_version; *p; p++)
@@ -440,25 +345,7 @@ static void foxr_handle_storage(FoxrCompanion* c, const char* path) {
     uint64_t total = 0, free_space = 0;
     FS_Error err = storage_common_fs_info(c->storage, path, &total, &free_space);
     if(err == FSE_OK) {
-        /* Sent as KiB (uint32_t via %lu), not raw bytes (uint64_t via
-         * %llu) - confirmed real-hardware symptom 2026-09-11: both SD and
-         * Internal storage tiles showed a flat 0% used regardless of
-         * actual free space (SD reported ~99% free by qFlipper over USB,
-         * Internal reportedly down to ~40KB free) - consistent with a
-         * 64-bit printf value coming through as 0 rather than a percentage-
-         * math bug (the browser's usedPct calc is straightforward and was
-         * double-checked). This firmware's own on-device Storage settings
-         * screens hit the exact same 64-bit-value concern and both sidestep
-         * it the same way: storage_settings_scene_internal_info.c casts to
-         * `(uint32_t)(total_space / 1024)` + %lu, and storage_settings_
-         * scene_sd_info.c's SDInfo struct stores kb_total/kb_free as %lu
-         * from the start - neither uses %llu anywhere. Matching that
-         * established, shipped convention here rather than trying to prove
-         * or disprove 64-bit printf support on this toolchain directly. A
-         * KiB count fits a uint32_t up into the TiB range, comfortably
-         * beyond any Flipper storage size - getStorageInfo() on the browser
-         * side multiplies back by 1024, so nothing downstream needs to know
-         * the wire units changed. */
+
         foxr_replyf(
             c,
             "[FLPR/STORAGE/OK]%lu,%lu",
@@ -468,8 +355,6 @@ static void foxr_handle_storage(FoxrCompanion* c, const char* path) {
         foxr_replyf(c, "[FLPR/STORAGE/ERR]%s", foxr_fs_error_code(err));
     }
 }
-
-/* ── Files ─────────────────────────────────────────────────────────── */
 
 static void foxr_handle_files_list(FoxrCompanion* c, const char* path) {
     if(strcmp(path, "/") == 0) {
@@ -491,18 +376,10 @@ static void foxr_handle_files_list(FoxrCompanion* c, const char* path) {
     }
 
     FileInfo info;
-    /* Heap-allocated, not stack: this loop runs on the esp_at_router
-     * thread (esp_at_router.c), which has to budget for every handler's
-     * worst-case call depth - a combined 608 bytes of stack-resident name
-     * buffers on top of that thread's already-tight frame stack was a
-     * real contributor to a confirmed real-hardware stack overflow (see
-     * esp_at_router.c's ESP_AT_ROUTER_THREAD_STACK comment), even though
-     * the fix that actually resolved it was widening that thread's stack,
-     * not this alone - trimming this handler's own footprint is cheap
-     * extra margin now that the pattern's been found once. */
+
     char* name = malloc(FOXR_MAX_NAME_LEN + 1);
     char* name_b64 = malloc(352);
-    char size_str[24]; /* exact byte count, not %llu - see foxr_handle_files_stat()'s comment */
+    char size_str[24];
     while(storage_dir_read(dir, &info, name, FOXR_MAX_NAME_LEN)) {
         foxr_b64_encode((const uint8_t*)name, strlen(name), name_b64, 352);
         foxr_u64_to_str(info.size, size_str, sizeof(size_str));
@@ -520,12 +397,7 @@ static void foxr_handle_files_stat(FoxrCompanion* c, const char* path) {
     FileInfo info;
     FS_Error err = storage_common_stat(c->storage, path, &info);
     if(err == FSE_OK) {
-        /* %s + foxr_u64_to_str(), not %llu directly - see foxr_handle_
-         * storage()'s comment. Unlike storage totals, a file's exact byte
-         * size matters here (most Flipper files - .nfc, .rfid, .sub - are
-         * under 1KB, so rounding to KiB the way storage totals do isn't an
-         * option), hence the self-contained decimal conversion instead of
-         * a pre-divided %lu. */
+
         char size_str[24];
         foxr_u64_to_str(info.size, size_str, sizeof(size_str));
         foxr_replyf(c, "[FLPR/FILES/STAT/OK]%d,%s", file_info_is_dir(&info) ? 1 : 0, size_str);
@@ -544,7 +416,7 @@ static void foxr_handle_files_read_start(FoxrCompanion* c, const char* path) {
     }
 
     uint64_t size = storage_file_size(file);
-    /* exact byte count, not %llu - see foxr_handle_files_stat()'s comment */
+
     char size_str[24];
     foxr_u64_to_str(size, size_str, sizeof(size_str));
     foxr_replyf(c, "[FLPR/FILES/READ/START/OK]%s", size_str);
@@ -681,8 +553,6 @@ static void foxr_handle_files_rename(FoxrCompanion* c, const char* payload) {
     }
 }
 
-/* ── Screen streaming ──────────────────────────────────────────────── */
-
 static void
     foxr_screen_frame_callback(uint8_t* data, size_t size, CanvasOrientation orientation, void* context) {
     UNUSED(orientation);
@@ -709,11 +579,7 @@ static int32_t foxr_screen_thread(void* context) {
                 c->screen_line_buf + prefix_len,
                 c->screen_b64_capacity);
             esp_at_send(c->esp_at, c->screen_line_buf);
-            /* Throttle: don't look for the next transmit request until the
-             * minimum interval has passed, so a screen that redraws faster
-             * than that (a blinking indicator, a live graph) coalesces
-             * into one frame per interval instead of one per redraw - see
-             * FOXR_SCREEN_MIN_INTERVAL_MS's comment above. */
+
             furi_delay_ms(FOXR_SCREEN_MIN_INTERVAL_MS);
         }
 
@@ -731,12 +597,14 @@ static void foxr_handle_screen_stop(FoxrCompanion* c) {
     gui_remove_framebuffer_callback(c->gui, foxr_screen_frame_callback, c);
     furi_thread_flags_set(furi_thread_get_id(c->screen_thread), FoxrScreenFlagExit);
     furi_thread_join(c->screen_thread);
+    furi_kernel_lock();
     furi_thread_free(c->screen_thread);
     c->screen_thread = NULL;
     free(c->screen_frame_buf);
     c->screen_frame_buf = NULL;
     free(c->screen_line_buf);
     c->screen_line_buf = NULL;
+    furi_kernel_unlock();
     c->screen_active = false;
     foxr_reply(c, "[FLPR/SCREEN/STOP/OK]");
 }
@@ -765,8 +633,6 @@ static void foxr_handle_screen_start(FoxrCompanion* c) {
 
     foxr_reply(c, "[FLPR/SCREEN/START/OK]");
 }
-
-/* ── Input ─────────────────────────────────────────────────────────── */
 
 static const struct {
     const char* name;
@@ -851,8 +717,6 @@ static void foxr_handle_input(FoxrCompanion* c, const char* payload) {
     foxr_reply(c, "[FLPR/INPUT/OK]");
 }
 
-/* ── Settings: clock, reboot ──────────────────────────────────────── */
-
 static void foxr_handle_datetime_get(FoxrCompanion* c) {
     DateTime dt;
     furi_hal_rtc_get_datetime(&dt);
@@ -868,11 +732,6 @@ static void foxr_handle_datetime_get(FoxrCompanion* c) {
         (unsigned)dt.weekday);
 }
 
-/* payload: "year,month,day,hour,minute,second,weekday" - same field order
- * as the GET reply above, so a caller can round-trip one straight into the
- * other without reshuffling. Validated with datetime_validate_datetime()
- * before it's allowed anywhere near the RTC - a malformed or out-of-range
- * value here would otherwise corrupt the clock silently. */
 static void foxr_handle_datetime_set(FoxrCompanion* c, const char* payload) {
     unsigned year, month, day, hour, minute, second, weekday;
     int n = sscanf(
@@ -898,100 +757,17 @@ static void foxr_handle_datetime_set(FoxrCompanion* c, const char* payload) {
     foxr_reply(c, "[FLPR/DATETIME/SET/OK]");
 }
 
-/* payload: "0" for a normal reboot, "1" to reboot straight into DFU (MCU
- * bootloader) mode - matches FuriHalRtcBootMode's own Normal=0/Dfu=1
- * numbering, so the browser's Settings tab can send its existing 0/1
- * convention unchanged.
- *
- * furi_hal_power_reset() never returns, so this function's caller
- * (foxr_companion_dispatch()) never gets back here to run its usual
- * end-of-command foxr_log_event() call - this handler logs itself, right
- * before the reset, so the reboot still shows up in both the on-screen
- * log and the persistent SD card file like every other command. tag/line
- * are threaded through from dispatch() for exactly that call. */
 static void
     foxr_handle_reboot(FoxrCompanion* c, const char* tag, const char* line, const char* payload) {
     bool dfu = (payload[0] == '1');
     foxr_reply(c, "[FLPR/REBOOT/OK]");
     foxr_log_event(c, tag, line);
-    /* Let the reply actually leave the UART - esp_at_send() writes are
-     * synchronous, but the ESP32 side still needs a moment to relay the
-     * line on to the browser before this device goes dark for the reset. */
+
     furi_delay_ms(100);
     furi_hal_rtc_set_boot_mode(dfu ? FuriHalRtcBootModeDfu : FuriHalRtcBootModeNormal);
     furi_hal_power_reset();
 }
 
-/* ── Settings: notification / locale / menu theme (task #54) ─────────
- *
- * Everything below wires up real device settings the browser's Settings
- * tab previously had no way to touch at all - see the notice that used to
- * sit in that tab's placeholder. Three independent groups, matching how
- * this firmware already keeps them (NotificationApp's own settings
- * struct, the separate Locale/RTC-flag service, and Fox.cfg's menu-theme
- * byte), each with its own SET command rather than one giant combined one
- * - so changing a menu theme, say, can never accidentally also resend a
- * stale locale snapshot. GET returns all three groups on one line so the
- * browser can render the whole tab from a single round trip; every SET
- * still range-checks its own payload before writing anything, same
- * INVALID-on-any-doubt approach as FLPR/DATETIME/SET.
- *
- * display_brightness/led_brightness/speaker_volume are stored as 0.0-1.0
- * floats on this firmware, but this wire format uses plain 0-100 integer
- * percents both ways - this file already avoids trusting this toolchain's
- * vsnprintf with tricky conversions (see foxr_u64_to_str()'s own comment,
- * about %llu specifically) and integer percents sidestep needing %f here
- * at all, not just the one call that bit list_storage before.
- *
- * ── task #75 (redone) extension ──────────────────────────────────────
- * Everything from here to foxr_handle_settings_alarm_set() below adds the
- * settings groups task #75's fresh audit of applications/settings/ found
- * still missing from the tab above: Night Shift + RGB Backlight (both
- * live on this same NotificationApp settings struct as the group above,
- * just deeper sub-screens of it), System (Sleep Method/File Naming/
- * Device Name), Input (button vibration), Bluetooth (on/off), Power
- * (Auto PowerOff/Limit Charge), Desktop display cosmetics (Battery View/
- * Show Clock/Midnight Format/WiFi icon/Battery+SD icons/Shell Color), and
- * Fox Alarm Clock's three global toggles. Same rules as above: GET
- * appends every new field onto ONE combined reply line (one round trip),
- * every SET stays its own small independently-validated command per
- * group.
- *
- * Deliberately NOT ported (task #75 audit, decided by design rather than
- * left for later): Custom Wallpaper, Main Menu Apps pins, and Favorite app
- * bindings - all need an on-device file browser this protocol has no
- * equivalent of; VGM Options - cosmetic colors for RPC screen-mirroring
- * only, not used by anything in this fork; Storage's Format/Benchmark/
- * Factory Reset - destructive actions, not settings; System's Log Level/
- * Device/Baud Rate, Debug flag, and Heap Trace - developer-only
- * diagnostics; Clock & Alarm's PWM/clock output and Expansion's Listen
- * UART - hardware wiring config, not user settings; the ESP32 UART channel
- * pin choice specifically - changing it remotely risks cutting the very
- * serial link this protocol runs over.
- *
- * The Fox Alarm Clock's individual alarm list (add/edit/delete alarms
- * with time/day-of-week/recurring) was originally left out of that list
- * pending "its own dedicated UI" - it has one now, see the ALARM/LIST,
- * ALARM/ADD, ALARM/EDIT, and ALARM/DELETE commands below, alongside the
- * pre-existing ALARM/SET for the 3 global toggles.
- *
- * PIN/lock security settings and everything nested under Security &
- * Privacy (Set/Change/Remove PIN, MAX Attempts, On Exceed - which can be
- * set to wipe the SD card, Advanced Security's lock-triggered BLE/GPIO/USB
- * disconnects, Lock Screen Display) were excluded here under that same
- * reasoning through task #75, but task #93 reversed that specific call by
- * explicit product decision - full parity with the on-device screen was
- * worth more than the transport risk. See the "Security & Privacy (task
- * #93)" section below for the actual commands and the PIN-transport
- * caveat spelled out there. */
-
-/* Shared lookup tables mirroring the *_value[] arrays in
- * notification_settings_app.c / desktop_settings_scene_*.c / power_settings_
- * scene_start.c / input_settings_app.c - kept private to this file (no
- * dependency on any toolbox index-lookup header, matching this file's own
- * base64 section's stated preference for self-contained code) so GET can
- * translate a live stored value back into the same small index each SET
- * below accepts. */
 static uint8_t foxr_index_of_u32(uint32_t val, const uint32_t* arr, uint8_t count) {
     for(uint8_t i = 0; i < count; i++) {
         if(arr[i] == val) return i;
@@ -1026,9 +802,6 @@ static const uint32_t foxr_auto_poweroff_value[FOXR_AUTO_POWEROFF_COUNT] =
 #define FOXR_LIMIT_CHARGE_COUNT 6
 static const uint32_t foxr_limit_charge_value[FOXR_LIMIT_CHARGE_COUNT] = {0, 90, 85, 80, 75, 70};
 
-/* Security & Privacy (task #93) - mirrors pin_menu.c's own auto_lock_delay_
- * value[]/s_max_attempts_labels[] exactly, so an index round-trips to the
- * same on-device meaning. */
 #define FOXR_AUTO_LOCK_COUNT 9
 static const uint32_t foxr_auto_lock_value[FOXR_AUTO_LOCK_COUNT] =
     {0, 10000, 15000, 30000, 60000, 90000, 120000, 300000, 600000};
@@ -1055,7 +828,7 @@ static void foxr_handle_settings_get(FoxrCompanion* c) {
 
     unsigned rgb_installed = notification->settings.rgb.rgb_backlight_installed ? 1u : 0u;
     unsigned rgb_white_mode = notification->settings.rgb.white_backlight_mode ? 1u : 0u;
-    unsigned rgb_led1 = notification->settings.rgb.led_2_color_index; /* human 1 = hw slot 2 */
+    unsigned rgb_led1 = notification->settings.rgb.led_2_color_index;
     unsigned rgb_led2 = notification->settings.rgb.led_1_color_index;
     unsigned rgb_led3 = notification->settings.rgb.led_0_color_index;
     unsigned rgb_effect = notification->settings.rgb.rainbow_mode;
@@ -1173,19 +946,6 @@ static void foxr_handle_settings_get(FoxrCompanion* c) {
         device_name ? device_name : "");
 }
 
-/* payload: "contrast,backlight_pct,led_pct,volume_pct,delay_ms,vibro,inversion"
- * - same order/units as the notification-settings slice of the GET reply
- * above. `contrast` is -8..8 (LCD Contrast on the on-device UI); the three
- * *_pct fields are 0..100; `delay_ms` (LCD auto-dim delay) is capped at
- * 3600000 (60 min) as a sanity bound, not because the field itself means
- * anything past that; `vibro`/`inversion` are 0/1. Applies
- * sequence_display_backlight_force_on so a brightness change is visible
- * immediately (deliberately skips a blink/vibro pulse here - fine as
- * one-off feedback on the on-device UI's own single-field controls, but
- * this is one combined write and firing all three together on every
- * change, including ones that only touched volume or delay, would be
- * surprising) and always persists via notification_message_save_settings()
- * before replying, same as the on-device Settings UI does on its own exit. */
 static void foxr_handle_settings_notif_set(FoxrCompanion* c, const char* payload) {
     int contrast;
     unsigned backlight_pct, led_pct, volume_pct, delay_ms, vibro, inversion;
@@ -1221,13 +981,6 @@ static void foxr_handle_settings_notif_set(FoxrCompanion* c, const char* payload
     foxr_reply(c, "[FLPR/SETTINGS/NOTIF/SET/OK]");
 }
 
-/* payload: "time_format,date_format,units,hand_orient" - each an index
- * into its own small enum: time_format 0=24h/1=12h (LocaleTimeFormat),
- * date_format 0=D/M/Y/1=M/D/Y/2=Y/M/D (LocaleDateFormat), units
- * 0=Metric/1=Imperial (LocaleMeasurementUnits), hand_orient 0=Righty/
- * 1=Lefty (FuriHalRtcFlagHandOrient). These four persist through the
- * Locale service/RTC flags themselves - no separate save call needed,
- * same as FLPR/DATETIME/SET's furi_hal_rtc_set_datetime(). */
 static void foxr_handle_settings_locale_set(FoxrCompanion* c, const char* payload) {
     unsigned time_fmt, date_fmt, units, hand;
     int n = sscanf(payload, "%u,%u,%u,%u", &time_fmt, &date_fmt, &units, &hand);
@@ -1246,12 +999,6 @@ static void foxr_handle_settings_locale_set(FoxrCompanion* c, const char* payloa
     foxr_reply(c, "[FLPR/SETTINGS/LOCALE/SET/OK]");
 }
 
-/* payload: a single digit "0".."4" - fox_theme_set_style()'s own style
- * index (0=Classic, 1=Fox Theme, 2=Carousel, 3=Slider, 4=Tiny; see
- * gui/modules/fox_theme.h). This is the FoxFW-specific "menu theme" the
- * Settings tab's old placeholder notice named as one of the gaps -
- * fox_theme_set_style() persists straight to /int/Fox.cfg itself, no
- * separate save call needed. */
 static void foxr_handle_settings_theme_set(FoxrCompanion* c, const char* payload) {
     unsigned style;
     int n = sscanf(payload, "%u", &style);
@@ -1263,14 +1010,6 @@ static void foxr_handle_settings_theme_set(FoxrCompanion* c, const char* payload
     foxr_reply(c, "[FLPR/SETTINGS/THEME/SET/OK]");
 }
 
-/* payload: "mode,start_min,end_min" - `mode` is an index 0..6 into the same
- * OFF/-10%/-20%/-30%/-40%/-50%/-60% list the on-device Night Shift item
- * shows (foxr_night_shift_value[] above); `start_min`/`end_min` are plain
- * minutes-since-midnight (0..1439) rather than snapped to the on-device
- * UI's fixed 30-minute-step list, so any exact time can be set from here.
- * Lives on the same NotificationApp settings struct as NOTIF/SET above,
- * just its own command so a Night Shift change can't accidentally re-send
- * a stale Display & Sound snapshot (or vice versa). */
 static void foxr_handle_settings_nightshift_set(FoxrCompanion* c, const char* payload) {
     unsigned mode, start_min, end_min;
     int n = sscanf(payload, "%u,%u,%u", &mode, &start_min, &end_min);
@@ -1287,17 +1026,6 @@ static void foxr_handle_settings_nightshift_set(FoxrCompanion* c, const char* pa
     foxr_reply(c, "[FLPR/SETTINGS/NIGHTSHIFT/SET/OK]");
 }
 
-/* FLPR/SETTINGS/RGB/COLORS - no payload. One-time lookup for the browser's
- * LED color dropdowns: rgb_backlight_get_color_count()/_get_color_text()
- * are this firmware's own live color table (desktop_settings_scene_rgb_
- * settings.c and notification_settings_app.c both call these same two
- * functions rather than keeping their own copy of the list), so fetching
- * it here instead of hardcoding names on the browser side can never drift
- * out of sync with what index numbers actually mean on this firmware.
- * Reply is a single pipe-joined line, e.g. "[.../OK]Black|White|Red|..." -
- * plain color names, no '|' or ',' possible in any of them, so no
- * escaping is needed (same reasoning FLPR/INFO's kv-pipe reply already
- * relies on elsewhere in this file). */
 static void foxr_handle_settings_rgb_colors_get(FoxrCompanion* c) {
     char buf[400];
     size_t len = 0;
@@ -1305,8 +1033,7 @@ static void foxr_handle_settings_rgb_colors_get(FoxrCompanion* c) {
     for(uint8_t i = 0; i < count; i++) {
         const char* name = rgb_backlight_get_color_text(i);
         size_t name_len = strlen(name);
-        /* +1 for a leading '|' on every entry after the first, +1 for the
-         * NUL this loop must always leave room for. */
+
         if(len + name_len + 2 > sizeof(buf)) break;
         if(i > 0) buf[len++] = '|';
         memcpy(buf + len, name, name_len);
@@ -1316,21 +1043,6 @@ static void foxr_handle_settings_rgb_colors_get(FoxrCompanion* c) {
     foxr_replyf(c, "[FLPR/SETTINGS/RGB/COLORS/OK]%s", buf);
 }
 
-/* payload: "installed,white_mode,led1,led2,led3,effect,speed_ms,step,
- * saturation,wave_wide" - mirrors desktop_settings_scene_rgb_settings.c /
- * notification_settings_app.c's RGB Mod Settings sub-screen field-for-
- * field (both UIs write this same NotificationApp settings.rgb struct, so
- * this is a third equally-valid entry point onto it, not a separate
- * store). `led1`/`led2`/`led3` are indices into the RGB/COLORS list above
- * in on-device left-to-right order (this function does the human-order-
- * to-hardware-order swap itself, same as both on-device UIs do); `effect`
- * is 0=Off/1=Rainbow/2=Wave; `speed_ms` 100..1000; `step` 1..3;
- * `saturation` 1..255; `wave_wide` one of 30/40/50. Re-applies the live
- * LED state immediately (skipped whenever a rainbow/wave effect is
- * running, since rainbow_timer_starter()'s own timer callback already
- * repaints every tick - forcing a static-color write here too would just
- * race it) and always persists via notification_message_save_settings()
- * before replying. */
 static void foxr_handle_settings_rgb_set(FoxrCompanion* c, const char* payload) {
     unsigned installed, white_mode, led1, led2, led3, effect, speed_ms, step, saturation,
         wave_wide;
@@ -1359,7 +1071,7 @@ static void foxr_handle_settings_rgb_set(FoxrCompanion* c, const char* payload) 
     NotificationApp* notification = furi_record_open(RECORD_NOTIFICATION);
     notification->settings.rgb.rgb_backlight_installed = (installed != 0);
     notification->settings.rgb.white_backlight_mode = (white_mode != 0);
-    notification->settings.rgb.led_2_color_index = (uint8_t)led1; /* human 1 = hw slot 2 */
+    notification->settings.rgb.led_2_color_index = (uint8_t)led1;
     notification->settings.rgb.led_1_color_index = (uint8_t)led2;
     notification->settings.rgb.led_0_color_index = (uint8_t)led3;
     notification->settings.rgb.rainbow_mode = effect;
@@ -1393,30 +1105,6 @@ static void foxr_handle_settings_rgb_set(FoxrCompanion* c, const char* payload) 
     foxr_reply(c, "[FLPR/SETTINGS/RGB/SET/OK]");
 }
 
-/* payload: "sleep_method,file_naming,device_name" - `sleep_method` 0=
- * Default/1=Legacy (FuriHalRtcFlagLegacySleep); `file_naming` 0=Default/
- * 1=Detailed (FuriHalRtcFlagDetailedFilename); `device_name` is the
- * remainder of the payload after the second comma, letters/digits only
- * (same validator as the on-device System Settings > Device Name field),
- * up to FURI_HAL_VERSION_ARRAY_NAME_LENGTH-1 chars, may be empty to reset
- * to the default hardware name. Mirrors system_settings.c's own Device
- * Name handling exactly - writes the same NAMECHANGER_PATH file (or
- * removes it, for an empty name); namechanger_srv only actually applies
- * it at boot, though.
- *
- * This used to reboot immediately after every successful save, same as
- * system_settings.c's own callback - but unlike that on-device screen,
- * this command is reached over the FoxLAB WiFi connection itself, and
- * furi_hal_power_reset() also power-cycles the attached ESP32 (it's
- * powered/reset via the Flipper's expansion port), which drops the very
- * AP + web server the caller is using to make this change. So instead:
- * the name is saved here (durably - that part isn't deferred), and if it
- * actually changed, `restart_pending_flag` is set instead of rebooting.
- * main.c's navigation_callback() checks that flag when the FoxLAB app is
- * about to close and detours to restart_confirm_view so the user can
- * choose "Restart now" or "Later" (next natural boot). Sleep method/file
- * naming still apply immediately, as before - they never needed the
- * reboot in the first place, that was purely for the name. */
 static void foxr_handle_settings_system_set(FoxrCompanion* c, const char* payload) {
     unsigned sleep_method, file_naming;
     int consumed = 0;
@@ -1454,18 +1142,6 @@ static void foxr_handle_settings_system_set(FoxrCompanion* c, const char* payloa
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
 
-    /* Whether this actually changes what's showing, decided BEFORE the
-     * write below touches anything - that's what decides if a restart is
-     * worth flagging at all. `name_len == 0` (reset to default) is only a
-     * real change if an override file is currently active - removing a
-     * file that was never there changes nothing. Otherwise, furi_hal_
-     * version_get_name_ptr() already reflects whatever override (if any)
-     * was applied at last boot, so a direct compare against the requested
-     * name catches "re-saving the same name" - which happens on every
-     * System-card save, since the browser always resends whatever's
-     * currently in the Device Name field alongside Sleep Method/File
-     * Naming (see foxfw-lab.html) - without flagging a restart that
-     * wouldn't actually change anything. */
     bool name_changed;
     if(name_len == 0) {
         FileInfo file_info;
@@ -1476,8 +1152,7 @@ static void foxr_handle_settings_system_set(FoxrCompanion* c, const char* payloa
 
     bool name_saved = false;
     if(name_len == 0) {
-        /* Empty name -> remove the override file to restore the real
-         * hardware name, same as system_settings.c's own callback. */
+
         storage_simply_remove(storage, NAMECHANGER_PATH);
         name_saved = true;
     } else {
@@ -1501,20 +1176,10 @@ static void foxr_handle_settings_system_set(FoxrCompanion* c, const char* payloa
     if(name_changed && c->restart_pending_flag != NULL) {
         *c->restart_pending_flag = true;
     }
-    /* Trailing digit tells the browser whether a restart is actually
-     * pending now, so it only bothers the user with restart messaging
-     * when there's really something to restart for (see foxfw-lab.html's
-     * applyDeviceNameBtn handler). */
+
     foxr_replyf(c, "[FLPR/SETTINGS/SYSTEM/SET/OK]%d", name_changed ? 1 : 0);
 }
 
-/* payload: "vibro_level_idx,vibro_trigger_idx" - `vibro_level_idx` is an
- * index 0..9 (0=OFF, 1..9 = on-device "1".."9" strength labels -
- * foxr_vibro_touch_level_value[] above); `vibro_trigger_idx` is 0=Press/
- * 1=Release/2=Both. Mirrors input_settings_app.c: writes both the live
- * RECORD_INPUT_SETTINGS record (so the change is felt on the very next
- * button press, same as the on-device Input Settings screen) and the
- * on-disk copy via input_settings_save(). */
 static void foxr_handle_settings_input_set(FoxrCompanion* c, const char* payload) {
     unsigned level_idx, trigger_idx;
     int n = sscanf(payload, "%u,%u", &level_idx, &trigger_idx);
@@ -1532,11 +1197,6 @@ static void foxr_handle_settings_input_set(FoxrCompanion* c, const char* payload
     foxr_reply(c, "[FLPR/SETTINGS/INPUT/SET/OK]");
 }
 
-/* payload: a single digit "0"/"1" - Bluetooth on/off (bt_settings_app.c's
- * own on/off toggle; "Unpair All Devices" is deliberately not exposed
- * here - it's a destructive action, not a setting). bt_set_settings()
- * persists this itself, same as bt_settings_app_free()'s own only
- * persistence step - no separate save call needed. */
 static void foxr_handle_settings_bt_set(FoxrCompanion* c, const char* payload) {
     unsigned enabled;
     int n = sscanf(payload, "%u", &enabled);
@@ -1553,17 +1213,6 @@ static void foxr_handle_settings_bt_set(FoxrCompanion* c, const char* payload) {
     foxr_reply(c, "[FLPR/SETTINGS/BT/SET/OK]");
 }
 
-/* payload: "auto_poweroff_idx,limit_charge_idx" - `auto_poweroff_idx` is
- * an index 0..7 into OFF/5/10/15/30/45/60/90 minutes
- * (foxr_auto_poweroff_value[] above); `limit_charge_idx` is an index 0..5
- * into OFF/90%/85%/80%/75%/70% (foxr_limit_charge_value[] above) - stops
- * charging once the battery reaches that percentage. Battery Info/
- * Reboot/Power OFF from the same on-device screen are deliberately not
- * exposed here (an info view and two action buttons, not settings; reboot
- * already exists as its own FLPR/REBOOT command). power_api_set_settings()
- * doesn't itself persist to storage - power_settings_app_free()'s comment
- * confirms it's purely a live push - so this calls power_settings_save()
- * first, same order power_settings_app.c's own on-exit path uses. */
 static void foxr_handle_settings_power_set(FoxrCompanion* c, const char* payload) {
     unsigned poweroff_idx, charge_idx;
     int n = sscanf(payload, "%u,%u", &poweroff_idx, &charge_idx);
@@ -1581,18 +1230,6 @@ static void foxr_handle_settings_power_set(FoxrCompanion* c, const char* payload
     foxr_reply(c, "[FLPR/SETTINGS/POWER/SET/OK]");
 }
 
-/* payload: "battery_view,show_clock,midnight_format,wifi_icon_hidden,
- * statusbar_icons,shell_color_idx" - mirrors desktop_settings_scene_
- * start.c's own top-level field set (minus ESP32 UART - see this file's
- * earlier "deliberately NOT ported" note - and minus Menu Theme, which
- * already has its own THEME/SET command). `battery_view` 0..5 (Bar/%/
- * Inv.%/Retro3/Retro5/Bar%); `show_clock`/`wifi_icon_hidden`/
- * `statusbar_icons` are each 0/1 (note wifi_icon_hidden is inverted - 0
- * means the icon SHOWS - same polarity the struct field itself already
- * uses, see desktop_settings.h); `midnight_format` 0=show "12"/1=show
- * "0"; `shell_color_idx` 0..7, a CLI-only setting stored completely
- * separately (CliSettings, not DesktopSettings) but surfaced alongside
- * these because that's where the on-device UI puts it too. */
 static void foxr_handle_settings_desktop_set(FoxrCompanion* c, const char* payload) {
     unsigned battery_view, show_clock, midnight_fmt, wifi_icon_hidden, statusbar_icons,
         shell_color_idx;
@@ -1630,11 +1267,6 @@ static void foxr_handle_settings_desktop_set(FoxrCompanion* c, const char* paylo
     foxr_reply(c, "[FLPR/SETTINGS/DESKTOP/SET/OK]");
 }
 
-/* payload: "keep_backlight,beep,vibrate" - each 0/1. The three global Fox
- * Alarm Clock toggles from desktop_settings_scene_alarm_clock.c's own
- * screen; the alarm list itself (individual alarms' time/days/recurring/
- * active) is NOT exposed here - see this file's earlier "deliberately NOT
- * ported" note - only these three always-present toggles. */
 static void foxr_handle_settings_alarm_set(FoxrCompanion* c, const char* payload) {
     unsigned keep_backlight, beep, vibrate;
     int n = sscanf(payload, "%u,%u,%u", &keep_backlight, &beep, &vibrate);
@@ -1654,25 +1286,6 @@ static void foxr_handle_settings_alarm_set(FoxrCompanion* c, const char* payload
     foxr_reply(c, "[FLPR/SETTINGS/ALARM/SET/OK]");
 }
 
-/* ── Fox Alarm Clock: individual alarm list (task #96) ────────────────
- *
- * Full CRUD over DesktopSettings.alarms[]/alarm_count (desktop_settings.h)
- * - the array desktop_settings_scene_alarm_clock.c's own on-device list
- * edits, alongside the 3 global toggles ALARM/SET above already covers.
- * alarms[0..alarm_count-1] are always contiguous (no holes) - matches how
- * the on-device screen itself manages the list, so DELETE shifts
- * everything after the removed slot down by one rather than leaving a gap.
- *
- * payload: none. Replies with every alarm on one combined line (same
- * one-round-trip style as the other GET commands in this file) rather
- * than FILES/LIST's per-item stream - at most FOX_ALARM_MAX_COUNT (8) of
- * these, small enough that a combined reply is simpler for the browser to
- * parse (see getAlarmList() in foxfw-lab.html) without needing FILES/
- * LIST's separate ITEM-stream handling.
- *
- * Format: "<count>|hour,minute,days_mask,active,recurring|..." - one
- * pipe-separated group per alarm, in on-device list order (index 0
- * first, which is also each alarm's ADD/EDIT/DELETE index). */
 static void foxr_handle_settings_alarm_list(FoxrCompanion* c) {
     Desktop* desktop = furi_record_open(RECORD_DESKTOP);
     DesktopSettings settings;
@@ -1697,12 +1310,6 @@ static void foxr_handle_settings_alarm_list(FoxrCompanion* c) {
     foxr_reply(c, line);
 }
 
-/* payload: "hour,minute,days_mask,active,recurring" - appends a new alarm
- * to the end of the list. `hour` 0-23, `minute` 0-59, `days_mask` a
- * FOX_ALARM_DAY_*-bit OR-mask (0-127, only meaningful when recurring=1),
- * `active`/`recurring` each 0/1. Replies ERR FULL once the list already
- * has FOX_ALARM_MAX_COUNT (8) alarms - same limit as the on-device
- * screen, there's no "make room" flow on either side of this protocol. */
 static void foxr_handle_settings_alarm_add(FoxrCompanion* c, const char* payload) {
     unsigned hour, minute, days_mask, active, recurring;
     int n = sscanf(payload, "%u,%u,%u,%u,%u", &hour, &minute, &days_mask, &active, &recurring);
@@ -1734,9 +1341,6 @@ static void foxr_handle_settings_alarm_add(FoxrCompanion* c, const char* payload
     foxr_replyf(c, "[FLPR/SETTINGS/ALARM/ADD/OK]%u", new_index);
 }
 
-/* payload: "index,hour,minute,days_mask,active,recurring" - overwrites an
- * existing alarm in place. Same field validation as ADD, plus `index`
- * must name an existing slot (0 <= index < alarm_count). */
 static void foxr_handle_settings_alarm_edit(FoxrCompanion* c, const char* payload) {
     unsigned index, hour, minute, days_mask, active, recurring;
     int n = sscanf(
@@ -1767,8 +1371,6 @@ static void foxr_handle_settings_alarm_edit(FoxrCompanion* c, const char* payloa
     foxr_reply(c, "[FLPR/SETTINGS/ALARM/EDIT/OK]");
 }
 
-/* payload: "index" - removes one alarm, shifting every later alarm down
- * one slot to close the gap (alarms[0..alarm_count-1] stay contiguous). */
 static void foxr_handle_settings_alarm_delete(FoxrCompanion* c, const char* payload) {
     unsigned index;
     int n = sscanf(payload, "%u", &index);
@@ -1796,44 +1398,9 @@ static void foxr_handle_settings_alarm_delete(FoxrCompanion* c, const char* payl
     foxr_reply(c, "[FLPR/SETTINGS/ALARM/DELETE/OK]");
 }
 
-/* ── Security & Privacy (task #93) ────────────────────────────────────
- *
- * Everything in applications/settings/desktop_settings/scenes/desktop_
- * settings_scene_pin_menu.c and its two sub-screens (disconnect_services.c
- * "Advanced Security", lock_display.c "Lock Screen Display"), including PIN
- * management and the "On Exceed" Format-SD trigger - a deliberate reversal
- * of this file's earlier "Deliberately NOT ported" note above (task #54/
- * #75 both excluded this category outright). Kept split into three
- * commands rather than one combined GET/SET the way DESKTOP/ALARM above
- * are, because PIN changes need a current-PIN check the other 14 fields
- * don't, and folding that into one big payload would mean re-sending (and
- * re-validating) an unrelated PIN on every single toggle flip:
- *   - FLPR/SETTINGS/SECURITY (GET) - all 15 fields, one round trip.
- *   - FLPR/SETTINGS/SECURITY/SET - the 14 non-PIN fields.
- *   - FLPR/SETTINGS/SECURITY/PIN/SET - set or change the PIN.
- *   - FLPR/SETTINGS/SECURITY/PIN/CLEAR - remove the PIN.
- *
- * PIN transport note: PINs travel over this UART link and then over the
- * FoxLAB AP's WebSocket relay as plain digit strings - there is no
- * end-to-end encryption beyond whatever the AP's own WiFi security
- * provides (the FoxLAB AP password is fixed and shown on-screen). This
- * command family exists anyway per an explicit product decision to expose
- * full parity with the on-device Security & Privacy screen; the browser
- * side surfaces the same warning next to the PIN fields. */
-
-/* 2-byte-per-digit encoding, must stay identical to desktop_settings_scene_
- * pin_setup.c's pin_encode_k1/k2 and desktop_settings_scene_pin_auth.c's
- * pin_auth_k1/k2 (both comment that they mirror the lock screen's own copy
- * too) - not shared via a header because none of those call sites are
- * reachable from here without a much bigger include, and this pair is
- * tiny/stable: it's just each digit's base-4 split (k1 = d/4, k2 = d%4). */
 static const uint8_t foxr_pin_encode_k1[10] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2};
 static const uint8_t foxr_pin_encode_k2[10] = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1};
 
-/* `digits` need not be null-terminated - `len` bounds it (this is called
- * with sub-spans of a larger comma-separated payload). Rejects anything
- * that isn't a plain '0'-'9' string of DESKTOP_PIN_CODE_MIN_LEN..MAX_LEN
- * digits, same bounds the on-device numeric-pin view itself enforces. */
 static bool foxr_pin_digits_to_code(const char* digits, size_t len, DesktopPinCode* out) {
     if(len < DESKTOP_PIN_CODE_MIN_LEN || len > DESKTOP_PIN_CODE_MAX_LEN) return false;
     memset(out, 0, sizeof(DesktopPinCode));
@@ -1879,15 +1446,6 @@ static void foxr_handle_settings_security_get(FoxrCompanion* c) {
         (unsigned)settings.usb_inhibit_auto_lock);
 }
 
-/* payload: "max_attempts_idx,exceed_action,on_lock_enabled,disconnect_ble,
- * disconnect_gpio,usb_level,show_time,show_seconds,show_date,
- * show_statusbar,unlock_prompt,poweroff_locked,auto_lock_idx,usb_inhibit" -
- * 14 fields, same order the GET reply above uses (minus pin_is_set, which
- * isn't writable here - see PIN/SET and PIN/CLEAR). `max_attempts_idx` is
- * an index 0..8 into foxr_max_attempts_value[] (No Limit/3../10);
- * `exceed_action` 0=Lock only/1=Format SD; `usb_level` 0=Off/1=CLI+RPC
- * Block/2=Full Disconnect (LockUsbLevel); `auto_lock_idx` an index 0..8
- * into foxr_auto_lock_value[]; every other field is a plain 0/1 toggle. */
 static void foxr_handle_settings_security_set(FoxrCompanion* c, const char* payload) {
     unsigned max_attempts_idx, exceed_action, on_lock_enabled, disconnect_ble, disconnect_gpio,
         usb_level, show_time, show_seconds, show_date, show_statusbar, unlock_prompt,
@@ -1941,13 +1499,6 @@ static void foxr_handle_settings_security_set(FoxrCompanion* c, const char* payl
     foxr_reply(c, "[FLPR/SETTINGS/SECURITY/SET/OK]");
 }
 
-/* payload: "current_pin,new_pin" - `current_pin` is the digit string for
- * whatever PIN is already active, or EMPTY (nothing before the comma) when
- * none is set yet - mirrors the on-device flow, which only re-prompts for
- * the current PIN on Change PIN, not on the very first Set PIN. `new_pin`
- * is 1-10 digits, required. Both are parsed as literal digit strings, not
- * numbers - sscanf's %u would silently drop a leading zero, which changes
- * which PIN this actually is - so this splits on the comma by hand. */
 static void foxr_handle_settings_security_pin_set(FoxrCompanion* c, const char* payload) {
     const char* comma = strchr(payload, ',');
     if(!comma) {
@@ -1986,9 +1537,6 @@ static void foxr_handle_settings_security_pin_set(FoxrCompanion* c, const char* 
     foxr_reply(c, "[FLPR/SETTINGS/SECURITY/PIN/SET/OK]");
 }
 
-/* payload: the current PIN's digit string, required - Remove PIN always
- * needs proof of the existing PIN, same as the on-device flow (pin_auth.c
- * gates pin_disable.c the same way). */
 static void foxr_handle_settings_security_pin_clear(FoxrCompanion* c, const char* payload) {
     if(!desktop_pin_code_is_set()) {
         foxr_reply(c, "[FLPR/SETTINGS/SECURITY/PIN/CLEAR/ERR]NOTSET");
@@ -2013,8 +1561,6 @@ static void foxr_handle_settings_security_pin_clear(FoxrCompanion* c, const char
     furi_record_close(RECORD_DESKTOP);
     foxr_reply(c, "[FLPR/SETTINGS/SECURITY/PIN/CLEAR/OK]");
 }
-
-/* ── Session teardown ──────────────────────────────────────────────── */
 
 static void foxr_teardown_active_state(FoxrCompanion* c) {
     for(int key = 0; key < InputKeyMAX; key++) {
@@ -2043,8 +1589,6 @@ static void foxr_handle_session_end(FoxrCompanion* c) {
     foxr_reply(c, "[FLPR/SESSION/END/OK]");
 }
 
-/* ── Dispatch ──────────────────────────────────────────────────────── */
-
 void foxr_companion_dispatch(void* context, const EspAtMsg* msg) {
     FoxrCompanion* c = context;
     const char* line = msg->line;
@@ -2058,10 +1602,6 @@ void foxr_companion_dispatch(void* context, const EspAtMsg* msg) {
     tag[tag_len] = '\0';
     const char* payload = close + 1;
 
-    /* Cleared up front so a hypothetical future tag that reaches the end
-     * of the chain below without ever calling foxr_reply()/foxr_replyf()
-     * logs as an empty reply (status "?") instead of showing whatever the
-     * previous command happened to send. */
     c->last_reply[0] = '\0';
 
     if(strcmp(tag, "FLPR/PING") == 0) {
@@ -2102,10 +1642,8 @@ void foxr_companion_dispatch(void* context, const EspAtMsg* msg) {
         foxr_handle_datetime_set(c, payload);
     } else if(strcmp(tag, "FLPR/REBOOT") == 0) {
         foxr_handle_reboot(c, tag, line, payload);
-        return; /* unreachable in practice - furi_hal_power_reset() doesn't
-                  * return - but keeps this function's control flow honest
-                  * and skips the redundant foxr_log_event() call below,
-                  * which foxr_handle_reboot() already made itself. */
+        return;
+
     } else if(strcmp(tag, "FLPR/SETTINGS") == 0) {
         foxr_handle_settings_get(c);
     } else if(strcmp(tag, "FLPR/SETTINGS/NOTIF/SET") == 0) {
@@ -2151,21 +1689,9 @@ void foxr_companion_dispatch(void* context, const EspAtMsg* msg) {
     } else if(strcmp(tag, "FLPR/SESSION/END") == 0) {
         foxr_handle_session_end(c);
     }
-    /* Unrecognized [FLPR/...] tags are silently ignored - forward compat. */
 
-    /* Logged last, not first: by now c->last_reply holds whatever was
-     * actually sent back (see foxr_reply()/foxr_replyf() above), so this
-     * one call captures both the request and its real outcome - see
-     * foxr_log_event()'s own header comment. Runs for every dispatched
-     * command, "[FLPR/SCREEN/FRAME]" pushes and "[FLPR/FILES/READ/CHUNK]"
-     * streamed payloads excepted (those aren't dispatched commands, they
-     * never reach this function at all - see esp_at_router.h/foxr_handle_
-     * files_read_start()), so a remote-control or file-transfer session
-     * can't flood this log with per-frame/per-chunk noise. */
     foxr_log_event(c, tag, line);
 }
-
-/* ── Alloc / free ──────────────────────────────────────────────────── */
 
 FoxrCompanion* foxr_companion_alloc(EspAt* esp_at, Gui* gui, volatile bool* restart_pending_flag) {
     FoxrCompanion* c = malloc(sizeof(FoxrCompanion));
@@ -2177,10 +1703,6 @@ FoxrCompanion* foxr_companion_alloc(EspAt* esp_at, Gui* gui, volatile bool* rest
     c->input_events = furi_record_open(RECORD_INPUT_EVENTS);
     c->log_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
 
-    /* Ensure the persistent log's directory exists before the first
-     * foxr_log_persist() call tries to append to it - storage_common_
-     * mkdir() on an already-existing directory just returns FSE_EXIST,
-     * which is fine to ignore here. */
     storage_common_mkdir(c->storage, FOXR_LOG_DIR);
 
     return c;

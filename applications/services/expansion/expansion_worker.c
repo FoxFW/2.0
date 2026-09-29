@@ -54,7 +54,6 @@ struct ExpansionWorker {
     void* cb_context;
 };
 
-// Called in UART IRQ context
 static void expansion_worker_serial_rx_callback(
     FuriHalSerialHandle* handle,
     FuriHalSerialRxEvent event,
@@ -92,23 +91,23 @@ static size_t expansion_worker_receive_callback(uint8_t* data, size_t data_size,
 
         if(flags & FuriFlagError) {
             if(flags == (unsigned)FuriFlagErrorTimeout) {
-                // Exiting due to timeout
+
                 instance->exit_reason = ExpansionWorkerExitReasonTimeout;
             } else {
-                // Exiting due to an unspecified error
+
                 instance->exit_reason = ExpansionWorkerExitReasonError;
             }
             break;
         } else if(flags & ExpansionWorkerFlagStop) {
-            // Exiting due to explicit request
+
             instance->exit_reason = ExpansionWorkerExitReasonUser;
             break;
         } else if(flags & ExpansionWorkerFlagError) {
-            // Exiting due to RPC error
+
             instance->exit_reason = ExpansionWorkerExitReasonError;
             break;
         } else if(flags & ExpansionWorkerFlagData) {
-            // Go to buffer reading
+
             continue;
         }
     }
@@ -170,7 +169,6 @@ static bool expansion_worker_send_data_response(
     return expansion_worker_send_frame(instance, &frame);
 }
 
-// Called in Rpc session thread context
 static void expansion_worker_rpc_send_callback(void* context, uint8_t* data, size_t data_size) {
     ExpansionWorker* instance = context;
 
@@ -227,7 +225,7 @@ static bool expansion_worker_handle_state_handshake(
         if(furi_hal_serial_is_baud_rate_supported(instance->serial_handle, baud_rate)) {
             instance->state = ExpansionWorkerStateConnected;
             instance->callback(instance->cb_context, ExpansionWorkerCallbackReasonConnected);
-            // Send response at previous baud rate
+
             if(!expansion_worker_send_status_response(instance, ExpansionFrameErrorNone)) break;
             furi_hal_serial_set_br(instance->serial_handle, baud_rate);
 
@@ -373,7 +371,6 @@ static int32_t expansion_worker(void* context) {
     furi_hal_serial_control_release(instance->serial_handle);
     furi_hal_power_insomnia_exit();
 
-    // Do not invoke worker callback on user-requested exit
     if((instance->exit_reason != ExpansionWorkerExitReasonUser) && (instance->callback != NULL)) {
         instance->callback(instance->cb_context, ExpansionWorkerCallbackReasonExit);
     }
@@ -389,7 +386,6 @@ ExpansionWorker* expansion_worker_alloc(FuriHalSerialId serial_id) {
     instance->rx_buf = furi_stream_buffer_alloc(EXPANSION_WORKER_BUFFER_SIZE, 1);
     instance->serial_id = serial_id;
 
-    // Improves responsiveness in heavy games at the expense of dropped frames
     furi_thread_set_priority(instance->thread, FuriThreadPriorityLow);
 
     return instance;
@@ -398,8 +394,10 @@ ExpansionWorker* expansion_worker_alloc(FuriHalSerialId serial_id) {
 void expansion_worker_free(ExpansionWorker* instance) {
     furi_stream_buffer_free(instance->rx_buf);
     furi_thread_join(instance->thread);
+    furi_kernel_lock();
     furi_thread_free(instance->thread);
     free(instance);
+    furi_kernel_unlock();
 }
 
 void expansion_worker_set_callback(

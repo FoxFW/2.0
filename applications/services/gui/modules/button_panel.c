@@ -13,7 +13,7 @@
 #include <m-list.h>
 
 typedef struct {
-    // uint16_t to support multi-screen, wide button panel
+
     uint16_t x;
     uint16_t y;
     Font font;
@@ -40,7 +40,7 @@ typedef struct ButtonItem {
     void* callback_context;
 } ButtonItem;
 
-ARRAY_DEF(ButtonArray, ButtonItem*, M_PTR_OPLIST); // NOLINT
+ARRAY_DEF(ButtonArray, ButtonItem*, M_PTR_OPLIST);
 #define M_OPL_ButtonArray_t() ARRAY_OPLIST(ButtonArray, M_PTR_OPLIST)
 ARRAY_DEF(ButtonMatrix, ButtonArray_t);
 #define M_OPL_ButtonMatrix_t() ARRAY_OPLIST(ButtonMatrix, M_OPL_ButtonArray_t())
@@ -109,7 +109,7 @@ void button_panel_reserve(ButtonPanel* button_panel, size_t reserve_x, size_t re
     furi_check(reserve_x > 0);
     furi_check(reserve_y > 0);
 
-    with_view_model( //-V621
+    with_view_model(
         button_panel->view,
         ButtonPanelModel * model,
         {
@@ -192,7 +192,7 @@ void button_panel_add_item(
     void* callback_context) {
     furi_check(button_panel);
 
-    with_view_model( //-V773
+    with_view_model(
         button_panel->view,
         ButtonPanelModel * model,
         {
@@ -436,7 +436,6 @@ void button_panel_add_label(
         true);
 }
 
-// Draw an icon but don't make it a button.
 void button_panel_add_icon(
     ButtonPanel* button_panel,
     uint16_t x,
@@ -444,7 +443,7 @@ void button_panel_add_icon(
     const Icon* icon_name) {
     furi_check(button_panel);
 
-    with_view_model( //-V773
+    with_view_model(
         button_panel->view,
         ButtonPanelModel * model,
         {

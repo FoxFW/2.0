@@ -59,67 +59,26 @@ typedef struct {
     uint8_t health;
 } PowerInfo;
 
-/** Power off device
- */
 void power_off(Power* power);
 
-/** Reboot device
- *
- * @param mode      PowerBootMode
- */
 void power_reboot(Power* power, PowerBootMode mode);
 
-/** Get power info
- *
- * @param power     Power instance
- * @param info      PowerInfo instance
- */
 void power_get_info(Power* power, PowerInfo* info);
 
-/** Get power event pubsub handler
- *
- * @param power     Power instance
- *
- * @return          FuriPubSub instance
- */
 FuriPubSub* power_get_pubsub(Power* power);
 
-/** Check battery health
- *
- * @return          true if battery is healthy
- */
 bool power_is_battery_healthy(Power* power);
 
-/** Enable or disable battery low level notification message
- *
- * @param power     Power instance
- * @param enable    true - enable, false - disable
- */
 void power_enable_low_battery_level_notification(Power* power, bool enable);
 
-/** Trigger UI update for changing battery layout
- *
- * @param power     Power instance
- */
 void power_trigger_ui_update(Power* power);
 
-// get settings from service to app
 void power_api_get_settings(Power* instance, PowerSettings* settings);
 
-// set settings from app to service
 void power_api_set_settings(Power* instance, const PowerSettings* settings);
 
-/** Enable or disable OTG
- *
- * @param power     Power instance
- * @param enable    true - enable, false - disable
- */
 void power_enable_otg(Power* power, bool enable);
 
-/** Check OTG status
- * 
- * @return          true if OTG  is requested
- */
 bool power_is_otg_enabled(Power* power);
 
 #ifdef __cplusplus

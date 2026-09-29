@@ -10,7 +10,6 @@ typedef struct SubGhzProtocolEncoderSubaru SubGhzProtocolEncoderSubaru;
 
 extern const SubGhzProtocol subghz_protocol_subaru;
 
-// Decoder functions
 void* subghz_protocol_decoder_subaru_alloc(SubGhzEnvironment* environment);
 void subghz_protocol_decoder_subaru_free(void* context);
 void subghz_protocol_decoder_subaru_reset(void* context);
@@ -23,7 +22,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_subaru_serialize(
 SubGhzProtocolStatus subghz_protocol_decoder_subaru_deserialize(void* context, FlipperFormat* flipper_format);
 void subghz_protocol_decoder_subaru_get_string(void* context, FuriString* output);
 
-// Encoder functions
 void* subghz_protocol_encoder_subaru_alloc(SubGhzEnvironment* environment);
 void subghz_protocol_encoder_subaru_free(void* context);
 void subghz_protocol_encoder_subaru_stop(void* context);

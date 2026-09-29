@@ -376,7 +376,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_kinggates_stylo_4k_deserialize(
 
     return res;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_kinggates_stylo_4k_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderKingGates_stylo_4k* instance =
@@ -665,7 +665,7 @@ static uint8_t subghz_protocol_kinggates_stylo_4k_get_btn_code(void) {
 
     return btn;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void subghz_protocol_decoder_kinggates_stylo_4k_get_string(void* context, FuriString* output) {
     furi_assert(context);

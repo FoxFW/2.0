@@ -15,9 +15,6 @@ static bool mf_ultralight_poller_ntag_i2c_addr_lin_to_tag_ntag_i2c_1k(
     uint8_t* tag,
     uint8_t* pages_left) {
     bool tag_calculated = false;
-    // 0 - 226: sector 0
-    // 227 - 228: config registers
-    // 229 - 230: session registers
 
     if(lin_addr > 230) {
         *pages_left = 0;
@@ -47,10 +44,6 @@ static bool mf_ultralight_poller_ntag_i2c_addr_lin_to_tag_ntag_i2c_2k(
     uint8_t* tag,
     uint8_t* pages_left) {
     bool tag_calculated = false;
-    // 0 - 255: sector 0
-    // 256 - 480: sector 1
-    // 481 - 482: config registers
-    // 483 - 484: session registers
 
     if(lin_addr > 484) {
         *pages_left = 0;
@@ -85,8 +78,6 @@ static bool mf_ultralight_poller_ntag_i2c_addr_lin_to_tag_ntag_i2c_plus_1k(
     uint8_t* tag,
     uint8_t* pages_left) {
     bool tag_calculated = false;
-    // 0 - 233: sector 0 + registers
-    // 234 - 235: session registers
 
     if(lin_addr > 235) {
         *pages_left = 0;
@@ -111,9 +102,6 @@ static bool mf_ultralight_poller_ntag_i2c_addr_lin_to_tag_ntag_i2c_plus_2k(
     uint8_t* tag,
     uint8_t* pages_left) {
     bool tag_calculated = false;
-    // 0 - 233: sector 0 + registers
-    // 234 - 235: session registers
-    // 236 - 491: sector 1
 
     if(lin_addr > 491) {
         *pages_left = 0;
@@ -452,14 +440,13 @@ static NfcCommand mf_ultralight_poller_handler_auth_ultralight_c(MfUltralightPol
         command = instance->callback(instance->general_event, instance->context);
         if(!instance->mfu_event.data->auth_context.skip_auth) {
             FURI_LOG_D(TAG, "Trying to authenticate with 3des key");
-            // Only use the key if it was actually provided
+
             if(instance->mfu_event.data->key_request_data.key_provided) {
                 instance->auth_context.tdes_key = instance->mfu_event.data->key_request_data.key;
             } else if(instance->mode == MfUltralightPollerModeDictAttack) {
-                // TODO:  -nofl Can logic be rearranged to request this key
-                // before reaching mf_ultralight_poller_handler_auth_ultralight_c in poller?
+
                 FURI_LOG_D(TAG, "No initial key provided, requesting key from dictionary");
-                // Trigger dictionary key request
+
                 instance->mfu_event.type = MfUltralightPollerEventTypeRequestKey;
                 command = instance->callback(instance->general_event, instance->context);
                 if(!instance->mfu_event.data->key_request_data.key_provided) {
@@ -470,11 +457,11 @@ static NfcCommand mf_ultralight_poller_handler_auth_ultralight_c(MfUltralightPol
                         instance->mfu_event.data->key_request_data.key;
                 }
             } else {
-                // Fallback: use key from auth context (for sync poller compatibility)
+
                 instance->auth_context.tdes_key = instance->mfu_event.data->auth_context.tdes_key;
             }
             instance->auth_context.auth_success = false;
-            // For debugging
+
             FURI_LOG_D(
                 "TAG",
                 "Key data: %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
@@ -517,7 +504,7 @@ static NfcCommand mf_ultralight_poller_handler_auth_ultralight_c(MfUltralightPol
                             &instance->data->page[44],
                             instance->auth_context.tdes_key.data,
                             MF_ULTRALIGHT_C_AUTH_DES_KEY_SIZE);
-                        // Continue to read pages after successful authentication
+
                         instance->state = MfUltralightPollerStateReadPages;
                     }
                 }
@@ -526,7 +513,7 @@ static NfcCommand mf_ultralight_poller_handler_auth_ultralight_c(MfUltralightPol
                 FURI_LOG_E(TAG, "Auth failed");
                 iso14443_3a_poller_halt(instance->iso14443_3a_poller);
                 if(instance->mode == MfUltralightPollerModeDictAttack) {
-                    // Not needed? We already do a callback earlier?
+
                     instance->mfu_event.type = MfUltralightPollerEventTypeRequestKey;
                     command = instance->callback(instance->general_event, instance->context);
                     if(!instance->mfu_event.data->key_request_data.key_provided) {
@@ -540,7 +527,7 @@ static NfcCommand mf_ultralight_poller_handler_auth_ultralight_c(MfUltralightPol
             }
         }
     }
-    // Regression review
+
     if(instance->mode != MfUltralightPollerModeDictAttack) {
         instance->state = MfUltralightPollerStateReadPages;
     }
@@ -624,9 +611,7 @@ static NfcCommand mf_ultralight_poller_handler_try_default_pass(MfUltralightPoll
         }
 
         if(instance->pages_read != instance->pages_total) {
-            // Probably password protected, fix AUTH0 and PROT so before AUTH0
-            // can be written and since AUTH0 won't be readable, like on the
-            // original card
+
             config->auth0 = instance->pages_read;
             config->access.prot = true;
         } else if(!instance->auth_context.auth_success) {
@@ -698,7 +683,6 @@ static NfcCommand mf_ultralight_poller_handler_request_write_data(MfUltralightPo
     instance->mfu_event.type = MfUltralightPollerEventTypeRequestWriteData;
     instance->callback(instance->general_event, instance->context);
 
-    // Save write_data to instance field before any further events clobber the union
     instance->write_data = instance->mfu_event.data->write_data;
     const MfUltralightData* write_data = instance->write_data;
     const MfUltralightData* tag_data = instance->data;
@@ -741,16 +725,12 @@ static NfcCommand mf_ultralight_poller_handler_request_write_data(MfUltralightPo
         check_passed = true;
     } while(false);
 
-    // ULC: authenticate the target card before writing.
-    // The read phase left the card unauthenticated (write-mode callback skips read-phase auth).
-    // Ask callback for keys (cache first, then dict) until one authenticates, then fire
-    // WriteKeyRequest so the callback can cache the found key and return the skip decision.
     if(check_passed &&
        mf_ultralight_support_feature(features, MfUltralightFeatureSupportAuthenticate)) {
         bool auth_ok = false;
 
         while(!auth_ok) {
-            // Request next key from callback (tries dict entries)
+
             memset(instance->mfu_event.data, 0, sizeof(MfUltralightPollerEventData));
             instance->mfu_event.type = MfUltralightPollerEventTypeRequestKey;
             instance->callback(instance->general_event, instance->context);
@@ -761,7 +741,6 @@ static NfcCommand mf_ultralight_poller_handler_request_write_data(MfUltralightPo
             }
             instance->auth_context.tdes_key = instance->mfu_event.data->key_request_data.key;
 
-            // Halt+activate so the card is in a clean state for auth
             iso14443_3a_poller_halt(instance->iso14443_3a_poller);
             if(iso14443_3a_poller_activate(instance->iso14443_3a_poller, NULL) !=
                Iso14443_3aErrorNone) {
@@ -787,7 +766,7 @@ static NfcCommand mf_ultralight_poller_handler_request_write_data(MfUltralightPo
         }
 
         if(auth_ok) {
-            // Notify callback with the found key: it caches it and returns the skip decision
+
             MfUltralightC3DesAuthKey found_key = instance->auth_context.tdes_key;
             memset(instance->mfu_event.data, 0, sizeof(MfUltralightPollerEventData));
             instance->mfu_event.data->key_request_data.key = found_key;
@@ -820,11 +799,10 @@ static NfcCommand mf_ultralight_poller_handler_write_pages(MfUltralightPoller* i
     NfcCommand command = NfcCommandContinue;
 
     do {
-        // Use the saved write_data pointer - the union was overwritten by WriteKeyRequest
+
         const MfUltralightData* write_data = instance->write_data;
         uint8_t end_page = mf_ultralight_get_write_end_page(write_data->type);
 
-        // If user chose to keep target's key, stop before the ULC key pages (44-47)
         if(instance->write_skip_key && write_data->type == MfUltralightTypeMfulC &&
            end_page > 44) {
             end_page = 44;
@@ -835,9 +813,6 @@ static NfcCommand mf_ultralight_poller_handler_write_pages(MfUltralightPoller* i
             break;
         }
 
-        // For ULC key pages (44-47): byte-order correction required.
-        // Flipper stores each 8-byte DES sub-key MSB-first; the card expects each half reversed.
-        // Transform: card_bytes = reverse(flipper[0..7]) || reverse(flipper[8..15])
         MfUltralightPage page_to_write;
         if(instance->current_page >= 44 && instance->current_page <= 47 &&
            write_data->type == MfUltralightTypeMfulC) {

@@ -21,7 +21,6 @@
 - `mbedtls`             - MbedTLS cryptography library
 - `microtar`            - MicroTAR library
 - `mlib`                - M-Lib C containers library
-- `music_worker`        - MusicWorker library for playing midi and RTTTL files
 - `nanopb`              - NanoPB library, protobuf implementation for MCU
 - `nfc`                 - NFC library, used by NFC application
 - 'one_wire'            - One Wire library - Required for iButton

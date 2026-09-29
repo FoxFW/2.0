@@ -16,7 +16,6 @@ void nfc_scene_update_initial_wrong_card_on_enter(void* context) {
 
     notification_message(instance->notifications, &sequence_error);
 
-    // [NO_DOLPHIN] widget_add_icon_element(widget, 83, 22, &I_WarningDolphinFlip_45x42);
     widget_add_string_element(widget, 3, 4, AlignLeft, AlignTop, FontPrimary, "Wrong Card!");
     widget_add_string_multiline_element(
         widget,
@@ -33,7 +32,6 @@ void nfc_scene_update_initial_wrong_card_on_enter(void* context) {
         nfc_scene_update_initial_wrong_card_widget_callback,
         instance);
 
-    // Setup and start worker
     view_dispatcher_switch_to_view(instance->view_dispatcher, NfcViewWidget);
 }
 

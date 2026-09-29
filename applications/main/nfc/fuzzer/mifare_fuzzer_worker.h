@@ -24,14 +24,13 @@ typedef struct MifareFuzzerWorker {
     Nfc* nfc;
 } MifareFuzzerWorker;
 
-// worker
 MifareFuzzerWorker* mifare_fuzzer_worker_alloc(Nfc* nfc);
 void mifare_fuzzer_worker_free(MifareFuzzerWorker* mifare_fuzzer_worker);
 void mifare_fuzzer_worker_stop(MifareFuzzerWorker* mifare_fuzzer_worker);
 void mifare_fuzzer_worker_start(MifareFuzzerWorker* mifare_fuzzer_worker);
-// task
+
 int32_t mifare_fuzzer_worker_task(void* context);
-//
+
 bool mifare_fuzzer_worker_is_emulating(MifareFuzzerWorker* mifare_fuzzer_worker);
 
 void mifare_fuzzer_worker_set_nfc_device(

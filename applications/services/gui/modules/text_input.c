@@ -1,21 +1,3 @@
-// FoxFW keyboard.
-//
-// This replaces the stock Flipper on-screen keyboard system-wide: every
-// app that calls text_input_alloc()/text_input_set_result_callback() -
-// built-in or third-party .fap - gets this keyboard, since they all go
-// through this one shared module. The old lowercase/digits/underscore-only
-// keyboard (no symbols, no way to type a URL) is gone for good.
-//
-// Design: a pure QWERTY grid (letters only, no digits) where every key
-// sits in its own small rounded box with a 1px gap, plus a fixed DEL/SYM/OK
-// button column on the right that never moves regardless of which layer is
-// showing. SYM swaps the whole grid to a digits+symbols layer (includes
-// ':' and '/', which the old keyboard never had at all).
-//
-// Public API (text_input.h) and behavior contracts (validator callback,
-// minimum_length gating, clear_default_text semantics) are unchanged, so
-// every existing call site elsewhere in the firmware keeps working
-// without modification.
 #include "text_input.h"
 #include <gui/elements.h>
 #include <furi.h>
@@ -43,11 +25,11 @@ typedef struct {
     void* callback_context;
 
     TextInputLayer layer;
-    bool in_buttons; // focus is on the DEL/SYM/OK column, not the grid
-    bool in_text; // focus is on the text field above the grid, cursor-editing
+    bool in_buttons;
+    bool in_text;
     size_t cursor_pos;
-    uint8_t selected_row; // grid row (0-2), or button index (0-2) when in_buttons
-    uint8_t selected_column; // grid column
+    uint8_t selected_row;
+    uint8_t selected_column;
 
     TextInputValidatorCallback validator_callback;
     void* validator_callback_context;
@@ -57,16 +39,10 @@ typedef struct {
     bool space_blink;
 } TextInputModel;
 
-// Pure QWERTY, no digits (those live on the Symbols layer instead). ':',
-// '.' and '/' sit in their real-keyboard spots (after L, after M) so a URL
-// is typeable without switching layers. The space bar sits where a comma
-// would be - a blank, blinking tile (drawn specially in draw_grid).
 static const char letters_row_0[] = "qwertyuiop";
 static const char letters_row_1[] = "asdfghjkl:";
 static const char letters_row_2[] = "zxcvbnm ./";
 
-// Digits + the most common symbols, including ':' and '/' so a URL like
-// "https://example.com" is actually typeable.
 static const char symbols_row_0[] = "1234567890";
 static const char symbols_row_1[] = ":/.-_=@#&";
 static const char symbols_row_2[] = "!?%+*,;";
@@ -74,8 +50,7 @@ static const char symbols_row_2[] = "!?%+*,;";
 #define ROW_COUNT 3
 static const uint8_t ROW_TOP[ROW_COUNT] = {20, 34, 48};
 static const uint8_t ROW_BOX_H[ROW_COUNT] = {13, 13, 14};
-// Each row is centered in the grid width, keys 10px apart (9px box + 1px
-// gap): start_x = 1 + (99 - (cols*10 - 1)) / 2.
+
 static const uint8_t LETTERS_ROW_COLS[ROW_COUNT] = {10, 10, 10};
 static const uint8_t LETTERS_ROW_START_X[ROW_COUNT] = {1, 1, 1};
 static const uint8_t SYMBOLS_ROW_COLS[ROW_COUNT] = {10, 9, 7};
@@ -130,10 +105,7 @@ static void text_input_delete(TextInputModel* model) {
         model->clear_default_text = false;
         return;
     }
-    // Always backspaces at cursor_pos, whether focus is in the text field
-    // or back on the grid - cursor_pos is maintained across both the whole
-    // time now (see text_input_handle_ok's insert path), so there's no
-    // separate "delete the last character" fallback needed anymore.
+
     size_t len = strlen(model->text_buffer);
     if(model->cursor_pos == 0 || model->cursor_pos > len) return;
     memmove(
@@ -151,10 +123,7 @@ static void text_input_clamp_column(TextInputModel* model) {
 }
 
 static void draw_grid(Canvas* canvas, TextInputModel* model) {
-    // Letters use the tiny keyboard-specific font (reads fine at that
-    // size for plain letters); Symbols uses the regular secondary font,
-    // since fiddly glyphs like '%' and '&' turn into an illegible blob at
-    // FontKeyboard's size.
+
     canvas_set_font(canvas, model->layer == TextInputLayerLetters ? FontKeyboard : FontSecondary);
 
     for(uint8_t row = 0; row < ROW_COUNT; row++) {
@@ -181,8 +150,7 @@ static void draw_grid(Canvas* canvas, TextInputModel* model) {
                     canvas_draw_glyph(canvas, x + 2, (uint8_t)(top + h - 4), '_');
                 }
             } else {
-                // '_' sits right on the box's bottom line otherwise - nudge
-                // it up 1px so it reads as a character, not part of the box.
+
                 uint8_t glyph_y =
                     (chars[column] == '_') ? (uint8_t)(top + h - 4) : (uint8_t)(top + h - 3);
                 canvas_draw_glyph(canvas, x + 2, glyph_y, chars[column]);
@@ -218,17 +186,6 @@ static void draw_buttons(Canvas* canvas, TextInputModel* model) {
     }
 }
 
-// Finds the leftmost viewport start (>= full_text, <= cursor) where the
-// segment from there to the cursor still fits within max_width - i.e. the
-// text stays anchored at the start of the string for as long as the
-// cursor fits on screen, and only scrolls once it wouldn't. The previous
-// version measured the width of the *whole remaining string* (all the way
-// to its true end, not just up to the cursor) to decide whether to
-// scroll - for any string longer than the field that's essentially always
-// "too wide" regardless of where the cursor actually is, so it jumped to
-// tracking the cursor almost immediately instead of only once actually
-// necessary (e.g. moving right one step off position 0 in a long URL
-// would instantly scroll the start of the string out of view).
 static const char*
     text_field_scroll_start(Canvas* canvas, const char* full_text, size_t cursor, uint8_t max_width) {
     const char* text = full_text;
@@ -245,10 +202,7 @@ static const char*
 }
 
 static void draw_text_field(Canvas* canvas, TextInputModel* model) {
-    // Must set this explicitly - unlike draw_grid/draw_buttons, this used to
-    // rely on whatever font the canvas was left in by the previous screen,
-    // which only happened to be right after the first frame (once
-    // draw_buttons below had run once and set FontSecondary itself).
+
     canvas_set_font(canvas, FontSecondary);
 
     uint8_t needed_string_width = canvas_width(canvas) - 8;
@@ -256,10 +210,7 @@ static void draw_text_field(Canvas* canvas, TextInputModel* model) {
 
     const char* full_text = model->text_buffer ? model->text_buffer : "";
     size_t full_len = strlen(full_text);
-    // cursor_pos now always tracks where the next insert/delete lands,
-    // whether focus is on the grid or in the text field (see
-    // text_input_handle_ok's insert path) - so the visible window always
-    // scrolls to keep it on screen, not just the tail of the string.
+
     size_t cursor = model->cursor_pos > full_len ? full_len : model->cursor_pos;
 
     canvas_draw_str(canvas, 2, 7, model->header);
@@ -285,10 +236,7 @@ static void draw_text_field(Canvas* canvas, TextInputModel* model) {
     uint16_t cursor_x = start_pos + canvas_string_width(canvas, before);
 
     if(model->clear_default_text) {
-        // FontSecondary's glyphs span roughly y=10-19 at this baseline
-        // (ascent 7 + descender 2 from baseline 17) - the box has to cover
-        // that whole range or the white text drawn outside it is invisible
-        // against the background, leaving only letter fragments visible.
+
         elements_slightly_rounded_box(
             canvas, start_pos - 1, 9, canvas_string_width(canvas, text) + 2, 10);
         canvas_set_color(canvas, ColorWhite);
@@ -297,9 +245,7 @@ static void draw_text_field(Canvas* canvas, TextInputModel* model) {
         canvas_draw_str(canvas, start_pos, 17, text);
         canvas_draw_box(canvas, cursor_x, 10, 1, 9);
     } else {
-        // Same cursor_x as the in_text case, just drawn as a "|" marker
-        // instead of a solid block - a lighter-weight hint of where a
-        // typed character will land while focus is still on the grid.
+
         canvas_draw_str(canvas, cursor_x + 1, 18, "|");
         canvas_draw_str(canvas, start_pos, 17, text);
     }
@@ -328,9 +274,7 @@ static void text_input_view_draw_callback(Canvas* canvas, void* _model) {
 }
 
 static void text_input_handle_up(TextInputModel* model) {
-    // Any navigation away from the initial "landed on OK, name shown
-    // selected" state drops the selection - from here on, typed characters
-    // append at cursor_pos instead of replacing from the start.
+
     model->clear_default_text = false;
     if(model->in_text) return;
     if(model->selected_row > 0) {
@@ -338,10 +282,7 @@ static void text_input_handle_up(TextInputModel* model) {
         if(!model->in_buttons) text_input_clamp_column(model);
         return;
     }
-    // Topmost row - Up moves focus into the text field itself so Left/
-    // Right can move a cursor through what's already been typed. cursor_pos
-    // is left as wherever it was last - Down only toggles focus, it never
-    // resets it, so returning here lands you back where you left off.
+
     model->in_text = true;
 }
 
@@ -364,8 +305,7 @@ static void text_input_handle_left(TextInputModel* model) {
         return;
     }
     if(model->in_buttons) {
-        // Buttons sit to the right of the grid - stepping left from them
-        // wraps to the rightmost key of the same row.
+
         model->in_buttons = false;
         model->selected_column = get_row_cols(model->layer, model->selected_row) - 1;
     } else if(model->selected_column > 0) {
@@ -400,14 +340,14 @@ static void
     }
     if(model->in_buttons) {
         switch(model->selected_row) {
-        case 0: // DEL
+        case 0:
             text_input_delete(model);
             break;
-        case 1: // SYM/ABC - swap the whole keyboard, stays a fixed button
+        case 1:
             model->layer = (model->layer == TextInputLayerLetters) ? TextInputLayerSymbols :
                                                                        TextInputLayerLetters;
             break;
-        case 2: { // OK - submit
+        case 2: {
             size_t text_length = strlen(model->text_buffer);
             if(model->validator_callback &&
                (!model->validator_callback(
@@ -430,12 +370,6 @@ static void
         selected = char_shift(selected);
     }
 
-    // Inserts at cursor_pos instead of always appending at the end, so
-    // typing from the grid lands wherever the cursor was last left in the
-    // text field. By the time a grid key is reachable, clear_default_text
-    // has already been dropped by navigation (see text_input_handle_up/
-    // down/left/right) and cursor_pos is at the end of the string, so this
-    // naturally appends unless the user has moved the cursor since.
     size_t text_length = strlen(model->text_buffer);
     size_t insert_at = model->cursor_pos;
     if(insert_at > text_length) insert_at = text_length;
@@ -571,24 +505,13 @@ static void text_input_view_enter_callback(void* context) {
     TextInput* text_input = context;
     furi_timer_start(text_input->blink_timer, furi_ms_to_ticks(500));
 
-    // Reset cursor position and focus every time the keyboard is actually
-    // shown, not just once when the app first allocates it via
-    // text_input_set_result_callback() - that only runs once per app
-    // lifetime, so without this, cursor position and grid/button focus
-    // left over from a *previous* text-input session (possibly editing a
-    // totally different field) would carry over indefinitely.
     with_view_model(
         text_input->view,
         TextInputModel * model,
         {
             model->in_text = false;
             model->cursor_pos = model->text_buffer ? strlen(model->text_buffer) : 0;
-            // Always land on OK: an unchanged/already-correct value can be
-            // confirmed with a single press. If clear_default_text is set,
-            // the value is also shown selected (draw_text_field) - moving
-            // off OK in any direction drops the selection and further
-            // typing appends at the end (see text_input_handle_up/down/
-            // left/right and the insert path in text_input_handle_ok).
+
             model->in_buttons = true;
             model->selected_row = 2;
             model->selected_column = 0;
@@ -696,11 +619,7 @@ void text_input_set_result_callback(
             model->clear_default_text = clear_default_text;
             model->layer = TextInputLayerLetters;
             model->in_text = false;
-            // Cursor position and grid/button focus are re-derived from
-            // scratch every time the view is actually shown (see
-            // text_input_view_enter_callback) - what's set here at
-            // allocation time is irrelevant since it's always overwritten
-            // before the user ever sees it.
+
             model->cursor_pos = text_buffer ? strlen(text_buffer) : 0;
             model->in_buttons = false;
             model->selected_row = 0;

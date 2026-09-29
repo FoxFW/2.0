@@ -25,7 +25,6 @@
 #include <storage/storage.h>
 #include <dialogs/dialogs.h>
 #include <lib/toolbox/path.h>
-#include <dolphin/dolphin.h>
 
 #include "nfc_magic_icons.h"
 

@@ -1,6 +1,7 @@
 #ifndef FW_CFG_unit_tests
 
 #include "nfc.h"
+#include <core/kernel.h>
 
 #include <furi_hal_nfc.h>
 #include <furi/furi.h>
@@ -206,7 +207,7 @@ bool nfc_worker_poller_stop_handler(Nfc* instance) {
     instance->config_state = NfcConfigurationStateIdle;
 
     furi_hal_nfc_low_power_mode_start();
-    // Wait after field is off some time to reset tag power
+
     furi_delay_ms(10);
     instance->poller_state = NfcPollerStateStart;
 
@@ -259,8 +260,10 @@ void nfc_free(Nfc* instance) {
     furi_check(instance);
     furi_check(instance->state == NfcStateIdle);
 
+    furi_kernel_lock();
     furi_thread_free(instance->worker_thread);
     free(instance);
+    furi_kernel_unlock();
 
     furi_hal_nfc_release();
 }
@@ -680,4 +683,4 @@ void nfc_felica_listener_timer_anticol_stop(Nfc* instance) {
     }
 }
 
-#endif // FW_CFG_unit_tests
+#endif

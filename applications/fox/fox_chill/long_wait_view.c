@@ -31,9 +31,7 @@ static bool long_wait_input_cb(InputEvent* event, void* context) {
 
     switch(event->key) {
     case InputKeyOk:
-        // Sole activator now - this is a single button, not labeled
-        // "Back", so per the 2026-09-13 footer-button audit's key-binding
-        // cleanup it no longer also fires on Right.
+
         fox_chill_goto_menu(app);
         return true;
     case InputKeyUp:

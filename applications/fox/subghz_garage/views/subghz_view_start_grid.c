@@ -10,18 +10,14 @@ extern const Icon I_btn_frequencyanalyzer_10x10;
 extern const Icon I_btn_modulationanalyzer_10x10;
 extern const Icon I_btn_protocols_10x10;
 
-/* Screen layout: two rows visible at a time.
- * y=0..3   up-scroll indicator | y=4..29  top row (BTN_H=26) | y=30..33 gap
- * y=34..59 bottom row          | y=60..63 down-scroll indicator
- * Button interior: icon at y+3 (10x10), label at y+21 (FontSecondary). */
 #define BTN_H        26
 #define BTN_R         5
 #define ROW_TOP_Y     4
 #define ROW_BOT_Y    34
 #define ICON_SIZE    10
-#define ICON_PAD_TOP  3   /* px above icon */
-#define ICON_GAP      2   /* px between icon bottom and text */
-#define TEXT_Y_OFF   21   /* offset from screen_y to text center */
+#define ICON_PAD_TOP  3
+#define ICON_GAP      2
+#define TEXT_Y_OFF   21
 
 #define LX  1
 #define LW  61
@@ -32,17 +28,17 @@ extern const Icon I_btn_protocols_10x10;
 #define NN 0xFF
 
 typedef struct {
-    uint8_t      col;    /* 0=left/full, 1=right               */
-    uint8_t      row;    /* logical row 0-6                    */
-    bool         full;   /* true = spans full width            */
+    uint8_t      col;
+    uint8_t      row;
+    bool         full;
     const char*  label;
     uint32_t     event;
-    uint8_t      nav[4]; /* up, down, left, right              */
+    uint8_t      nav[4];
     const Icon*  icon;
 } SubGhzGridBtnDef;
 
 static const SubGhzGridBtnDef k_btns[SGRID_BTN_COUNT] = {
- /* col row full  label                  ev   up  dn  lt  rt  icon */
+
     {0,  0, false,"Read",               10, {NN,  2, NN,  1}, &I_btn_read_10x10},
     {1,  0, false,"Saved",              11, {NN,  2,  0, NN}, &I_btn_saved_10x10},
     {0,  1, true, "Read Raw",           15, { 0,  3, NN, NN}, &I_btn_readraw_10x10},
@@ -79,7 +75,6 @@ static void draw_btn(Canvas* canvas, uint8_t idx, uint8_t screen_y,
     uint8_t x = b->full ? LX : (b->col == 0 ? LX : RX);
     uint8_t w = b->full ? FW : (b->col == 0 ? LW : RW);
 
-    /* Background */
     if(selected) {
         canvas_set_color(canvas, ColorBlack);
         canvas_draw_rbox(canvas, x, screen_y, w, BTN_H, BTN_R);
@@ -89,14 +84,12 @@ static void draw_btn(Canvas* canvas, uint8_t idx, uint8_t screen_y,
         canvas_draw_rframe(canvas, x, screen_y, w, BTN_H, BTN_R);
     }
 
-    /* Icon — centered horizontally, padded from top */
     if(b->icon) {
         uint8_t icon_x = x + (w - ICON_SIZE) / 2;
         uint8_t icon_y = screen_y + ICON_PAD_TOP;
         canvas_draw_icon(canvas, icon_x, icon_y, b->icon);
     }
 
-    /* Label — centered below icon */
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(
         canvas,
@@ -120,7 +113,6 @@ static void draw_arrow_down(Canvas* canvas) {
     canvas_draw_line(canvas, 63, 63, 63, 63);
 }
 
-/* Returns the nth visible row (0-indexed) at or after start_row, or 0xFF if none. */
 static uint8_t sgrid_nth_visible_row(const bool* vis, uint8_t start_row, uint8_t n) {
     uint8_t found = 0;
     for(uint8_t r = start_row; r < TOTAL_ROWS; r++) {
@@ -135,10 +127,6 @@ static uint8_t sgrid_nth_visible_row(const bool* vis, uint8_t start_row, uint8_t
     return 0xFF;
 }
 
-/* Returns the nearest visible row strictly before before_row, or 0xFF if none.
- * Used to anchor the display window so a hidden row (e.g. RF Jammer when its
- * FAP isn't installed) never ends up picked as the top row, which would
- * leave the bottom row blank. */
 static uint8_t sgrid_prev_visible_row(const bool* vis, uint8_t before_row) {
     for(uint8_t r = before_row; r > 0; r--) {
         for(uint8_t i = 0; i < SGRID_BTN_COUNT; i++) {
@@ -152,13 +140,9 @@ static void sgrid_draw_cb(Canvas* canvas, void* _model) {
     SubGhzStartGridModel* m = _model;
     canvas_clear(canvas);
 
-    /* Find the two content rows to display, skipping any rows that have no
-       visible buttons (e.g. RF Jammer row when that FAP isn't installed).
-       This prevents empty gaps in the grid view. */
     uint8_t row0 = sgrid_nth_visible_row(m->visible, m->window_row, 0);
     uint8_t row1 = (row0 != 0xFF) ? sgrid_nth_visible_row(m->visible, row0 + 1, 0) : 0xFF;
 
-    /* Draw the two visible rows */
     for(uint8_t i = 0; i < SGRID_BTN_COUNT; i++) {
         if(!m->visible[i]) continue;
         uint8_t r = k_btns[i].row;
@@ -169,8 +153,6 @@ static void sgrid_draw_cb(Canvas* canvas, void* _model) {
         draw_btn(canvas, i, screen_y, i == m->selected);
     }
 
-    /* Scroll arrows — show up arrow if there's a visible row before row0,
-       down arrow if there's a visible row after row1. */
     canvas_set_color(canvas, ColorBlack);
     if(row0 != 0xFF && sgrid_nth_visible_row(m->visible, 0, 0) < row0)
         draw_arrow_up(canvas);
@@ -209,14 +191,14 @@ static bool sgrid_input_cb(InputEvent* event, void* context) {
             if(dir != NN) {
                 uint8_t next = sgrid_nav(m->visible, sel, dir);
                 if(next == sel && (dir == 0 || dir == 1)) {
-                    /* Hit vertical boundary — wrap to the opposite end */
+
                     if(dir == 1) {
-                        /* Down from bottom → first visible button */
+
                         for(uint8_t wi = 0; wi < SGRID_BTN_COUNT; wi++) {
                             if(m->visible[wi]) { next = wi; break; }
                         }
                     } else {
-                        /* Up from top → last visible button */
+
                         for(uint8_t wi = SGRID_BTN_COUNT - 1; wi < 255; wi--) {
                             if(m->visible[wi]) { next = wi; break; }
                         }

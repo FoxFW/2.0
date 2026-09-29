@@ -18,7 +18,7 @@ struct VariableItem {
     void* context;
 };
 
-ARRAY_DEF(VariableItemArray, VariableItem, M_POD_OPLIST); //-V658
+ARRAY_DEF(VariableItemArray, VariableItem, M_POD_OPLIST);
 
 struct VariableItemList {
     View* view;
@@ -46,7 +46,7 @@ static void variable_item_list_draw_callback(Canvas* canvas, void* _model) {
     VariableItemListModel* model = _model;
 
     const bool fox = fox_theme_is_active();
-    /* Fox Theme: taller rows, only 3 visible. Classic: 16px/4 rows. */
+
     const uint8_t item_height    = fox ? 21u : 16u;
     const uint8_t items_on_screen_base = fox ? 3u : 4u;
     const uint8_t item_width = 123;
@@ -66,8 +66,8 @@ static void variable_item_list_draw_callback(Canvas* canvas, void* _model) {
         if(item_position < items_on_screen) {
             const VariableItem* item = VariableItemArray_cref(it);
             uint8_t item_y      = y_offset + (item_position * item_height);
-            uint8_t item_text_y = item_y + item_height - 4;   /* Classic baseline */
-            uint8_t item_mid_y  = item_y + item_height / 2;   /* Fox center      */
+            uint8_t item_text_y = item_y + item_height - 4;
+            uint8_t item_mid_y  = item_y + item_height / 2;
             size_t scroll_counter = 0;
 
             if(position == model->position) {
@@ -96,7 +96,7 @@ static void variable_item_list_draw_callback(Canvas* canvas, void* _model) {
 
             if(fox) {
                 if(!has_value) {
-                    /* Non-interactive label: center horizontally AND vertically */
+
                     canvas_draw_str_aligned(
                         canvas,
                         item_width / 2,
@@ -105,9 +105,8 @@ static void variable_item_list_draw_callback(Canvas* canvas, void* _model) {
                         AlignCenter,
                         item->label);
                 } else {
-                    /* Interactive item: label left (scrollable, max 58 px so it
-                     * never reaches the "<" arrow at x=67), value right. */
-                    uint8_t fox_label_y = item_y + item_height - 6; /* baseline */
+
+                    uint8_t fox_label_y = item_y + item_height - 6;
                     elements_scrollable_text_line_str(
                         canvas, 5, fox_label_y, 58,
                         item->label, scroll_counter, false, false);
@@ -174,7 +173,7 @@ static void variable_item_list_draw_callback(Canvas* canvas, void* _model) {
         canvas_set_color(canvas, ColorWhite);
         canvas_draw_box(canvas, 8, 10, 110, 48);
         canvas_set_color(canvas, ColorBlack);
-        // [NO_DOLPHIN] canvas_draw_icon(canvas, 10, 14, &I_WarningDolphin_45x42);
+
         canvas_draw_rframe(canvas, 8, 8, 112, 50, 3);
         canvas_draw_rframe(canvas, 9, 9, 110, 48, 2);
         elements_multiline_text_aligned(
@@ -309,11 +308,6 @@ void variable_item_list_process_up(VariableItemList* variable_item_list) {
                 model->position = items_size - 1;
             }
 
-            /* Clamp window to keep position in view — see the matching
-             * fix in gui/modules/submenu.c for why the old
-             * "position == window_position" heuristic breaks when only
-             * 2 rows are visible. Kept here preventatively in case
-             * items_on_screen ever drops to 2 for this widget too. */
             if(model->position < model->window_position) {
                 model->window_position = model->position;
             } else if(
@@ -340,7 +334,6 @@ void variable_item_list_process_down(VariableItemList* variable_item_list) {
                 model->position = 0;
             }
 
-            /* Same clamp as variable_item_list_process_up() — see comment there. */
             if(model->position < model->window_position) {
                 model->window_position = model->position;
             } else if(
@@ -507,10 +500,7 @@ void variable_item_list_free(VariableItemList* variable_item_list) {
 }
 
 void variable_item_list_reserve(VariableItemList* variable_item_list, size_t count) {
-    /* Pre-allocate capacity so that subsequent variable_item_list_add() calls
-     * do NOT trigger a realloc of the internal items array.  Without this,
-     * every pointer returned by variable_item_list_add() becomes a dangling
-     * pointer the moment the array grows.  Call this BEFORE the first add. */
+
     furi_assert(variable_item_list);
     with_view_model(
         variable_item_list->view,
@@ -518,7 +508,6 @@ void variable_item_list_reserve(VariableItemList* variable_item_list, size_t cou
         { VariableItemArray_reserve(model->items, count); },
         false);
 }
-
 
 void variable_item_list_reset(VariableItemList* variable_item_list) {
     furi_check(variable_item_list);
@@ -534,9 +523,7 @@ void variable_item_list_reset(VariableItemList* variable_item_list) {
                 furi_string_free(VariableItemArray_ref(it)->locked_message);
             }
             VariableItemArray_reset(model->items);
-            /* Reset scroll position — without this, entering a short list
-             * after a long one (e.g. Radio Settings after Protocol List)
-             * leaves window_position pointing past all items → blank page. */
+
             model->position        = 0;
             model->window_position = 0;
         },

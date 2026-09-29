@@ -23,7 +23,6 @@ static St25tbPoller* st25tb_poller_alloc(Nfc* nfc) {
     instance->tx_buffer = bit_buffer_alloc(ST25TB_POLLER_MAX_BUFFER_SIZE);
     instance->rx_buffer = bit_buffer_alloc(ST25TB_POLLER_MAX_BUFFER_SIZE);
 
-    // RF configuration is the same as 14b
     nfc_config(instance->nfc, NfcModePoller, NfcTechIso14443b);
     nfc_set_guard_time_us(instance->nfc, ST25TB_GUARD_TIME_US);
     nfc_set_fdt_poll_fc(instance->nfc, ST25TB_FDT_FC);

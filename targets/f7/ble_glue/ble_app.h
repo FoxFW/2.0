@@ -3,10 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/*
- * BLE stack init and cleanup
- */
-
 #ifdef __cplusplus
 extern "C" {
 #endif

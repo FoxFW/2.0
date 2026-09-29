@@ -1,9 +1,12 @@
 #include "fiat_v2.h"
+#include "fiat_v1.h"
 #include <lib/subghz/blocks/const.h>
 #include <lib/subghz/blocks/decoder.h>
 #include <lib/subghz/blocks/encoder.h>
 #include <lib/subghz/blocks/generic.h>
 #include <lib/subghz/blocks/math.h>
+
+#include <lib/subghz/blocks/custom_btn_i.h>
 #include <string.h>
 
 #define TAG "FiatProtocolV2"
@@ -27,10 +30,27 @@
 #define FIAT_V2_RAW_FIELD         "Raw"
 #define FIAT_V2_HOP_FIELD         "Hop"
 #define FIAT_V2_BTN_FIELD         "Btn"
+#define FIAT_V2_HITAG2_KEY_FIELD   "Hitag2 Key"
+#define FIAT_V2_HITAG2_EPOCH_FIELD "Hitag2 Epoch"
+#define FIAT_V2_HITAG2_IV_FIELD    "Hitag2 IV"
 
-#define FIAT_V2_ENC_GAP_US        2732U
+#define FIAT_V2_ENC_LEAD_US        2033U
+#define FIAT_V2_ENC_GAP_US         3252U
 #define FIAT_V2_ENC_DEFAULT_REPEAT 6U
 #define FIAT_V2_UPLOAD_CAPACITY   (1U + (FIAT_V2_WIRE_BITS * 2U) + 1U)
+
+static uint32_t fiat_v2_uid(const uint8_t raw[FIAT_V2_WIRE_BYTES]);
+static uint32_t fiat_v2_hop(const uint8_t raw[FIAT_V2_WIRE_BYTES]);
+static uint32_t fiat_v2_counter(const uint8_t raw[FIAT_V2_WIRE_BYTES]);
+static uint8_t fiat_v2_iv_button(const uint8_t raw[FIAT_V2_WIRE_BYTES], uint8_t combo);
+static uint16_t fiat_v2_iv_control(const uint8_t raw[FIAT_V2_WIRE_BYTES], uint8_t combo);
+static bool fiat_v2_key_matches_combo(
+    const uint8_t raw[FIAT_V2_WIRE_BYTES],
+    const uint8_t key[6],
+    uint8_t combo);
+static void fiat_v2_patch_hop(uint8_t raw[FIAT_V2_WIRE_BYTES], uint32_t hop);
+static void fiat_v2_patch_button(uint8_t raw[FIAT_V2_WIRE_BYTES], uint8_t selector);
+static void fiat_v2_patch_counter(uint8_t raw[FIAT_V2_WIRE_BYTES], uint32_t counter);
 
 static const SubGhzBlockConst subghz_protocol_fiat_v2_const = {
     .te_short = FIAT_V2_TE_SHORT,
@@ -59,6 +79,11 @@ struct SubGhzProtocolDecoderFiatV2 {
     uint32_t uid;
     uint32_t hop;
     uint8_t button;
+
+    uint8_t hitag2_key[6];
+    uint32_t hitag2_epoch;
+    bool hitag2_key_valid;
+    uint8_t hitag2_iv_combo;
 };
 
 typedef struct SubGhzProtocolEncoderFiatV2 {
@@ -67,6 +92,9 @@ typedef struct SubGhzProtocolEncoderFiatV2 {
     SubGhzBlockGeneric generic;
 
     uint8_t raw_data[FIAT_V2_WIRE_BYTES];
+    uint8_t hitag2_key[6];
+    uint32_t epoch;
+    uint8_t iv_combo;
 } SubGhzProtocolEncoderFiatV2;
 
 static bool fiat_v2_feed_data_pulse(
@@ -74,6 +102,7 @@ static bool fiat_v2_feed_data_pulse(
     bool level,
     uint32_t duration);
 static bool fiat_v2_frame_valid(const uint8_t raw[FIAT_V2_WIRE_BYTES]);
+static void fiat_v2_verify_hitag2_key(SubGhzProtocolDecoderFiatV2* instance);
 
 static void subghz_protocol_decoder_fiat_v2_free(void* context) {
     furi_assert(context);
@@ -108,18 +137,6 @@ const SubGhzProtocol fiat_v2_protocol = {
     .decoder = &subghz_protocol_fiat_v2_decoder,
     .encoder = &subghz_protocol_fiat_v2_encoder,
 };
-
-// =============================================================================
-// ENCODER
-//
-// ARF ships Fiat V2 as decode-only: like several other protocols in this
-// family, the hop/rolling-code generation algorithm for bytes beyond the
-// UID isn't implemented upstream (fiat_v2_hop()/fiat_v2_counter() only ever
-// read existing bytes, nothing computes a fresh one). This encoder replays
-// the exact 14-byte frame captured in "Raw" - the same replay-only approach
-// used for Ford V3 elsewhere in this codebase - rather than inventing an
-// unverified rolling-code generator.
-// =============================================================================
 
 void* subghz_protocol_encoder_fiat_v2_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -178,6 +195,8 @@ static bool fiat_v2_encoder_build_upload(SubGhzProtocolEncoderFiatV2* instance) 
 
     size_t index = 0U;
 
+    upload[index++] = level_duration_make(true, FIAT_V2_ENC_LEAD_US);
+
     for(uint8_t bit_index = 0U; bit_index < FIAT_V2_WIRE_BITS; bit_index++) {
         const bool bit =
             ((instance->raw_data[bit_index >> 3U] >> (7U - (bit_index & 7U))) & 1U) != 0U;
@@ -189,6 +208,21 @@ static bool fiat_v2_encoder_build_upload(SubGhzProtocolEncoderFiatV2* instance) 
     instance->encoder.size_upload = index;
     instance->encoder.front = 0U;
     return true;
+}
+
+static uint8_t fiat_v2_dpad_selector(uint8_t custom_btn_id, uint8_t original_selector) {
+    switch(custom_btn_id) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        return FIAT_V2_BUTTON_UNLOCK;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        return FIAT_V2_BUTTON_LOCK;
+    case SUBGHZ_CUSTOM_BTN_LEFT:
+        return FIAT_V2_BUTTON_TRUNK;
+    case SUBGHZ_CUSTOM_BTN_RIGHT:
+    case SUBGHZ_CUSTOM_BTN_OK:
+    default:
+        return original_selector;
+    }
 }
 
 SubGhzProtocolStatus
@@ -216,6 +250,124 @@ SubGhzProtocolStatus
         return SubGhzProtocolStatusErrorParserOthers;
     }
     memcpy(instance->raw_data, raw_tmp, sizeof(raw_tmp));
+
+    instance->generic.serial = fiat_v2_uid(instance->raw_data);
+    instance->generic.btn = instance->raw_data[7];
+    instance->generic.cnt = fiat_v2_counter(instance->raw_data);
+    instance->epoch = 0U;
+
+    uint32_t override_cnt = 0U;
+    bool got_cnt = false;
+    {
+        uint32_t tmp = 0U;
+        flipper_format_rewind(flipper_format);
+        if(flipper_format_read_uint32(flipper_format, "Serial", &tmp, 1)) {
+            instance->generic.serial = tmp;
+        }
+        flipper_format_rewind(flipper_format);
+        if(flipper_format_read_uint32(flipper_format, "Cnt", &tmp, 1)) {
+            override_cnt = tmp;
+            got_cnt = true;
+            instance->generic.cnt = tmp;
+        }
+    }
+
+    const uint8_t original_selector =
+        (uint8_t)((instance->raw_data[7] >> FIAT_V2_BTN_SHIFT) & 0x03U);
+    if(subghz_custom_btn_get_original() == 0) {
+        subghz_custom_btn_set_original(original_selector);
+    }
+    subghz_custom_btn_set_max(3);
+    const uint8_t custom_btn_id = subghz_custom_btn_get();
+
+    uint8_t key[6] = {0};
+    bool have_key = false;
+    uint8_t combo = 0U;
+
+    flipper_format_rewind(flipper_format);
+    if(flipper_format_read_hex(flipper_format, FIAT_V2_HITAG2_KEY_FIELD, key, 6U)) {
+        uint32_t iv_combo = 0U;
+        flipper_format_rewind(flipper_format);
+        if(!flipper_format_read_uint32(flipper_format, FIAT_V2_HITAG2_IV_FIELD, &iv_combo, 1U)) {
+            iv_combo = 0U;
+        }
+        combo = (uint8_t)(iv_combo & 0x03U);
+        if(fiat_v2_key_matches_combo(instance->raw_data, key, combo)) {
+            have_key = true;
+        }
+    }
+
+    if(!have_key) {
+        const uint8_t(*known_keys)[6] = subghz_protocol_fiat_v1_get_known_keys();
+        for(uint8_t i = 0U; !have_key && i < FIAT_V1_KNOWN_KEY_COUNT; i++) {
+            for(uint8_t c = 0U; c < FIAT_V2_IV_COMBO_COUNT; c++) {
+                if(fiat_v2_key_matches_combo(instance->raw_data, known_keys[i], c)) {
+                    memcpy(key, known_keys[i], 6U);
+                    combo = c;
+                    have_key = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if(have_key) {
+        memcpy(instance->hitag2_key, key, 6U);
+        instance->iv_combo = combo;
+
+        const uint8_t new_selector =
+            fiat_v2_dpad_selector(custom_btn_id, original_selector);
+
+        uint32_t new_counter;
+        if(got_cnt) {
+            new_counter = override_cnt;
+        } else {
+            uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
+            if(mult == 0U) mult = 1U;
+            new_counter = instance->generic.cnt + mult;
+        }
+
+        fiat_v2_patch_button(instance->raw_data, new_selector);
+        fiat_v2_patch_counter(instance->raw_data, new_counter);
+
+        instance->generic.btn = instance->raw_data[7];
+        instance->generic.cnt = fiat_v2_counter(instance->raw_data);
+
+        const uint32_t uid = fiat_v2_uid(instance->raw_data);
+        const uint8_t iv_btn = fiat_v2_iv_button(instance->raw_data, combo);
+        const uint16_t iv_ctrl = fiat_v2_iv_control(instance->raw_data, combo);
+        const uint32_t hop =
+            subghz_protocol_fiat_v1_compute_auth(uid, iv_btn, iv_ctrl, key, 0U);
+        fiat_v2_patch_hop(instance->raw_data, hop);
+
+        FURI_LOG_I(
+            TAG,
+            "TX(hop-recompute) UID:%08lX Combo:%u Sel:%u Cnt:%04lX Hop:%08lX",
+            (unsigned long)uid,
+            (unsigned)combo,
+            (unsigned)new_selector,
+            (unsigned long)instance->generic.cnt,
+            (unsigned long)hop);
+    } else {
+        instance->generic.cnt = fiat_v2_counter(instance->raw_data);
+        instance->generic.btn = instance->raw_data[7];
+        FURI_LOG_I(
+            TAG,
+            "TX(replay) UID:%08lX (no key, replaying captured frame)",
+            (unsigned long)instance->generic.serial);
+    }
+
+    instance->generic.data =
+        ((uint64_t)instance->generic.serial << 32U) | fiat_v2_hop(instance->raw_data);
+
+    if(have_key) {
+        flipper_format_rewind(flipper_format);
+        flipper_format_insert_or_update_hex(
+            flipper_format, FIAT_V2_RAW_FIELD, instance->raw_data, FIAT_V2_WIRE_BYTES);
+        flipper_format_rewind(flipper_format);
+        uint32_t cnt_store = instance->generic.cnt;
+        flipper_format_insert_or_update_uint32(flipper_format, "Cnt", &cnt_store, 1);
+    }
 
     uint32_t repeat = FIAT_V2_ENC_DEFAULT_REPEAT;
     flipper_format_rewind(flipper_format);
@@ -259,6 +411,21 @@ static const char* fiat_v2_button_name(uint8_t button) {
     }
 }
 
+static uint8_t fiat_v2_ui_selector(uint8_t custom_btn_id, uint8_t original_selector) {
+    switch(custom_btn_id) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        return FIAT_V2_BUTTON_UNLOCK;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        return FIAT_V2_BUTTON_LOCK;
+    case SUBGHZ_CUSTOM_BTN_LEFT:
+        return FIAT_V2_BUTTON_TRUNK;
+    case SUBGHZ_CUSTOM_BTN_RIGHT:
+    case SUBGHZ_CUSTOM_BTN_OK:
+    default:
+        return original_selector;
+    }
+}
+
 static uint32_t fiat_v2_uid(const uint8_t raw[FIAT_V2_WIRE_BYTES]) {
     return ((uint32_t)raw[2] << 24U) | ((uint32_t)raw[3] << 16U) |
            ((uint32_t)raw[4] << 8U) | raw[5];
@@ -286,6 +453,79 @@ static uint32_t fiat_v2_counter(const uint8_t raw[FIAT_V2_WIRE_BYTES]) {
     return (~raw_cnt) & 0x7FFU;
 }
 
+static uint8_t fiat_v2_iv_button(const uint8_t raw[FIAT_V2_WIRE_BYTES], uint8_t combo) {
+    const uint8_t sel = (uint8_t)((raw[7] >> FIAT_V2_BTN_SHIFT) & 0x0FU);
+    if((combo & 0x01U) == 0U) {
+        return sel;
+    }
+    switch(sel) {
+    case FIAT_V2_BUTTON_TRUNK:
+        return 0x2U;
+    case FIAT_V2_BUTTON_LOCK:
+        return 0x4U;
+    case FIAT_V2_BUTTON_UNLOCK:
+        return 0x8U;
+    default:
+        return 0x0U;
+    }
+}
+
+static uint16_t fiat_v2_iv_control(const uint8_t raw[FIAT_V2_WIRE_BYTES], uint8_t combo) {
+    const uint16_t cnt = (uint16_t)(fiat_v2_counter(raw) & 0x3FFU);
+    if((combo & 0x02U) == 0U) {
+        return cnt;
+    }
+    return (uint16_t)((~cnt) & 0x3FFU);
+}
+
+static bool fiat_v2_key_matches_combo(
+    const uint8_t raw[FIAT_V2_WIRE_BYTES],
+    const uint8_t key[6],
+    uint8_t combo) {
+    const uint32_t uid = fiat_v2_uid(raw);
+    const uint8_t btn = fiat_v2_iv_button(raw, combo);
+    const uint16_t ctrl = fiat_v2_iv_control(raw, combo);
+    const uint32_t hop = fiat_v2_hop(raw);
+    return subghz_protocol_fiat_v1_compute_auth(uid, btn, ctrl, key, 0U) == hop;
+}
+
+static void fiat_v2_patch_hop(uint8_t raw[FIAT_V2_WIRE_BYTES], uint32_t hop) {
+    if(fiat_v2_is_fca(raw)) {
+        raw[10] = (uint8_t)(hop >> 24U);
+        raw[11] = (uint8_t)(hop >> 16U);
+        raw[12] = (uint8_t)(hop >> 8U);
+        raw[13] = (uint8_t)hop;
+    } else {
+        raw[9] = (uint8_t)(hop >> 24U);
+        raw[10] = (uint8_t)(hop >> 16U);
+        raw[11] = (uint8_t)(hop >> 8U);
+        raw[12] = (uint8_t)hop;
+    }
+}
+
+static void fiat_v2_patch_button(uint8_t raw[FIAT_V2_WIRE_BYTES], uint8_t selector) {
+    raw[7] = (uint8_t)((raw[7] & 0x3FU) | ((selector & 0x03U) << FIAT_V2_BTN_SHIFT));
+}
+
+static void fiat_v2_patch_counter(uint8_t raw[FIAT_V2_WIRE_BYTES], uint32_t counter) {
+    if(fiat_v2_is_fca(raw)) {
+        const uint32_t raw_cnt = (~counter) & 0x3FFFU;
+        raw[8] = (uint8_t)((raw_cnt >> 6U) & 0xFFU);
+        raw[9] = (uint8_t)((raw[9] & 0x03U) | ((raw_cnt & 0x3FU) << 2U));
+    } else {
+        const uint32_t raw_cnt = (~counter) & 0x7FFU;
+        raw[7] = (uint8_t)((raw[7] & 0xC0U) | ((raw_cnt >> 5U) & 0x3FU));
+        raw[8] = (uint8_t)((raw[8] & 0x07U) | ((raw_cnt & 0x1FU) << FIAT_V2_CNT_SHIFT));
+    }
+}
+
+uint8_t subghz_protocol_fiat_v2_iv_button_for_combo(const uint8_t* raw, uint8_t combo) {
+    return fiat_v2_iv_button(raw, combo);
+}
+
+uint16_t subghz_protocol_fiat_v2_iv_control_for_combo(const uint8_t* raw, uint8_t combo) {
+    return fiat_v2_iv_control(raw, combo);
+}
 
 static bool fiat_v2_frame_valid(const uint8_t raw[FIAT_V2_WIRE_BYTES]) {
     if(raw[0] != FIAT_V2_MARKER0 || raw[1] != FIAT_V2_MARKER1) {
@@ -315,6 +555,34 @@ static void fiat_v2_decode_fields(SubGhzProtocolDecoderFiatV2* instance) {
     instance->generic.data_count_bit = FIAT_V2_LOGICAL_BITS;
     instance->decoder.decode_data = instance->generic.data;
     instance->decoder.decode_count_bit = instance->generic.data_count_bit;
+    fiat_v2_verify_hitag2_key(instance);
+
+    if(subghz_custom_btn_get_original() == 0) {
+        subghz_custom_btn_set_original(
+            (uint8_t)((instance->raw_data[7] >> FIAT_V2_BTN_SHIFT) & 0x03U));
+    }
+    subghz_custom_btn_set_max(3);
+}
+
+static void fiat_v2_verify_hitag2_key(SubGhzProtocolDecoderFiatV2* instance) {
+    instance->hitag2_key_valid = false;
+    instance->hitag2_epoch = 0U;
+    instance->hitag2_iv_combo = 0U;
+    memset(instance->hitag2_key, 0, sizeof(instance->hitag2_key));
+
+    const uint8_t(*known_keys)[6] = subghz_protocol_fiat_v1_get_known_keys();
+
+    for(uint8_t i = 0U; i < FIAT_V1_KNOWN_KEY_COUNT; i++) {
+        for(uint8_t combo = 0U; combo < FIAT_V2_IV_COMBO_COUNT; combo++) {
+            if(fiat_v2_key_matches_combo(instance->raw_data, known_keys[i], combo)) {
+                memcpy(instance->hitag2_key, known_keys[i], sizeof(instance->hitag2_key));
+                instance->hitag2_key_valid = true;
+                instance->hitag2_epoch = 0U;
+                instance->hitag2_iv_combo = combo;
+                return;
+            }
+        }
+    }
 }
 
 static bool fiat_v2_commit(
@@ -439,6 +707,10 @@ void subghz_protocol_decoder_fiat_v2_reset(void* context) {
     instance->uid = 0U;
     instance->hop = 0U;
     instance->button = 0U;
+    instance->hitag2_key_valid = false;
+    instance->hitag2_epoch = 0U;
+    instance->hitag2_iv_combo = 0U;
+    memset(instance->hitag2_key, 0, sizeof(instance->hitag2_key));
     fiat_v2_clear_cells(instance);
 }
 
@@ -509,6 +781,17 @@ SubGhzProtocolStatus subghz_protocol_decoder_fiat_v2_serialize(
     if(!flipper_format_update_uint32(flipper_format, "Cnt", &cnt, 1)) {
         flipper_format_insert_or_update_uint32(flipper_format, "Cnt", &cnt, 1);
     }
+
+    if(instance->hitag2_key_valid) {
+        uint32_t epoch = instance->hitag2_epoch & 0x3FFFFUL;
+        uint32_t iv_combo = instance->hitag2_iv_combo;
+        if(!flipper_format_insert_or_update_hex(
+               flipper_format, FIAT_V2_HITAG2_KEY_FIELD, instance->hitag2_key, 6U) ||
+           !flipper_format_write_uint32(flipper_format, FIAT_V2_HITAG2_EPOCH_FIELD, &epoch, 1) ||
+           !flipper_format_write_uint32(flipper_format, FIAT_V2_HITAG2_IV_FIELD, &iv_combo, 1)) {
+            return SubGhzProtocolStatusErrorParserOthers;
+        }
+    }
     return SubGhzProtocolStatusOk;
 }
 
@@ -533,6 +816,24 @@ SubGhzProtocolStatus
             return SubGhzProtocolStatusErrorParserOthers;
         }
         fiat_v2_decode_fields(instance);
+
+        uint8_t key[6] = {0};
+        flipper_format_rewind(flipper_format);
+        if(flipper_format_read_hex(flipper_format, FIAT_V2_HITAG2_KEY_FIELD, key, 6U)) {
+            uint32_t iv_combo = 0U;
+            flipper_format_rewind(flipper_format);
+            if(!flipper_format_read_uint32(
+                   flipper_format, FIAT_V2_HITAG2_IV_FIELD, &iv_combo, 1U)) {
+                iv_combo = 0U;
+            }
+            iv_combo &= 0x03U;
+            if(fiat_v2_key_matches_combo(instance->raw_data, key, (uint8_t)iv_combo)) {
+                memcpy(instance->hitag2_key, key, sizeof(instance->hitag2_key));
+                instance->hitag2_key_valid = true;
+                instance->hitag2_epoch = 0U;
+                instance->hitag2_iv_combo = (uint8_t)iv_combo;
+            }
+        }
         return SubGhzProtocolStatusOk;
     }
 
@@ -543,18 +844,42 @@ void subghz_protocol_decoder_fiat_v2_get_string(void* context, FuriString* outpu
     furi_check(context);
     SubGhzProtocolDecoderFiatV2* instance = context;
 
-    furi_string_cat_printf(
-        output,
-        "%s %ubit\r\n"
-        "UID:%08lX\r\n"
-        "Hop:%08lX Type:%01X\r\n"
-        "Btn:%02X [%s] Cnt:%02lX\r\n",
-        instance->generic.protocol_name,
-        FIAT_V2_LOGICAL_BITS,
-        (unsigned long)instance->uid,
-        (unsigned long)instance->hop,
-        (unsigned)(instance->raw_data[6] >> 4),
-        instance->button,
-        fiat_v2_button_name(instance->button),
-        (unsigned long)instance->generic.cnt);
+    if(instance->hitag2_key_valid) {
+        subghz_custom_btn_set_max(3);
+        uint8_t original_selector =
+            (uint8_t)((instance->button >> FIAT_V2_BTN_SHIFT) & 0x03U);
+        uint8_t display_selector =
+            fiat_v2_ui_selector(subghz_custom_btn_get(), original_selector);
+        uint8_t display_btn =
+            (uint8_t)((instance->button & 0x3FU) | ((display_selector & 0x03U) << FIAT_V2_BTN_SHIFT));
+        furi_string_cat_printf(
+            output,
+            "%s %ubit\r\n"
+            "Key:%02X%02X%02X%02X%02X%02X\r\n"
+            "SN:0x%lX Btn:[%s]\r\n"
+            "Cnt:%02lX\r\n",
+            instance->generic.protocol_name,
+            FIAT_V2_LOGICAL_BITS,
+            instance->hitag2_key[0],
+            instance->hitag2_key[1],
+            instance->hitag2_key[2],
+            instance->hitag2_key[3],
+            instance->hitag2_key[4],
+            instance->hitag2_key[5],
+            (unsigned long)instance->uid,
+            fiat_v2_button_name(display_btn),
+            (unsigned long)instance->generic.cnt);
+    } else {
+        furi_string_cat_printf(
+            output,
+            "%s %ubit\r\n"
+            "Key:?\r\n"
+            "SN:0x%lX Btn:[%s]\r\n"
+            "Cnt:%02lX\r\n",
+            instance->generic.protocol_name,
+            FIAT_V2_LOGICAL_BITS,
+            (unsigned long)instance->uid,
+            fiat_v2_button_name(instance->button),
+            (unsigned long)instance->generic.cnt);
+    }
 }

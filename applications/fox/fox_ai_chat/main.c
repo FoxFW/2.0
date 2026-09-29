@@ -29,7 +29,6 @@ static const PinOption pin_options[] = {
 #define AI_CHAT_BAUD_RATE 115200
 
 #define AI_CHAT_TERMINAL_LOG_MAX_CHARS 4000
-#define AI_CHAT_EVENT_SPLASH_DONE       0
 #define AI_CHAT_EVENT_SERIAL_BUSY_TICK  1
 #define AI_CHAT_EVENT_SERIAL_DO_RETRY   2
 #define AI_CHAT_EVENT_MESSAGE_LIMIT_TICK 3
@@ -345,11 +344,6 @@ void app_launch_commander(App* app) {
     view_dispatcher_stop(app->view_dispatcher);
 }
 
-static void fox_splash_done_cb(void* context) {
-    App* app = context;
-    view_dispatcher_send_custom_event(app->view_dispatcher, AI_CHAT_EVENT_SPLASH_DONE);
-}
-
 static void serial_busy_timer_cb(void* context) {
     App* app = context;
     view_dispatcher_send_custom_event(app->view_dispatcher, AI_CHAT_EVENT_SERIAL_BUSY_TICK);
@@ -367,10 +361,6 @@ static void message_limit_timer_cb(void* context) {
 
 static bool custom_event_callback(void* context, uint32_t event) {
     App* app = context;
-    if(event == AI_CHAT_EVENT_SPLASH_DONE) {
-        action_check_esp32(app);
-        return true;
-    }
     if(event == AI_CHAT_EVENT_SERIAL_BUSY_TICK) {
         if(app->serial_busy_countdown > 0) {
             app->serial_busy_countdown--;
@@ -433,7 +423,7 @@ static bool navigation_callback(void* context) {
     return true;
 }
 
-static App* app_alloc(bool skip_splash) {
+static App* app_alloc(void) {
     App* app = malloc(sizeof(App));
     memset(app, 0, sizeof(App));
 
@@ -450,8 +440,6 @@ static App* app_alloc(bool skip_splash) {
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
     view_dispatcher_set_navigation_event_callback(app->view_dispatcher, navigation_callback);
     view_dispatcher_set_custom_event_callback(app->view_dispatcher, custom_event_callback);
-
-    app->splash = fox_splash_alloc(&I_fox_64x64, 2000, 666, fox_splash_done_cb, app);
 
     app->submenu = submenu_alloc();
     app->message_view = message_view_alloc(app);
@@ -475,8 +463,6 @@ static App* app_alloc(bool skip_splash) {
     s_terminal_view_app = app;
 
     view_dispatcher_add_view(
-        app->view_dispatcher, AiChatViewSplash, fox_splash_get_view(app->splash));
-    view_dispatcher_add_view(
         app->view_dispatcher, AiChatViewMenu, submenu_get_view(app->submenu));
     view_dispatcher_add_view(app->view_dispatcher, AiChatViewMessage, app->message_view);
     view_dispatcher_add_view(app->view_dispatcher, AiChatViewTerminal, app->terminal_view);
@@ -493,13 +479,7 @@ static App* app_alloc(bool skip_splash) {
     app->message_limit_timer =
         furi_timer_alloc(message_limit_timer_cb, FuriTimerTypePeriodic, app);
 
-    if(skip_splash) {
-        action_check_esp32(app);
-    } else {
-        app->current_view = AiChatViewSplash;
-        view_dispatcher_switch_to_view(app->view_dispatcher, AiChatViewSplash);
-        fox_splash_start(app->splash);
-    }
+    action_check_esp32(app);
 
     return app;
 }
@@ -514,7 +494,6 @@ static void app_free(App* app) {
 
     if(app->esp_at != NULL) esp_at_free(app->esp_at);
 
-    view_dispatcher_remove_view(app->view_dispatcher, AiChatViewSplash);
     view_dispatcher_remove_view(app->view_dispatcher, AiChatViewMenu);
     view_dispatcher_remove_view(app->view_dispatcher, AiChatViewMessage);
     view_dispatcher_remove_view(app->view_dispatcher, AiChatViewTerminal);
@@ -522,7 +501,6 @@ static void app_free(App* app) {
     view_dispatcher_remove_view(app->view_dispatcher, AiChatViewProgress);
     view_dispatcher_remove_view(app->view_dispatcher, AiChatViewMessageLimit);
 
-    fox_splash_free(app->splash);
     submenu_free(app->submenu);
     view_free(app->terminal_view);
     s_terminal_view_app = NULL;
@@ -538,8 +516,8 @@ static void app_free(App* app) {
 }
 
 int32_t fox_ai_chat_main(void* p) {
-    bool skip_splash = (p != NULL && strcmp((const char*)p, "SKIPSPLASH") == 0);
-    App* app = app_alloc(skip_splash);
+    UNUSED(p);
+    App* app = app_alloc();
     view_dispatcher_run(app->view_dispatcher);
 
     bool launch_commander = app->launch_commander;

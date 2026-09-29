@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 
 void picopass_scene_formats_on_enter(void* context) {
     Picopass* picopass = context;

@@ -2,11 +2,6 @@
 
 #include <string.h>
 
-/* The FoxLAB Launcher screen - shown once the ESP32 is detected. A single
- * button flips the ESP32's FoxLAB WiFi portal on/off (see Fox_ESP32_FW's
- * fox_lab.cpp, "[LAB/START]"/"[LAB/STOP]"). The portal keeps running on
- * the ESP32 after this app is closed - this screen is just the switch. */
-
 static App* s_launcher_view_app = NULL;
 
 #define LAUNCHER_BUTTON_H 14
@@ -14,20 +9,6 @@ static App* s_launcher_view_app = NULL;
 #define LAUNCHER_BUTTON_MARGIN 2
 #define LAUNCHER_BUTTON_R 3
 
-/* Two separate soft-key buttons (Left/Right), not the old single centered
- * OK pill - gives this screen a second destination (the Terminal/"FoxLAB
- * Active" screen - flpr_view.c) it didn't have room for as a single
- * centered button. Left/Right only move which side is focused (filled vs
- * outlined, same as message_view.c's message_draw_two_buttons()), and OK
- * activates whichever side is currently focused - see launcher_input_cb()
- * below. This used to have Left/Right each fire a different action
- * directly with no focus step at all; fixed per the 2026-09-13 footer-
- * button audit (FOOTER_BUTTON_AUDIT.md project doc), which flagged this
- * exact screen as "Pattern A." Each button is its own sized-to-fit rounded
- * box (canvas_draw_rbox()/canvas_draw_rframe(), the same pill look TPMS's
- * box-list rows and restart_confirm_view.c's own buttons use) rather than
- * one continuous inverted bar with both labels drawn on top - that used to
- * read as a single joined control. */
 static void launcher_draw_button(Canvas* canvas, bool align_left, bool focused, const char* text) {
     canvas_set_font(canvas, FontSecondary);
     uint16_t text_w = canvas_string_width(canvas, text);
@@ -56,12 +37,6 @@ static void launcher_draw_bottom_bar(Canvas* canvas, bool focus_left, const char
     launcher_draw_button(canvas, false, !focus_left, "Terminal >");
 }
 
-/* "then visit: " (regular weight) + the IP (bold) drawn as one centered
- * unit - canvas_draw_str_aligned() can't mix fonts within a single call,
- * so this measures each half with canvas_string_width() and centers the
- * pair manually instead of hardcoding an x that would drift if either
- * string ever changes. foxlab.local dropped per the user's request - the
- * IP alone is now this line's whole job. */
 static void launcher_draw_ip_line(Canvas* canvas, uint8_t y) {
     const char* prefix = "then visit: ";
     const char* ip = "192.168.4.1";
@@ -90,11 +65,6 @@ static void launcher_draw_cb(Canvas* canvas, void* model) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 2, AlignCenter, AlignTop, "FoxLAB Launcher");
 
-    // Pushed down from the original y=13/22/33 layout, which ran close
-    // enough to the header's own ~y=2-13 span to visibly touch it on real
-    // hardware - and dropping the old "or foxlab.local" line (see
-    // launcher_draw_ip_line() above) freed up enough room to space these
-    // three lines out properly instead of cramming four into the same band.
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 64, 19, AlignCenter, AlignCenter, "Connect PC to WiFi:");
     canvas_draw_str_aligned(canvas, 64, 29, AlignCenter, AlignCenter, "FoxLAB  (Pass: 88888888)");
@@ -114,11 +84,7 @@ static void launcher_toggle(App* app) {
 
     bool starting = !app->lab_active;
     const char* cmd = starting ? "[LAB/START]" : "[LAB/STOP]";
-    /* Match on the reply's TAG prefix first (shared by both the SUCCESS
-     * and ERROR replies), not the full SUCCESS string - see
-     * app_wait_for_reply_prefix()'s comment in main.c. Starting brings up
-     * a softAP plus three servers, so it gets more headroom than
-     * stopping does. */
+
     const char* reply_prefix = starting ? "[LAB/START/" : "[LAB/STOP/";
     const char* expect_success = starting ? "[LAB/START/SUCCESS]" : "[LAB/STOP/SUCCESS]";
     uint32_t timeout_ms = starting ? 6000 : 3000;
@@ -135,10 +101,6 @@ static void launcher_toggle(App* app) {
     app->lab_busy = false;
     with_view_model(app->launcher_view, uint8_t * _m, { UNUSED(_m); }, true);
 
-    /* On a successful Start (not Stop), hand off to the "FoxLAB Active"
-     * companion screen - see flpr_view.h. The FLPR companion itself
-     * answers commands regardless of which view is showing; this just
-     * gives the user the "keep this app open" signal they asked for. */
     if(success && starting) {
         app_show_flpr(app);
     }
@@ -162,11 +124,7 @@ static bool launcher_input_cb(InputEvent* event, void* context) {
         }
         return true;
     case InputKeyOk:
-        /* Whichever side is focused - Start/Stop, or the Terminal screen
-         * (still reachable via Back from there too, since Right is now
-         * only a focus-move, not a direct jump - real-hardware gap this
-         * button originally closed, reported 2026-09-11, is unaffected:
-         * Back from the Terminal screen still returns here). */
+
         if(app->launcher_focus_left) {
             launcher_toggle(app);
         } else {

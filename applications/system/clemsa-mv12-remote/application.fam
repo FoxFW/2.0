@@ -1,0 +1,18 @@
+App(
+    appid="clemsa_mv12",
+    name="Clemsa MV-12",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="clemsa_mv12_app",
+    requires=["gui", "notification", "storage"],
+    stack_size=4 * 1024,
+    fap_category="Sub-GHz",
+    fap_icon="clemsa_mv12_10px.png",
+    fap_author="GarageControl",
+    fap_version="1.0",
+    fap_description=(
+        "Clemsa MV-12 MASTERcode remote. Emits the two-carrier waveform the "
+        "receiver actually requires (65 us subcarrier inside each OOK burst), "
+        "which plain Sub-GHz replay and native Mastercode emulation do not. "
+        "DIP switches are configurable on-device."
+    ),
+)

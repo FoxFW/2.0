@@ -4,10 +4,6 @@
 #include "helpers/rolljam_receiver.h"
 #include "helpers/rolljam_cc1101_ext.h"
 
-// ============================================================
-// Frequency / modulation tables
-// ============================================================
-
 const uint32_t freq_values[] = {
     300000000,
     303875000,
@@ -62,10 +58,6 @@ const char* hw_names[] = {
     "Flux Cap",
 };
 
-// ============================================================
-// Scene handlers table (extern declarations in scene header)
-// ============================================================
-
 void (*const rolljam_scene_on_enter_handlers[])(void*) = {
     rolljam_scene_menu_on_enter,
     rolljam_scene_attack_phase1_on_enter,
@@ -97,10 +89,6 @@ const SceneManagerHandlers rolljam_scene_handlers = {
     .scene_num = RollJamSceneCount,
 };
 
-// ============================================================
-// Navigation callbacks
-// ============================================================
-
 static bool rolljam_navigation_callback(void* context) {
     RollJamApp* app = context;
     return scene_manager_handle_back_event(app->scene_manager);
@@ -110,10 +98,6 @@ static bool rolljam_custom_event_callback(void* context, uint32_t event) {
     RollJamApp* app = context;
     return scene_manager_handle_custom_event(app->scene_manager, event);
 }
-
-// ============================================================
-// App alloc
-// ============================================================
 
 static RollJamApp* rolljam_app_alloc(void) {
     RollJamApp* app = malloc(sizeof(RollJamApp));
@@ -126,15 +110,12 @@ static RollJamApp* rolljam_app_alloc(void) {
     app->jam_offset_hz = jam_offset_values[JamOffIndex_700k];
     app->hw_index = HwIndex_CC1101;
 
-    // Services
     app->gui = furi_record_open(RECORD_GUI);
     app->notification = furi_record_open(RECORD_NOTIFICATION);
     app->storage = furi_record_open(RECORD_STORAGE);
 
-    // Scene manager
     app->scene_manager = scene_manager_alloc(&rolljam_scene_handlers, app);
 
-    // View dispatcher
     app->view_dispatcher = view_dispatcher_alloc();
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
     view_dispatcher_set_custom_event_callback(
@@ -144,28 +125,24 @@ static RollJamApp* rolljam_app_alloc(void) {
     view_dispatcher_attach_to_gui(
         app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    // Variable item list
     app->var_item_list = variable_item_list_alloc();
     view_dispatcher_add_view(
         app->view_dispatcher,
         RollJamViewVarItemList,
         variable_item_list_get_view(app->var_item_list));
 
-    // Widget
     app->widget = widget_alloc();
     view_dispatcher_add_view(
         app->view_dispatcher,
         RollJamViewWidget,
         widget_get_view(app->widget));
 
-    // Dialog
     app->dialog_ex = dialog_ex_alloc();
     view_dispatcher_add_view(
         app->view_dispatcher,
         RollJamViewDialogEx,
         dialog_ex_get_view(app->dialog_ex));
 
-    // Popup
     app->popup = popup_alloc();
     view_dispatcher_add_view(
         app->view_dispatcher,
@@ -174,10 +151,6 @@ static RollJamApp* rolljam_app_alloc(void) {
 
     return app;
 }
-
-// ============================================================
-// App free
-// ============================================================
 
 static void rolljam_app_free(RollJamApp* app) {
     if(app->jamming_active) {
@@ -208,10 +181,6 @@ static void rolljam_app_free(RollJamApp* app) {
 
     free(app);
 }
-
-// ============================================================
-// Entry point
-// ============================================================
 
 int32_t rolljam_app(void* p) {
     UNUSED(p);

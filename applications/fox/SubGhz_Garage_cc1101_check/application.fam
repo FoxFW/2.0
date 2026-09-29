@@ -1,6 +1,6 @@
 App(
     appid="subghz_garage_cc1101_check",
-    name="CC1101 External Probe for SubGhz Garage",
+    name="Sub-GHz: Garage/Gate/Other",
     apptype=FlipperAppType.EXTERNAL,
     icon="I_fox_generic_14x14",  # 14x14 Apps-menu icon; see assets/icons/Fox/fox_generic_14x14.png
     entry_point="subghz_garage_cc1101_check_app",
@@ -12,6 +12,6 @@ App(
     stack_size=6 * 1024,
     fap_icon="icon.png",
     fap_category="Sub-GHz",
-    fap_description="Background helper: checks for an external CC1101 module (GPIO/external antenna) and caches the result to /ext/subghz/.cc1101_ext_status for Sub-GHz apps that don't want to pay the ~25KB external-plugin-load RAM cost themselves just to find out nothing's plugged in. Launched automatically in the background by Desktop periodically and by the Sub-Ghz Mode picker every time Garage/Gate/Other is opened - running it manually from the Apps menu forces an immediate recheck and then opens Garage/Gate/Other.",
+    fap_description="Sub-GHz: Garage/Gate/Other, with a fresh external-CC1101 module check run first and cached to /ext/subghz/.cc1101_ext_status - this is the entry most users want. Checks for an external module (GPIO/external antenna), then opens the real Garage/Gate/Other app (appid subghz_garage, listed separately as \"Garage/Gate/Other (Direct)\") either way. Also run automatically in the background by Desktop, and by the Sub-GHz Mode Picker every time Garage/Gate/Other is opened from there.",
     fap_version="1.0",
 )

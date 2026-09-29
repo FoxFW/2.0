@@ -1,5 +1,4 @@
 #include "../infrared_app_i.h"
-#include <dolphin/dolphin.h>
 
 void infrared_scene_learn_on_enter(void* context) {
     InfraredApp* infrared = context;
@@ -28,7 +27,6 @@ bool infrared_scene_learn_on_event(void* context, SceneManagerEvent event) {
         if(event.event == InfraredCustomEventTypeSignalReceived) {
             infrared_play_notification_message(infrared, InfraredNotificationMessageSuccess);
             scene_manager_next_scene(infrared->scene_manager, InfraredSceneLearnSuccess);
-            dolphin_deed(DolphinDeedIrLearnSuccess);
             consumed = true;
         }
     }

@@ -10,10 +10,8 @@
 #include <loader/loader.h>
 
 #include "esp_at.h"
-#include "fox_splash.h"
 
 typedef enum {
-    UpdaterViewSplash,
     UpdaterViewMessage,
     UpdaterViewConnectSettings,
     UpdaterViewMenu,
@@ -25,7 +23,6 @@ typedef enum {
 } UpdaterView;
 
 typedef enum {
-    UpdaterEventSplashDone = 0,
     UpdaterEventMenuFw = 1,
     UpdaterEventMenuEsp32 = 2,
     UpdaterEventBoardGo = 3,
@@ -131,8 +128,6 @@ struct UpdaterApp {
     DialogsApp* dialogs;
     Loader* loader;
 
-    FoxSplash* splash;
-    View* splash_view;
     View* message_view;
     View* menu_view;
     View* board_view;

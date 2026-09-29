@@ -1,7 +1,3 @@
-/*
- * Scene definitions.
- */
-
 #pragma once
 
 #include <gui/scene_manager.h>

@@ -16,9 +16,7 @@ struct FlipperApplication {
     void* ep_thread_args;
 };
 
-/********************** Debugger access to loader state **********************/
-
-LIST_DEF(FlipperApplicationList, const FlipperApplication*, M_POD_OPLIST); // NOLINT
+LIST_DEF(FlipperApplicationList, const FlipperApplication*, M_POD_OPLIST);
 
 FlipperApplicationList_t flipper_application_loaded_app_list = {0};
 static bool flipper_application_loaded_app_list_initialized = false;
@@ -47,8 +45,6 @@ static void flipper_application_list_remove_app(const FlipperApplication* app) {
         }
     }
 }
-
-/*****************************************************************************/
 
 FlipperApplication*
     flipper_application_alloc(Storage* storage, const ElfApiInterface* api_interface) {
@@ -138,7 +134,6 @@ static bool flipper_application_process_manifest_section(
            storage_file_read(file, manifest, size) == size;
 }
 
-// we can't use const char* as context because we will lose the const qualifier
 typedef struct {
     const char* path;
 } FlipperApplicationPreloadAssetsContext;
@@ -158,9 +153,8 @@ static FlipperApplicationPreloadStatus
         return FlipperApplicationPreloadStatusInvalidFile;
     }
 
-    // if we are loading full file
     if(load_full) {
-        // load section table
+
         ElfLoadSectionTableResult load_result = elf_file_load_section_table(app->elf);
         if(load_result == ElfLoadSectionTableResultError) {
             return FlipperApplicationPreloadStatusInvalidFile;
@@ -168,7 +162,6 @@ static FlipperApplicationPreloadStatus
             return FlipperApplicationPreloadStatusNotEnoughMemory;
         }
 
-        // load assets section
         FlipperApplicationPreloadAssetsContext preload_context = {.path = path};
         if(elf_process_section(
                app->elf,
@@ -179,7 +172,6 @@ static FlipperApplicationPreloadStatus
         }
     }
 
-    // load manifest section
     if(elf_process_section(
            app->elf, ".fapmeta", flipper_application_process_manifest_section, &app->manifest) !=
        ElfProcessSectionResultSuccess) {
@@ -189,7 +181,6 @@ static FlipperApplicationPreloadStatus
     return flipper_application_validate_manifest(app);
 }
 
-/* Parse headers, load manifest */
 FlipperApplicationPreloadStatus
     flipper_application_preload_manifest(FlipperApplication* app, const char* path) {
     furi_check(app);
@@ -198,7 +189,6 @@ FlipperApplicationPreloadStatus
     return flipper_application_load(app, path, false);
 }
 
-/* Parse headers, load full file */
 FlipperApplicationPreloadStatus
     flipper_application_preload(FlipperApplication* app, const char* path) {
     furi_check(app);
@@ -240,7 +230,6 @@ static int32_t flipper_application_thread(void* context) {
 
     elf_file_call_fini(app->elf);
 
-    // wait until all notifications from RAM are completed
     NotificationApp* notifications = furi_record_open(RECORD_NOTIFICATION);
     notification_message_block(notifications, &sequence_empty);
     furi_record_close(RECORD_NOTIFICATION);

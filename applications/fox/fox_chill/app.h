@@ -67,11 +67,7 @@ typedef struct {
     char content_answer[FOX_CHILL_LINE_MAX];
     bool content_has_answer;
     bool content_answer_shown;
-    /* Which footer button is focused when both are shown ("Ans"/"Q" on
-     * the left, "Next" on the right) - Left/Right move this, OK activates
-     * whichever side it's on. Only meaningful while content_has_answer is
-     * true (with no answer, "Next" is the screen's only button, always
-     * filled, OK-only - see content_input_cb()). */
+
     bool content_focus_left;
     uint8_t content_scroll;
 

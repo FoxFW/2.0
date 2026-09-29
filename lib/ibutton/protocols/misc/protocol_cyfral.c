@@ -27,18 +27,16 @@ typedef struct {
     CyfralState state;
     CyfralBitState bit_state;
 
-    // high + low period time
     uint32_t period_time;
-    // temporary nibble storage
+
     uint8_t nibble;
-    // data valid flag
-    // MUST be checked only in READ_STOP_NIBBLE state
+
     bool data_valid;
-    // nibble index, we expect 8 nibbles
+
     uint8_t index;
-    // bit index in nibble, 4 bit per nibble
+
     uint8_t bit_index;
-    // max period, 230us x clock per us
+
     uint32_t max_period;
 } ProtocolCyfralDecoder;
 
@@ -91,7 +89,6 @@ static bool protocol_cyfral_decoder_process_bit(
     bool result = true;
     *bit_ready = false;
 
-    // bit start from low
     switch(cyfral->bit_state) {
     case CYFRAL_BIT_WAIT_FRONT_LOW:
         if(polarity == true) {
@@ -135,7 +132,7 @@ static bool protocol_cyfral_decoder_feed(ProtocolCyfral* proto, bool level, uint
 
     switch(cyfral->state) {
     case CYFRAL_WAIT_START_NIBBLE:
-        // wait for start word
+
         if(protocol_cyfral_decoder_process_bit(cyfral, level, duration, &bit_ready, &bit_value)) {
             if(bit_ready) {
                 cyfral->nibble = ((cyfral->nibble << 1) | bit_value) & 0x0F;
@@ -150,14 +147,13 @@ static bool protocol_cyfral_decoder_feed(ProtocolCyfral* proto, bool level, uint
 
         break;
     case CYFRAL_READ_NIBBLE:
-        // read nibbles
+
         if(protocol_cyfral_decoder_process_bit(cyfral, level, duration, &bit_ready, &bit_value)) {
             if(bit_ready) {
                 cyfral->nibble = (cyfral->nibble << 1) | bit_value;
 
                 cyfral->bit_index++;
 
-                //convert every nibble to 2-bit index
                 if(cyfral->bit_index == 4) {
                     switch(cyfral->nibble) {
                     case 0b1110:
@@ -182,7 +178,6 @@ static bool protocol_cyfral_decoder_feed(ProtocolCyfral* proto, bool level, uint
                     cyfral->index++;
                 }
 
-                // successfully read 8 nibbles
                 if(cyfral->index == 8) {
                     cyfral->state = CYFRAL_READ_STOP_NIBBLE;
                 }
@@ -192,7 +187,7 @@ static bool protocol_cyfral_decoder_feed(ProtocolCyfral* proto, bool level, uint
         }
         break;
     case CYFRAL_READ_STOP_NIBBLE:
-        // read stop nibble
+
         if(protocol_cyfral_decoder_process_bit(cyfral, level, duration, &bit_ready, &bit_value)) {
             if(bit_ready) {
                 cyfral->nibble = ((cyfral->nibble << 1) | bit_value) & 0x0F;
@@ -206,7 +201,7 @@ static bool protocol_cyfral_decoder_feed(ProtocolCyfral* proto, bool level, uint
                     break;
                 case 4:
                     if(cyfral->nibble == 0b0001) {
-                        // validate data
+
                         if(cyfral->data_valid) {
                             decoded = true;
                         } else {
@@ -268,13 +263,13 @@ static LevelDuration protocol_cyfral_encoder_yield(ProtocolCyfral* proto) {
     LevelDuration result;
 
     if(proto->encoder.index < 8) {
-        // start word (0b0001)
+
         switch(proto->encoder.index) {
         case 0:
-            result = level_duration_make(false, CYFRAL_0_LOW); //-V1037
+            result = level_duration_make(false, CYFRAL_0_LOW);
             break;
         case 1:
-            result = level_duration_make(true, CYFRAL_0_HI); //-V1037
+            result = level_duration_make(true, CYFRAL_0_HI);
             break;
         case 2:
             result = level_duration_make(false, CYFRAL_0_LOW);
@@ -296,7 +291,7 @@ static LevelDuration protocol_cyfral_encoder_yield(ProtocolCyfral* proto) {
             break;
         }
     } else {
-        // data
+
         uint8_t data_start_index = proto->encoder.index - 8;
         bool clock_polarity = (data_start_index) % 2;
         uint8_t bit_index = (data_start_index) / 2;

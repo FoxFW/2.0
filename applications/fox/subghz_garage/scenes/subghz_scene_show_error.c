@@ -1,4 +1,4 @@
-#include "../subghz_i.h" // IWYU pragma: keep
+#include "../subghz_i.h"
 #include "../helpers/subghz_custom_event.h"
 
 static const NotificationSequence subghz_sequence_sd_error = {
@@ -57,26 +57,24 @@ bool subghz_scene_show_error_on_event(void* context, SceneManagerEvent event) {
         if(scene_state == SubGhzCustomEventManagerSet) {
             return false;
         } else {
-            scene_manager_search_and_switch_to_previous_scene(
-                subghz->scene_manager, SubGhzSceneStart);
+            subghz_return_to_launcher(subghz);
         }
         return true;
     } else if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == SubGhzCustomEventSceneShowErrorOk) {
             if(scene_state == SubGhzCustomEventManagerSet) {
-                scene_manager_next_scene(subghz->scene_manager, SubGhzSceneStart);
+                subghz_return_to_launcher(subghz);
             }
             return true;
         } else if(event.event == SubGhzCustomEventSceneShowErrorBack) {
             if(scene_state == SubGhzCustomEventManagerSet) {
-                //exit app
+
                 if(!scene_manager_previous_scene(subghz->scene_manager)) {
                     scene_manager_stop(subghz->scene_manager);
                     view_dispatcher_stop(subghz->view_dispatcher);
                 }
             } else {
-                scene_manager_search_and_switch_to_previous_scene(
-                    subghz->scene_manager, SubGhzSceneStart);
+                subghz_return_to_launcher(subghz);
             }
             return true;
         }

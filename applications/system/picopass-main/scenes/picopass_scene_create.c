@@ -1,7 +1,6 @@
 #include "../picopass_i.h"
 #include "../picopass_keys.h"
 #include "../picopass_wiegand.h"
-#include <dolphin/dolphin.h>
 #include <stdlib.h>
 #include <stdio.h>
 

@@ -21,8 +21,6 @@ static void desktop_settings_scene_wallpaper_setup_save(DesktopSettingsApp* app)
         strlcpy(app->settings.wallpaper_filename, filename, sizeof(app->settings.wallpaper_filename));
         app->settings.wallpaper_enabled = enabled ? 1 : 0;
     }
-    // No valid files found - leave the previously saved selection untouched
-    // rather than clobbering it with an empty filename.
 
     desktop_settings_save(&app->settings);
 }

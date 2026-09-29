@@ -70,7 +70,7 @@ PulseReader* pulse_reader_alloc(const GpioPin* gpio, uint32_t size) {
     signal->dma_config_timer.MemoryOrM2MDstDataSize = LL_DMA_MDATAALIGN_WORD;
     signal->dma_config_timer.Mode = LL_DMA_MODE_CIRCULAR;
     signal->dma_config_timer.PeriphRequest =
-        LL_DMAMUX_REQ_GENERATOR0; /* executes LL_DMA_SetPeriphRequest */
+        LL_DMAMUX_REQ_GENERATOR0;
     signal->dma_config_timer.Priority = LL_DMA_PRIORITY_VERYHIGH;
 
     signal->dma_config_gpio.Direction = LL_DMA_DIRECTION_PERIPH_TO_MEMORY;
@@ -80,7 +80,7 @@ PulseReader* pulse_reader_alloc(const GpioPin* gpio, uint32_t size) {
     signal->dma_config_gpio.MemoryOrM2MDstDataSize = LL_DMA_MDATAALIGN_WORD;
     signal->dma_config_gpio.Mode = LL_DMA_MODE_CIRCULAR;
     signal->dma_config_gpio.PeriphRequest =
-        LL_DMAMUX_REQ_GENERATOR0; /* executes LL_DMA_SetPeriphRequest */
+        LL_DMAMUX_REQ_GENERATOR0;
     signal->dma_config_gpio.Priority = LL_DMA_PRIORITY_VERYHIGH;
 
     return signal;
@@ -139,7 +139,7 @@ void pulse_reader_stop(PulseReader* signal) {
 }
 
 void pulse_reader_start(PulseReader* signal) {
-    /* configure DMA to read from a timer peripheral */
+
     signal->dma_config_timer.NbData = signal->size;
 
     signal->dma_config_gpio.PeriphOrM2MSrcAddress = (uint32_t) & (signal->gpio->port->IDR);
@@ -148,7 +148,6 @@ void pulse_reader_start(PulseReader* signal) {
 
     furi_hal_bus_enable(FuriHalBusTIM2);
 
-    /* start counter */
     LL_TIM_SetCounterMode(TIM2, LL_TIM_COUNTERMODE_UP);
     LL_TIM_SetClockDivision(TIM2, LL_TIM_CLOCKDIVISION_DIV1);
     LL_TIM_SetPrescaler(TIM2, 0);
@@ -156,25 +155,21 @@ void pulse_reader_start(PulseReader* signal) {
     LL_TIM_SetCounter(TIM2, 0);
     LL_TIM_EnableCounter(TIM2);
 
-    /* generator 0 gets fed by EXTI_LINEn */
     LL_DMAMUX_SetRequestSignalID(
         NULL, LL_DMAMUX_REQ_GEN_0, GET_DMAMUX_EXTI_LINE(signal->gpio->pin));
-    /* trigger on rising edge of the interrupt */
+
     LL_DMAMUX_SetRequestGenPolarity(NULL, LL_DMAMUX_REQ_GEN_0, LL_DMAMUX_REQ_GEN_POL_RISING);
-    /* now enable request generation again */
+
     LL_DMAMUX_EnableRequestGen(NULL, LL_DMAMUX_REQ_GEN_0);
 
-    /* we need the EXTI to be configured as interrupt generating line, but no ISR registered */
     furi_hal_gpio_init_ex(
         signal->gpio, GpioModeInterruptRiseFall, signal->pull, GpioSpeedVeryHigh, GpioAltFnUnused);
 
-    /* capture current timer */
     signal->pos = 0;
     signal->timer_value = TIM2->CNT;
     signal->gpio_mask = signal->gpio->pin;
     signal->gpio_value = signal->gpio->port->IDR & signal->gpio_mask;
 
-    /* now set up DMA with these settings */
     LL_DMA_Init(DMA1, signal->dma_channel, &signal->dma_config_timer);
     LL_DMA_Init(DMA1, signal->dma_channel + 1, &signal->dma_config_gpio);
     LL_DMA_EnableChannel(DMA1, signal->dma_channel);
@@ -186,18 +181,16 @@ uint32_t pulse_reader_receive(PulseReader* signal, int timeout_us) {
     uint32_t timeout_ticks = timeout_us * (F_TIM2 / 1000000);
 
     do {
-        /* get the DMA's next write position by reading "remaining length" register */
+
         uint32_t dma_pos =
             signal->size - (uint32_t)LL_DMA_GetDataLength(DMA1, signal->dma_channel);
 
-        /* the DMA has advanced in the ringbuffer */
         if(dma_pos != signal->pos) {
             uint32_t delta = signal->timer_buffer[signal->pos] - signal->timer_value;
             uint32_t last_gpio_value = signal->gpio_value;
 
             signal->gpio_value = signal->gpio_buffer[signal->pos];
 
-            /* check if the GPIO really toggled. if not, we lost an edge :( */
             if(((last_gpio_value ^ signal->gpio_value) & signal->gpio_mask) != signal->gpio_mask) {
                 signal->gpio_value ^= signal->gpio_mask;
                 return PULSE_READER_LOST_EDGE;
@@ -209,7 +202,6 @@ uint32_t pulse_reader_receive(PulseReader* signal, int timeout_us) {
 
             uint32_t delta_unit = 0;
 
-            /* probably larger values, so choose a wider data type */
             if(signal->unit_divider > 1) {
                 delta_unit = (uint32_t)((uint64_t)delta * (uint64_t)signal->unit_multiplier /
                                         signal->unit_divider);
@@ -217,7 +209,6 @@ uint32_t pulse_reader_receive(PulseReader* signal, int timeout_us) {
                 delta_unit = delta * signal->unit_multiplier;
             }
 
-            /* if to be scaled to bit times, save a few instructions. should be faster */
             if(signal->bit_time > 1) {
                 return (delta_unit + signal->bit_time / 2) / signal->bit_time;
             }
@@ -225,7 +216,6 @@ uint32_t pulse_reader_receive(PulseReader* signal, int timeout_us) {
             return delta_unit;
         }
 
-        /* check for timeout */
         uint32_t elapsed = DWT->CYCCNT - start_time;
 
         if(elapsed > timeout_ticks) {

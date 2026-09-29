@@ -1,9 +1,3 @@
-/**
- * @file ibutton_worker_i.h
- * 
- * iButton worker, internal definitions 
- */
-
 #pragma once
 
 #include <core/thread.h>

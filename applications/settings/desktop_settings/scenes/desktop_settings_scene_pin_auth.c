@@ -6,13 +6,10 @@
 #include "../desktop_settings_custom_event.h"
 #include <desktop/desktop_settings.h>
 
-// FIXED: Removed the unexported kernel view header
-#include "../views/desktop_settings_view_numeric_pin.h" 
+#include "../views/desktop_settings_view_numeric_pin.h"
 #include "desktop_settings_scene.h"
 #include "desktop_settings_scene_i.h"
 
-// 2-byte encoding matching desktop_view_pin_input_rebuild_pin in the lock screen.
-// Each digit maps to two bytes (k1, k2) — must stay in sync with the lock screen.
 static const uint8_t pin_auth_k1[10] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2};
 static const uint8_t pin_auth_k2[10] = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1};
 
@@ -25,7 +22,6 @@ static void pin_auth_numeric_callback(bool success, void* context) {
         uint8_t digit_count = 0;
         desktop_settings_view_numeric_pin_get_pin(app->numeric_pin_view, digits, &digit_count);
 
-        // Encode digits → 2-byte pairs, matching the lock screen encoding exactly
         memset(&app->pincode_buffer, 0, sizeof(DesktopPinCode));
         app->pincode_buffer.length = 0;
         for(uint8_t i = 0; i < digit_count; i++) {
@@ -34,7 +30,6 @@ static void pin_auth_numeric_callback(bool success, void* context) {
             app->pincode_buffer.data[app->pincode_buffer.length++] = (char)pin_auth_k2[d];
         }
 
-        // Check if the input pin matches the system pin
         if(desktop_pin_code_check(&app->pincode_buffer)) {
             view_dispatcher_send_custom_event(
                 app->view_dispatcher, DesktopSettingsCustomEventPinsEqual);
@@ -43,7 +38,7 @@ static void pin_auth_numeric_callback(bool success, void* context) {
                 app->view_dispatcher, DesktopSettingsCustomEventPinsDifferent);
         }
     } else {
-        // Handle back/exit selection from the keyboard view matrix
+
         view_dispatcher_send_custom_event(app->view_dispatcher, DesktopSettingsCustomEventExit);
     }
 }
@@ -52,7 +47,6 @@ void desktop_settings_scene_pin_auth_on_enter(void* context) {
     furi_assert(desktop_pin_code_is_set());
     DesktopSettingsApp* app = context;
 
-    // FIXED: Point authentication execution flows strictly to our custom local view modules
     desktop_settings_view_numeric_pin_reset(app->numeric_pin_view);
     desktop_settings_view_numeric_pin_set_callback(
         app->numeric_pin_view, pin_auth_numeric_callback, app);
@@ -102,6 +96,6 @@ bool desktop_settings_scene_pin_auth_on_event(void* context, SceneManagerEvent e
 void desktop_settings_scene_pin_auth_on_exit(void* context) {
     furi_assert(context);
     DesktopSettingsApp* app = context;
-    // FIXED: Safely clean out the local numeric module references
+
     desktop_settings_view_numeric_pin_set_callback(app->numeric_pin_view, NULL, NULL);
 }

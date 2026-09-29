@@ -45,13 +45,12 @@ static bool ibutton_protocol_group_dallas_get_id_by_name(
     iButtonProtocolLocalId* id,
     const char* name) {
     UNUSED(group);
-    // Handle older key files which refer to DS1990 as just "Dallas"
+
     if(strcmp(name, "Dallas") == 0) {
         *id = iButtonProtocolDS1990;
         return true;
     }
 
-    // Handle files that refer to Dallas "Raw Data" as DSGeneric
     if(strcmp(name, "DSGeneric") == 0) {
         *id = iButtonProtocolDSGeneric;
         return true;
@@ -115,12 +114,9 @@ static bool ibutton_protocol_group_dallas_read(
     FURI_CRITICAL_ENTER();
 
     if(onewire_host_search(host, rom_data, OneWireHostSearchModeNormal)) {
-        /* Considering any found 1-Wire device a success.
-         * It can be checked later with ibutton_key_is_valid(). */
+
         success = true;
 
-        /* If a 1-Wire device was found, id is guaranteed to be
-         * one of the known keys or DSGeneric. */
         *id = ibutton_protocol_group_dallas_get_id_by_family_code(rom_data[0]);
         ibutton_protocols_dallas[*id]->read(host, data);
     }

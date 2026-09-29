@@ -64,7 +64,7 @@ void furi_hal_gpio_init(
     const GpioMode mode,
     const GpioPull pull,
     const GpioSpeed speed) {
-    // we cannot set alternate mode in this function
+
     furi_assert(mode != GpioModeAltFunctionPushPull);
     furi_assert(mode != GpioModeAltFunctionOpenDrain);
 
@@ -83,10 +83,8 @@ void furi_hal_gpio_init_ex(
     const uint32_t pwr_port = GET_PWR_PORT(gpio->port);
     const uint32_t pwr_pin = GET_PWR_PIN(gpio->pin);
 
-    // Configure gpio with interrupts disabled
     FURI_CRITICAL_ENTER();
 
-    // Set gpio speed
     switch(speed) {
     case GpioSpeedLow:
         LL_GPIO_SetPinSpeed(gpio->port, gpio->pin, LL_GPIO_SPEED_FREQ_LOW);
@@ -102,7 +100,6 @@ void furi_hal_gpio_init_ex(
         break;
     }
 
-    // Set gpio pull mode
     switch(pull) {
     case GpioPullNo:
         LL_GPIO_SetPinPull(gpio->port, gpio->pin, LL_GPIO_PULL_NO);
@@ -123,9 +120,8 @@ void furi_hal_gpio_init_ex(
         furi_crash("Incorrect GpioPull");
     }
 
-    // Set gpio mode
     if(mode >= GpioModeInterruptRise) {
-        // Set pin in interrupt mode
+
         LL_GPIO_SetPinMode(gpio->port, gpio->pin, LL_GPIO_MODE_INPUT);
         LL_SYSCFG_SetEXTISource(sys_exti_port, sys_exti_line);
         if(mode == GpioModeInterruptRise || mode == GpioModeInterruptRiseFall) {
@@ -143,7 +139,7 @@ void furi_hal_gpio_init_ex(
             LL_EXTI_EnableFallingTrig_0_31(exti_line);
         }
     } else {
-        // Disable interrupts if set
+
         if(LL_SYSCFG_GetEXTISource(sys_exti_line) == sys_exti_port &&
            LL_EXTI_IsEnabledIT_0_31(exti_line)) {
             LL_EXTI_DisableIT_0_31(exti_line);
@@ -152,9 +148,8 @@ void furi_hal_gpio_init_ex(
             LL_EXTI_DisableFallingTrig_0_31(exti_line);
         }
 
-        // Prepare alternative part if any
         if(mode == GpioModeAltFunctionPushPull || mode == GpioModeAltFunctionOpenDrain) {
-            // set alternate function
+
             if(furi_hal_gpio_get_pin_num(gpio) < 8) {
                 LL_GPIO_SetAFPin_0_7(gpio->port, gpio->pin, alt_fn);
             } else {
@@ -162,7 +157,6 @@ void furi_hal_gpio_init_ex(
             }
         }
 
-        // Set not interrupt pin modes
         switch(mode) {
         case GpioModeInput:
             LL_GPIO_SetPinMode(gpio->port, gpio->pin, LL_GPIO_MODE_INPUT);
@@ -255,7 +249,6 @@ FURI_ALWAYS_INLINE static void furi_hal_gpio_int_call(uint16_t pin_num) {
     }
 }
 
-/* Interrupt handlers */
 void EXTI0_IRQHandler(void) {
     if(LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_0)) {
         LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_0);

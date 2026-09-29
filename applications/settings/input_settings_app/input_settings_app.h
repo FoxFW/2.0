@@ -11,7 +11,6 @@
 #include <furi_hal_vibro.h>
 #include <storage/storage.h>
 
-// input_settings_app stucture
 typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
@@ -19,7 +18,6 @@ typedef struct {
     InputSettings* settings;
 } InputSettingsApp;
 
-// list of menu views for view dispatcher
 typedef enum {
     InputSettingsViewVariableItemList,
 } InputSettingsView;

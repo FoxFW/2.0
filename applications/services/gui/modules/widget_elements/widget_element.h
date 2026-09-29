@@ -1,8 +1,3 @@
-/**
- * @file widget_element_i.h
- * GUI: internal Widget Element API
- */
-
 #pragma once
 
 #include <input/input.h>

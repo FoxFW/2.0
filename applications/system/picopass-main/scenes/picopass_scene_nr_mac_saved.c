@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 
 void picopass_scene_nr_mac_saved_popup_callback(void* context) {
     Picopass* picopass = context;
@@ -8,7 +7,6 @@ void picopass_scene_nr_mac_saved_popup_callback(void* context) {
 
 void picopass_scene_nr_mac_saved_on_enter(void* context) {
     Picopass* picopass = context;
-    dolphin_deed(DolphinDeedNfcSave);
 
     // Setup view
     Popup* popup = picopass->popup;

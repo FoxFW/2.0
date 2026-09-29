@@ -19,12 +19,6 @@ struct SubGhzWorker {
     void* context;
 };
 
-/** Rx callback timer
- * 
- * @param level received signal level
- * @param duration received signal duration
- * @param context 
- */
 void subghz_worker_rx_callback(bool level, uint32_t duration, void* context) {
     SubGhzWorker* instance = context;
 
@@ -38,11 +32,6 @@ void subghz_worker_rx_callback(bool level, uint32_t duration, void* context) {
     if(sizeof(LevelDuration) != ret) instance->overrun = true;
 }
 
-/** Worker callback thread
- * 
- * @param context 
- * @return exit code 
- */
 static int32_t subghz_worker_thread_callback(void* context) {
     SubGhzWorker* instance = context;
 
@@ -88,7 +77,6 @@ SubGhzWorker* subghz_worker_alloc(void) {
     instance->stream =
         furi_stream_buffer_alloc(sizeof(LevelDuration) * 4096, sizeof(LevelDuration));
 
-    //setting default filter in us
     instance->filter_duration = 30;
 
     return instance;
@@ -97,10 +85,12 @@ SubGhzWorker* subghz_worker_alloc(void) {
 void subghz_worker_free(SubGhzWorker* instance) {
     furi_check(instance);
 
+    furi_kernel_lock();
     furi_stream_buffer_free(instance->stream);
     furi_thread_free(instance->thread);
 
     free(instance);
+    furi_kernel_unlock();
 }
 
 void subghz_worker_set_overrun_callback(

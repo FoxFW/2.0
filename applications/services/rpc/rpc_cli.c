@@ -4,6 +4,8 @@
 #include <rpc/rpc.h>
 #include <furi_hal.h>
 #include <toolbox/pipe.h>
+#include <furi/core/memmgr.h>
+#include <toolbox/heap_alloc_guard.h>
 
 #define TAG "RpcCli"
 
@@ -43,12 +45,17 @@ void rpc_cli_command_start_session(PipeSide* pipe, FuriString* args, void* conte
     furi_assert(context);
     Rpc* rpc = context;
 
+
     uint32_t mem_before = memmgr_get_free_heap();
     FURI_LOG_D(TAG, "Free memory %lu", mem_before);
 
     furi_hal_usb_lock();
+
+    rpc_wait_for_subsystems_ready();
+    heap_alloc_guard_lock();
     RpcSession* rpc_session = rpc_session_open(rpc, RpcOwnerUsb);
     if(rpc_session == NULL) {
+        heap_alloc_guard_unlock();
         printf("Session start error\r\n");
         furi_hal_usb_unlock();
         return;
@@ -62,6 +69,8 @@ void rpc_cli_command_start_session(PipeSide* pipe, FuriString* args, void* conte
     rpc_session_set_terminated_callback(rpc_session, rpc_cli_session_terminated_callback);
 
     uint8_t* buffer = malloc(CLI_READ_BUFFER_SIZE);
+    heap_alloc_guard_unlock();
+
     size_t size_received = 0;
 
     while(1) {
@@ -83,8 +92,12 @@ void rpc_cli_command_start_session(PipeSide* pipe, FuriString* args, void* conte
     furi_check(
         furi_semaphore_acquire(cli_rpc.terminate_semaphore, FuriWaitForever) == FuriStatusOk);
 
+    heap_alloc_guard_lock();
+    furi_kernel_lock();
     furi_semaphore_free(cli_rpc.terminate_semaphore);
-
     free(buffer);
+    furi_kernel_unlock();
+    heap_alloc_guard_unlock();
+
     furi_hal_usb_unlock();
 }

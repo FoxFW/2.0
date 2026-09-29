@@ -4,6 +4,7 @@
 #include "../blocks/encoder.h"
 #include "../blocks/generic.h"
 #include "../blocks/math.h"
+#include "../blocks/custom_btn_i.h"
 #include <string.h>
 
 #define TAG "HondaV2"
@@ -728,6 +729,30 @@ void subghz_protocol_decoder_honda_v2_get_string(void* context, FuriString* outp
     furi_check(context);
     SubGhzProtocolDecoderHondaV2* instance = context;
 
+    subghz_custom_btn_set_max(4);
+    uint8_t display_btn = instance->button;
+    switch(subghz_custom_btn_get()) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        display_btn = HONDA_V2_BTN_LOCK;
+        break;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        display_btn = HONDA_V2_BTN_UNLOCK;
+        break;
+    case SUBGHZ_CUSTOM_BTN_OK:
+    default:
+        break;
+    }
+
+    uint64_t display_key = instance->key;
+    if(display_btn != instance->button) {
+        uint32_t sig = honda_v2_signature_from_button(display_btn);
+        if(sig != 0U) {
+            display_key = honda_v2_build_key(sig, instance->serial, instance->count);
+        } else {
+            display_btn = instance->button;
+        }
+    }
+
     furi_string_cat_printf(
         output,
         "%s %dbit\r\n"
@@ -737,10 +762,10 @@ void subghz_protocol_decoder_honda_v2_get_string(void* context, FuriString* outp
         "Cnt:%05lX  Chk:%02X [%s]  Tail:%05lX [%s]\r\n",
         instance->generic.protocol_name,
         instance->generic.data_count_bit,
-        (unsigned long long)instance->key,
+        (unsigned long long)display_key,
         (unsigned long)instance->serial,
-        instance->button,
-        honda_v2_button_name(instance->button),
+        display_btn,
+        honda_v2_button_name(display_btn),
         (unsigned long)instance->command_signature,
         (unsigned long)instance->count,
         instance->check,
@@ -841,6 +866,12 @@ SubGhzProtocolStatus subghz_protocol_encoder_honda_v2_deserialize(
         flipper_format_rewind(flipper_format);
         if(flipper_format_read_uint32(flipper_format, "Cnt", &u32, 1)) {
             instance->count = u32 & 0x1FFU;
+        }
+
+        {
+            uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
+            if(mult == 0U) mult = 1U;
+            instance->count = (instance->count + mult) & 0x1FFU;
         }
 
         flipper_format_rewind(flipper_format);

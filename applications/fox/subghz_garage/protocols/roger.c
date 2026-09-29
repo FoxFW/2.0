@@ -218,7 +218,7 @@ static void subghz_protocol_encoder_roger_get_upload(SubGhzProtocolEncoderRoger*
     instance->encoder.size_upload = index;
     return;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static void subghz_protocol_roger_check_remote_controller(SubGhzBlockGeneric* instance) {
     instance->serial = instance->data >> 12;
@@ -288,7 +288,7 @@ LevelDuration subghz_protocol_encoder_roger_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_roger_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

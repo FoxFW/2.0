@@ -13,22 +13,21 @@ bool furi_kernel_is_irq_or_masked(void) {
     BaseType_t state;
 
     if(FURI_IS_IRQ_MODE()) {
-        /* Called from interrupt context */
+
         irq = true;
     } else {
-        /* Get FreeRTOS scheduler state */
+
         state = xTaskGetSchedulerState();
 
         if(state != taskSCHEDULER_NOT_STARTED) {
-            /* Scheduler was started */
+
             if(FURI_IS_IRQ_MASKED()) {
-                /* Interrupts are masked */
+
                 irq = true;
             }
         }
     }
 
-    /* Return context, 0: thread context, 1: IRQ context */
     return irq;
 }
 
@@ -57,7 +56,6 @@ int32_t furi_kernel_lock(void) {
         break;
     }
 
-    /* Return previous lock state */
     return lock;
 }
 
@@ -87,7 +85,6 @@ int32_t furi_kernel_unlock(void) {
         break;
     }
 
-    /* Return previous lock state */
     return lock;
 }
 
@@ -118,12 +115,11 @@ int32_t furi_kernel_restore_lock(int32_t lock) {
         break;
     }
 
-    /* Return new lock state */
     return lock;
 }
 
 uint32_t furi_kernel_get_tick_frequency(void) {
-    /* Return frequency in hertz */
+
     return configTICK_RATE_HZ_RAW;
 }
 
@@ -148,21 +144,18 @@ FuriStatus furi_delay_until_tick(uint32_t tick) {
     stat = FuriStatusOk;
     tcnt = xTaskGetTickCount();
 
-    /* Determine remaining number of tick to delay */
     delay = (TickType_t)tick - tcnt;
 
-    /* Check if target tick has not expired */
     if((delay != 0U) && (0 == (delay >> (8 * sizeof(TickType_t) - 1)))) {
         if(xTaskDelayUntil(&tcnt, delay) == pdFALSE) {
-            /* Did not delay */
+
             stat = FuriStatusError;
         }
     } else {
-        /* No delay or already expired */
+
         stat = FuriStatusErrorParameter;
     }
 
-    /* Return execution status */
     return stat;
 }
 

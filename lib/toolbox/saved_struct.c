@@ -26,7 +26,6 @@ bool saved_struct_save(
 
     FURI_LOG_I(TAG, "Saving \"%s\"", path);
 
-    // Store
     Storage* storage = furi_record_open(RECORD_STORAGE);
     File* file = storage_file_alloc(storage);
     bool result = true;
@@ -38,13 +37,13 @@ bool saved_struct_save(
     }
 
     if(result) {
-        // Calculate checksum
+
         uint8_t checksum = 0;
         const uint8_t* source = data;
         for(size_t i = 0; i < size; i++) {
             checksum += source[i];
         }
-        // Set header
+
         header.magic = magic;
         header.version = version;
         header.checksum = checksum;

@@ -63,7 +63,7 @@ static Iso15693_3Error iso15693_3_listener_inventory_handler(
 
         if(afi_flag) {
             const uint8_t afi = *data++;
-            // When AFI flag is set, ignore non-matching requests
+
             if(afi != 0) {
                 if(afi != instance->data->system_info.afi) break;
             }
@@ -78,14 +78,14 @@ static Iso15693_3Error iso15693_3_listener_inventory_handler(
         }
 
         if(mask_len != 0) {
-            // TODO FL-3633: Take mask_len and mask_value into account (if present)
+
         }
 
         error = iso15693_3_listener_extension_handler(instance, ISO15693_3_CMD_INVENTORY);
         if(error != Iso15693_3ErrorNone) break;
 
-        bit_buffer_append_byte(instance->tx_buffer, instance->data->system_info.dsfid); // DSFID
-        iso15693_3_append_uid(instance->data, instance->tx_buffer); // UID
+        bit_buffer_append_byte(instance->tx_buffer, instance->data->system_info.dsfid);
+        iso15693_3_append_uid(instance->data, instance->tx_buffer);
     } while(false);
 
     return error;
@@ -138,10 +138,10 @@ static Iso15693_3Error iso15693_3_listener_read_block_handler(
 
         if(flags & ISO15693_3_REQ_FLAG_T4_OPTION) {
             iso15693_3_append_block_security(
-                instance->data, block_index, instance->tx_buffer); // Block security (optional)
+                instance->data, block_index, instance->tx_buffer);
         }
 
-        iso15693_3_append_block(instance->data, block_index, instance->tx_buffer); // Block data
+        iso15693_3_append_block(instance->data, block_index, instance->tx_buffer);
     } while(false);
 
     return error;
@@ -278,11 +278,10 @@ static Iso15693_3Error iso15693_3_listener_read_multi_blocks_handler(
         const uint8_t bytes_per_block =
             (include_block_security ? 1 : 0) + instance->data->system_info.block_size;
         const uint32_t response_data_max =
-            bit_buffer_get_capacity_bytes(instance->tx_buffer) - 1 - 2; // Flags and CRC
+            bit_buffer_get_capacity_bytes(instance->tx_buffer) - 1 - 2;
         const uint32_t response_blocks_max = response_data_max / bytes_per_block;
         if(block_count > response_blocks_max) {
-            // Tested on SLIX2, if asked for more blocks than supported at once there is no reply
-            // Let's do the same
+
             error = Iso15693_3ErrorIgnore;
             break;
         }
@@ -290,9 +289,9 @@ static Iso15693_3Error iso15693_3_listener_read_multi_blocks_handler(
         for(uint32_t i = block_index_start; i <= block_index_end; ++i) {
             if(include_block_security) {
                 iso15693_3_append_block_security(
-                    instance->data, i, instance->tx_buffer); // Block security (optional)
+                    instance->data, i, instance->tx_buffer);
             }
-            iso15693_3_append_block(instance->data, i, instance->tx_buffer); // Block data
+            iso15693_3_append_block(instance->data, i, instance->tx_buffer);
         }
     } while(false);
 
@@ -538,9 +537,9 @@ static Iso15693_3Error iso15693_3_listener_get_system_info_handler(
 
     do {
         const uint8_t system_flags = instance->data->system_info.flags;
-        bit_buffer_append_byte(instance->tx_buffer, system_flags); // System info flags
+        bit_buffer_append_byte(instance->tx_buffer, system_flags);
 
-        iso15693_3_append_uid(instance->data, instance->tx_buffer); // UID
+        iso15693_3_append_uid(instance->data, instance->tx_buffer);
 
         if(system_flags & ISO15693_3_SYSINFO_FLAG_DSFID) {
             bit_buffer_append_byte(instance->tx_buffer, instance->data->system_info.dsfid);
@@ -657,12 +656,10 @@ static Iso15693_3Error iso15693_3_listener_handle_standard_request(
 
         error = handler(instance, data, data_size, flags);
 
-        // The request was fully handled in the protocol extension, no further action necessary
         if(error == Iso15693_3ErrorFullyHandled) {
             error = Iso15693_3ErrorNone;
         }
 
-        // Several commands may not require an answer
         if(error == Iso15693_3ErrorFormat || error == Iso15693_3ErrorIgnore) break;
 
         if(error != Iso15693_3ErrorNone) {
@@ -706,7 +703,6 @@ static inline Iso15693_3Error iso15693_3_listener_handle_custom_request(
             break;
         }
 
-        // This error code will trigger the CustomCommand listener event
         error = Iso15693_3ErrorNotSupported;
     } while(false);
 
@@ -786,24 +782,24 @@ Iso15693_3Error
             session_state->addressed = request->flags & ISO15693_3_REQ_FLAG_T4_ADDRESSED;
 
             if(session_state->selected && session_state->addressed) {
-                // A request mode can be either addressed or selected, but not both
+
                 error = Iso15693_3ErrorUnknown;
                 break;
             } else if(instance->state == Iso15693_3ListenerStateQuiet) {
-                // If the card is quiet, ignore non-addressed commands
+
                 if(session_state->addressed) {
                     error = Iso15693_3ErrorIgnore;
                     break;
                 }
             } else if(instance->state != Iso15693_3ListenerStateSelected) {
-                // If the card is not selected, ignore selected commands
+
                 if(session_state->selected) {
                     error = Iso15693_3ErrorIgnore;
                     break;
                 }
             }
         } else {
-            // If the card is quiet, ignore inventory commands
+
             if(instance->state == Iso15693_3ListenerStateQuiet) {
                 error = Iso15693_3ErrorIgnore;
                 break;
@@ -814,7 +810,7 @@ Iso15693_3Error
         }
 
         if(request->command >= ISO15693_3_CMD_CUSTOM_START) {
-            // Custom commands are properly handled in the protocol-specific top-level poller
+
             error = iso15693_3_listener_handle_custom_request(
                 instance, request->data, buf_size - buf_size_min);
             break;
@@ -824,7 +820,7 @@ Iso15693_3Error
         size_t data_size;
 
         if(session_state->addressed) {
-            // In addressed mode, UID must be included in each command
+
             const size_t buf_size_min_addr = buf_size_min + ISO15693_3_UID_SIZE;
 
             if(buf_size < buf_size_min_addr) {
@@ -873,7 +869,6 @@ Iso15693_3Error iso15693_3_listener_process_uid_mismatch(
     const BitBuffer* rx_buffer) {
     Iso15693_3Error error = Iso15693_3ErrorNone;
 
-    // No checks, assuming they have been made beforehand
     typedef struct {
         uint8_t flags;
         uint8_t command;

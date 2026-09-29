@@ -31,8 +31,7 @@ static bool mykey_get_production_date(
     uint8_t year = date_block >> 16 & 0xFF;
     uint8_t month = date_block >> 8 & 0xFF;
     uint8_t day = date_block & 0xFF;
-    // dates are coded in a peculiar way, the hexadecimal value should in fact be interpreted as a decimal value
-    // so anything in range A-F is invalid.
+
     if(day > 0x31 || month > 0x12 || day == 0 || month == 0 || year == 0) {
         return false;
     }
@@ -79,7 +78,7 @@ static bool mykey_parse(const NfcDevice* device, FuriString* parsed_data) {
 
     furi_string_cat(parsed_data, "\e#MyKey\n");
 
-    if(data->blocks[6] == 0) { // Tag is actually a MyKey but it has been bricked by a reader
+    if(data->blocks[6] == 0) {
         furi_string_cat(parsed_data, "\e#Bricked!\nBlock 6 is 0!");
         return true;
     }
@@ -102,7 +101,7 @@ static bool mykey_parse(const NfcDevice* device, FuriString* parsed_data) {
             block3C ^= data->blocks[0x07];
             uint32_t startingOffset = ((block3C & 0x30000000) >> 28) |
                                       ((block3C & 0x00100000) >> 18);
-            furi_check(startingOffset < 8); //-V547
+            furi_check(startingOffset < 8);
             for(int txnOffset = 8; txnOffset > 0; txnOffset--) {
                 uint32_t txnBlock =
                     __bswap32(data->blocks[0x34 + ((startingOffset + txnOffset) % 8)]);
@@ -136,7 +135,6 @@ static bool mykey_parse(const NfcDevice* device, FuriString* parsed_data) {
     return true;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin mykey_plugin = {
     .protocol = NfcProtocolSt25tb,
     .verify = NULL,
@@ -144,14 +142,12 @@ static const NfcSupportedCardsPlugin mykey_plugin = {
     .parse = mykey_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor mykey_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &mykey_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* mykey_plugin_ep(void) {
     return &mykey_plugin_descriptor;
 }

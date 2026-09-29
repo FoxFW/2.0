@@ -5,16 +5,15 @@
 #include <stdbool.h>
 #include <storage/storage.h>
 #include <lib/subghz/types.h>
+#include "helpers/subghz_garage_protocol_names.h"
 
 #define SUBGHZ_LAST_SETTING_FREQUENCY_ANALYZER_TRIGGER        (-93.0f)
-// 1 = "AM650"
-// "AM270", "AM650", "FM238", "FM12K", "FM476",
+
 #define SUBGHZ_LAST_SETTING_DEFAULT_PRESET                    1
 #define SUBGHZ_LAST_SETTING_DEFAULT_FREQUENCY                 433920000
 #define SUBGHZ_LAST_SETTING_FREQUENCY_ANALYZER_FEEDBACK_LEVEL 2
 #define SUBGHZ_LAST_SETTING_DEFAULT_PRESET_HOPPING_THRESHOLD  (-80.0f)
 
-/* 0 = Oscilloscope/Classic, 1 = Waterfall */
 #define SUBGHZ_LAST_SETTING_DEFAULT_VISUALIZER_MODE          0u
 #define SUBGHZ_LAST_SETTING_DEFAULT_RAW_ZOOM_LEVEL           0u
 
@@ -28,37 +27,30 @@ typedef struct {
     uint32_t ignore_filter;
     uint32_t filter;
     float rssi;
+
+    bool rssi_force_applied;
     bool delete_old_signals;
+    bool auto_save;
     float hopping_threshold;
     bool enable_preset_hopping;
     float preset_hopping_threshold;
     bool leds_and_amp;
     uint8_t  tx_power;
-    uint32_t visualizer_display_mode; /**< 0=Bar 1=Line */
-    uint32_t raw_playback_zoom_level;  /**< 0=full file, higher=narrower window; persists across files */
-    /* ── Consolidated filter state ─────────────────────────────────────────
-     * protocol_filter_data and mod_filter_data mirror the runtime filter
-     * objects and are written/read as part of last_subghz.settings.
-     * Eliminates protocol_filter.save and modulation_filter.save. */
-    uint8_t protocol_filter_data[256]; /* 1 byte per protocol: 0=off 1=on */
-    uint8_t mod_filter_data[64];       /* 1 byte per preset:   0=off 1=on */
-    bool    protocol_filter_present;   /* true if loaded from file */
-    bool    mod_filter_present;        /* true if loaded from file */
-    bool    bypass_region_lock;   /* mirrors furi_hal_subghz's dangerous_frequency_i flag */
-    char    file_prefix[12];      /* prepended to auto-generated .sub filenames when non-empty */
-    /* Automotive has no protocol groups of its own and no longer has a
-     * Radio Settings control for this - kept only so saving other settings
-     * from Automotive round-trips the value Garage's own Protocol Group
-     * screen wrote to the shared last_subghz.settings file, instead of
-     * clobbering it. Value/range meaning is Garage's
-     * SubGhzGarageProtocolGroup - see
-     * applications/fox/subghz_garage/protocols/protocol_groups.h. */
+    uint32_t visualizer_display_mode;
+    uint32_t raw_playback_zoom_level;
+
+    uint8_t protocol_filter_data[256];
+    uint8_t mod_filter_data[64];
+    bool    protocol_filter_present;
+    bool    mod_filter_present;
+    bool    bypass_region_lock;
+    char    file_prefix[12];
+
     uint32_t protocol_group;
-    int32_t  frequency_offset; /**< Hz, crystal calibration offset applied to RX/TX frequency */
+    uint8_t  protocol_groups_enabled[SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT];
+    int32_t  frequency_offset;
 } SubGhzLastSettings;
 
-/* Copy raw filter arrays in/out of the filter objects.
- * Called by subghz.c before save and after load. */
 void subghz_last_settings_set_protocol_filter(SubGhzLastSettings* s,
                                                const uint8_t* data, size_t count);
 void subghz_last_settings_set_mod_filter(SubGhzLastSettings* s,

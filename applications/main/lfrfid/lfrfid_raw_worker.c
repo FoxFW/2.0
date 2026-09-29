@@ -1,4 +1,5 @@
 #include <furi_hal_rfid.h>
+#include <core/kernel.h>
 #include <toolbox/stream/file_stream.h>
 #include "tools/buffer_stream.h"
 #include <toolbox/varint.h>
@@ -12,7 +13,6 @@
 
 #define TAG_EMULATE "RawEmulate"
 
-// emulate mode
 typedef struct {
     size_t overrun_count;
     FuriStreamBuffer* stream;
@@ -29,7 +29,6 @@ typedef enum {
     TransferComplete,
 } LFRFIDRawEmulateDMAEvent;
 
-// read mode
 #define READ_TEMP_DATA_SIZE 10
 
 typedef struct {
@@ -37,7 +36,6 @@ typedef struct {
     VarintPair* pair;
 } LFRFIDRawWorkerReadData;
 
-// main worker
 struct LFRFIDRawWorker {
     FuriString* file_path;
     FuriThread* thread;
@@ -71,11 +69,13 @@ LFRFIDRawWorker* lfrfid_raw_worker_alloc(void) {
 void lfrfid_raw_worker_free(LFRFIDRawWorker* worker) {
     furi_check(worker);
 
+    furi_kernel_lock();
     furi_thread_free(worker->thread);
     furi_event_flag_free(worker->events);
     furi_string_free(worker->file_path);
 
     free(worker);
+    furi_kernel_unlock();
 }
 
 void lfrfid_raw_worker_start_read(
@@ -153,19 +153,17 @@ static int32_t lfrfid_raw_read_worker_thread(void* thread_context) {
     data->pair = varint_pair_alloc();
 
     if(file_valid) {
-        // write header
+
         file_valid = lfrfid_raw_file_write_header(
             file, worker->frequency, worker->duty_cycle, RFID_DATA_BUFFER_SIZE);
     }
 
     if(file_valid) {
-        // setup carrier
+
         furi_hal_rfid_tim_read_start(worker->frequency, worker->duty_cycle);
 
-        // stabilize detector
         furi_delay_ms(1500);
 
-        // start capture
         furi_hal_rfid_tim_read_capture_start(lfrfid_raw_worker_capture, data);
 
         while(1) {
@@ -179,7 +177,7 @@ static int32_t lfrfid_raw_read_worker_thread(void* thread_context) {
 
             if(!file_valid) {
                 if(worker->read_callback != NULL) {
-                    // message file_error to worker
+
                     worker->read_callback(LFRFIDWorkerReadRawFileError, worker->context);
                 }
                 break;
@@ -187,7 +185,7 @@ static int32_t lfrfid_raw_read_worker_thread(void* thread_context) {
 
             if(buffer_stream_get_overrun_count(data->stream) > 0 &&
                worker->read_callback != NULL) {
-                // message overrun to worker
+
                 worker->read_callback(LFRFIDWorkerReadRawOverrun, worker->context);
             }
 
@@ -201,7 +199,7 @@ static int32_t lfrfid_raw_read_worker_thread(void* thread_context) {
         furi_hal_rfid_tim_read_stop();
     } else {
         if(worker->read_callback != NULL) {
-            // message file_error to worker
+
             worker->read_callback(LFRFIDWorkerReadRawFileError, worker->context);
         }
     }
@@ -274,7 +272,7 @@ static int32_t lfrfid_raw_emulate_worker_thread(void* thread_context) {
         &data->ctx);
 
     if(!file_valid && worker->emulate_callback != NULL) {
-        // message file_error to worker
+
         worker->emulate_callback(LFRFIDWorkerEmulateRawFileError, worker->context);
     }
 
@@ -308,14 +306,14 @@ static int32_t lfrfid_raw_emulate_worker_thread(void* thread_context) {
 
             if(!file_valid) {
                 if(worker->emulate_callback != NULL) {
-                    // message file_error to worker
+
                     worker->emulate_callback(LFRFIDWorkerEmulateRawFileError, worker->context);
                 }
                 break;
             }
 
             if(data->ctx.overrun_count > 0 && worker->emulate_callback != NULL) {
-                // message overrun to worker
+
                 worker->emulate_callback(LFRFIDWorkerEmulateRawOverrun, worker->context);
             }
 

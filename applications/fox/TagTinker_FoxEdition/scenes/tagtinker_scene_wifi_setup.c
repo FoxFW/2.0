@@ -1,15 +1,3 @@
-/*
- * WiFi Setup
- * ==========
- *
- * Two-step text input: SSID first, then password. State machine lives in
- * the scene_state field of the scene manager so we can re-enter cleanly
- * after the text_input view returns.
- *
- *   state=0 -> prompt SSID
- *   state=1 -> prompt password
- *   state=2 -> sent, return to plugins scene
- */
 #include "../tagtinker_app.h"
 #include "../wifi/tagtinker_wifi.h"
 
@@ -25,7 +13,7 @@ static void text_done_cb(void* ctx) {
 static void prompt_ssid(TagTinkerApp* app) {
     text_input_reset(app->text_input);
     text_input_set_header_text(app->text_input, "WiFi SSID");
-    /* Reuse cached creds so re-entering doesn't blank the field. */
+
     strncpy(app->wifi_creds_ssid, app->wifi_ssid, sizeof(app->wifi_creds_ssid) - 1);
     app->wifi_creds_ssid[sizeof(app->wifi_creds_ssid) - 1] = 0;
     text_input_set_result_callback(
@@ -37,7 +25,7 @@ static void prompt_ssid(TagTinkerApp* app) {
 static void prompt_password(TagTinkerApp* app) {
     text_input_reset(app->text_input);
     text_input_set_header_text(app->text_input, "Password");
-    /* Don't pre-fill the password field for visual privacy. */
+
     app->wifi_creds_pwd[0] = 0;
     text_input_set_result_callback(
         app->text_input, text_done_cb, app,
@@ -62,12 +50,12 @@ bool tagtinker_scene_wifi_setup_on_event(void* ctx, SceneManagerEvent event) {
         prompt_password(app);
         return true;
     }
-    /* Both fields collected - send to ESP and pop back. */
+
     if(app->wifi) {
         tagtinker_wifi_set_creds((TagTinkerWifi*)app->wifi,
                                  app->wifi_creds_ssid, app->wifi_creds_pwd);
     }
-    /* Wipe the password from app memory once it's on the wire. */
+
     memset(app->wifi_creds_pwd, 0, sizeof(app->wifi_creds_pwd));
     scene_manager_previous_scene(app->scene_manager);
     return true;

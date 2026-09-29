@@ -131,8 +131,6 @@ bool slix_set_uid(SlixData* data, const uint8_t* uid, size_t uid_len);
 
 const Iso15693_3Data* slix_get_base_data(const SlixData* data);
 
-// Getters and tests
-
 SlixType slix_get_type(const SlixData* data);
 
 SlixPassword slix_get_password(const SlixData* data, SlixPasswordType password_type);
@@ -148,7 +146,6 @@ bool slix_is_block_protected(
 
 bool slix_is_counter_increment_protected(const SlixData* data);
 
-// Static methods
 bool slix_type_has_features(SlixType slix_type, SlixTypeFeatures features);
 
 bool slix_type_supports_password(SlixType slix_type, SlixPasswordType password_type);

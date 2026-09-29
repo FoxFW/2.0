@@ -2,19 +2,14 @@
 #include <loader/loader.h>
 #include <storage/storage.h>
 
-/* Forward declaration — defined in subghz_scene_start.c. Used here to
- * register the same blank transition cover for the Hitag2 Hell launch. */
 void subghz_blank_transition_draw_cb(Canvas* canvas, void* ctx);
 
-/* fap_category="Sub-GHz" in the manifest places the built .fap at
- * /ext/apps/Sub-GHz/<appid>.fap - see subghz_scene_start.c for why bare-appid
- * resolution doesn't work for external FAPs. */
 #define SUBGHZ_HITAG2_HELL_FAP_PATH EXT_PATH("apps/Sub-GHz/fox_hitag2_hell.fap")
 
 enum SubmenuIndex {
     SubmenuIndexRecover,
     SubmenuIndexManual,
-    SubmenuIndexHitag2Hell, /* launches the external Hitag2 Hell FAP */
+    SubmenuIndexHitag2Hell,
 };
 
 static void subghz_scene_fiat_v1_key_method_submenu_callback(void* context, uint32_t index) {
@@ -38,7 +33,6 @@ void subghz_scene_fiat_v1_key_method_on_enter(void* context) {
         subghz_scene_fiat_v1_key_method_submenu_callback,
         subghz);
 
-    /* Only show Hitag2 Hell if the external FAP is installed */
     {
         Storage* storage = furi_record_open(RECORD_STORAGE);
         bool has_hitag2_hell = storage_file_exists(storage, SUBGHZ_HITAG2_HELL_FAP_PATH);
@@ -78,7 +72,6 @@ bool subghz_scene_fiat_v1_key_method_on_event(void* context, SceneManagerEvent e
             scene_manager_set_scene_state(
                 subghz->scene_manager, SubGhzSceneFiatV1KeyMethod, SubmenuIndexHitag2Hell);
 
-            /* Blank transition cover (same pattern as analyzer/RAW Edit launches) */
             if(!subghz->blank_transition_viewport) {
                 subghz->blank_transition_viewport = view_port_alloc();
                 view_port_draw_callback_set(

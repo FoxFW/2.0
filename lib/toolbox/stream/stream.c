@@ -27,12 +27,11 @@ bool stream_seek(Stream* stream, int32_t offset, StreamOffset offset_type) {
 }
 
 static bool stream_seek_to_char_forward(Stream* stream, char c) {
-    // Search is starting from seconds character
+
     if(!stream_seek(stream, 1, StreamOffsetFromCurrent)) {
         return false;
     }
 
-    // Search character in a stream
     bool result = false;
     while(!result) {
         uint8_t buffer[STREAM_BUFFER_SIZE] = {0};
@@ -52,14 +51,13 @@ static bool stream_seek_to_char_forward(Stream* stream, char c) {
 static bool stream_seek_to_char_backward(Stream* stream, char c) {
     size_t anchor = stream_tell(stream);
 
-    // Special case, no previous characters
     if(anchor == 0) {
         return false;
     }
 
     bool result = false;
     while(!result) {
-        // Seek back
+
         uint8_t buffer[STREAM_BUFFER_SIZE] = {0};
         size_t to_read = STREAM_BUFFER_SIZE;
         if(to_read > anchor) {
@@ -96,7 +94,6 @@ bool stream_seek_to_char(Stream* stream, char c, StreamDirection direction) {
         result = stream_seek_to_char_backward(stream, c);
     }
 
-    // Rollback
     if(!result) {
         stream_seek(stream, old_position, StreamOffsetFromStart);
     }
@@ -133,8 +130,6 @@ bool stream_delete_and_insert(
     return stream->vtable->delete_and_insert(stream, delete_size, write_callback, ctx);
 }
 
-/********************************** Some random helpers starts here **********************************/
-
 typedef struct {
     const uint8_t* data;
     size_t size;
@@ -170,7 +165,7 @@ bool stream_read_line(Stream* stream, FuriString* str_result) {
                 result = true;
                 break;
             } else if(buffer[i] == '\r') {
-                // Ignore
+
             } else {
                 furi_string_push_back(str_result, buffer[i]);
             }
@@ -360,14 +355,12 @@ bool stream_split(Stream* stream, Stream* stream_left, Stream* stream_right) {
     size_t tell = stream_tell(stream);
 
     do {
-        // copy right
+
         if(stream_copy(stream, stream_right, size - tell) != (size - tell)) break;
 
-        // copy left
         if(!stream_rewind(stream)) break;
         if(stream_copy(stream, stream_left, tell) != tell) break;
 
-        // restore RW pointer
         if(!stream_seek(stream, tell, StreamOffsetFromStart)) break;
         result = true;
     } while(false);

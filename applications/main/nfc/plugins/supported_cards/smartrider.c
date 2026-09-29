@@ -185,7 +185,7 @@ static void calculate_date(uint32_t timestamp, char* date_str, size_t date_str_s
     }
 
     day = days_since_2000 + 1;
-    month++; // Adjust month to 1-based
+    month++;
 
     if(date_str_size > 0) {
         size_t written = 0;
@@ -203,7 +203,7 @@ static void calculate_date(uint32_t timestamp, char* date_str, size_t date_str_s
             snprintf(date_str + written, date_str_size - written, "%02u", year % 100);
         }
     } else {
-        // If the buffer size is 0, do nothing
+
     }
 }
 
@@ -261,7 +261,6 @@ static bool smartrider_parse(const NfcDevice* device, FuriString* parsed_data) {
         }
     }
 
-    // Sort trips by timestamp (descending order)
     for(uint8_t i = 0; i < sr_data.trip_count - 1; i++) {
         for(uint8_t j = 0; j < sr_data.trip_count - i - 1; j++) {
             if(sr_data.trips[j].timestamp < sr_data.trips[j + 1].timestamp) {
@@ -330,5 +329,3 @@ __attribute__((used)) const FlipperAppPluginDescriptor* smartrider_plugin_ep() {
     };
     return &plugin_descriptor;
 }
-
-// made with love by jay candel <3

@@ -8,12 +8,6 @@ static App* s_terminal_view_app = NULL;
 #define TERMINAL_BOTTOM_BAR_H 16
 #define TERMINAL_POLL_MAX_DRAIN 64
 
-/* Two separate focus-based boxes (filled = focused, outlined = not),
- * matching fox_lab/message_view.c's message_draw_two_buttons() reference -
- * this screen used to draw one continuous inverted bar with no focus
- * concept at all (not even two separate boxes), flagged as "the plainest
- * example" of Pattern A by the 2026-09-13 footer-button audit
- * (FOOTER_BUTTON_AUDIT.md project doc). See terminal_input_cb() below. */
 static void
     terminal_draw_two_buttons(Canvas* canvas, bool focus_left, const char* left_label) {
     int32_t bar_y = 64 - TERMINAL_BOTTOM_BAR_H;

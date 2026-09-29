@@ -27,7 +27,6 @@ static void draw_battery(Canvas* canvas, BatteryInfoModel* data, int x, int y) {
 
     int32_t current = 1000.0f * data->gauge_current;
 
-    // Draw battery
     canvas_draw_icon(canvas, x, y, &I_BatteryBody_52x28);
     if(current > 0) {
         canvas_draw_icon(canvas, x + 16, y + 7, &I_FaceCharging_29x14);
@@ -39,10 +38,8 @@ static void draw_battery(Canvas* canvas, BatteryInfoModel* data, int x, int y) {
         canvas_draw_icon(canvas, x + 16, y + 7, &I_FaceNormal_29x14);
     }
 
-    // Draw bubble
     elements_bubble(canvas, 53, 0, 71, 39);
 
-    // Set text
     if(current > 0) {
         snprintf(emote, sizeof(emote), "%s", "Yummy!");
         snprintf(header, sizeof(header), "%s", "Charging at");
@@ -54,7 +51,7 @@ static void draw_battery(Canvas* canvas, BatteryInfoModel* data, int x, int y) {
             (uint32_t)(data->vbus_voltage * 10) % 10,
             current);
     } else if(current < -5) {
-        // 0-5ma deadband
+
         snprintf(
             emote,
             sizeof(emote),
@@ -69,7 +66,7 @@ static void draw_battery(Canvas* canvas, BatteryInfoModel* data, int x, int y) {
             current < HIGH_DRAIN_CURRENT_THRESHOLD ? "mA!" : "mA");
     } else if(data->vbus_voltage > 0) {
         if(data->charge_voltage_limit < 4.2f) {
-            // Non-default battery charging limit, mention it
+
             snprintf(emote, sizeof(emote), "Charged!");
             snprintf(header, sizeof(header), "Limited to");
             snprintf(

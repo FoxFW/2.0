@@ -8,10 +8,8 @@
 extern "C" {
 #endif
 
-/** File system object */
 extern FATFS fatfs_object;
 
-/** Init file system driver */
 void fatfs_init(void);
 
 #ifdef __cplusplus

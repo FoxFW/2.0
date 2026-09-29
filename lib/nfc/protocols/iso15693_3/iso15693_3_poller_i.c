@@ -21,9 +21,7 @@ static Iso15693_3Error iso15693_3_poller_process_nfc_error(NfcError error) {
 
 static Iso15693_3Error iso15693_3_poller_filter_error(Iso15693_3Error error) {
     switch(error) {
-    /* If a particular optional command is not supported, the card might
-     * respond with a "Not supported" error or not respond at all.
-     * Therefore, treat these errors as non-critical ones. */
+
     case Iso15693_3ErrorNotSupported:
     case Iso15693_3ErrorTimeout:
         return Iso15693_3ErrorNone;
@@ -83,7 +81,6 @@ Iso15693_3Error iso15693_3_poller_activate(Iso15693_3Poller* instance, Iso15693_
     do {
         instance->state = Iso15693_3PollerStateColResInProgress;
 
-        // Inventory: Mandatory command
         ret = iso15693_3_poller_inventory(instance, data->uid);
         if(ret != Iso15693_3ErrorNone) {
             instance->state = Iso15693_3PollerStateColResFailed;
@@ -92,7 +89,6 @@ Iso15693_3Error iso15693_3_poller_activate(Iso15693_3Poller* instance, Iso15693_
 
         instance->state = Iso15693_3PollerStateActivated;
 
-        // Get system info: Optional command
         Iso15693_3SystemInfo* system_info = &data->system_info;
         ret = iso15693_3_poller_get_system_info(instance, system_info);
         if(ret != Iso15693_3ErrorNone) {
@@ -105,7 +101,6 @@ Iso15693_3Error iso15693_3_poller_activate(Iso15693_3Poller* instance, Iso15693_
                 data->block_data, system_info->block_count * system_info->block_size);
             simple_array_init(data->block_security, system_info->block_count);
 
-            // Read blocks: Optional command
             ret = iso15693_3_poller_read_blocks(
                 instance,
                 simple_array_get_data(data->block_data),
@@ -116,7 +111,6 @@ Iso15693_3Error iso15693_3_poller_activate(Iso15693_3Poller* instance, Iso15693_
                 break;
             }
 
-            // Get block security status: Optional command
             ret = iso15693_3_poller_get_blocks_security(
                 instance, simple_array_get_data(data->block_security), system_info->block_count);
             if(ret != Iso15693_3ErrorNone) {
@@ -137,7 +131,6 @@ Iso15693_3Error iso15693_3_poller_inventory(Iso15693_3Poller* instance, uint8_t*
     bit_buffer_reset(instance->tx_buffer);
     bit_buffer_reset(instance->rx_buffer);
 
-    // Send INVENTORY
     bit_buffer_append_byte(
         instance->tx_buffer,
         ISO15693_3_REQ_FLAG_SUBCARRIER_1 | ISO15693_3_REQ_FLAG_DATA_RATE_HI |
@@ -166,7 +159,6 @@ Iso15693_3Error
     bit_buffer_reset(instance->tx_buffer);
     bit_buffer_reset(instance->rx_buffer);
 
-    // Send GET SYSTEM INFO
     bit_buffer_append_byte(
         instance->tx_buffer, ISO15693_3_REQ_FLAG_SUBCARRIER_1 | ISO15693_3_REQ_FLAG_DATA_RATE_HI);
 
@@ -241,7 +233,6 @@ Iso15693_3Error iso15693_3_poller_get_blocks_security(
     furi_assert(instance);
     furi_assert(data);
 
-    // Limit the number of blocks to 32 in a single query
     const uint32_t num_queries = block_count / ISO15693_3_POLLER_NUM_BLOCKS_PER_QUERY +
                                  (block_count % ISO15693_3_POLLER_NUM_BLOCKS_PER_QUERY ? 1 : 0);
 
@@ -262,7 +253,7 @@ Iso15693_3Error iso15693_3_poller_get_blocks_security(
 
         const uint8_t block_count_per_query =
             MIN(block_count - start_block_num, (uint16_t)ISO15693_3_POLLER_NUM_BLOCKS_PER_QUERY);
-        // Block count byte must be 1 less than the desired count
+
         bit_buffer_append_byte(instance->tx_buffer, block_count_per_query - 1);
 
         ret = iso15693_3_poller_send_frame(

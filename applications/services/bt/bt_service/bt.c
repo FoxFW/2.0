@@ -87,7 +87,7 @@ static ViewPort* bt_pin_code_view_port_alloc(Bt* bt) {
 static void bt_pin_code_show(Bt* bt, uint32_t pin_code) {
     bt->pin_code = pin_code;
     if(!bt->pin_code_view_port) {
-        // Pin code view port
+
         bt->pin_code_view_port = bt_pin_code_view_port_alloc(bt);
         gui_add_view_port(bt->gui, bt->pin_code_view_port, GuiLayerFullscreen);
     }
@@ -142,7 +142,8 @@ static void bt_battery_level_changed_callback(const void* _event, void* context)
         break;
     case PowerEventTypeStartCharging:
         is_charging = true;
-        /* fallthrough */
+        __attribute__((fallthrough));
+
     case PowerEventTypeFullyCharged:
     case PowerEventTypeStopCharging:
         message.type = BtMessageTypeUpdatePowerState;
@@ -155,35 +156,30 @@ static void bt_battery_level_changed_callback(const void* _event, void* context)
 
 Bt* bt_alloc(void) {
     Bt* bt = malloc(sizeof(Bt));
-    // Init default maximum packet size
+
     bt->max_packet_size = BLE_PROFILE_SERIAL_PACKET_SIZE_MAX;
     bt->current_profile = NULL;
-    // Keys storage
+
     bt->keys_storage = bt_keys_storage_alloc(BT_KEYS_STORAGE_PATH);
-    // Alloc queue
+
     bt->message_queue = furi_message_queue_alloc(8, sizeof(BtMessage));
 
-    // Setup statusbar view port
     bt->statusbar_view_port = bt_statusbar_view_port_alloc(bt);
-    // Notification
+
     bt->notification = furi_record_open(RECORD_NOTIFICATION);
-    // Gui
+
     bt->gui = furi_record_open(RECORD_GUI);
     gui_add_view_port(bt->gui, bt->statusbar_view_port, GuiLayerStatusBarLeft);
 
-    // Dialogs
     bt->dialogs = furi_record_open(RECORD_DIALOGS);
 
-    // Power
     bt->power = furi_record_open(RECORD_POWER);
     FuriPubSub* power_pubsub = power_get_pubsub(bt->power);
     furi_pubsub_subscribe(power_pubsub, bt_battery_level_changed_callback, bt);
 
-    // RPC
     bt->rpc = furi_record_open(RECORD_RPC);
     bt->rpc_event = furi_event_flag_alloc();
 
-    // API evnent
     bt->api_event = furi_event_flag_alloc();
 
     bt->pin = 0;
@@ -191,7 +187,6 @@ Bt* bt_alloc(void) {
     return bt;
 }
 
-// Called from GAP thread from Serial service
 static uint16_t bt_serial_event_callback(SerialServiceEvent event, void* context) {
     furi_assert(context);
     Bt* bt = context;
@@ -220,13 +215,12 @@ static uint16_t bt_serial_event_callback(SerialServiceEvent event, void* context
     return ret;
 }
 
-// Called from RPC thread
 static void bt_rpc_send_bytes_callback(void* context, uint8_t* bytes, size_t bytes_len) {
     furi_assert(context);
     Bt* bt = context;
 
     if(furi_event_flag_get(bt->rpc_event) & BT_RPC_EVENT_DISCONNECTED) {
-        // Early stop from sending if we're already disconnected
+
         return;
     }
     furi_event_flag_clear(bt->rpc_event, BT_RPC_EVENT_ALL & (~BT_RPC_EVENT_DISCONNECTED));
@@ -240,13 +234,13 @@ static void bt_rpc_send_bytes_callback(void* context, uint8_t* bytes, size_t byt
             ble_profile_serial_tx(bt->current_profile, &bytes[bytes_sent], bytes_remain);
             bytes_sent += bytes_remain;
         }
-        // We want BT_RPC_EVENT_DISCONNECTED to stick, so don't clear
+
         uint32_t event_flag = furi_event_flag_wait(
             bt->rpc_event, BT_RPC_EVENT_ALL, FuriFlagWaitAny | FuriFlagNoClear, FuriWaitForever);
         if(event_flag & BT_RPC_EVENT_DISCONNECTED) {
             break;
         } else {
-            // If we didn't get BT_RPC_EVENT_DISCONNECTED, then clear everything else
+
             furi_event_flag_clear(bt->rpc_event, BT_RPC_EVENT_ALL & (~BT_RPC_EVENT_DISCONNECTED));
         }
     }
@@ -259,7 +253,6 @@ static void bt_serial_buffer_is_empty_callback(void* context) {
     ble_profile_serial_notify_buffer_is_empty(bt->current_profile);
 }
 
-// Called from GAP thread
 static bool bt_on_gap_event_callback(GapEvent event, void* context) {
     furi_assert(context);
     Bt* bt = context;
@@ -270,11 +263,11 @@ static bool bt_on_gap_event_callback(GapEvent event, void* context) {
         furi_hal_bt_check_profile_type(bt->current_profile, ble_profile_serial);
 
     if(event.type == GapEventTypeConnected) {
-        // Update status bar
+
         bt->status = BtStatusConnected;
         do_update_status = true;
         bt_open_rpc_connection(bt);
-        // Update battery level
+
         PowerInfo info;
         power_get_info(bt->power, &info);
         BtMessage message = {.type = BtMessageTypeUpdateStatus};
@@ -374,10 +367,10 @@ static void bt_show_warning(Bt* bt, const char* text) {
 
 void bt_open_rpc_connection(Bt* bt) {
     if(!bt->rpc_session && bt->status == BtStatusConnected) {
-        // Clear BT_RPC_EVENT_DISCONNECTED because it might be set from previous session
+
         furi_event_flag_clear(bt->rpc_event, BT_RPC_EVENT_DISCONNECTED);
         if(furi_hal_bt_check_profile_type(bt->current_profile, ble_profile_serial)) {
-            // Open RPC session
+
             bt->rpc_session = rpc_session_open(bt->rpc, RpcOwnerBle);
             if(bt->rpc_session) {
                 FURI_LOG_I(TAG, "Open RPC connection");
@@ -523,7 +516,6 @@ static void bt_init_keys_settings(Bt* bt) {
     if(storage_sd_status(storage) != FSE_OK) {
         FURI_LOG_D(TAG, "SD Card not ready, skipping settings");
 
-        // Just start the BLE serial application without loading the keys or settings
         bt_start_application(bt);
         return;
     }
@@ -591,19 +583,19 @@ int32_t bt_srv(void* p) {
             (void*)message.lock,
             (void*)message.result);
         if(message.type == BtMessageTypeUpdateStatus) {
-            // Update view ports
+
             bt_statusbar_update(bt);
             bt_pin_code_hide(bt);
             if(bt->status_changed_cb) {
                 bt->status_changed_cb(bt->status, bt->status_changed_ctx);
             }
         } else if(message.type == BtMessageTypeUpdateBatteryLevel) {
-            // Update battery level
+
             furi_hal_bt_update_battery_level(message.data.battery_level);
         } else if(message.type == BtMessageTypeUpdatePowerState) {
             furi_hal_bt_update_power_state(message.data.power_state_charging);
         } else if(message.type == BtMessageTypePinCodeShow) {
-            // Display PIN code
+
             bt_pin_code_show(bt, message.data.pin_code);
         } else if(message.type == BtMessageTypeKeysStorageUpdated) {
             bt_keys_storage_update(

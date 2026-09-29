@@ -1,8 +1,3 @@
-/**
- * @file input.h
- * Input: main API
- */
-
 #pragma once
 
 #include <furi_hal_resources.h>
@@ -18,19 +13,15 @@ extern "C" {
 #define INPUT_SEQUENCE_SOURCE_HARDWARE (0u)
 #define INPUT_SEQUENCE_SOURCE_SOFTWARE (1u)
 
-/** Input Types
- * Some of them are physical events and some logical
- */
 typedef enum {
-    InputTypePress, /**< Press event, emitted after debounce */
-    InputTypeRelease, /**< Release event, emitted after debounce */
-    InputTypeShort, /**< Short event, emitted after InputTypeRelease done within INPUT_LONG_PRESS interval */
-    InputTypeLong, /**< Long event, emitted after INPUT_LONG_PRESS_COUNTS interval, asynchronous to InputTypeRelease  */
-    InputTypeRepeat, /**< Repeat event, emitted with INPUT_LONG_PRESS_COUNTS period after InputTypeLong event */
-    InputTypeMAX, /**< Special value for exceptional */
+    InputTypePress,
+    InputTypeRelease,
+    InputTypeShort,
+    InputTypeLong,
+    InputTypeRepeat,
+    InputTypeMAX,
 } InputType;
 
-/** Input Event, dispatches with FuriPubSub */
 typedef struct {
     union {
         uint32_t sequence;
@@ -43,16 +34,8 @@ typedef struct {
     InputType type;
 } InputEvent;
 
-/** Get human readable input key name
- * @param key - InputKey
- * @return string
- */
 const char* input_get_key_name(InputKey key);
 
-/** Get human readable input type name
- * @param type - InputType
- * @return string
- */
 const char* input_get_type_name(InputType type);
 
 #ifdef __cplusplus

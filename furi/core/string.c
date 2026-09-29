@@ -30,16 +30,16 @@ FuriString* furi_string_alloc(void) {
 }
 
 FuriString* furi_string_alloc_set(const FuriString* s) {
-    FuriString* string = malloc(sizeof(FuriString)); //-V799
+    FuriString* string = malloc(sizeof(FuriString));
     string_init_set(string->string, s->string);
     return string;
-} //-V773
+}
 
 FuriString* furi_string_alloc_set_str(const char cstr[]) {
-    FuriString* string = malloc(sizeof(FuriString)); //-V799
+    FuriString* string = malloc(sizeof(FuriString));
     string_init_set(string->string, cstr);
     return string;
-} //-V773
+}
 
 FuriString* furi_string_alloc_printf(const char format[], ...) {
     va_list args;

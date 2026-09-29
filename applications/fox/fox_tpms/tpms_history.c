@@ -203,7 +203,6 @@ TPMSHistoryStateAddKey
     } while(false);
     flipper_format_free(fff);
 
-    // Update record if found
     bool sensor_found = false;
     for(size_t i = 0; i < TPMSHistoryItemArray_size(instance->history->data); i++) {
         TPMSHistoryItem* item = TPMSHistoryItemArray_get(instance->history->data, i);
@@ -216,8 +215,7 @@ TPMSHistoryStateAddKey
         }
     }
 
-    // or add new record
-    if(!sensor_found) { //-V547
+    if(!sensor_found) {
         TPMSHistoryItem* item = TPMSHistoryItemArray_push_raw(instance->history->data);
         item->preset = malloc(sizeof(SubGhzRadioPreset));
         item->type = decoder_base->protocol->type;

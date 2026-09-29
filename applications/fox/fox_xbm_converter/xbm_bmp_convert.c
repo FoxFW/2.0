@@ -4,12 +4,6 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Safety caps: a source XBM text file larger than this is rejected before
- * it's read into RAM, and a packed 1bpp buffer larger than this is
- * rejected before it's allocated. 16KB covers e.g. a 512x256 or 256x512
- * image (128x more area than FoxFW's 128x64 screenshots) while keeping a
- * hard ceiling on how much heap a single conversion can ever claim on an
- * otherwise memory-tight device. */
 #define XBM_MAX_TEXT_BYTES (128u * 1024u)
 #define IMG_MAX_PACKED_BYTES (16u * 1024u)
 #define IMG_DEFAULT_W 128u
@@ -18,7 +12,7 @@
 
 #define BMP_HEADER_SIZE 14u
 #define BMP_DIB_HEADER_SIZE 40u
-#define BMP_PALETTE_SIZE 8u /* 2 entries x 4 bytes, for the 1bpp files we write */
+#define BMP_PALETTE_SIZE 8u
 #define BMP_PIXEL_OFFSET (BMP_HEADER_SIZE + BMP_DIB_HEADER_SIZE + BMP_PALETTE_SIZE)
 
 const char* xbm_bmp_result_text(XbmBmpResult result) {
@@ -39,10 +33,6 @@ const char* xbm_bmp_result_text(XbmBmpResult result) {
         return "Unknown error";
     }
 }
-
-/* ------------------------------------------------------------------ */
-/* Small byte/number helpers                                          */
-/* ------------------------------------------------------------------ */
 
 static bool read_exact(File* file, uint8_t* buf, size_t len) {
     size_t total = 0;
@@ -86,10 +76,6 @@ static uint8_t hex_nibble(char c) {
     return 0;
 }
 
-/* Finds the first run of ASCII digits after the first occurrence of `key`
- * in `text` (e.g. key="_width" matches the "..._width 128" a "#define"
- * line produces). Returns false if `key`, or a digit run following it
- * before the array's opening '{', isn't found. */
 static bool find_uint_after(const char* text, size_t text_len, const char* key, uint32_t* out) {
     size_t key_len = strlen(key);
     if(key_len == 0 || key_len > text_len) return false;
@@ -112,10 +98,6 @@ static bool find_uint_after(const char* text, size_t text_len, const char* key, 
     }
     return false;
 }
-
-/* ------------------------------------------------------------------ */
-/* XBM (text) reader                                                   */
-/* ------------------------------------------------------------------ */
 
 static XbmBmpResult read_xbm(
     Storage* storage,
@@ -156,9 +138,7 @@ static XbmBmpResult read_xbm(
     bool has_w = find_uint_after(text, (size_t)file_size, "_width", &width);
     bool has_h = find_uint_after(text, (size_t)file_size, "_height", &height);
     if(!has_w || !has_h || width == 0 || height == 0) {
-        /* Matches FoxFW's screenshot format (IMG_W/IMG_H in
-         * fox_file_browser/ffb.c) when the file doesn't spell out its own
-         * dimensions. */
+
         width = IMG_DEFAULT_W;
         height = IMG_DEFAULT_H;
     }
@@ -177,13 +157,8 @@ static XbmBmpResult read_xbm(
     }
     memset(bits, 0, (size_t)total_bytes);
 
-    /* Same scan-for-'{'-then-"0xNN" state machine as FFB's ffv_parse_xbm()
-     * in fox_file_browser/ffb.c, generalized from a fixed 1024 bytes to
-     * this image's actual byte count. A short array (fewer bytes than
-     * width*height implies) is tolerated - the remainder stays zeroed
-     * (white) rather than failing the whole conversion. */
     size_t count = 0;
-    uint8_t state = 0; /* 0=scan '{', 1=scan '0', 2=expect 'x', 3=hi digit, 4=lo digit */
+    uint8_t state = 0;
     char hi_digit = 0;
     bool finished = false;
     for(size_t i = 0; i < (size_t)file_size && count < total_bytes && !finished; i++) {
@@ -226,10 +201,6 @@ static XbmBmpResult read_xbm(
     return XbmBmpOk;
 }
 
-/* ------------------------------------------------------------------ */
-/* BMP (1bpp) writer                                                    */
-/* ------------------------------------------------------------------ */
-
 static XbmBmpResult write_bmp_1bpp(
     Storage* storage,
     const char* dest_path,
@@ -262,19 +233,16 @@ static XbmBmpResult write_bmp_1bpp(
 
     write_u32_le(header + 14, BMP_DIB_HEADER_SIZE);
     write_i32_le(header + 18, (int32_t)width);
-    write_i32_le(header + 22, (int32_t)height); /* positive height = bottom-up rows */
-    write_u16_le(header + 26, 1); /* color planes */
-    write_u16_le(header + 28, 1); /* bits per pixel */
-    write_u32_le(header + 30, 0); /* BI_RGB, no compression */
+    write_i32_le(header + 22, (int32_t)height);
+    write_u16_le(header + 26, 1);
+    write_u16_le(header + 28, 1);
+    write_u32_le(header + 30, 0);
     write_u32_le(header + 34, pixel_bytes);
-    write_u32_le(header + 38, 2835); /* ~72 DPI */
+    write_u32_le(header + 38, 2835);
     write_u32_le(header + 42, 2835);
-    write_u32_le(header + 46, 2); /* colors used */
-    write_u32_le(header + 50, 2); /* important colors */
+    write_u32_le(header + 46, 2);
+    write_u32_le(header + 50, 2);
 
-    /* Palette: index 0 = black, index 1 = white (each entry is B,G,R,0). A
-     * set source bit (black, per this file's format convention) is
-     * therefore written as pixel value 0 below. */
     header[54] = 0x00;
     header[55] = 0x00;
     header[56] = 0x00;
@@ -287,14 +255,13 @@ static XbmBmpResult write_bmp_1bpp(
     bool ok = storage_file_write(file, header, (uint16_t)sizeof(header)) == sizeof(header);
 
     for(uint32_t row = 0; ok && row < height; row++) {
-        uint32_t src_y = height - 1 - row; /* walk source top-down while writing bottom-up */
+        uint32_t src_y = height - 1 - row;
         memset(row_buf, 0, bmp_row_bytes);
         const uint8_t* src_row = bits + (uint64_t)src_y * src_row_bytes;
         for(uint32_t x = 0; x < width; x++) {
             uint8_t src_bit = (src_row[x / 8] >> (x % 8)) & 1;
             if(!src_bit) {
-                /* white -> palette index 1 -> pixel bit set (index 0/black
-                 * is the row buffer's zero-initialized default). */
+
                 row_buf[x / 8] |= (uint8_t)(0x80 >> (x % 8));
             }
         }
@@ -322,10 +289,6 @@ XbmBmpResult xbm_to_bmp_convert(
     free(bits);
     return res;
 }
-
-/* ------------------------------------------------------------------ */
-/* BMP reader                                                           */
-/* ------------------------------------------------------------------ */
 
 static XbmBmpResult read_bmp(
     Storage* storage,
@@ -359,13 +322,13 @@ static XbmBmpResult read_bmp(
     }
     uint32_t dib_size = read_u32_le(dib_size_buf);
     if(dib_size < BMP_DIB_HEADER_SIZE) {
-        /* Pre-Windows-3.0 (OS/2 core, 12-byte) header - not supported. */
+
         storage_file_close(file);
         storage_file_free(file);
         return XbmBmpErrorBadFormat;
     }
 
-    uint8_t dib_rest[36]; /* bytes 4..39 of a standard BITMAPINFOHEADER */
+    uint8_t dib_rest[36];
     if(!read_exact(file, dib_rest, sizeof(dib_rest))) {
         storage_file_close(file);
         storage_file_free(file);
@@ -377,7 +340,7 @@ static XbmBmpResult read_bmp(
     uint32_t compression = read_u32_le(dib_rest + 12);
     uint32_t colors_used = read_u32_le(dib_rest + 28);
 
-    if(compression != 0 /* BI_RGB */) {
+    if(compression != 0 ) {
         storage_file_close(file);
         storage_file_free(file);
         return XbmBmpErrorBadFormat;
@@ -405,10 +368,6 @@ static XbmBmpResult read_bmp(
         return XbmBmpErrorTooLarge;
     }
 
-    /* Palette (only meaningful for bpp <= 8). The DIB header may be a
-     * larger BITMAPV4/V5 variant than the 40 bytes we've read - seek to
-     * BMP_HEADER_SIZE + dib_size explicitly rather than assuming the
-     * palette starts right after what we've consumed so far. */
     uint8_t palette[256 * 4];
     uint32_t palette_colors = 0;
     if(bpp <= 8) {
@@ -424,8 +383,7 @@ static XbmBmpResult read_bmp(
 
     uint32_t black_index = 0;
     if(bpp == 1) {
-        /* Whichever of the (up to 2) palette entries is darker is "black" -
-         * handles BMPs written with an inverted 1bpp palette. */
+
         uint32_t lum0 = (uint32_t)palette[0] + palette[1] + palette[2];
         uint32_t lum1 = (palette_colors > 1) ? ((uint32_t)palette[4] + palette[5] + palette[6]) : (lum0 + 1);
         black_index = (lum1 < lum0) ? 1u : 0u;
@@ -473,7 +431,7 @@ static XbmBmpResult read_bmp(
                 uint8_t idx = (x % 2 == 0) ? (uint8_t)(byte >> 4) : (uint8_t)(byte & 0x0F);
                 if(idx >= palette_colors) idx = 0;
                 lum = (uint32_t)palette[idx * 4] + palette[idx * 4 + 1] + palette[idx * 4 + 2];
-                is_black = lum < 384; /* half of 3*255, rounded down */
+                is_black = lum < 384;
                 break;
             }
             case 8: {
@@ -518,13 +476,8 @@ static XbmBmpResult read_bmp(
     return XbmBmpOk;
 }
 
-/* ------------------------------------------------------------------ */
-/* XBM (text) writer                                                    */
-/* ------------------------------------------------------------------ */
-
 static void sanitize_identifier(const char* path, char* out, size_t out_size) {
-    /* Derives a valid C identifier from dest_path's basename, sans
-     * extension - e.g. "/ext/Screenshots/My Pic-1.bmp" -> "My_Pic_1". */
+
     const char* slash = strrchr(path, '/');
     const char* base = slash ? slash + 1 : path;
     const char* dot = strrchr(base, '.');
@@ -545,7 +498,7 @@ static void sanitize_identifier(const char* path, char* out, size_t out_size) {
     out[o] = '\0';
 
     if(out[0] >= '0' && out[0] <= '9') {
-        /* Identifiers can't start with a digit. */
+
         if(o + 2 < out_size) {
             memmove(out + 1, out, o + 1);
             out[0] = '_';

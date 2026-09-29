@@ -1,18 +1,5 @@
 #pragma once
 
-/** Assign value to variable with const modifier
- * 
- * This macros is equivalent to `const_cast` from C++
- * Literally x = y, but with some magic.
- * It's as dangerous as only can be.
- * We don't advice you to use it unless you REALLY MUST.
- * Like REALLY REALLY.
- * 
- * @param x - const variable 
- * @param y - variable
- * 
- * @return assigned variable value
- */
 #ifndef FURI_CONST_ASSIGN
 #define FURI_CONST_ASSIGN_(T, x, y) \
     ({                              \

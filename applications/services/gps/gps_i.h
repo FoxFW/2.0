@@ -13,8 +13,6 @@ typedef enum {
     GpsRpcCommandSendLocation,
 } GpsRpcCommand;
 
-/** Bridge to the active RPC session, installed by the RPC subsystem.
- * frequency is meaningful only for GpsRpcCommandStreamStart. */
 typedef void (*GpsRpcSend)(
     GpsRpcCommand command,
     uint8_t frequency,

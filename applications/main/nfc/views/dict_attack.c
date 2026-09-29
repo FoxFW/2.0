@@ -15,7 +15,6 @@ typedef struct {
     bool card_detected;
     DictAttackType attack_type;
 
-    // MIFARE Classic specific
     uint8_t sectors_total;
     uint8_t sectors_read;
     uint8_t current_sector;
@@ -28,12 +27,10 @@ typedef struct {
     uint16_t nested_target_key;
     uint16_t msb_count;
 
-    // Ultralight C specific
     uint8_t pages_total;
     uint8_t pages_read;
     bool key_found;
 
-    // Common
     size_t dict_keys_total;
     size_t dict_keys_current;
 } DictAttackViewModel;
@@ -95,7 +92,7 @@ static void dict_attack_draw_mf_classic(Canvas* canvas, DictAttackViewModel* m) 
        m->nested_phase == MfClassicNestedPhaseDictAttack ||
        m->nested_phase == MfClassicNestedPhaseDictAttackVerify ||
        m->nested_phase == MfClassicNestedPhaseDictAttackResume) {
-        // Phase: Nested dictionary attack
+
         uint8_t target_sector =
             m->nested_target_key / (m->prng_type == MfClassicPrngTypeWeak ? 2 : 16);
         dict_progress = (float)(target_sector) / (float)(m->sectors_total);
@@ -104,7 +101,7 @@ static void dict_attack_draw_mf_classic(Canvas* canvas, DictAttackViewModel* m) 
         m->nested_phase == MfClassicNestedPhaseCalibrate ||
         m->nested_phase == MfClassicNestedPhaseRecalibrate ||
         m->nested_phase == MfClassicNestedPhaseCollectNtEnc) {
-        // Phase: Nonce collection
+
         if(m->prng_type == MfClassicPrngTypeWeak) {
             uint8_t target_sector = m->nested_target_key / 4;
             dict_progress = (float)(target_sector) / (float)(m->sectors_total);
@@ -119,7 +116,7 @@ static void dict_attack_draw_mf_classic(Canvas* canvas, DictAttackViewModel* m) 
                             0 :
                             (float)(m->dict_keys_current) / (float)(m->dict_keys_total);
         if(m->dict_keys_current == 0) {
-            // Cause when people see 0 they think it's broken
+
             snprintf(draw_str, sizeof(draw_str), "%d/%zu", 1, m->dict_keys_total);
         } else {
             snprintf(
@@ -238,7 +235,6 @@ void dict_attack_reset(DictAttack* instance) {
         {
             model->attack_type = DictAttackTypeMfClassic;
 
-            // MIFARE Classic fields
             model->sectors_total = 0;
             model->sectors_read = 0;
             model->current_sector = 0;
@@ -250,12 +246,10 @@ void dict_attack_reset(DictAttack* instance) {
             model->nested_target_key = 0;
             model->msb_count = 0;
 
-            // Ultralight C fields
             model->pages_total = 0;
             model->pages_read = 0;
             model->key_found = false;
 
-            // Common fields
             model->dict_keys_total = 0;
             model->dict_keys_current = 0;
             furi_string_reset(model->header);

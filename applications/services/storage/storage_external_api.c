@@ -1,7 +1,7 @@
 #include <core/log.h>
 #include <core/record.h>
 #include "storage.h"
-#include "storage_i.h" // IWYU pragma: keep
+#include "storage_i.h"
 #include "storage_message.h"
 #include <toolbox/stream/file_stream.h>
 #include <toolbox/dir_walk.h>
@@ -50,7 +50,6 @@
 typedef enum {
     StorageEventFlagFileClose = (1 << 0),
 } StorageEventFlag;
-/****************** FILE ******************/
 
 static bool storage_file_open_internal(
     File* file,
@@ -317,8 +316,6 @@ bool storage_file_copy_to_file(File* source, File* destination, size_t size) {
     return size == 0;
 }
 
-/****************** DIR ******************/
-
 static bool storage_dir_open_internal(File* file, const char* path) {
     S_FILE_API_PROLOGUE;
     S_API_PROLOGUE;
@@ -426,7 +423,6 @@ bool storage_dir_exists(Storage* storage, const char* path) {
 
     return exist;
 }
-/****************** COMMON ******************/
 
 FS_Error storage_common_timestamp(Storage* storage, const char* path, uint32_t* timestamp) {
     furi_check(storage);
@@ -486,19 +482,17 @@ FS_Error storage_common_rename(Storage* storage, const char* old_path, const cha
         }
 
         if(storage_dir_exists(storage, old_path)) {
-            // Cannot overwrite a file with a directory
+
             if(storage_file_exists(storage, new_path)) {
                 error = FSE_INVALID_NAME;
                 break;
             }
 
-            // Cannot rename a directory to itself or to a nested directory
             if(storage_common_is_subdir(storage, old_path, new_path)) {
                 error = FSE_INVALID_NAME;
                 break;
             }
 
-            // Renaming a regular file to itself does nothing and always succeeds
         } else if(storage_common_equivalent_path(storage, old_path, new_path)) {
             error = FSE_OK;
             break;
@@ -847,8 +841,6 @@ bool storage_common_is_subdir(Storage* storage, const char* parent, const char* 
     return storage_internal_equivalent_path(storage, parent, child, true);
 }
 
-/****************** ERROR ******************/
-
 const char* storage_error_get_desc(FS_Error error_id) {
     return filesystem_api_error_get_desc(error_id);
 }
@@ -867,8 +859,6 @@ const char* storage_file_get_error_desc(File* file) {
     furi_check(file);
     return filesystem_api_error_get_desc(file->error_id);
 }
-
-/****************** Raw SD API ******************/
 
 FS_Error storage_sd_format(Storage* storage) {
     furi_check(storage);
@@ -977,7 +967,7 @@ bool storage_simply_remove_recursive(Storage* storage, const char* path) {
         return true;
     }
 
-    char* name = malloc(MAX_NAME_LENGTH + 1); //-V799
+    char* name = malloc(MAX_NAME_LENGTH + 1);
     File* dir = storage_file_alloc(storage);
     cur_dir = furi_string_alloc_set(path);
     bool go_deeper = false;
@@ -990,7 +980,7 @@ bool storage_simply_remove_recursive(Storage* storage, const char* path) {
 
         while(storage_dir_read(dir, &fileinfo, name, MAX_NAME_LENGTH)) {
             if(file_info_is_dir(&fileinfo)) {
-                furi_string_cat_printf(cur_dir, "/%s", name); //-V576
+                furi_string_cat_printf(cur_dir, "/%s", name);
                 go_deeper = true;
                 break;
             }
@@ -1024,7 +1014,7 @@ bool storage_simply_remove_recursive(Storage* storage, const char* path) {
     furi_string_free(cur_dir);
     free(name);
     return result;
-} //-V773
+}
 
 bool storage_simply_remove(Storage* storage, const char* path) {
     furi_check(storage);

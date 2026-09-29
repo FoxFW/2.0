@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 
 NfcCommand picopass_scene_write_key_poller_callback(PicopassPollerEvent event, void* context) {
     NfcCommand command = NfcCommandContinue;
@@ -34,7 +33,6 @@ NfcCommand picopass_scene_write_key_poller_callback(PicopassPollerEvent event, v
 
 void picopass_scene_write_key_on_enter(void* context) {
     Picopass* picopass = context;
-    dolphin_deed(DolphinDeedNfcSave);
 
     // Setup view
     Popup* popup = picopass->popup;

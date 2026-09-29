@@ -3,7 +3,7 @@
  * Tariffs research by DNZ1393
  *
  * Copyright 2023 Leptoptilos <leptoptilos@icloud.com>
- * 
+ *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -79,14 +79,13 @@ static bool zolotaya_korona_online_parse(const NfcDevice* device, FuriString* pa
     bool parsed = false;
 
     do {
-        // Verify info sector data (card number prefix)
+
         const uint8_t start_trip_block_number =
             mf_classic_get_first_block_num_of_sector(TRIP_SECTOR_NUM);
         const uint8_t start_info_block_number =
             mf_classic_get_first_block_num_of_sector(INFO_SECTOR_NUM);
         const uint8_t* block_start_ptr = &data->block[start_info_block_number].data[3];
 
-        // Validate card number
         bool is_bcd;
         const uint16_t card_number_prefix = bit_lib_bytes_to_num_bcd(block_start_ptr, 2, &is_bcd);
         if(!is_bcd) break;
@@ -95,7 +94,6 @@ static bool zolotaya_korona_online_parse(const NfcDevice* device, FuriString* pa
             bit_lib_bytes_to_num_bcd(block_start_ptr + 2, 8, &is_bcd) / 10;
         if(!is_bcd) break;
 
-        // Parse data
         FuriString* tariff_name = furi_string_alloc();
 
         block_start_ptr = &data->block[start_info_block_number].data[1];
@@ -123,7 +121,6 @@ static bool zolotaya_korona_online_parse(const NfcDevice* device, FuriString* pa
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin zolotaya_korona_online_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = NULL,
@@ -131,14 +128,12 @@ static const NfcSupportedCardsPlugin zolotaya_korona_online_plugin = {
     .parse = zolotaya_korona_online_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor zolotaya_korona_online_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &zolotaya_korona_online_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* zolotaya_korona_online_plugin_ep(void) {
     return &zolotaya_korona_online_plugin_descriptor;
 }

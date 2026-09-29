@@ -31,14 +31,13 @@ enum HidReportId {
     ReportIdConsumer = 3,
 };
 
-/* HID report descriptor: keyboard + mouse + consumer control */
 static const uint8_t hid_report_desc[] = {
-    // clang-format off
+
     HID_USAGE_PAGE(HID_PAGE_DESKTOP),
     HID_USAGE(HID_DESKTOP_KEYBOARD),
     HID_COLLECTION(HID_APPLICATION_COLLECTION),
-        HID_REPORT_ID(ReportIdKeyboard), 
-        // Keyboard report
+        HID_REPORT_ID(ReportIdKeyboard),
+
         HID_USAGE_PAGE(HID_DESKTOP_KEYPAD),
         HID_USAGE_MINIMUM(HID_KEYBOARD_L_CTRL),
         HID_USAGE_MAXIMUM(HID_KEYBOARD_R_GUI),
@@ -46,12 +45,12 @@ static const uint8_t hid_report_desc[] = {
         HID_LOGICAL_MAXIMUM(1),
         HID_REPORT_SIZE(1),
         HID_REPORT_COUNT(8),
-        // Input - Modifier keys byte
+
         HID_INPUT(HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
-        
+
         HID_REPORT_COUNT(1),
         HID_REPORT_SIZE(8),
-        // Input - Reserved byte
+
         HID_INPUT(HID_IOF_CONSTANT | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
 
         HID_USAGE_PAGE(HID_PAGE_LED),
@@ -59,7 +58,7 @@ static const uint8_t hid_report_desc[] = {
         HID_REPORT_SIZE(1),
         HID_USAGE_MINIMUM(1),
         HID_USAGE_MAXIMUM(8),
-        // Output - LEDs
+
         HID_OUTPUT(HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
 
         HID_REPORT_COUNT(HID_KB_MAX_KEYS),
@@ -69,7 +68,7 @@ static const uint8_t hid_report_desc[] = {
         HID_USAGE_PAGE(HID_DESKTOP_KEYPAD),
         HID_USAGE_MINIMUM(0),
         HID_USAGE_MAXIMUM(101),
-        // Input - Key codes
+
         HID_INPUT(HID_IOF_DATA | HID_IOF_ARRAY | HID_IOF_ABSOLUTE),
     HID_END_COLLECTION,
 
@@ -79,7 +78,7 @@ static const uint8_t hid_report_desc[] = {
         HID_USAGE(HID_DESKTOP_POINTER),
         HID_COLLECTION(HID_PHYSICAL_COLLECTION),
             HID_REPORT_ID(ReportIdMouse),
-            // Mouse report
+
             HID_USAGE_PAGE(HID_PAGE_BUTTON),
             HID_USAGE_MINIMUM(1),
             HID_USAGE_MAXIMUM(3),
@@ -87,14 +86,14 @@ static const uint8_t hid_report_desc[] = {
             HID_LOGICAL_MAXIMUM(1),
             HID_REPORT_COUNT(3),
             HID_REPORT_SIZE(1),
-            // Input - Mouse keys
+
             HID_INPUT(HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
 
             HID_REPORT_SIZE(1),
             HID_REPORT_COUNT(5),
-            // Input - Mouse keys padding
+
             HID_INPUT(HID_IOF_CONSTANT | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
-            
+
             HID_USAGE_PAGE(HID_PAGE_DESKTOP),
             HID_USAGE(HID_DESKTOP_X),
             HID_USAGE(HID_DESKTOP_Y),
@@ -103,7 +102,7 @@ static const uint8_t hid_report_desc[] = {
             HID_LOGICAL_MAXIMUM(127),
             HID_REPORT_SIZE(8),
             HID_REPORT_COUNT(3),
-            // Input - Mouse movement data (x, y, scroll)
+
             HID_INPUT(HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_RELATIVE),
         HID_END_COLLECTION,
     HID_END_COLLECTION,
@@ -112,20 +111,19 @@ static const uint8_t hid_report_desc[] = {
     HID_USAGE(HID_CONSUMER_CONTROL),
     HID_COLLECTION(HID_APPLICATION_COLLECTION),
         HID_REPORT_ID(ReportIdConsumer),
-        // Consumer report
+
         HID_LOGICAL_MINIMUM(0),
         HID_RI_LOGICAL_MAXIMUM(16, 0x3FF),
         HID_USAGE_MINIMUM(0),
         HID_RI_USAGE_MAXIMUM(16, 0x3FF),
         HID_REPORT_COUNT(HID_CONSUMER_MAX_KEYS),
         HID_REPORT_SIZE(16),
-        // Input - Consumer control keys
+
         HID_INPUT(HID_IOF_DATA | HID_IOF_ARRAY | HID_IOF_ABSOLUTE),
     HID_END_COLLECTION,
-    // clang-format on
+
 };
 
-/* Device descriptor */
 static struct usb_device_descriptor hid_device_desc = {
     .bLength = sizeof(struct usb_device_descriptor),
     .bDescriptorType = USB_DTYPE_DEVICE,
@@ -143,7 +141,6 @@ static struct usb_device_descriptor hid_device_desc = {
     .bNumConfigurations = 1,
 };
 
-/* Device configuration descriptor */
 static const struct HidConfigDescriptor hid_cfg_desc = {
     .config =
         {
@@ -487,34 +484,32 @@ static void hid_txrx_ep_callback(usbd_device* dev, uint8_t event, uint8_t ep) {
     }
 }
 
-/* Configure endpoints */
 static usbd_respond hid_ep_config(usbd_device* dev, uint8_t cfg) {
     switch(cfg) {
     case 0:
-        /* deconfiguring device */
+
         usbd_ep_deconfig(dev, HID_EP_OUT);
         usbd_ep_deconfig(dev, HID_EP_IN);
         usbd_reg_endpoint(dev, HID_EP_OUT, 0);
         usbd_reg_endpoint(dev, HID_EP_IN, 0);
         return usbd_ack;
     case 1:
-        /* configuring device */
+
         usbd_ep_config(dev, HID_EP_IN, USB_EPTYPE_INTERRUPT, HID_EP_SZ);
         usbd_ep_config(dev, HID_EP_OUT, USB_EPTYPE_INTERRUPT, HID_EP_SZ);
         usbd_reg_endpoint(dev, HID_EP_IN, hid_txrx_ep_callback);
         usbd_reg_endpoint(dev, HID_EP_OUT, hid_txrx_ep_callback);
         usbd_ep_write(dev, HID_EP_IN, 0, 0);
-        boot_protocol = false; /* BIOS will SET_PROTOCOL if it wants this */
+        boot_protocol = false;
         return usbd_ack;
     default:
         return usbd_fail;
     }
 }
 
-/* Control requests handler */
 static usbd_respond hid_control(usbd_device* dev, usbd_ctlreq* req, usbd_rqc_callback* callback) {
     UNUSED(callback);
-    /* HID control requests */
+
     if(((USB_REQ_RECIPIENT | USB_REQ_TYPE) & req->bmRequestType) ==
            (USB_REQ_INTERFACE | USB_REQ_CLASS) &&
        req->wIndex == 0) {
@@ -551,7 +546,7 @@ static usbd_respond hid_control(usbd_device* dev, usbd_ctlreq* req, usbd_rqc_cal
             dev->status.data_count = sizeof(hid_cfg_desc.intf_0.hid_desc);
             return usbd_ack;
         case USB_DTYPE_HID_REPORT:
-            boot_protocol = false; /* BIOS does not read this */
+            boot_protocol = false;
             dev->status.data_ptr = (uint8_t*)hid_report_desc;
             dev->status.data_count = sizeof(hid_report_desc);
             return usbd_ack;

@@ -1,11 +1,9 @@
 #include "csight.h"
 #include "gpio_remap_compat.h"
 
-// ─── Screen constants ─────────────────────────────────────────────────────────
 #define SCREEN_W         128
 #define SCREEN_H          64
 
-// ─── Trig lookup — defined here, extern'd in header ──────────────────────────
 const int8_t SIN64[64] = {
      0,  9, 18, 27, 35, 42, 48, 53,
     56, 58, 59, 58, 56, 53, 48, 42,
@@ -27,7 +25,6 @@ const int8_t COS64[64] = {
    -48,-53,-56,-58,-59,-58,-56,-53,
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 static void draw_centered_str(Canvas* c, int y, const char* str) {
     int w = canvas_string_width(c, str);
     canvas_draw_str(c, (SCREEN_W - w) / 2, y, str);
@@ -50,11 +47,9 @@ static void draw_circle(Canvas* c, int cx, int cy, int r) {
     }
 }
 
-// ─── Boot animation ───────────────────────────────────────────────────────────
 void csight_draw_boot(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
 
-    // Radar on left side
     int rcx = 32, rcy = 36, rr = 26;
     int angle = (app->boot_frame * 4) % 64;
     int lx = rcx + (COS64[angle] * rr) / 59;
@@ -64,7 +59,6 @@ void csight_draw_boot(Canvas* c, CSIghtApp* app) {
     canvas_draw_dot(c, rcx, rcy);
     canvas_draw_line(c, rcx, rcy, lx, ly);
 
-    // Text on right side — no overlap
     canvas_set_font(c, FontPrimary);
     canvas_draw_str(c, 68, 18, "CSIght");
 
@@ -75,7 +69,6 @@ void csight_draw_boot(Canvas* c, CSIghtApp* app) {
     for(uint8_t i = 0; i < d; i++) dots[i] = '.';
     canvas_draw_str(c, 68, 30, dots);
 
-    // Show channel survey progress if wifi_channel is 0 (not yet selected)
     if(app->wifi_channel == 0) {
         canvas_draw_str(c, 62, 42, "Scanning ch..");
     } else {
@@ -86,7 +79,6 @@ void csight_draw_boot(Canvas* c, CSIghtApp* app) {
     canvas_draw_str(c, 68, 57, "WiFi CSI Radar");
 }
 
-// ─── ESP32 detect gate ────────────────────────────────────────────────────────
 void csight_draw_esp32_check(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
 
@@ -105,17 +97,6 @@ void csight_draw_esp32_check(Canvas* c, CSIghtApp* app) {
 #define CSIGHT_BUTTON_GAP 6
 #define CSIGHT_BUTTON_R 3
 
-/* Focus-then-confirm two-button bar (Left/Right toggles focus, OK
- * confirms) - was drawn as plain sharp-cornered canvas_draw_box()/frame()
- * rectangles with text manually offset by a fixed (+4,+9), inconsistent
- * with the suite's established rounded-pill button look (same
- * canvas_draw_rbox()/canvas_draw_rframe() + centered-text pattern already
- * used by restart_confirm_view.c and FoxDeFlock's own identical fix, per
- * the 2026-09-13 footer-button audit - FOOTER_BUTTON_AUDIT.md flagged
- * this exact screen alongside FoxDeFlock's as "right input model,
- * off-brand visuals"). Geometry (position/size/gap) is unchanged - only
- * the corner style and text centering were brought in line with the rest
- * of the Fox suite. */
 static void draw_two_buttons(Canvas* c, bool left_focused, const char* left, const char* right) {
     int y = 50, h = CSIGHT_BUTTON_H;
     int lw = canvas_string_width(c, left) + CSIGHT_BUTTON_PAD_X * 2;
@@ -161,14 +142,6 @@ void csight_draw_esp32_not_found(Canvas* c, CSIghtApp* app) {
     draw_two_buttons(c, app->esp32_check_focus_settings, "Settings", "Retry");
 }
 
-// ─── Connection settings ──────────────────────────────────────────────────────
-// Replaces the old 60-entry "SELECT BOARD" preset list + custom pin-config
-// screen. "Fox Edition" only ever talks to Fox_ESP32_FW, which only ever
-// answers on one of the Flipper's two UART peripherals (the shared
-// gpio_remap setting every Fox ESP32 app reads/writes) - so the only real
-// choice left is USART vs LPUART, and the boot probe already sweeps both
-// automatically (see csight_tick()). This screen is just the manual
-// override + re-probe for when that auto-sweep needs a nudge.
 void csight_draw_connect_settings(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
 
@@ -186,7 +159,6 @@ void csight_draw_connect_settings(Canvas* c, CSIghtApp* app) {
     draw_centered_str(c, 62, "[OK] Retry   [Back] Return");
 }
 
-// ─── Radar display ────────────────────────────────────────────────────────────
 void csight_draw_radar(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
 
@@ -199,24 +171,20 @@ void csight_draw_radar(Canvas* c, CSIghtApp* app) {
         canvas_set_color(c, ColorWhite);
     }
 
-    // Rings
     draw_circle(c, RADAR_CX, RADAR_CY, RADAR_R);
     draw_circle(c, RADAR_CX, RADAR_CY, RADAR_R / 2);
     canvas_draw_dot(c, RADAR_CX, RADAR_CY);
 
-    // Axis dots
     canvas_draw_dot(c, RADAR_CX,          RADAR_CY - RADAR_R);
     canvas_draw_dot(c, RADAR_CX,          RADAR_CY + RADAR_R);
     canvas_draw_dot(c, RADAR_CX - RADAR_R, RADAR_CY);
     canvas_draw_dot(c, RADAR_CX + RADAR_R, RADAR_CY);
 
-    // Sweep line
     uint8_t a = app->sweep_angle & 63;
     int sx = RADAR_CX + (COS64[a] * RADAR_R) / 59;
     int sy = RADAR_CY + (SIN64[a] * RADAR_R) / 59;
     canvas_draw_line(c, RADAR_CX, RADAR_CY, sx, sy);
 
-    // Sweep trail
     for(int t = 1; t <= 3; t++) {
         uint8_t ta = (a + 64 - (uint8_t)(t * 2)) & 63;
         int tx2 = RADAR_CX + (COS64[ta] * (RADAR_R - t * 3)) / 59;
@@ -224,7 +192,6 @@ void csight_draw_radar(Canvas* c, CSIghtApp* app) {
         canvas_draw_dot(c, tx2, ty2);
     }
 
-    // Blips
     for(int i = 0; i < MAX_BLIPS; i++) {
         if(app->blips[i].age == 0) continue;
         int bx = RADAR_CX + app->blips[i].x;
@@ -238,11 +205,10 @@ void csight_draw_radar(Canvas* c, CSIghtApp* app) {
         }
     }
 
-    // Right panel
     int px = RADAR_CX + RADAR_R + 6;
 
     canvas_set_font(c, FontPrimary);
-    // Show ALERT! header when armed, normal otherwise
+
     if(app->alert_armed) {
         canvas_draw_str(c, px, 10, app->alert_triggered ? "!! ALERT !!" : "ARMED");
     } else {
@@ -251,10 +217,9 @@ void csight_draw_radar(Canvas* c, CSIghtApp* app) {
 
     canvas_set_font(c, FontSecondary);
 
-    // Session stats: elapsed time + event count
     uint32_t elapsed_s = (furi_get_tick() - app->session_start_tick) /
                           furi_kernel_get_tick_frequency();
-    char stats[40]; // generous margin — 3 uint32_t values at worst case
+    char stats[40];
     snprintf(stats, sizeof(stats), "%02lu:%02lu  #%lu",
              (unsigned long)(elapsed_s / 60), (unsigned long)(elapsed_s % 60),
              (unsigned long)app->motion_count);
@@ -270,21 +235,11 @@ void csight_draw_radar(Canvas* c, CSIghtApp* app) {
     canvas_draw_frame(c, px, 45, 32, 5);
     if(prox_w > 0) canvas_draw_box(c, px, 45, prox_w, 5);
 
-    // Sensitivity used to be its own text row at y=52, right below the
-    // RANGE bar above (which ends at y=49) - only a 3px gap, not enough
-    // clearance for a text baseline, so this label's glyphs overlapped the
-    // bottom of that bar. Whenever the bar was mostly filled (black,
-    // low-proximity readings) the overlapping text pixels landed on an
-    // already-black background and became unreadable - the illegible row
-    // the user reported seeing on this screen. Fixed by folding it into
-    // the MOTION label's row instead of stacking a new line under the bar,
-    // which sidesteps the cramped vertical spacing entirely.
     char sens_str[8];
     snprintf(sens_str, sizeof(sens_str), "S:%d", app->sensitivity);
     int sens_w = (int)canvas_string_width(c, sens_str);
     canvas_draw_str(c, 126 - sens_w, 30, sens_str);
 
-    // Control hints
     canvas_draw_str(c, px, 62, "\x11\x10 mode");
 
     if(flashing) {
@@ -295,7 +250,6 @@ void csight_draw_radar(Canvas* c, CSIghtApp* app) {
     }
 }
 
-// ─── Waterfall display ────────────────────────────────────────────────────────
 void csight_draw_waterfall(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
 
@@ -325,7 +279,6 @@ void csight_draw_waterfall(Canvas* c, CSIghtApp* app) {
     canvas_draw_str(c, 2, SCREEN_H - 1, "\x12\x11\x10 [OK]cal");
 }
 
-// ─── Main menu ────────────────────────────────────────────────────────────────
 static const char* MAIN_MENU_LABELS[MAIN_MENU_COUNT] = {
     "Start Scanning",
     "Web UI",
@@ -336,7 +289,6 @@ static const char* MAIN_MENU_LABELS[MAIN_MENU_COUNT] = {
 void csight_draw_main_menu(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
 
-    // Header
     canvas_set_font(c, FontPrimary);
     canvas_draw_str(c, 2, 10, "CSIght");
     canvas_draw_line(c, 0, 12, SCREEN_W, 12);
@@ -352,11 +304,9 @@ void csight_draw_main_menu(Canvas* c, CSIghtApp* app) {
             canvas_set_color(c, ColorWhite);
         }
 
-        // Arrow indicator
         if(selected) canvas_draw_str(c, 2, y, ">");
         canvas_draw_str(c, 12, y, MAIN_MENU_LABELS[i]);
 
-        // Show web UI status on that item
         if(i == (int)MenuItemWebUI) {
             const char* status = app->web_ui_active ? "[ON]" : "[OFF]";
             int sw = canvas_string_width(c, status);
@@ -367,7 +317,6 @@ void csight_draw_main_menu(Canvas* c, CSIghtApp* app) {
     }
 }
 
-// ─── About screen ─────────────────────────────────────────────────────────────
 void csight_draw_about(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
 
@@ -392,7 +341,6 @@ void csight_draw_about(Canvas* c, CSIghtApp* app) {
     }
 }
 
-// ─── Settings menu ────────────────────────────────────────────────────────────
 static const char* SETTINGS_LABELS[SETTINGS_COUNT] = {
     "Sensitivity",
     "WiFi Channel",
@@ -416,13 +364,6 @@ void csight_draw_settings(Canvas* c, CSIghtApp* app) {
     canvas_draw_line(c, 0, 12, SCREEN_W, 12);
     canvas_set_font(c, FontSecondary);
 
-    // Scrolling window: show 3 items at a time, centered around the selection
-    // where possible. Previously 4 - but the 4th row's highlight box (y-8 to
-    // y+2 = 49-59) sat only 3px above the "[Back] save" hint text baseline at
-    // y=62, and FontSecondary's ascent reaches up far enough from that
-    // baseline to land inside the box - i.e. inside the selected row's
-    // inverted colors whenever that row was the highlighted one. 3 rows
-    // keeps the same layout with a comfortable gap instead.
     #define VISIBLE_ROWS 3
     int top = (int)app->settings_idx - 1;
     if(top < 0) top = 0;
@@ -480,7 +421,6 @@ void csight_draw_settings(Canvas* c, CSIghtApp* app) {
     canvas_draw_str(c, 2, 62, "\x10\x0f adj  [OK] select  [Back] save");
 }
 
-// ─── Web UI screen — shown when browser mode is active ───────────────────────
 void csight_draw_webui(Canvas* c, CSIghtApp* app) {
     UNUSED(app);
     canvas_clear(c);
@@ -496,7 +436,6 @@ void csight_draw_webui(Canvas* c, CSIghtApp* app) {
     canvas_draw_line(c, 0, 48, SCREEN_W, 48);
     draw_centered_str(c, 57, "http://192.168.4.1");
 
-    // Animated dots to show it's alive
     char dots[4] = "   ";
     uint8_t d = (app->boot_frame / 10) % 4;
     for(uint8_t i = 0; i < d; i++) dots[i] = '.';
@@ -504,17 +443,14 @@ void csight_draw_webui(Canvas* c, CSIghtApp* app) {
     canvas_draw_str(c, SCREEN_W - 40, 62, "[OK] Stop");
 }
 
-// ─── Proximity display ────────────────────────────────────────────────────────
 void csight_draw_proximity(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
 
-    // Header
     canvas_set_font(c, FontSecondary);
     canvas_draw_str(c, 2, 8, "CSIght");
     canvas_draw_str(c, 80, 8, "PROXIMITY");
     canvas_draw_line(c, 0, 10, SCREEN_W, 10);
 
-    // Concentric arcs — centered, clear of header and bottom bar
     int cx = SCREEN_W / 2;
     int cy = 34;
     int max_r = 22;
@@ -526,16 +462,13 @@ void csight_draw_proximity(Canvas* c, CSIghtApp* app) {
         if(ar <= max_r + 7) draw_circle(c, cx, cy, ar);
     }
 
-    // Center dot
     canvas_draw_box(c, cx - 1, cy - 1, 3, 3);
 
-    // Percentage — clear space below arcs
     char pct[8];
     snprintf(pct, sizeof(pct), "%d%%", app->proximity);
     canvas_set_font(c, FontPrimary);
     draw_centered_str(c, 52, pct);
 
-    // Motion bar at bottom
     canvas_set_font(c, FontSecondary);
     canvas_draw_str(c, 2, 62, "SIG");
     canvas_draw_frame(c, 20, 56, SCREEN_W - 22, 7);
@@ -543,12 +476,9 @@ void csight_draw_proximity(Canvas* c, CSIghtApp* app) {
     if(bar_w > 0) canvas_draw_box(c, 21, 57, bar_w, 5);
 }
 
-// ─── Pin config ───────────────────────────────────────────────────────────────
-// ─── Vitals ───────────────────────────────────────────────────────────────────
 void csight_draw_vitals(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
 
-    // Header
     canvas_set_font(c, FontPrimary);
     canvas_draw_str(c, 2, 10, "VITALS");
     canvas_draw_line(c, 0, 12, SCREEN_W, 12);
@@ -556,7 +486,7 @@ void csight_draw_vitals(Canvas* c, CSIghtApp* app) {
     canvas_set_font(c, FontSecondary);
 
     if(!app->vitals_valid) {
-        // Still accumulating first 30-second window
+
         uint8_t dots = (app->boot_frame / 8) % 4;
         char msg[20] = "Measuring";
         for(uint8_t i = 0; i < dots; i++) msg[9 + i] = '.';
@@ -568,7 +498,6 @@ void csight_draw_vitals(Canvas* c, CSIghtApp* app) {
         return;
     }
 
-    // Breathing row
     canvas_draw_str(c, 2, 24, "BREATHING");
     if(app->breathing_bpm > 0) {
         char bstr[12];
@@ -576,7 +505,7 @@ void csight_draw_vitals(Canvas* c, CSIghtApp* app) {
         canvas_set_font(c, FontPrimary);
         canvas_draw_str(c, 70, 24, bstr);
         canvas_set_font(c, FontSecondary);
-        // Confidence bar (maps 6-40 BPM to 0-100%)
+
         int bw = ((app->breathing_bpm - 6) * (SCREEN_W - 4)) / 34;
         if(bw < 0) bw = 0;
         if(bw > SCREEN_W - 4) bw = SCREEN_W - 4;
@@ -586,7 +515,6 @@ void csight_draw_vitals(Canvas* c, CSIghtApp* app) {
         canvas_draw_str(c, 70, 24, "---");
     }
 
-    // Heart rate row (experimental)
     canvas_draw_str(c, 2, 42, "HEART*");
     if(app->heart_bpm > 0) {
         char hstr[12];
@@ -607,11 +535,6 @@ void csight_draw_vitals(Canvas* c, CSIghtApp* app) {
     canvas_draw_str(c, 2, 62, "[OK]cal \x10\x0f mode \x12\x11 sens");
 }
 
-// ─── Multi-node map (v2.0 preview) ────────────────────────────────────────────
-// Draws a simple top-down 2D map: primary at origin, secondary nodes at their
-// configured positions, and an estimated target dot if 2+ nodes are active.
-// This is amplitude-weighted multilateration, not phase-based AoA — accuracy
-// improves with more active nodes but stays approximate by design.
 void csight_draw_mesh(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
     canvas_set_font(c, FontPrimary);
@@ -619,11 +542,9 @@ void csight_draw_mesh(Canvas* c, CSIghtApp* app) {
     canvas_draw_line(c, 0, 12, SCREEN_W, 12);
     canvas_set_font(c, FontSecondary);
 
-    // Map area: 90x40 px box, scaled to fit whatever the node spread is
     const int map_x = 2, map_y = 16, map_w = 90, map_h = 40;
     canvas_draw_frame(c, map_x, map_y, map_w, map_h);
 
-    // Find the bounding box of all configured node positions so the map scales
     int16_t min_x = 0, max_x = 0, min_y = 0, max_y = 0;
     for(int n = 0; n < MESH_MAX_NODES; n++) {
         if(app->mesh_node_x_cm[n] < min_x) min_x = app->mesh_node_x_cm[n];
@@ -634,11 +555,9 @@ void csight_draw_mesh(Canvas* c, CSIghtApp* app) {
     int16_t span_x = (max_x - min_x) > 0 ? (max_x - min_x) : 1;
     int16_t span_y = (max_y - min_y) > 0 ? (max_y - min_y) : 1;
 
-    // Map a cm coordinate to a pixel inside the box (small margin)
     #define MAP_PX(cm_x) (map_x + 4 + ((cm_x - min_x) * (map_w - 8)) / span_x)
     #define MAP_PY(cm_y) (map_y + map_h - 4 - ((cm_y - min_y) * (map_h - 8)) / span_y)
 
-    // Draw each node as a small circle, filled if active
     for(int n = 0; n < MESH_MAX_NODES; n++) {
         int px = MAP_PX(app->mesh_node_x_cm[n]);
         int py = MAP_PY(app->mesh_node_y_cm[n]);
@@ -649,18 +568,16 @@ void csight_draw_mesh(Canvas* c, CSIghtApp* app) {
         }
     }
 
-    // Draw estimated target position if we have one
     if(app->mesh_has_estimate) {
         int ex = MAP_PX(app->mesh_est_x_cm);
         int ey = MAP_PY(app->mesh_est_y_cm);
-        // Blinking cross so it's visually distinct from node dots
+
         if((app->boot_frame / 8) % 2 == 0) {
             canvas_draw_line(c, ex - 3, ey, ex + 3, ey);
             canvas_draw_line(c, ex, ey - 3, ex, ey + 3);
         }
     }
 
-    // Side panel: active node count + legend
     int sx = map_x + map_w + 4;
     uint8_t active_count = 0;
     for(int n = 0; n < MESH_MAX_NODES; n++) if(app->mesh_node_active[n]) active_count++;
@@ -675,21 +592,18 @@ void csight_draw_mesh(Canvas* c, CSIghtApp* app) {
         canvas_draw_str(c, sx, 54, "2+");
     }
 
-    // Show how long ago the most-recently-dropped node was last seen —
-    // the one usually worth checking first when troubleshooting. Placed in
-    // the side panel with clearance above the footer control hints.
     uint32_t best_age_s = 0xFFFFFFFF;
     int      best_node  = -1;
     for(int n = 1; n < MESH_MAX_NODES; n++) {
         if(app->mesh_node_active[n]) continue;
-        if(app->mesh_node_last_seen_tick[n] == 0) continue; // never seen at all
+        if(app->mesh_node_last_seen_tick[n] == 0) continue;
         uint32_t age_s = (furi_get_tick() - app->mesh_node_last_seen_tick[n]) /
                           furi_kernel_get_tick_frequency();
         if(age_s < best_age_s) { best_age_s = age_s; best_node = n; }
     }
     if(best_node >= 0) {
-        char age_str[32]; // generous margin — GCC's format-truncation check
-                           // assumes best_node could be any int, not just 1-3
+        char age_str[32];
+
         if(best_age_s < 60) {
             snprintf(age_str, sizeof(age_str), "N%d %lus", best_node, (unsigned long)best_age_s);
         } else {
@@ -703,7 +617,6 @@ void csight_draw_mesh(Canvas* c, CSIghtApp* app) {
     #undef MAP_PY
 }
 
-// ─── Mesh node position config ─────────────────────────────────────────────────
 void csight_draw_mesh_config(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
     canvas_set_font(c, FontPrimary);
@@ -721,7 +634,6 @@ void csight_draw_mesh_config(Canvas* c, CSIghtApp* app) {
     snprintf(x_str, sizeof(x_str), "X: %d cm", app->mesh_node_x_cm[idx]);
     snprintf(y_str, sizeof(y_str), "Y: %d cm", app->mesh_node_y_cm[idx]);
 
-    // Highlight whichever axis is currently being edited
     if(!app->mesh_config_edit_y) {
         canvas_draw_box(c, 2, 30, 70, 11);
         canvas_set_color(c, ColorWhite);
@@ -739,9 +651,6 @@ void csight_draw_mesh_config(Canvas* c, CSIghtApp* app) {
     canvas_draw_str(c, 2, 62, "\x10\x0f node \x12\x11 val [OK] X/Y");
 }
 
-// ─── Motion heatmap (v3.3) ──────────────────────────────────────────────────
-// Same 8x8 grid, coordinate space, and bounding box as the mesh map — cell
-// heat is shown via filled-square size since the display has no grayscale.
 void csight_draw_heatmap(Canvas* c, CSIghtApp* app) {
     canvas_clear(c);
     canvas_set_font(c, FontPrimary);
@@ -760,8 +669,6 @@ void csight_draw_heatmap(Canvas* c, CSIghtApp* app) {
             uint8_t heat = app->heatmap[gy][gx];
             if(heat == 0) continue;
 
-            // Scale box size with heat: small dot at low heat, fills the
-            // cell at max heat
             int max_sz = (cell_w < cell_h ? cell_w : cell_h) - 1;
             int sz = 1 + (heat * (max_sz - 1)) / 255;
             if(sz > max_sz) sz = max_sz;
@@ -772,7 +679,6 @@ void csight_draw_heatmap(Canvas* c, CSIghtApp* app) {
         }
     }
 
-    // Node positions overlaid as small circles for spatial reference
     int16_t min_x = 0, max_x = 0, min_y = 0, max_y = 0;
     for(int n = 0; n < MESH_MAX_NODES; n++) {
         if(app->mesh_node_x_cm[n] < min_x) min_x = app->mesh_node_x_cm[n];
@@ -783,7 +689,7 @@ void csight_draw_heatmap(Canvas* c, CSIghtApp* app) {
     int16_t span_x = (max_x - min_x) > 0 ? (max_x - min_x) : 1;
     int16_t span_y = (max_y - min_y) > 0 ? (max_y - min_y) : 1;
     for(int n = 0; n < MESH_MAX_NODES; n++) {
-        if(!app->mesh_node_active[n] && n != 0) continue; // skip unpaired secondaries
+        if(!app->mesh_node_active[n] && n != 0) continue;
         int px = map_x + 2 + ((app->mesh_node_x_cm[n] - min_x) * (map_w - 4)) / span_x;
         int py = map_y + map_h - 2 - ((app->mesh_node_y_cm[n] - min_y) * (map_h - 4)) / span_y;
         canvas_draw_circle(c, px, py, 1);

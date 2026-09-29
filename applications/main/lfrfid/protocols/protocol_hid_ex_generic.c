@@ -60,12 +60,11 @@ void protocol_hid_ex_generic_decoder_start(ProtocolHIDEx* protocol) {
 }
 
 static bool protocol_hid_ex_generic_can_be_decoded(const uint8_t* data) {
-    // check preamble
+
     if(data[0] != HID_PREAMBLE || data[HID_PREAMBLE_SIZE + HID_DATA_SIZE] != HID_PREAMBLE) {
         return false;
     }
 
-    // check for manchester encoding
     for(size_t i = HID_PREAMBLE_SIZE; i < (HID_PREAMBLE_SIZE + HID_DATA_SIZE); i++) {
         for(size_t n = 0; n < 4; n++) {
             uint8_t bit_pair = (data[i] >> (n * 2)) & 0b11;
@@ -141,24 +140,21 @@ LevelDuration protocol_hid_ex_generic_encoder_yield(ProtocolHIDEx* protocol) {
     bool level = 0;
     uint32_t duration = 0;
 
-    // if pulse is zero, we need to output high, otherwise we need to output low
     if(protocol->encoder.pulse == 0) {
-        // get bit
+
         uint8_t bit = bit_lib_get_bit(protocol->encoded_data, protocol->encoder.encoded_index);
 
-        // get pulse from oscillator
         bool advance = fsk_osc_next(protocol->encoder.fsk_osc, bit, &duration);
 
         if(advance) {
             bit_lib_increment_index(protocol->encoder.encoded_index, HID_ENCODED_BIT_SIZE);
         }
 
-        // duration diveded by 2 because we need to output high and low
         duration = duration / 2;
         protocol->encoder.pulse = duration;
         level = true;
     } else {
-        // output low half and reset pulse
+
         duration = protocol->encoder.pulse;
         protocol->encoder.pulse = 0;
         level = false;
@@ -171,7 +167,6 @@ bool protocol_hid_ex_generic_write_data(ProtocolHIDEx* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_hid_ex_generic_encoder_start(protocol);
     protocol_hid_ex_generic_decode(protocol->encoded_data, protocol->data);
 
@@ -195,7 +190,6 @@ bool protocol_hid_ex_generic_write_data(ProtocolHIDEx* protocol, void* data) {
 void protocol_hid_ex_generic_render_data(ProtocolHIDEx* protocol, FuriString* result) {
     UNUSED(protocol);
 
-    // TODO FL-3518: parser and render functions
     furi_string_set(
         result,
         "Type: Generic HID Extended\n"

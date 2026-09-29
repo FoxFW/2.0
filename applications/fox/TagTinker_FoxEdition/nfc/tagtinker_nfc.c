@@ -1,16 +1,6 @@
-/*
- * TagTinker — ESL NFC tag decoder (implementation)
- *
- * ESL tags contain an NDEF URI whose last 10 characters
- * encode the ESL ID using a custom base64 alphabet.
- * This module decodes them into the 17-char barcode format
- * expected by tagtinker_barcode_to_plid().
- */
-
 #include "tagtinker_nfc.h"
 #include <string.h>
 
-/* Direct ASCII-to-index lookup table, -1 = not in alphabet */
 static const int8_t CHAR_LUT[128] = {
     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,

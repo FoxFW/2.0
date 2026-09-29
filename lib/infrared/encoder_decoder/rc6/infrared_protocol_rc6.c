@@ -13,7 +13,7 @@ const InfraredCommonProtocolSpec infrared_protocol_rc6 = {
         },
     .databit_len[0] =
         1 + 3 + 1 + 8 +
-        8, // start_bit + 3 mode bits, + 1 toggle bit (x2 timing) + 8 address + 8 command
+        8,
     .manchester_start_from_space = false,
     .decode = infrared_decoder_rc6_decode_manchester,
     .encode = infrared_encoder_rc6_encode_manchester,

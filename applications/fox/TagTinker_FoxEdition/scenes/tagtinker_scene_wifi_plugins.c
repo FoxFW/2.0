@@ -1,20 +1,3 @@
-/*
- * WiFi Plugins
- * ============
- *
- * Top-level scene that:
- *   1. Lazy-allocates the TagTinkerWifi link and opens the UART.
- *   2. Asks the ESP for its plugin list (LIST_PLUGINS).
- *   3. Renders a submenu of plugins, plus persistent header rows for
- *      "WiFi Setup" and "Forget WiFi" so the user can manage credentials
- *      without leaving the page.
- *   4. Routes to the Run scene when a plugin is picked.
- *
- * Events from TagTinkerWifi land on the FAP main thread via
- * view_dispatcher custom events (we marshal via the message queue rather
- * than touching submenu* directly from the worker thread, which is not
- * thread-safe).
- */
 #include "../tagtinker_app.h"
 #include "../wifi/tagtinker_wifi.h"
 
@@ -59,7 +42,7 @@ static void wifi_plugins_event_cb(const TtWifiEvent* e, void* user) {
     case TtWifiEvtLinkLost:
         view_dispatcher_send_custom_event(app->view_dispatcher, EVT_LINK_LOST);
         break;
-    default: break; /* progress/result/error are handled by the run scene */
+    default: break;
     }
 }
 
@@ -68,9 +51,6 @@ static void wifi_plugins_submenu_cb(void* ctx, uint32_t index) {
     view_dispatcher_send_custom_event(app->view_dispatcher, index);
 }
 
-/* Update only the header (status badge) without rebuilding the submenu,
- * so the periodic 2s WIFI_STATUS push doesn't kick the cursor back to
- * the top entry every time. */
 static void refresh_header(TagTinkerApp* app) {
     char hdr[40];
     const char* badge = "...";
@@ -86,7 +66,7 @@ static void refresh_header(TagTinkerApp* app) {
 }
 
 static void rebuild_submenu(TagTinkerApp* app) {
-    /* Preserve the current cursor position across rebuilds. */
+
     uint32_t saved = submenu_get_selected_item(app->submenu);
 
     submenu_reset(app->submenu);
@@ -118,10 +98,6 @@ static void rebuild_submenu(TagTinkerApp* app) {
 void tagtinker_scene_wifi_plugins_on_enter(void* ctx) {
     TagTinkerApp* app = ctx;
 
-    /* Lazy-allocate the link + plugin cache the first time we enter.
-     * The cache is the dominant heap cost of the WiFi flow (~1.9 KB per
-     * slot), so capping at TT_WIFI_MAX_FAP_PLUGINS keeps the IR TX
-     * pipeline that follows a plugin run well-fed on heap. */
     if(!app->wifi) {
         const size_t bytes = sizeof(TagTinkerWifiPlugin) * TT_WIFI_MAX_FAP_PLUGINS;
         app->wifi_plugins = malloc(bytes);
@@ -129,11 +105,10 @@ void tagtinker_scene_wifi_plugins_on_enter(void* ctx) {
         app->wifi = tagtinker_wifi_alloc(wifi_plugins_event_cb, app);
     }
     if(!tagtinker_wifi_open((TagTinkerWifi*)app->wifi)) {
-        /* UART couldn't be acquired - rare unless another app holds it. */
+
         app->wifi_link_state = TT_WIFI_DISCONNECTED;
     }
 
-    /* Always re-query plugins on entry; the ESP may have been re-flashed. */
     app->wifi_plugin_count = 0;
     app->wifi_plugins_loading = true;
     rebuild_submenu(app);
@@ -165,7 +140,7 @@ bool tagtinker_scene_wifi_plugins_on_event(void* ctx, SceneManagerEvent event) {
         return true;
     }
     if(event.event == EVT_LINK_STATUS) {
-        /* Lightweight: only refresh the status badge, keep the cursor put. */
+
         refresh_header(app);
         return true;
     }
@@ -189,7 +164,5 @@ bool tagtinker_scene_wifi_plugins_on_event(void* ctx, SceneManagerEvent event) {
 void tagtinker_scene_wifi_plugins_on_exit(void* ctx) {
     TagTinkerApp* app = ctx;
     submenu_reset(app->submenu);
-    /* Keep the UART open while we stay inside the WiFi flow. The link is
-     * closed in the app's free path or when leaving the WiFi area entirely
-     * (the run scene calls back into us, so don't close on every exit). */
+
 }

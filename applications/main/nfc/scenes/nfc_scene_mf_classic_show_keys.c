@@ -1,7 +1,6 @@
 #include "../nfc_app_i.h"
 
 #include <bit_lib/bit_lib.h>
-#include <dolphin/dolphin.h>
 
 #define TAG "NfcMfClassicShowKeys"
 

@@ -30,8 +30,6 @@ static void infrared_scene_rpc_show(InfraredApp* infrared) {
     popup_set_text(popup, "RPC mode", 89, 44, AlignCenter, AlignTop);
     popup_set_text(popup, infrared->text_store[0], 89, 44, AlignCenter, AlignTop);
 
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 12, &I_RFIDDolphinSend_97x61);
-
     popup_set_context(popup, infrared);
     popup_set_callback(popup, infrared_popup_closed_callback);
 
@@ -52,7 +50,7 @@ bool infrared_scene_rpc_on_event(void* context, SceneManagerEvent event) {
 
         if(event.event == InfraredCustomEventTypeRpcLoadFile) {
             if(rpc_state == InfraredRpcStateIdle) {
-                // Load the remote in a separate thread
+
                 infrared_blocking_task_start(infrared, infrared_scene_rpc_task_callback);
             }
 
@@ -129,7 +127,6 @@ bool infrared_scene_rpc_on_event(void* context, SceneManagerEvent event) {
             event.event == InfraredCustomEventTypeRpcButtonPressReleaseIndex) {
             bool result = false;
 
-            // Send the signal once and stop
             if(rpc_state == InfraredRpcStateLoaded) {
                 if(event.event == InfraredCustomEventTypeRpcButtonPressReleaseName) {
                     const char* button_name = furi_string_get_cstr(infrared->button_name);

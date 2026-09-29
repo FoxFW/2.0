@@ -7,7 +7,7 @@ typedef enum {
     DesktopMainEventOpenFavoriteLeftShort,
     DesktopMainEventOpenFavoriteLeftLong,
     DesktopMainEventOpenFavoriteRightShort,
-    DesktopMainEventCycleWallpaper, // long-press Right - hardcoded wallpaper switcher, see desktop_cycle_wallpaper()
+    DesktopMainEventCycleWallpaper,
     DesktopMainEventOpenFavoriteOkLong,
     DesktopMainEventOpenMenu,
     DesktopMainEventOpenDebug,
@@ -34,10 +34,6 @@ typedef enum {
     DesktopLockMenuEventStealthModeOn,
     DesktopLockMenuEventStealthModeOff,
 
-    DesktopAnimationEventCheckAnimation,
-    DesktopAnimationEventNewIdleAnimation,
-    DesktopAnimationEventInteractAnimation,
-
     DesktopSlideshowCompleted,
     DesktopSlideshowPoweroff,
 
@@ -45,7 +41,6 @@ typedef enum {
 
     DesktopEnclaveExit,
 
-    // Global events
     DesktopGlobalBeforeAppStarted,
     DesktopGlobalAfterAppFinished,
     DesktopGlobalAutoLock,
@@ -53,8 +48,8 @@ typedef enum {
     DesktopGlobalSaveSettings,
     DesktopGlobalReloadSettings,
     DesktopGlobalFoxSetupLaunch,
-    DesktopGlobalSdCardRemoved,   // SD ejected mid-session → show blocking overlay
-    DesktopGlobalSdCardMounted,   // SD re-inserted after removal → safe reboot via view dispatcher
+    DesktopGlobalSdCardRemoved,
+    DesktopGlobalSdCardMounted,
 
     DesktopMainEventOpenClockLock,
 } DesktopEvent;

@@ -44,10 +44,9 @@ FuriPubSubSubscription*
     furi_check(callback);
 
     furi_check(furi_mutex_acquire(pubsub->mutex, FuriWaitForever) == FuriStatusOk);
-    // put uninitialized item to the list
+
     FuriPubSubSubscription* item = FuriPubSubSubscriptionList_push_raw(pubsub->items);
 
-    // initialize item
     item->callback = callback;
     item->callback_context = callback_context;
 
@@ -63,13 +62,11 @@ void furi_pubsub_unsubscribe(FuriPubSub* pubsub, FuriPubSubSubscription* pubsub_
     furi_check(furi_mutex_acquire(pubsub->mutex, FuriWaitForever) == FuriStatusOk);
     bool result = false;
 
-    // iterate over items
     FuriPubSubSubscriptionList_it_t it;
     for(FuriPubSubSubscriptionList_it(it, pubsub->items); !FuriPubSubSubscriptionList_end_p(it);
         FuriPubSubSubscriptionList_next(it)) {
         const FuriPubSubSubscription* item = FuriPubSubSubscriptionList_cref(it);
 
-        // if the iterator is equal to our element
         if(item == pubsub_subscription) {
             FuriPubSubSubscriptionList_remove(pubsub->items, it);
             result = true;
@@ -86,7 +83,6 @@ void furi_pubsub_publish(FuriPubSub* pubsub, void* message) {
 
     furi_check(furi_mutex_acquire(pubsub->mutex, FuriWaitForever) == FuriStatusOk);
 
-    // iterate over subscribers
     FuriPubSubSubscriptionList_it_t it;
     for(FuriPubSubSubscriptionList_it(it, pubsub->items); !FuriPubSubSubscriptionList_end_p(it);
         FuriPubSubSubscriptionList_next(it)) {

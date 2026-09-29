@@ -4,7 +4,7 @@
  * Copyright 2023 Leptoptilos <leptoptilos@icloud.com>
  *
  * More info about Zolotaya Korona cards: https://github.com/metrodroid/metrodroid/wiki/Zolotaya-Korona
- * 
+ *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -33,7 +33,6 @@
 #define PURSE_SECTOR_NUM (6)
 #define INFO_SECTOR_NUM  (15)
 
-// Sector 15 data. Byte [11] contains the mistake. If byte [11] was 0xEF, bytes [1-18] means "ЗАО Золотая Корона"
 static const uint8_t info_sector_signature[] = {0xE2, 0x87, 0x80, 0x8E, 0x20, 0x87, 0xAE,
                                                 0xAB, 0xAE, 0xF2, 0xA0, 0xEF, 0x20, 0x8A,
                                                 0xAE, 0xE0, 0xAE, 0xAD, 0xA0, 0x00, 0x00,
@@ -47,7 +46,7 @@ static bool zolotaya_korona_parse(const NfcDevice* device, FuriString* parsed_da
     bool parsed = false;
 
     do {
-        // Verify info sector data
+
         const uint8_t start_info_block_number =
             mf_classic_get_first_block_num_of_sector(INFO_SECTOR_NUM);
         const uint8_t* block_start_ptr = &data->block[start_info_block_number].data[0];
@@ -65,30 +64,23 @@ static bool zolotaya_korona_parse(const NfcDevice* device, FuriString* parsed_da
 
         if(!verified) break;
 
-        // Parse data
-
-        // INFO SECTOR
-        // block 1
         const uint8_t region_number = bit_lib_bytes_to_num_bcd(block_start_ptr + 10, 1, &verified);
 
-        // block 2
         block_start_ptr = &data->block[start_info_block_number + 2].data[4];
         const uint16_t card_number_prefix =
             bit_lib_bytes_to_num_bcd(block_start_ptr, 2, &verified);
         const uint64_t card_number_postfix =
             bit_lib_bytes_to_num_bcd(block_start_ptr + 2, 8, &verified) / 10;
 
-        // TRIP SECTOR
         const uint8_t start_trip_block_number =
             mf_classic_get_first_block_num_of_sector(TRIP_SECTOR_NUM);
-        // block 0
+
         block_start_ptr = &data->block[start_trip_block_number].data[7];
 
         const uint8_t status = block_start_ptr[0] % 16;
         const uint16_t sequence_number = bit_lib_bytes_to_num_be(block_start_ptr + 1, 2);
         const uint8_t discount_code = bit_lib_bytes_to_num_be(block_start_ptr + 3, 1);
 
-        // block 1: refill block
         block_start_ptr = &data->block[start_trip_block_number + 1].data[1];
 
         const uint16_t refill_machine_id = bit_lib_bytes_to_num_le(block_start_ptr, 2);
@@ -101,7 +93,6 @@ static bool zolotaya_korona_parse(const NfcDevice* device, FuriString* parsed_da
         DateTime last_refill_datetime = {0};
         datetime_timestamp_to_datetime(last_refill_timestamp, &last_refill_datetime);
 
-        // block 2: trip block
         block_start_ptr = &data->block[start_trip_block_number + 2].data[0];
         const char validator_first_letter = bit_lib_bytes_to_num_le(block_start_ptr + 1, 1);
         const uint32_t validator_id = bit_lib_bytes_to_num_bcd(block_start_ptr + 2, 3, &verified);
@@ -114,12 +105,10 @@ static bool zolotaya_korona_parse(const NfcDevice* device, FuriString* parsed_da
         DateTime last_trip_datetime = {0};
         datetime_timestamp_to_datetime(last_trip_timestamp, &last_trip_datetime);
 
-        // PARSE DATA FROM PURSE SECTOR
         const uint8_t start_purse_block_number =
             mf_classic_get_first_block_num_of_sector(PURSE_SECTOR_NUM);
         block_start_ptr = &data->block[start_purse_block_number].data[0];
 
-        // block 0
         const uint32_t balance = bit_lib_bytes_to_num_le(block_start_ptr, 4);
 
         uint32_t balance_rub = balance / 100;
@@ -193,7 +182,6 @@ static bool zolotaya_korona_parse(const NfcDevice* device, FuriString* parsed_da
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin zolotaya_korona_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = NULL,
@@ -201,14 +189,12 @@ static const NfcSupportedCardsPlugin zolotaya_korona_plugin = {
     .parse = zolotaya_korona_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor zolotaya_korona_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &zolotaya_korona_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* zolotaya_korona_plugin_ep(void) {
     return &zolotaya_korona_plugin_descriptor;
 }

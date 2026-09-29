@@ -4,11 +4,6 @@
 #include "../desktop_settings_app.h"
 #include "desktop_settings_scene.h"
 
-/* VGM Options (ported from Momentum Firmware): sets the foreground/
- * background color used when this device's screen is streamed over RPC
- * (qFlipper / companion screen-mirroring tools). Purely cosmetic to the
- * receiving client - doesn't affect the device's own display. */
-
 enum VarItemListIndex {
     VarItemListIndexForeground,
     VarItemListIndexBackground,
@@ -19,7 +14,6 @@ typedef struct {
     uint8_t r, g, b;
 } VgmColor;
 
-/* Index 0-2 are modes (no fixed RGB); index >= 3 are fixed custom colors. */
 static const VgmColor vgm_colors[] = {
     {"Default", 0, 0, 0},
     {"Rainbow", 0, 0, 0},

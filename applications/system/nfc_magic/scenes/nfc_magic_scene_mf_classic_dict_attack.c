@@ -1,6 +1,5 @@
 #include "../nfc_magic_app_i.h"
 
-#include <dolphin/dolphin.h>
 #include <lib/nfc/protocols/mf_classic/mf_classic_poller.h>
 
 #include "views/dict_attack.h"
@@ -231,7 +230,6 @@ bool nfc_magic_scene_mf_classic_dict_attack_on_event(void* context, SceneManager
                     scene_manager_next_scene(
                         instance->scene_manager, NfcMagicSceneMfClassicWriteCheck);
                 }
-                dolphin_deed(DolphinDeedNfcReadSuccess);
                 consumed = true;
             }
         } else if(event.event == NfcMagicAppCustomEventCardDetected) {
@@ -266,7 +264,6 @@ bool nfc_magic_scene_mf_classic_dict_attack_on_event(void* context, SceneManager
                         scene_manager_next_scene(
                             instance->scene_manager, NfcMagicSceneMfClassicWriteCheck);
                     }
-                    dolphin_deed(DolphinDeedNfcReadSuccess);
                 }
                 consumed = true;
             } else if(state == DictAttackStateSystemDictInProgress) {
@@ -277,7 +274,6 @@ bool nfc_magic_scene_mf_classic_dict_attack_on_event(void* context, SceneManager
                     scene_manager_next_scene(
                         instance->scene_manager, NfcMagicSceneMfClassicWriteCheck);
                 }
-                dolphin_deed(DolphinDeedNfcReadSuccess);
                 consumed = true;
             }
         }

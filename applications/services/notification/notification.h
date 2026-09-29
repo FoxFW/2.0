@@ -90,20 +90,8 @@ typedef const NotificationMessage* NotificationSequence[];
 void notification_message(NotificationApp* app, const NotificationSequence* sequence);
 void notification_message_block(NotificationApp* app, const NotificationSequence* sequence);
 
-/**
- * @brief Send internal (apply to permanent layer) notification message. Think twice before use.
- * 
- * @param app notification record content
- * @param sequence notification sequence
- */
 void notification_internal_message(NotificationApp* app, const NotificationSequence* sequence);
 
-/**
- * @brief Send internal (apply to permanent layer) notification message and wait for notification end. Think twice before use.
- * 
- * @param app notification record content
- * @param sequence notification sequence
- */
 void notification_internal_message_block(
     NotificationApp* app,
     const NotificationSequence* sequence);

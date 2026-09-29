@@ -53,15 +53,6 @@ void protocol_io_prox_xsf_decoder_start(ProtocolIOProxXSF* protocol) {
 }
 
 static uint8_t protocol_io_prox_xsf_compute_checksum(const uint8_t* data) {
-    // Packet structure:
-    //
-    //0        1        2         3         4         5         6         7
-    //v        v        v         v         v         v         v         v
-    //01234567 8 9ABCDEF0 1 23456789 A BCDEF012 3 456789AB C DEF01234 5 6789ABCD EF
-    //00000000 0 VVVVVVVV 1 WWWWWWWW 1 XXXXXXXX 1 YYYYYYYY 1 ZZZZZZZZ 1 CHECKSUM 11
-    //
-    // algorithm as observed by the proxmark3 folks
-    // CHECKSUM == 0xFF - (V + W + X + Y + Z)
 
     uint8_t checksum = 0;
 
@@ -73,20 +64,7 @@ static uint8_t protocol_io_prox_xsf_compute_checksum(const uint8_t* data) {
 }
 
 static bool protocol_io_prox_xsf_can_be_decoded(const uint8_t* encoded_data) {
-    // Packet framing
-    //
-    //0        1        2        3        4        5        6        7
-    //v        v        v        v        v        v        v        v
-    //01234567 89ABCDEF 01234567 89ABCDEF 01234567 89ABCDEF 01234567 89ABCDEF
-    //-----------------------------------------------------------------------
-    //00000000 01______ _1______ __1_____ ___1____ ____1___ _____1XX XXXXXX11
-    //
-    // _ = variable data
-    // 0 = preamble 0
-    // 1 = framing 1
-    // X = checksum
 
-    // Validate the packet preamble is there...
     if(encoded_data[0] != 0b00000000) {
         return false;
     }
@@ -94,7 +72,6 @@ static bool protocol_io_prox_xsf_can_be_decoded(const uint8_t* encoded_data) {
         return false;
     }
 
-    // ... check for known ones...
     if(bit_lib_bit_is_not_set(encoded_data[2], 6)) {
         return false;
     }
@@ -117,7 +94,6 @@ static bool protocol_io_prox_xsf_can_be_decoded(const uint8_t* encoded_data) {
         return false;
     }
 
-    // ... and validate our checksums.
     uint8_t checksum = protocol_io_prox_xsf_compute_checksum(encoded_data);
     uint8_t checkval = bit_lib_get_bits(encoded_data, 54, 8);
 
@@ -129,28 +105,11 @@ static bool protocol_io_prox_xsf_can_be_decoded(const uint8_t* encoded_data) {
 }
 
 void protocol_io_prox_xsf_decode(const uint8_t* encoded_data, uint8_t* decoded_data) {
-    // Packet structure:
-    // (Note: the second word seems fixed; but this may not be a guarantee;
-    //  it currently has no meaning.)
-    //
-    //0        1        2        3        4        5        6        7
-    //v        v        v        v        v        v        v        v
-    //01234567 89ABCDEF 01234567 89ABCDEF 01234567 89ABCDEF 01234567 89ABCDEF
-    //-----------------------------------------------------------------------
-    //00000000 01111000 01FFFFFF FF1VVVVV VVV1CCCC CCCC1CCC CCCCC1XX XXXXXX11
-    //
-    // F = facility code
-    // V = version
-    // C = code
-    // X = checksum
 
-    // Facility code
     decoded_data[0] = bit_lib_get_bits(encoded_data, 18, 8);
 
-    // Version code.
     decoded_data[1] = bit_lib_get_bits(encoded_data, 27, 8);
 
-    // Code bytes.
     decoded_data[2] = bit_lib_get_bits(encoded_data, 36, 8);
     decoded_data[3] = bit_lib_get_bits(encoded_data, 45, 8);
 }
@@ -175,38 +134,25 @@ bool protocol_io_prox_xsf_decoder_feed(ProtocolIOProxXSF* protocol, bool level, 
 }
 
 static void protocol_io_prox_xsf_encode(const uint8_t* decoded_data, uint8_t* encoded_data) {
-    // Packet to transmit:
-    //
-    // 0           10          20          30          40          50          60
-    // v           v           v           v           v           v           v
-    // 01234567 8 90123456 7 89012345 6 78901234 5 67890123 4 56789012 3 45678901 23
-    // -----------------------------------------------------------------------------
-    // 00000000 0 11110000 1 facility 1 version_ 1 code-one 1 code-two 1 checksum 11
 
-    // Preamble.
     bit_lib_set_bits(encoded_data, 0, 0b00000000, 8);
     bit_lib_set_bit(encoded_data, 8, 0);
 
     bit_lib_set_bits(encoded_data, 9, 0b11110000, 8);
     bit_lib_set_bit(encoded_data, 17, 1);
 
-    // Facility code.
     bit_lib_set_bits(encoded_data, 18, decoded_data[0], 8);
     bit_lib_set_bit(encoded_data, 26, 1);
 
-    // Version
     bit_lib_set_bits(encoded_data, 27, decoded_data[1], 8);
     bit_lib_set_bit(encoded_data, 35, 1);
 
-    // Code one
     bit_lib_set_bits(encoded_data, 36, decoded_data[2], 8);
     bit_lib_set_bit(encoded_data, 44, 1);
 
-    // Code two
     bit_lib_set_bits(encoded_data, 45, decoded_data[3], 8);
     bit_lib_set_bit(encoded_data, 53, 1);
 
-    // Checksum
     bit_lib_set_bits(encoded_data, 54, protocol_io_prox_xsf_compute_checksum(encoded_data), 8);
     bit_lib_set_bit(encoded_data, 62, 1);
     bit_lib_set_bit(encoded_data, 63, 1);
@@ -259,7 +205,6 @@ bool protocol_io_prox_xsf_write_data(ProtocolIOProxXSF* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_io_prox_xsf_encode(protocol->data, protocol->encoded_data);
     protocol_io_prox_xsf_decode(protocol->encoded_data, protocol->data);
 

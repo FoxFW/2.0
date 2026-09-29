@@ -41,10 +41,8 @@ static void ble_profile_serial_stop(FuriHalBleProfileBase* profile) {
     ble_svc_serial_stop(serial_profile->serial_svc);
 }
 
-// AN5289: 4.7, in order to use flash controller interval must be at least 25ms + advertisement, which is 30 ms
-// Since we don't use flash controller anymore interval can be lowered to 7.5ms
 #define CONNECTION_INTERVAL_MIN (0x06)
-// Up to 45 ms
+
 #define CONNECTION_INTERVAL_MAX (0x24)
 
 static const GapConfig serial_template_config = {
@@ -69,9 +67,9 @@ static void
 
     furi_check(config);
     memcpy(config, &serial_template_config, sizeof(GapConfig));
-    // Set mac address
+
     memcpy(config->mac_address, furi_hal_version_get_ble_mac(), sizeof(config->mac_address));
-    // Set advertise name
+
     strlcpy(
         config->adv_name,
         furi_hal_version_get_ble_local_device_name_ptr(),

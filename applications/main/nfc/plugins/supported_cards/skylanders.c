@@ -48,9 +48,9 @@ static bool skylanders_search_data(
     temp_str = furi_string_alloc();
 
     do {
-        // Open file
+
         if(!flipper_format_file_open_existing(file, file_name)) break;
-        // Read file header and version
+
         uint32_t version = 0;
         if(!flipper_format_read_header(file, temp_str, &version)) break;
         if(furi_string_cmp_str(temp_str, nfc_resources_header) ||
@@ -164,7 +164,7 @@ static bool skylanders_parse(const NfcDevice* device, FuriString* parsed_data) {
     FuriString* name = furi_string_alloc();
 
     do {
-        // verify key
+
         const uint8_t verify_sector = 0;
         MfClassicSectorTrailer* sec_tr =
             mf_classic_get_sector_trailer_by_sector(data, verify_sector);
@@ -192,7 +192,6 @@ static bool skylanders_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin skylanders_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = skylanders_verify,
@@ -200,14 +199,12 @@ static const NfcSupportedCardsPlugin skylanders_plugin = {
     .parse = skylanders_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor skylanders_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &skylanders_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* skylanders_plugin_ep(void) {
     return &skylanders_plugin_descriptor;
 }

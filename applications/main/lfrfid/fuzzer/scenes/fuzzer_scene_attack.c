@@ -104,7 +104,7 @@ bool fuzzer_scene_attack_on_event(void* context, SceneManagerEvent event) {
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == FuzzerCustomEventViewAttackExit) {
-            // Exit
+
             fuzzer_worker_stop(app->worker);
 
             fuzzer_scene_attack_set_state(app, FuzzerAttackStateOff);
@@ -119,7 +119,7 @@ bool fuzzer_scene_attack_on_event(void* context, SceneManagerEvent event) {
                    fuzzer_view_attack_get_emu_time(app->attack_view))) {
                 fuzzer_scene_attack_set_state(app, FuzzerAttackStateAttacking);
             } else {
-                // Error?
+
             }
         } else if(event.event == FuzzerCustomEventViewAttackEmulateCurrent) {
             fuzzer_worker_start_emulate(app->worker);
@@ -148,7 +148,7 @@ bool fuzzer_scene_attack_on_event(void* context, SceneManagerEvent event) {
         } else if(event.event == FuzzerCustomEventViewAttackSave) {
             scene_manager_next_scene(app->scene_manager, FuzzerSceneSaveName);
         }
-        // Callback from worker
+
         else if(event.event == FuzzerCustomEventViewAttackEnd) {
             fuzzer_scene_attack_set_state(app, FuzzerAttackStateEnd);
             consumed = true;
@@ -161,9 +161,6 @@ bool fuzzer_scene_attack_on_event(void* context, SceneManagerEvent event) {
 void fuzzer_scene_attack_on_exit(void* context) {
     furi_assert(context);
     PacsFuzzerApp* app = context;
-
-    // XXX the scene has no descendants, and the return will be processed in on_event
-    // fuzzer_worker_stop();
 
     fuzzer_worker_set_uid_chaged_callback(app->worker, NULL, NULL);
     fuzzer_worker_set_end_callback(app->worker, NULL, NULL);

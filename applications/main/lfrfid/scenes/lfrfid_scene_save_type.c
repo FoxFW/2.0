@@ -43,7 +43,6 @@ void lfrfid_scene_save_type_on_enter(void* context) {
 
     scene_manager_set_scene_state(app->scene_manager, LfRfidSceneSaveType, (uint32_t)state);
 
-    // clear key name
     furi_string_reset(app->file_name);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, LfRfidViewSubmenu);

@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 
 void picopass_scene_more_info_widget_callback(GuiButtonType result, InputType type, void* context) {
     Picopass* picopass = context;

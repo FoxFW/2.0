@@ -17,7 +17,6 @@
 static void t5577_start(void) {
     furi_hal_rfid_tim_read_start(125000, 0.5);
 
-    // do not ground the antenna
     furi_hal_rfid_pin_pull_release();
 }
 
@@ -61,28 +60,22 @@ static void t5577_write_block_pass(
     uint32_t password) {
     furi_delay_us(T5577_TIMING_WAIT_TIME * 8);
 
-    // start gap
     t5577_write_gap(T5577_TIMING_START_GAP);
 
-    // opcode for page
     t5577_write_opcode((page == 1) ? T5577_OPCODE_PAGE_1 : T5577_OPCODE_PAGE_0);
 
-    // password
     if(with_pass) {
         for(uint8_t i = 0; i < 32; i++) {
             t5577_write_bit((password >> (31 - i)) & 1);
         }
     }
 
-    // lock bit
     t5577_write_bit(lock_bit);
 
-    // data
     for(uint8_t i = 0; i < 32; i++) {
         t5577_write_bit((data >> (31 - i)) & 1);
     }
 
-    // block address
     t5577_write_bit((block >> 2) & 1);
     t5577_write_bit((block >> 1) & 1);
     t5577_write_bit((block >> 0) & 1);

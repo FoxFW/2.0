@@ -1,5 +1,5 @@
 #include "hid_service.h"
-#include "app_common.h" // IWYU pragma: keep
+#include "app_common.h"
 #include <ble/ble.h>
 #include <furi_ble/event_dispatcher.h>
 #include <furi_ble/gatt.h>
@@ -156,14 +156,13 @@ static BleEventAckStatus ble_svc_hid_event_handler(void* event, void* context) {
     BleEventAckStatus ret = BleEventNotAck;
     hci_event_pckt* event_pckt = (hci_event_pckt*)(((hci_uart_pckt*)event)->data);
     evt_blecore_aci* blecore_evt = (evt_blecore_aci*)event_pckt->data;
-    // aci_gatt_attribute_modified_event_rp0* attribute_modified;
 
     if(event_pckt->evt == HCI_VENDOR_SPECIFIC_DEBUG_EVT_CODE) {
         if(blecore_evt->ecode == ACI_GATT_ATTRIBUTE_MODIFIED_VSEVT_CODE) {
-            // Process modification events
+
             ret = BleEventAckFlowEnable;
         } else if(blecore_evt->ecode == ACI_GATT_SERVER_CONFIRMATION_VSEVT_CODE) {
-            // Process notification confirmation
+
             ret = BleEventAckFlowEnable;
         }
     }
@@ -173,26 +172,22 @@ static BleEventAckStatus ble_svc_hid_event_handler(void* event, void* context) {
 BleServiceHid* ble_svc_hid_start(void) {
     BleServiceHid* hid_svc = malloc(sizeof(BleServiceHid));
 
-    // Register event handler
     hid_svc->event_handler =
         ble_event_dispatcher_register_svc_handler(ble_svc_hid_event_handler, hid_svc);
-    /**
-     *  Add Human Interface Device Service
-     */
+
     if(!ble_gatt_service_add(
            UUID_TYPE_16,
            &ble_svc_hid_uuid,
            PRIMARY_SERVICE,
-           2 + /* protocol mode */
+           2 +
                (4 * BLE_SVC_HID_INPUT_REPORT_COUNT) + (3 * BLE_SVC_HID_OUTPUT_REPORT_COUNT) +
                (3 * BLE_SVC_HID_FEATURE_REPORT_COUNT) + 1 + 2 + 2 +
-               2, /* Service + Report Map + HID Information + HID Control Point */
+               2,
            &hid_svc->svc_handle)) {
         free(hid_svc);
         return NULL;
     }
 
-    // Maintain previously defined characteristic order
     ble_gatt_characteristic_init(
         hid_svc->svc_handle,
         &ble_svc_hid_chars[HidSvcGattCharacteristicProtocolMode],
@@ -204,7 +199,6 @@ BleServiceHid* ble_svc_hid_start(void) {
         &hid_svc->chars[HidSvcGattCharacteristicProtocolMode],
         &protocol_mode);
 
-    // reports
     BleGattCharacteristicDescriptorParams ble_svc_hid_char_descr;
     BleGattCharacteristicParams report_char;
     HidSvcReportId report_id;
@@ -241,7 +235,6 @@ BleServiceHid* ble_svc_hid_start(void) {
         }
     }
 
-    // Setup remaining characteristics
     for(size_t i = HidSvcGattCharacteristicReportMap; i < HidSvcGattCharacteristicCount; i++) {
         ble_gatt_characteristic_init(
             hid_svc->svc_handle, &ble_svc_hid_chars[i], &hid_svc->chars[i]);
@@ -291,7 +284,7 @@ bool ble_svc_hid_update_info(BleServiceHid* hid_svc, uint8_t* data) {
 void ble_svc_hid_stop(BleServiceHid* hid_svc) {
     furi_assert(hid_svc);
     ble_event_dispatcher_unregister_svc_handler(hid_svc->event_handler);
-    // Delete characteristics
+
     for(size_t i = 0; i < HidSvcGattCharacteristicCount; i++) {
         ble_gatt_characteristic_delete(hid_svc->svc_handle, &hid_svc->chars[i]);
     }
@@ -316,7 +309,6 @@ void ble_svc_hid_stop(BleServiceHid* hid_svc) {
         }
     }
 
-    // Delete service
     ble_gatt_service_delete(hid_svc->svc_handle);
     free(hid_svc);
 }

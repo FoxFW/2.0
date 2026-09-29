@@ -33,7 +33,6 @@ bool bt_settings_scene_forget_dev_confirm_on_event(void* context, SceneManagerEv
             bt_keys_storage_set_default_path(app->bt);
             bt_forget_bonded_devices(app->bt);
 
-            // Also remove keys of BadBT, Bluetooth Remote, TOTP Authenticator
             Storage* storage = furi_record_open(RECORD_STORAGE);
             storage_simply_remove(storage, EXT_PATH("badbt/.badbt.keys"));
             storage_simply_remove(storage, EXT_PATH("apps_data/hid_ble/.bt_hid.keys"));

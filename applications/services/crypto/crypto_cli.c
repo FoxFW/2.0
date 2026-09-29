@@ -63,7 +63,7 @@ void crypto_cli_encrypt(PipeSide* pipe, FuriString* args) {
 
         size_t size = furi_string_size(input);
         if(size > 0) {
-            // C-string null termination and block alignments
+
             size++;
             size_t remain = size % 16;
             if(remain) {
@@ -145,7 +145,7 @@ void crypto_cli_decrypt(PipeSide* pipe, FuriString* args) {
             if(args_read_hex_bytes(hex_input, input, size)) {
                 if(furi_hal_crypto_decrypt(input, output, size)) {
                     printf("Decrypted data:\r\n");
-                    printf("%s\r\n", output); //-V576
+                    printf("%s\r\n", output);
                 } else {
                     printf("Failed to decrypt\r\n");
                 }

@@ -5,22 +5,6 @@
 
 #define TAG "TPMSRenault"
 
-// Port of rtl_433/src/devices/tpms_renault.c (Christian W. Zuckschwerdt 2017, GPL-2+)
-//
-// FSK 433 MHz, Manchester-encoded, 9 byte payload, CRC-8 poly 0x07 init 0x00.
-// Seen on Renault Clio/Captur/Zoe and Dacia Sandero.
-//
-// Wire format (after Manchester-decoding):
-//   F F/PP PP TT II II II ?? ?? CC   (9 bytes total)
-//   b[0]&0xFC = flags
-//   pressure_raw 10-bit = (b[0]&0x03) << 8 | b[1]   → kPa = raw * 0.75
-//   b[2]      = temperature in °C + 30
-//   b[3..5]   = 24-bit ID, little-endian (b[5] is MSB)
-//   b[6..7]   = unknown (usually 0xFFFF)
-//   b[8]      = CRC-8 (poly 0x07, init 0x00) over b[0..7]
-//
-// Preamble raw 0x55 0x55 0x55 0x56 → we hunt for the trailing 16-bit pattern 0x5556.
-
 #define RENAULT_PREAMBLE 0x5556U
 #define RENAULT_DATA_BITS 72
 
@@ -43,7 +27,7 @@ typedef struct {
     TPMSBlockGeneric generic;
     ManchesterState manchester_saved_state;
     uint16_t header_shift;
-    uint64_t head_64_bit; // upper bits when frame > 64 bit (see subghz_protocol_blocks_add_to_128_bit)
+    uint64_t head_64_bit;
 } TPMSProtocolDecoderRenault;
 
 const SubGhzProtocolDecoder tpms_protocol_renault_decoder = {
@@ -116,8 +100,7 @@ static ManchesterEvent renault_evt(bool level, uint32_t duration) {
 }
 
 static void renault_get_bytes(TPMSProtocolDecoderRenault* instance, uint8_t b[9]) {
-    // 72 bits total. add_to_128_bit shifts the upper 8 bits into head_64_bit
-    // (low byte = b[0]); the remaining 64 bits are in decode_data (= b[1..8]).
+
     b[0] = (uint8_t)(instance->head_64_bit & 0xFF);
     for(int i = 0; i < 8; i++) {
         b[i + 1] = (instance->decoder.decode_data >> (8 * (7 - i))) & 0xFF;
@@ -134,7 +117,7 @@ static void renault_analyze(TPMSProtocolDecoderRenault* instance) {
     uint8_t b[9];
     renault_get_bytes(instance, b);
     uint16_t p_raw = ((uint16_t)(b[0] & 0x03) << 8) | b[1];
-    instance->generic.pressure = (float)p_raw * 0.75f * 0.01f; // kPa → bar
+    instance->generic.pressure = (float)p_raw * 0.75f * 0.01f;
     instance->generic.temperature = (float)((int)b[2] - 30);
     instance->generic.id = ((uint32_t)b[5] << 16) | ((uint32_t)b[4] << 8) | b[3];
     instance->generic.battery_low = TPMS_NO_BATT;
@@ -165,7 +148,8 @@ void tpms_protocol_decoder_renault_feed(void* context, bool level, uint32_t dura
         instance->header_shift = 0;
         instance->manchester_saved_state = ManchesterStateStart1;
         instance->decoder.parser_step = RenaultDecoderStepFindPreamble;
-        /* fallthrough */
+        __attribute__((fallthrough));
+
     case RenaultDecoderStepFindPreamble:
         instance->header_shift = (uint16_t)((instance->header_shift << 1) | (bit ? 1 : 0));
         if(instance->header_shift == RENAULT_PREAMBLE) {
@@ -221,18 +205,15 @@ SubGhzProtocolStatus
 void tpms_protocol_renault_pack(TPMSBlockGeneric* generic) {
     furi_assert(generic);
 
-    // Inverse of renault_analyze(): engineering units back to raw bytes.
     int32_t pressure_raw = (int32_t)((generic->pressure * 100.0f) / 0.75f + 0.5f);
     if(pressure_raw < 0) pressure_raw = 0;
-    if(pressure_raw > 0x3FF) pressure_raw = 0x3FF; // 10-bit
+    if(pressure_raw > 0x3FF) pressure_raw = 0x3FF;
 
     int32_t temperature_raw = (int32_t)(generic->temperature + 30.0f +
                                          (generic->temperature >= 0 ? 0.5f : -0.5f));
     if(temperature_raw < 0) temperature_raw = 0;
     if(temperature_raw > 0xFF) temperature_raw = 0xFF;
 
-    // b[0] (flags + top 2 pressure bits) is outside data's 64 bits, but the
-    // pressure bits are recoverable from pressure, so it's recomputed for CRC.
     uint8_t b[9] = {0};
     b[0] = (uint8_t)((pressure_raw >> 8) & 0x3);
     b[1] = (uint8_t)(pressure_raw & 0xFF);
@@ -240,7 +221,7 @@ void tpms_protocol_renault_pack(TPMSBlockGeneric* generic) {
     b[3] = (generic->id >> 0) & 0xFF;
     b[4] = (generic->id >> 8) & 0xFF;
     b[5] = (generic->id >> 16) & 0xFF;
-    // Unknown bytes — rtl_433 notes these are "usually 0xFFFF" on real sensors.
+
     b[6] = 0xFF;
     b[7] = 0xFF;
     b[8] = subghz_protocol_blocks_crc8(b, 8, 0x07, 0x00);

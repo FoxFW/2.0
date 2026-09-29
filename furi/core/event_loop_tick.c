@@ -5,10 +5,6 @@
 
 #include <furi.h>
 
-/**
- * Private functions
- */
-
 static inline uint32_t furi_event_loop_tick_get_elapsed_time(const FuriEventLoop* instance) {
     return xTaskGetTickCount() - instance->tick.prev_time;
 }
@@ -21,10 +17,6 @@ static inline uint32_t furi_event_loop_tick_get_remaining_time(const FuriEventLo
 static inline bool furi_event_loop_tick_is_expired(const FuriEventLoop* instance) {
     return furi_event_loop_tick_get_elapsed_time(instance) >= instance->tick.interval;
 }
-
-/*
- * Private tick API
- */
 
 void furi_event_loop_init_tick(FuriEventLoop* instance) {
     if(instance->tick.callback) {
@@ -48,10 +40,6 @@ uint32_t furi_event_loop_get_tick_wait_time(const FuriEventLoop* instance) {
 
     return wait_time;
 }
-
-/*
- * Public tick API
- */
 
 void furi_event_loop_tick_set(
     FuriEventLoop* instance,

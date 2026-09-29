@@ -8,12 +8,9 @@
 #include "desktop_settings_scene.h"
 #include "desktop_settings_scene_i.h"
 
-// Kept in sync with desktop_settings_scene_main_menu.c,
-// desktop_settings_scene_main_menu_actions.c and
-// applications/services/loader/loader_main_menu_pins.c.
 #define MAIN_MENU_PINS_MAX       12
 #define MAIN_MENU_PINS_PATH_LEN  128
-#define MAIN_MENU_PINS_NAME_LEN  7 // 6-char custom label + NUL
+#define MAIN_MENU_PINS_NAME_LEN  7
 #define MAIN_MENU_PINS_FILE_NAME ".main_menu.pins"
 
 typedef struct {
@@ -154,7 +151,7 @@ void desktop_settings_scene_main_menu_rename_on_enter(void* context) {
     uint32_t pin_index = scene_manager_get_scene_state(
         app->scene_manager, DesktopSettingsAppSceneMainMenuRename);
 
-    MainMenuPinsUI* pins = malloc(sizeof(MainMenuPinsUI)); // too big for a stack local here
+    MainMenuPinsUI* pins = malloc(sizeof(MainMenuPinsUI));
     main_menu_pins_load(pins);
 
     app->main_menu_rename_buffer[0] = '\0';

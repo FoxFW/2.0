@@ -23,10 +23,6 @@ void cli_ansi_parser_free(CliAnsiParser* parser) {
     free(parser);
 }
 
-/**
- * @brief Converts a single character representing a special key into the enum
- * representation
- */
 static CliKey cli_ansi_key_from_mnemonic(char c) {
     switch(c) {
     case 'A':
@@ -60,49 +56,44 @@ static CliKey cli_ansi_key_from_mnemonic(char c) {
 CliAnsiParserResult cli_ansi_parser_feed(CliAnsiParser* parser, char c) {
     switch(parser->state) {
     case CliAnsiParserStateInitial:
-        // <key> -> <key>
-        if(c != CliKeyEsc) PARSER_RESET_AND_RETURN(parser, CliModKeyNo, c); // -V1048
 
-        // <ESC> ...
+        if(c != CliKeyEsc) PARSER_RESET_AND_RETURN(parser, CliModKeyNo, c);
+
         parser->state = CliAnsiParserStateEscape;
         break;
 
     case CliAnsiParserStateEscape:
-        // <ESC> <ESC> -> <ESC>
+
         if(c == CliKeyEsc) PARSER_RESET_AND_RETURN(parser, CliModKeyNo, c);
 
-        // <ESC> <key> -> Alt + <key>
         if(c != '[') PARSER_RESET_AND_RETURN(parser, CliModKeyAlt, c);
 
-        // <ESC> [ ...
         parser->state = CliAnsiParserStateEscapeBrace;
         break;
 
     case CliAnsiParserStateEscapeBrace:
-        // <ESC> [ <key mnemonic> -> <key>
+
         if(c != '1') PARSER_RESET_AND_RETURN(parser, CliModKeyNo, cli_ansi_key_from_mnemonic(c));
 
-        // <ESC> [ 1 ...
         parser->state = CliAnsiParserStateEscapeBraceOne;
         break;
 
     case CliAnsiParserStateEscapeBraceOne:
-        // <ESC> [ 1 <non-;> -> error
+
         if(c != ';') PARSER_RESET_AND_RETURN(parser, CliModKeyNo, CliKeyUnrecognized);
 
-        // <ESC> [ 1 ; ...
         parser->state = CliAnsiParserStateEscapeBraceOneSemicolon;
         break;
 
     case CliAnsiParserStateEscapeBraceOneSemicolon:
-        // <ESC> [ 1 ; <modifiers> ...
+
         parser->modifiers = (c - '0');
         parser->modifiers &= ~1;
         parser->state = CliAnsiParserStateEscapeBraceOneSemicolonModifiers;
         break;
 
     case CliAnsiParserStateEscapeBraceOneSemicolonModifiers:
-        // <ESC> [ 1 ; <modifiers> <key mnemonic> -> <modifiers> + <key>
+
         PARSER_RESET_AND_RETURN(parser, parser->modifiers, cli_ansi_key_from_mnemonic(c));
     }
 

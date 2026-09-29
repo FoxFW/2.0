@@ -1,8 +1,8 @@
 #include "../subghz_i.h"
 #include "../subghz_modulation_filter.h"
 #include "../helpers/subghz_lib_ext_compat.h"
+#include <applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h>
 
-/* Path and key mirrors the FA FAP so modulation changes here propagate to FA */
 #define LAST_SETTINGS_FILE EXT_PATH("subghz/assets/last_subghz.settings")
 #define FA_PRESET_IDX_KEY  "FAPresetIndex"
 
@@ -32,8 +32,19 @@ enum SubGhzSettingIndex {
     SubGhzSettingIndexModulation,
     SubGhzSettingIndexHopping,
     SubGhzSettingIndexBinRAW,
+    SubGhzSettingIndexAutoSave,
     SubGhzSettingIndexSound,
     SubGhzSettingIndexRAWThresholdRSSI,
+};
+
+#define RADIO_DEVICE_COUNT 2
+const char* const radio_device_text[RADIO_DEVICE_COUNT] = {
+    "Internal",
+    "External",
+};
+const uint32_t radio_device_value[RADIO_DEVICE_COUNT] = {
+    SubGhzRadioDeviceTypeInternal,
+    SubGhzRadioDeviceTypeExternalCC1101,
 };
 
 #define RAW_THRESHOLD_RSSI_COUNT 11
@@ -65,16 +76,6 @@ const float raw_threshold_rssi_value[RAW_THRESHOLD_RSSI_COUNT] = {
     -40.0f,
 };
 
-/* Trimmed-down Hopping: a plain On/Off toggle (COMBO_BOX_COUNT/combobox_text,
- * defined below) rather than the full 12-level RSSI-threshold picker stock
- * exposes. We still drive the exact same stock hopper engine (helpers/
- * subghz_txrx.c: subghz_txrx_hopper_update() et al - untouched, already
- * fully implemented and already linked in regardless of this toggle, so
- * enabling it costs no extra flash), just with a single fixed "stay"
- * threshold instead of a user-configurable one. -90dBm matches this app's
- * pre-existing default (see hopping_threshold's default in subghz_last_
- * settings.c) - close enough to the CC1101's noise floor to treat almost
- * any real transmission as "stay", without configurable knobs to expose. */
 #define SUBGHZ_GARAGE_HOPPING_RSSI_THRESHOLD (-90.0f)
 
 #define COMBO_BOX_COUNT 2
@@ -111,8 +112,6 @@ uint8_t subghz_scene_receiver_config_next_frequency(const uint32_t value, void* 
     return index;
 }
 
-
-/* How many presets are currently enabled (minimum 1 to avoid 0-item list) */
 static size_t mod_filter_enabled_count(SubGhz* subghz) {
     if(!subghz->modulation_filter) return subghz_setting_get_preset_count(subghz_txrx_get_setting(subghz->txrx));
     SubGhzSetting* s = subghz_txrx_get_setting(subghz->txrx);
@@ -123,7 +122,6 @@ static size_t mod_filter_enabled_count(SubGhz* subghz) {
     return n > 0 ? n : 1;
 }
 
-/* Actual preset index for the nth ENABLED preset */
 static uint8_t mod_filter_nth_actual(SubGhz* subghz, uint8_t nth) {
     if(!subghz->modulation_filter) return nth;
     SubGhzSetting* s = subghz_txrx_get_setting(subghz->txrx);
@@ -138,8 +136,6 @@ static uint8_t mod_filter_nth_actual(SubGhz* subghz, uint8_t nth) {
     return 0;
 }
 
-/* Display index (in the visible list) for a given actual preset index.
- * Returns 0 if the preset is disabled (auto-selects first enabled). */
 static uint8_t mod_filter_display_idx(SubGhz* subghz, uint8_t actual_idx) {
     if(!subghz->modulation_filter) return actual_idx;
     SubGhzSetting* s = subghz_txrx_get_setting(subghz->txrx);
@@ -150,7 +146,7 @@ static uint8_t mod_filter_display_idx(SubGhz* subghz, uint8_t actual_idx) {
         if(i == actual_idx) return display;
         display++;
     }
-    return 0; /* disabled or not found — default to first enabled */
+    return 0;
 }
 
 uint8_t subghz_scene_receiver_config_next_preset(const char* preset_name, void* context) {
@@ -183,6 +179,23 @@ uint8_t subghz_scene_receiver_config_hopper_value_index(void* context) {
     }
 }
 
+static void subghz_scene_receiver_config_set_radio_device(VariableItem* item) {
+    SubGhz* subghz = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    if(radio_device_value[index] == SubGhzRadioDeviceTypeExternalCC1101 &&
+       !subghz_txrx_radio_device_is_external_connected(
+           subghz->txrx, SUBGHZ_DEVICE_CC1101_EXT_NAME)) {
+
+        index = 0;
+    }
+
+    variable_item_set_current_value_index(item, index);
+    variable_item_set_current_value_text(item, radio_device_text[index]);
+    subghz_txrx_radio_device_set(subghz->txrx, radio_device_value[index]);
+    FURI_LOG_I(TAG, "set_radio_device: index=%d", (int)index);
+}
+
 static void subghz_scene_receiver_config_set_frequency(VariableItem* item) {
     SubGhz* subghz = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
@@ -202,10 +215,8 @@ static void subghz_scene_receiver_config_set_frequency(VariableItem* item) {
             (frequency % 1000000) / 10000);
         variable_item_set_current_value_text(item, text_buf);
 
-        //Set TX Power
         subghz_txrx_set_tx_power(preset.data, preset.data_size, subghz->tx_power);
 
-        //Set the preset now.
         subghz_txrx_set_preset(
             subghz->txrx,
             furi_string_get_cstr(preset.name),
@@ -213,10 +224,10 @@ static void subghz_scene_receiver_config_set_frequency(VariableItem* item) {
             preset.data,
             preset.data_size);
 
-
-
         subghz->last_settings->frequency = frequency;
         subghz_garage_setting_mark_default_frequency(setting, frequency);
+
+        subghz_save_all(subghz);
     } else {
         variable_item_set_current_value_index(
             item, subghz_setting_get_frequency_default_index(setting));
@@ -226,8 +237,7 @@ static void subghz_scene_receiver_config_set_frequency(VariableItem* item) {
 
 static void subghz_scene_receiver_config_set_preset(VariableItem* item) {
     SubGhz* subghz = variable_item_get_context(item);
-    /* display_idx is the position in the ENABLED-ONLY list (0..enabled_count-1).
-     * Convert to the actual preset index in SubGhzSetting. */
+
     uint8_t display_idx = variable_item_get_current_value_index(item);
     uint8_t index       = mod_filter_nth_actual(subghz, display_idx);
     SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
@@ -244,12 +254,14 @@ static void subghz_scene_receiver_config_set_preset(VariableItem* item) {
     subghz_txrx_set_preset(
         subghz->txrx, preset_name, preset.frequency, preset_data, preset_data_size);
     subghz->last_settings->preset_index = index;
+
+    subghz_save_all(subghz);
     FURI_LOG_I(TAG, "set_preset: done");
 }
 
 static void subghz_scene_receiver_config_set_hopping(VariableItem* item) {
     SubGhz* subghz = variable_item_get_context(item);
-    uint8_t index = variable_item_get_current_value_index(item); // 0=OFF, 1=ON
+    uint8_t index = variable_item_get_current_value_index(item);
     SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
     VariableItem* frequency_item = (VariableItem*)scene_manager_get_scene_state(
         subghz->scene_manager, SubGhzSceneReceiverConfig);
@@ -270,10 +282,8 @@ static void subghz_scene_receiver_config_set_hopping(VariableItem* item) {
             (frequency % 1000000) / 10000);
         variable_item_set_current_value_text(frequency_item, text_buf);
 
-        //Edit TX power, if necessary.
         subghz_txrx_set_tx_power(preset.data, preset.data_size, subghz->tx_power);
 
-        // Maybe better add one more function with only with the frequency argument?
         subghz_txrx_set_preset(
             subghz->txrx,
             furi_string_get_cstr(preset.name),
@@ -291,6 +301,8 @@ static void subghz_scene_receiver_config_set_hopping(VariableItem* item) {
     subghz->last_settings->hopping_threshold = SUBGHZ_GARAGE_HOPPING_RSSI_THRESHOLD;
     subghz_txrx_hopper_set_state(
         subghz->txrx, index != 0 ? SubGhzHopperStateRunning : SubGhzHopperStateOFF);
+
+    subghz_save_all(subghz);
     FURI_LOG_I(TAG, "set_hopping: done");
 }
 
@@ -301,6 +313,8 @@ static void subghz_scene_receiver_config_set_speaker(VariableItem* item) {
 
     variable_item_set_current_value_text(item, combobox_text[index]);
     subghz_txrx_speaker_set_state(subghz->txrx, speaker_value[index]);
+
+    subghz_save_all(subghz);
     FURI_LOG_I(TAG, "set_speaker: done");
 }
 
@@ -313,9 +327,22 @@ static void subghz_scene_receiver_config_set_bin_raw(VariableItem* item) {
     subghz->filter = bin_raw_value[index];
     subghz_txrx_receiver_set_filter(subghz->txrx, subghz->filter);
 
-    // We can set here, but during subghz_garage_last_settings_save filter was changed to ignore BinRAW
     subghz->last_settings->filter = subghz->filter;
+
+    subghz_save_all(subghz);
     FURI_LOG_I(TAG, "set_bin_raw: done");
+}
+
+static void subghz_scene_receiver_config_set_auto_save(VariableItem* item) {
+    SubGhz* subghz = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    FURI_LOG_I(TAG, "set_auto_save: enter, index=%d", (int)index);
+
+    variable_item_set_current_value_text(item, combobox_text[index]);
+    subghz->last_settings->auto_save = index != 0;
+
+    subghz_save_all(subghz);
+    FURI_LOG_I(TAG, "set_auto_save: done");
 }
 
 static void subghz_scene_receiver_config_set_raw_threshold_rssi(VariableItem* item) {
@@ -327,6 +354,8 @@ static void subghz_scene_receiver_config_set_raw_threshold_rssi(VariableItem* it
     subghz_threshold_rssi_set(subghz->threshold_rssi, raw_threshold_rssi_value[index]);
 
     subghz->last_settings->rssi = raw_threshold_rssi_value[index];
+
+    subghz_save_all(subghz);
     FURI_LOG_I(TAG, "set_raw_threshold_rssi: done");
 }
 
@@ -338,6 +367,19 @@ void subghz_scene_receiver_config_on_enter(void* context) {
     uint8_t value_index;
     SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
     SubGhzRadioPreset preset = subghz_txrx_get_preset(subghz->txrx);
+
+    FURI_LOG_I(TAG, "on_enter: adding Radio Module item");
+    item = variable_item_list_add(
+        subghz->variable_item_list,
+        "Radio Module",
+        RADIO_DEVICE_COUNT,
+        subghz_scene_receiver_config_set_radio_device,
+        subghz);
+    value_index = value_index_uint32(
+        subghz_txrx_radio_device_get(subghz->txrx), radio_device_value, RADIO_DEVICE_COUNT);
+    variable_item_set_current_value_index(item, value_index);
+    variable_item_set_current_value_text(item, radio_device_text[value_index]);
+
     FURI_LOG_I(TAG, "on_enter: adding Frequency item");
 
     item = variable_item_list_add(
@@ -364,13 +406,13 @@ void subghz_scene_receiver_config_on_enter(void* context) {
     item = variable_item_list_add(
         subghz->variable_item_list,
         "Modulation",
-        mod_filter_enabled_count(subghz), /* only ENABLED presets appear */
+        mod_filter_enabled_count(subghz),
         subghz_scene_receiver_config_set_preset,
         subghz);
-    /* Get actual preset index, then convert to display index */
+
     value_index =
         subghz_scene_receiver_config_next_preset(furi_string_get_cstr(preset.name), subghz);
-    /* If current preset is now disabled, fall back to first enabled one */
+
     if(subghz->modulation_filter &&
        !subghz_modulation_filter_is_enabled(subghz->modulation_filter, value_index)) {
         value_index = mod_filter_nth_actual(subghz, 0);
@@ -383,8 +425,7 @@ void subghz_scene_receiver_config_on_enter(void* context) {
     FURI_LOG_I(TAG, "on_enter: modulation added, checking hopping");
     if(scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneReadRAW) !=
        SubGhzCustomEventManagerSet) {
-        // Hopping - trimmed-down On/Off toggle (see subghz_scene_receiver_config_set_hopping
-        // and subghz_txrx_hopper_update() in helpers/subghz_txrx.c for what runs behind it)
+
         value_index = subghz_scene_receiver_config_hopper_value_index(subghz);
         item = variable_item_list_add(
             subghz->variable_item_list,
@@ -412,8 +453,23 @@ void subghz_scene_receiver_config_on_enter(void* context) {
         variable_item_set_current_value_text(item, combobox_text[value_index]);
     }
 
-    FURI_LOG_I(TAG, "on_enter: bin raw done, adding Sound item");
-    // Enable speaker, will send all incoming noises and signals to speaker so you can listen how the remote sounds like :)
+    FURI_LOG_I(TAG, "on_enter: bin raw done, checking auto save");
+    if(scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneReadRAW) !=
+       SubGhzCustomEventManagerSet) {
+        item = variable_item_list_add(
+            subghz->variable_item_list,
+            "Auto-Save Every Signal",
+            COMBO_BOX_COUNT,
+            subghz_scene_receiver_config_set_auto_save,
+            subghz);
+
+        value_index = subghz->last_settings->auto_save ? 1 : 0;
+        variable_item_set_current_value_index(item, value_index);
+        variable_item_set_current_value_text(item, combobox_text[value_index]);
+    }
+
+    FURI_LOG_I(TAG, "on_enter: auto save done, adding Sound item");
+
     item = variable_item_list_add(
         subghz->variable_item_list,
         "Sound",

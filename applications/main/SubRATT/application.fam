@@ -1,0 +1,14 @@
+App(
+    appid="subghz_randomattack",
+    name="SubRATT",
+    apptype=FlipperAppType.MENUEXTERNAL,
+    entry_point="subratt_app",
+    requires=["gui","dialogs"],
+    icon="I_subratt_14x14",
+    stack_size=2 * 1024,
+    order=12,
+    fap_icon="icon.png",
+    fap_category="Sub-GHz",
+    fap_icon_assets="images",
+    cdefines=["SUBGHZ_GARAGE_HAS_GENERIC_GLOBAL=1"],
+)

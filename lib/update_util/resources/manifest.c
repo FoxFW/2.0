@@ -39,10 +39,6 @@ bool resource_manifest_reader_open(ResourceManifestReader* resource_manifest, co
         resource_manifest->stream, filename, FSAM_READ, FSOM_OPEN_EXISTING);
 }
 
-/* Read entries in format of
- * F:<hash>:<size>:<name>
- * D:<name> 
- */
 ResourceManifestEntry* resource_manifest_reader_next(ResourceManifestReader* resource_manifest) {
     furi_assert(resource_manifest);
 
@@ -56,7 +52,6 @@ ResourceManifestEntry* resource_manifest_reader_next(ResourceManifestReader* res
             return NULL;
         }
 
-        /* Trim end of line */
         furi_string_trim(resource_manifest->linebuf);
 
         char type_code = furi_string_get_char(resource_manifest->linebuf, 0);
@@ -73,28 +68,23 @@ ResourceManifestEntry* resource_manifest_reader_next(ResourceManifestReader* res
         case 'D':
             resource_manifest->entry.type = ResourceManifestEntryTypeDirectory;
             break;
-        default: /* Skip other entries - version, timestamp, etc */
+        default:
             continue;
         };
 
         if(resource_manifest->entry.type == ResourceManifestEntryTypeFile) {
-            /* Parse file entry
-              F:<hash>:<size>:<name> */
 
-            /* Remove entry type code */
             furi_string_right(resource_manifest->linebuf, 2);
 
             if(furi_string_search_char(resource_manifest->linebuf, ':') !=
                sizeof(resource_manifest->entry.hash) * 2) {
-                /* Invalid hash */
+
                 continue;
             }
 
-            /* Read hash */
             hex_chars_to_uint8(
                 furi_string_get_cstr(resource_manifest->linebuf), resource_manifest->entry.hash);
 
-            /* Remove hash */
             furi_string_right(
                 resource_manifest->linebuf, sizeof(resource_manifest->entry.hash) * 2 + 1);
 
@@ -105,16 +95,12 @@ ResourceManifestEntry* resource_manifest_reader_next(ResourceManifestReader* res
                    10) != StrintParseNoError)
                 break;
 
-            /* Remove size */
             size_t offs = furi_string_search_char(resource_manifest->linebuf, ':');
             furi_string_right(resource_manifest->linebuf, offs + 1);
 
             furi_string_set(resource_manifest->entry.name, resource_manifest->linebuf);
-        } else { //-V547
-            /* Everything else is plain key value. Parse version, timestamp or directory entry
-               <Type>:<Value> */
+        } else {
 
-            /* Remove entry type code */
             furi_string_right(resource_manifest->linebuf, 2);
 
             furi_string_set(resource_manifest->entry.name, resource_manifest->linebuf);
@@ -130,12 +116,10 @@ ResourceManifestEntry*
     resource_manifest_reader_previous(ResourceManifestReader* resource_manifest) {
     furi_assert(resource_manifest);
 
-    // Snapshot position for rollback
     const size_t previous_position = stream_tell(resource_manifest->stream);
 
-    // We need to jump 2 lines back
     size_t jumps = 2;
-    // Special case: end of the file.
+
     const bool was_eof = stream_eof(resource_manifest->stream);
     if(was_eof) {
         jumps = 1;
@@ -149,7 +133,6 @@ ResourceManifestEntry*
         }
     }
 
-    // Special case: first line. Force seek to zero
     if(jumps == 1) {
         jumps = 0;
         stream_seek(resource_manifest->stream, 0, StreamOffsetFromStart);
@@ -157,7 +140,7 @@ ResourceManifestEntry*
 
     if(jumps == 0) {
         ResourceManifestEntry* entry = resource_manifest_reader_next(resource_manifest);
-        // Special case: was end of the file, prevent loop
+
         if(was_eof) {
             stream_seek(resource_manifest->stream, -1, StreamOffsetFromCurrent);
         }

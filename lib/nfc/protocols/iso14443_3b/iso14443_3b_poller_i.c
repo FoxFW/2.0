@@ -78,7 +78,6 @@ Iso14443_3bError iso14443_3b_poller_activate(Iso14443_3bPoller* instance, Iso144
         bit_buffer_reset(instance->tx_buffer);
         bit_buffer_reset(instance->rx_buffer);
 
-        // Send REQB
         bit_buffer_append_byte(instance->tx_buffer, 0x05);
         bit_buffer_append_byte(instance->tx_buffer, 0x00);
         bit_buffer_append_byte(instance->tx_buffer, 0x08);
@@ -117,7 +116,6 @@ Iso14443_3bError iso14443_3b_poller_activate(Iso14443_3bPoller* instance, Iso144
         bit_buffer_reset(instance->tx_buffer);
         bit_buffer_reset(instance->rx_buffer);
 
-        // Send ATTRIB
         uint8_t cid = 0;
         bit_buffer_append_byte(instance->tx_buffer, 0x1d);
         bit_buffer_append_bytes(instance->tx_buffer, data->uid, ISO14443_3B_UID_SIZE);
@@ -141,7 +139,7 @@ Iso14443_3bError iso14443_3b_poller_activate(Iso14443_3bPoller* instance, Iso144
         }
 
         uint8_t cid_received = bit_buffer_get_byte(instance->rx_buffer, 0);
-        // 15 bit is RFU
+
         if((cid_received & 0x7f) != cid) {
             FURI_LOG_D(TAG, "Incorrect CID in ATTRIB response: %02X", cid_received);
             instance->state = Iso14443_3bPollerStateActivationFailed;

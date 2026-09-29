@@ -12,7 +12,7 @@
 #define INFRARED_LIBRARY_HEADER "IR library file"
 #define INFRARED_FILE_VERSION   (1)
 
-ARRAY_DEF(StringArray, const char*, M_CSTR_DUP_OPLIST); //-V575
+ARRAY_DEF(StringArray, const char*, M_CSTR_DUP_OPLIST);
 
 struct InfraredRemote {
     StringArray_t signal_names;
@@ -228,7 +228,7 @@ static InfraredErrorCode infrared_remote_batch_start(
     } while(false);
 
     if(INFRARED_ERROR_PRESENT(error)) {
-        //Remove all temp data and rollback signal names
+
         flipper_format_buffered_file_close(batch_context.ff_out);
         flipper_format_buffered_file_close(batch_context.ff_in);
         status = storage_common_stat(storage, path_out, NULL);
@@ -253,7 +253,7 @@ static InfraredErrorCode infrared_remote_batch_start(
 static InfraredErrorCode infrared_remote_insert_signal_callback(
     const InfraredBatch* batch,
     const InfraredBatchTarget* target) {
-    // Insert a signal under the specified index
+
     if(batch->signal_index == target->signal_index) {
         InfraredErrorCode error =
             infrared_signal_save(target->signal, batch->ff_out, target->signal_name);
@@ -263,7 +263,6 @@ static InfraredErrorCode infrared_remote_insert_signal_callback(
             batch->remote->signal_names, target->signal_index, target->signal_name);
     }
 
-    // Write the rest normally
     return infrared_signal_save(
         batch->signal, batch->ff_out, furi_string_get_cstr(batch->signal_name));
 }
@@ -293,11 +292,11 @@ static InfraredErrorCode infrared_remote_rename_signal_callback(
     const char* signal_name;
 
     if(batch->signal_index == target->signal_index) {
-        // Rename the signal at requested index
+
         signal_name = target->signal_name;
         StringArray_set_at(batch->remote->signal_names, batch->signal_index, signal_name);
     } else {
-        // Use the original name otherwise
+
         signal_name = furi_string_get_cstr(batch->signal_name);
     }
 
@@ -322,11 +321,11 @@ static InfraredErrorCode infrared_remote_delete_signal_callback(
     const InfraredBatch* batch,
     const InfraredBatchTarget* target) {
     if(batch->signal_index == target->signal_index) {
-        // Do not save the signal to be deleted, remove it from the signal name list instead
+
         StringArray_remove_v(
             batch->remote->signal_names, batch->signal_index, batch->signal_index + 1);
     } else {
-        // Pass other signals through
+
         return infrared_signal_save(
             batch->signal, batch->ff_out, furi_string_get_cstr(batch->signal_name));
     }

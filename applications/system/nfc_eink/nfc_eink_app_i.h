@@ -4,8 +4,6 @@
 #include <furi.h>
 #include <furi_hal.h>
 
-#include <applications/services/dolphin/dolphin.h>
-#include <applications/services/dolphin/helpers/dolphin_deed.h>
 #include <../applications/services/notification/notification_messages.h>
 
 #include <../applications/services/gui/gui.h>

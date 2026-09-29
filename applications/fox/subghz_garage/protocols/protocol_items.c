@@ -1,10 +1,5 @@
-#include "protocol_items.h" // IWYU pragma: keep
+#include "protocol_items.h"
 
-// Registry for the Garage/Gate/Other Sub-GHz app. Every entry here is a
-// non-automotive protocol - car protocols live in the main firmware's
-// Automotive registry instead (lib/subghz/protocols/protocol_items.c).
-// Read RAW support (raw/bin_raw) is duplicated in both registries since
-// it's a generic capture mode, not a named protocol.
 static const SubGhzProtocol* const subghz_garage_protocol_registry_items[] = {
     &subghz_protocol_raw,
     &subghz_protocol_bin_raw,

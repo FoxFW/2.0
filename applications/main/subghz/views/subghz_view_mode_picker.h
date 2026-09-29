@@ -12,8 +12,9 @@ typedef void (*SubGhzModePickerCallback)(void* context, uint32_t index);
 #define SUBGHZ_MODE_PICKER_AUTOMOTIVE     0
 #define SUBGHZ_MODE_PICKER_GARAGE         1
 #define SUBGHZ_MODE_PICKER_JAMMER         2
-#define SUBGHZ_MODE_PICKER_TPMS           3
-#define SUBGHZ_MODE_PICKER_RADIO_SETTINGS 4
+#define SUBGHZ_MODE_PICKER_BRUTEFORCER    3
+#define SUBGHZ_MODE_PICKER_TPMS           4
+#define SUBGHZ_MODE_PICKER_RADIO_SETTINGS 5
 
 SubGhzModePicker* subghz_mode_picker_alloc(void);
 void subghz_mode_picker_free(SubGhzModePicker* instance);

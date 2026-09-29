@@ -1,26 +1,14 @@
-// Bambu Lab Filament Lookup Table
-// Maps variant IDs to filament codes and color names
-// Source: https://github.com/queengooborg/Bambu-Lab-RFID-Library
-//
-// Part of the bambu.c port - see that file's header for license/attribution
-// (GPL-3.0, port of https://github.com/uzyn/flipper-bambu by U-Zyn Chua).
-//
-// This file can be updated independently as new filaments are released.
-// To add a new filament: add an entry to bambu_filament_table[] with:
-//   { "VARIANT_ID", "5-DIGIT-CODE", "Color Name" }
-
 #ifndef BAMBU_FILAMENTS_H
 #define BAMBU_FILAMENTS_H
 
 typedef struct {
-    const char* variant_id; // e.g., "A00-R3"
-    const char* filament_code; // e.g., "10204"
-    const char* color_name; // e.g., "Hot Pink"
+    const char* variant_id;
+    const char* filament_code;
+    const char* color_name;
 } BambuFilamentInfo;
 
-// Lookup table - sorted by variant_id for easier maintenance
 static const BambuFilamentInfo bambu_filament_table[] = {
-    // PLA Basic (A00-xxx) - Material ID: GFA00
+
     {"A00-A0", "10300", "Orange"},
     {"A00-A1", "10301", "Pumpkin Orange"},
     {"A00-B1", "10602", "Blue Grey"},
@@ -61,7 +49,6 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A00-Y3", "10801", "Bronze"},
     {"A00-Y4", "10401", "Gold"},
 
-    // PLA Matte (A01-xxx) - Material ID: GFA01
     {"A01-A2", "11300", "Mandarin Orange"},
     {"A01-B0", "11603", "Sky Blue"},
     {"A01-B3", "11600", "Marine Blue"},
@@ -88,14 +75,12 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A01-Y2", "11400", "Lemon Yellow"},
     {"A01-Y3", "11401", "Desert Tan"},
 
-    // PLA Metal (A02-xxx) - Material ID: GFA02
     {"A02-B2", "13600", "Cobalt Blue Metallic"},
     {"A02-D2", "13100", "Iron Gray Metallic"},
     {"A02-G2", "13500", "Oxide Green Metallic"},
     {"A02-N3", "13800", "Copper Brown Metallic"},
     {"A02-Y1", "13400", "Iridium Gold Metallic"},
 
-    // PLA Silk+ (A06-xxx) - Material ID: GFA06
     {"A06-B0", "13603", "Baby Blue"},
     {"A06-B1", "13604", "Blue"},
     {"A06-D0", "13108", "Titan Gray"},
@@ -110,7 +95,6 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A06-Y0", "13404", "Champagne"},
     {"A06-Y1", "13405", "Gold"},
 
-    // PLA Silk Multi-Color (A05-xxx) - Material ID: GFA05
     {"A05-M1", "13906", "South Beach"},
     {"A05-M4", "13909", "Aurora Purple"},
     {"A05-M8", "13912", "Dawn Radiance"},
@@ -120,11 +104,9 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A05-T4", "13904", "Blue Hawaii"},
     {"A05-T5", "13905", "Velvet Eclipse"},
 
-    // PLA Marble (A07-xxx) - Material ID: GFA07
     {"A07-D4", "13103", "White Marble"},
     {"A07-R5", "13201", "Red Granite"},
 
-    // PLA Sparkle (A08-xxx) - Material ID: GFA08
     {"A08-B7", "13700", "Royal Purple Sparkle"},
     {"A08-D5", "13102", "Slate Gray Sparkle"},
     {"A08-G3", "13501", "Alpine Green Sparkle"},
@@ -132,7 +114,6 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A08-R2", "13200", "Crimson Red Sparkle"},
     {"A08-Y1", "13402", "Classic Gold Sparkle"},
 
-    // PLA Tough (A09-xxx) - Material ID: GFA09
     {"A09-A0", "12002", "Orange"},
     {"A09-B4", "12004", "Light Blue"},
     {"A09-B5", "12005", "Lavender Blue"},
@@ -140,29 +121,24 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A09-R3", "12003", "Vermilion Red"},
     {"A09-Y0", "12000", "Yellow"},
 
-    // PLA Tough+ (A10-xxx) - Material ID: GFA10
     {"A10-D0", "12105", "Gray"},
     {"A10-K0", "12104", "Black"},
     {"A10-W0", "12107", "White"},
 
-    // PLA Aero (A11-xxx) - Material ID: GFA11
     {"A11-K0", "14103", "Black"},
     {"A11-W0", "14102", "White"},
 
-    // PLA Glow (A12-xxx) - Material ID: GFA12
     {"A12-A0", "15300", "Orange"},
     {"A12-B0", "15600", "Blue"},
     {"A12-G0", "15500", "Green"},
     {"A12-R0", "15200", "Pink"},
     {"A12-Y0", "15400", "Yellow"},
 
-    // PLA Galaxy (A15-xxx) - Material ID: GFA15
     {"A15-B0", "13602", "Purple"},
     {"A15-G0", "13503", "Green"},
     {"A15-G1", "13504", "Nebulae"},
     {"A15-R0", "13203", "Brown"},
 
-    // PLA Wood (A16-xxx) - Material ID: GFA16
     {"A16-G0", "13505", "Classic Birch"},
     {"A16-K0", "13107", "Black Walnut"},
     {"A16-N0", "13801", "Clay Brown"},
@@ -170,7 +146,6 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A16-W0", "13106", "White Oak"},
     {"A16-Y0", "13403", "Ochre Yellow"},
 
-    // PLA Translucent (A17-xxx) - Material ID: GFA17
     {"A17-A0", "13301", "Orange"},
     {"A17-B1", "13611", "Blue"},
     {"A17-G0", "13510", "Light Jade"},
@@ -180,7 +155,6 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A17-R1", "13211", "Cherry Pink"},
     {"A17-Y0", "13410", "Mellow Yellow"},
 
-    // PLA Lite (A18-xxx) - Material ID: GFA18
     {"A18-B0", "16600", "Cyan"},
     {"A18-B1", "16601", "Blue"},
     {"A18-D0", "16101", "Gray"},
@@ -190,11 +164,9 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A18-W0", "16103", "White"},
     {"A18-Y0", "16400", "Yellow"},
 
-    // PLA-CF (A50-xxx) - Material ID: GFA50
     {"A50-D6", "14101", "Lava Gray"},
     {"A50-K0", "14100", "Black"},
 
-    // ABS (B00-xxx) - Material ID: GFB00
     {"B00-A0", "40300", "Orange"},
     {"B00-B0", "40600", "Blue"},
     {"B00-B4", "40601", "Azure"},
@@ -208,34 +180,27 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"B00-W0", "40100", "White"},
     {"B00-Y1", "40402", "Tangerine Yellow"},
 
-    // ASA (B01-xxx) - Material ID: GFB01
     {"B01-D0", "45102", "Gray"},
     {"B01-K0", "45101", "Black"},
     {"B01-R0", "45200", "Red"},
     {"B01-W0", "45100", "White"},
 
-    // ASA Aero (B02-xxx) - Material ID: GFB02
     {"B02-W0", "46100", "White"},
 
-    // ASA-CF (B51-xxx) - Material ID: GFB51
     {"B51-K0", "46101", "Black"},
 
-    // ABS-GF (B50-xxx) - Material ID: GFB50
     {"B50-A0", "41300", "Orange"},
     {"B50-K0", "41101", "Black"},
 
-    // PC (C00-xxx) - Material ID: GFC00
     {"C00-C0", "60102", "Clear Black"},
     {"C00-C1", "60103", "Transparent"},
     {"C00-K0", "60101", "Black"},
     {"C00-W0", "60100", "White"},
 
-    // PC FR (C01-xxx) - Material ID: GFC01
     {"C01-D0", "63102", "Gray"},
     {"C01-K0", "63100", "Black"},
     {"C01-W0", "63101", "White"},
 
-    // PETG Translucent (G01-xxx) - Material ID: GFG01
     {"G01-A0", "32300", "Translucent Orange"},
     {"G01-B0", "32600", "Translucent Light Blue"},
     {"G01-C0", "32101", "Clear"},
@@ -246,7 +211,6 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"G01-P0", "32700", "Translucent Purple"},
     {"G01-P1", "32200", "Translucent Pink"},
 
-    // PETG HF (G02-xxx) - Material ID: GFG02
     {"G02-A0", "33300", "Orange"},
     {"G02-B0", "33600", "Blue"},
     {"G02-B1", "33601", "Lake Blue"},
@@ -262,35 +226,26 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"G02-Y0", "33400", "Yellow"},
     {"G02-Y1", "33401", "Cream"},
 
-    // PETG-CF (G50-xxx) - Material ID: GFG50
     {"G50-D6", "31101", "Titan Gray"},
     {"G50-G7", "31500", "Malachite Green"},
     {"G50-K0", "31100", "Black"},
     {"G50-P7", "31700", "Violet Purple"},
 
-    // PAHT-CF (N04-xxx) - Material ID: GFN04
     {"N04-K0", "70100", "Black"},
 
-    // PA6-GF (N08-xxx) - Material ID: GFN08
     {"N08-K0", "72104", "Black"},
 
-    // Support for PLA/PETG (S02-xxx) - Material ID: GFS02
     {"S02-W0", "65102", "Nature"},
     {"S02-W1", "65104", "White"},
 
-    // Support for PA/PET (S03-xxx) - Material ID: GFS03
     {"S03-G1", "65500", "Green"},
 
-    // PVA (S04-xxx) - Material ID: GFS04
     {"S04-Y0", "66400", "Clear"},
 
-    // Support (S05-xxx) - Material ID: GFS05
     {"S05-C0", "65103", "Black"},
 
-    // Support for ABS (S06-xxx) - Material ID: GFS06
     {"S06-W0", "66100", "White"},
 
-    // TPU for AMS (U02-xxx) - Material ID: GFU02
     {"U02-B0", "53600", "Blue"},
     {"U02-D0", "53102", "Gray"},
     {"U02-K0", "53101", "Black"},
@@ -298,9 +253,6 @@ static const BambuFilamentInfo bambu_filament_table[] = {
 
 #define BAMBU_FILAMENT_TABLE_SIZE (sizeof(bambu_filament_table) / sizeof(bambu_filament_table[0]))
 
-// Normalize variant IDs that contain padded zeros, e.g.:
-// - "A00-K00" -> "A00-K0"
-// - "A00-G06" -> "A00-G6"
 static inline void
     bambu_normalize_variant_id(const char* variant_id, char* normalized, size_t normalized_size) {
     if(normalized_size == 0) {
@@ -356,8 +308,6 @@ static inline void
     }
 }
 
-// Lookup function: Find filament info by variant_id
-// Returns NULL if not found
 static inline const BambuFilamentInfo* bambu_lookup_filament(const char* variant_id) {
     if(variant_id == NULL || variant_id[0] == '\0') {
         return NULL;
@@ -383,4 +333,4 @@ static inline const BambuFilamentInfo* bambu_lookup_filament(const char* variant
     return NULL;
 }
 
-#endif // BAMBU_FILAMENTS_H
+#endif

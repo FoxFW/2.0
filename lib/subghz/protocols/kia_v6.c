@@ -4,6 +4,7 @@
 #include "../blocks/encoder.h"
 #include "../blocks/generic.h"
 #include "../blocks/math.h"
+#include "../blocks/custom_btn_i.h"
 #include <lib/toolbox/manchester_decoder.h>
 #include <string.h>
 
@@ -748,8 +749,28 @@ void subghz_protocol_decoder_kia_v6_get_string(void* context, FuriString* output
 
     uint32_t serial_6 = instance->generic.serial & 0xFFFFFF;
 
+    subghz_custom_btn_set_max(4);
+    uint8_t display_btn = (uint8_t)(instance->generic.btn & 0x0FU);
+    switch(subghz_custom_btn_get()) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        display_btn = 0x01U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        display_btn = 0x02U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_LEFT:
+        display_btn = 0x03U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_RIGHT:
+        display_btn = 0x04U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_OK:
+    default:
+        break;
+    }
+
     const char* btn_name;
-    switch(instance->generic.btn & 0x0F) {
+    switch(display_btn & 0x0F) {
     case 0x01:
         btn_name = "Lock";
         break;
@@ -783,7 +804,7 @@ void subghz_protocol_decoder_kia_v6_get_string(void* context, FuriString* output
         key2_second,
         instance->fx_field,
         serial_6,
-        instance->generic.btn & 0x0F,
+        display_btn,
         btn_name,
         instance->generic.cnt,
         instance->crc1_field,
@@ -955,7 +976,34 @@ SubGhzProtocolStatus
         instance->generic.data_count_bit = subghz_protocol_kia_v6_const.min_count_bit_for_found;
         instance->fx_field = dec.fx_field;
 
+        uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
+        if(mult == 0U) mult = 1U;
+        instance->generic.cnt = instance->generic.cnt + mult;
+
         kia_v6_encoder_build_upload(instance);
+
+        instance->generic.data = ((uint64_t)instance->stored_part1_high << 32) |
+                                  instance->stored_part1_low;
+        uint8_t key_data[8];
+        for(int i = 0; i < 8; i++) {
+            key_data[i] = (uint8_t)((instance->generic.data >> (56 - 8 * i)) & 0xFF);
+        }
+        flipper_format_rewind(flipper_format);
+        flipper_format_update_hex(flipper_format, "Key", key_data, 8);
+
+        uint32_t key2_store = instance->stored_part2_low;
+        flipper_format_rewind(flipper_format);
+        flipper_format_insert_or_update_uint32(flipper_format, "Key_2", &key2_store, 1);
+        uint32_t key3_store = instance->stored_part2_high;
+        flipper_format_rewind(flipper_format);
+        flipper_format_insert_or_update_uint32(flipper_format, "Key_3", &key3_store, 1);
+        uint32_t key4_store = instance->data_part3;
+        flipper_format_rewind(flipper_format);
+        flipper_format_insert_or_update_uint32(flipper_format, "Key_4", &key4_store, 1);
+
+        uint32_t cnt_store = instance->generic.cnt;
+        flipper_format_rewind(flipper_format);
+        flipper_format_insert_or_update_uint32(flipper_format, "Cnt", &cnt_store, 1);
 
         instance->encoder.is_running = true;
         ret = SubGhzProtocolStatusOk;

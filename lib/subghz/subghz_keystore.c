@@ -85,12 +85,9 @@ static bool subghz_keystore_process_line(SubGhzKeystore* instance, char* line) {
 }
 
 static void subghz_keystore_mess_with_iv(uint8_t* iv) {
-    // Alignment check for `ldrd` instruction
+
     furi_assert(((uint32_t)iv) % 4 == 0);
-    // Please do not share decrypted manufacture keys
-    // Sharing them will bring some discomfort to legal owners
-    // And potential legal action against you
-    // While you reading this code think about your own personal responsibility
+
     asm volatile("nani%=:                  \n"
                  "ldrd  r0, r2, [%0, #0x0] \n"
                  "lsl   r1, r0, #8         \n"
@@ -133,12 +130,12 @@ static bool subghz_keystore_read_file(SubGhzKeystore* instance, Stream* stream, 
             ret = stream_read(stream, buffer, FILE_BUFFER_SIZE);
             for(uint16_t i = 0; i < ret; i++) {
                 if(buffer[i] == '\n' && encrypted_line_cursor > 0) {
-                    // Process line
+
                     if(iv) {
-                        // Data alignment check, 32 instead of 16 because of hex encoding
+
                         size_t len = strlen(encrypted_line);
                         if(len % 32 == 0) {
-                            // Inplace hex to bin conversion
+
                             for(size_t i = 0; i < len; i += 2) {
                                 uint8_t hi_nibble = 0;
                                 uint8_t lo_nibble = 0;
@@ -162,12 +159,12 @@ static bool subghz_keystore_read_file(SubGhzKeystore* instance, Stream* stream, 
                     } else {
                         subghz_keystore_process_line(instance, encrypted_line);
                     }
-                    // reset line buffer
+
                     memset(decrypted_line, 0, SUBGHZ_KEYSTORE_FILE_DECRYPTED_LINE_SIZE);
                     memset(encrypted_line, 0, SUBGHZ_KEYSTORE_FILE_ENCRYPTED_LINE_SIZE);
                     encrypted_line_cursor = 0;
                 } else if(buffer[i] == '\r' || buffer[i] == '\n') {
-                    // do not add line endings to the buffer
+
                 } else {
                     if(encrypted_line_cursor < SUBGHZ_KEYSTORE_FILE_ENCRYPTED_LINE_SIZE) {
                         encrypted_line[encrypted_line_cursor] = buffer[i];
@@ -289,10 +286,10 @@ bool subghz_keystore_save(SubGhzKeystore* instance, const char* file_name, uint8
         size_t encrypted_line_count = 0;
         for
             M_EACH(key, instance->data, SubGhzKeyArray_t) {
-                // Wipe buffer before packing
+
                 memset(decrypted_line, 0, SUBGHZ_KEYSTORE_FILE_DECRYPTED_LINE_SIZE);
                 memset(encrypted_line, 0, SUBGHZ_KEYSTORE_FILE_ENCRYPTED_LINE_SIZE);
-                // Form unecreypted line
+
                 int len = snprintf(
                     decrypted_line,
                     SUBGHZ_KEYSTORE_FILE_DECRYPTED_LINE_SIZE,
@@ -301,20 +298,20 @@ bool subghz_keystore_save(SubGhzKeystore* instance, const char* file_name, uint8
                     (uint32_t)key->key,
                     key->type,
                     furi_string_get_cstr(key->name));
-                // Verify length and align
+
                 furi_assert(len > 0);
                 if(len % 16 != 0) {
                     len += (16 - len % 16);
                 }
                 furi_assert(len % 16 == 0);
                 furi_assert(len <= SUBGHZ_KEYSTORE_FILE_DECRYPTED_LINE_SIZE);
-                // Form encrypted line
+
                 if(!furi_hal_crypto_encrypt(
                        (uint8_t*)decrypted_line, (uint8_t*)encrypted_line, len)) {
                     FURI_LOG_E(TAG, "Encryption failed");
                     break;
                 }
-                // HEX Encode encrypted line
+
                 const char xx[] = "0123456789ABCDEF";
                 for(int i = 0; i < len; i++) {
                     size_t cursor = len - i - 1;
@@ -433,7 +430,6 @@ bool subghz_keystore_raw_encrypted_save(
         size_t ret = 0;
         furi_assert(FILE_BUFFER_SIZE % 16 == 0);
 
-        //skip the end of the previous line "\n"
         stream_read(input_stream, buffer, 1);
 
         do {
@@ -452,7 +448,7 @@ bool subghz_keystore_raw_encrypted_save(
             }
 
             memset(encrypted_line, 0, SUBGHZ_KEYSTORE_FILE_ENCRYPTED_LINE_SIZE);
-            // Form encrypted line
+
             if(!furi_hal_crypto_encrypt(
                    (uint8_t*)buffer, (uint8_t*)encrypted_line, FILE_BUFFER_SIZE / 2)) {
                 FURI_LOG_E(TAG, "Encryption failed");
@@ -460,7 +456,6 @@ bool subghz_keystore_raw_encrypted_save(
                 break;
             }
 
-            // HEX Encode encrypted line
             const char xx[] = "0123456789ABCDEF";
             for(size_t i = 0; i < FILE_BUFFER_SIZE / 2; i++) {
                 size_t cursor = FILE_BUFFER_SIZE / 2 - i - 1;
@@ -553,7 +548,7 @@ bool subghz_keystore_raw_get_data(const char* file_name, size_t offset, uint8_t*
         uint8_t buffer[bufer_size];
         size_t ret = 0;
         bool decrypted = true;
-        //skip the end of the previous line "\n"
+
         stream_read(stream, buffer, 1);
 
         size_t size = stream_size(stream);

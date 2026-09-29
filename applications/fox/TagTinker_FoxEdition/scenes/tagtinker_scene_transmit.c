@@ -1,8 +1,3 @@
-/**
- * Transmit Scene
- * Displays cool animations while transmitting in a background thread.
- */
-
 #include "../tagtinker_app.h"
 #include "../views/tagtinker_font.h"
 #include "tagtinker_icons.h"
@@ -26,9 +21,6 @@ typedef struct {
     bool top_down;
 } TxBmpInfo;
 
-/* Full-job threshold: if the whole image fits in memory, render it in one
- * shot instead of streaming in chunks. 49152 covers 208×112×2 = 46592
- * pixels (the most common color DM images). */
 #define TX_FULL_JOB_PIXEL_LIMIT 49152U
 
 static uint16_t tx_pick_chunk_height(uint16_t width, uint16_t height, bool second_plane);
@@ -36,7 +28,6 @@ static uint16_t tx_pick_chunk_height(uint16_t width, uint16_t height, bool secon
 static void tx_debug_log(const char* fmt, ...) {
     UNUSED(fmt);
 }
-
 
 static uint16_t tx_apply_signal_mode(const TagTinkerApp* app, uint16_t repeats) {
     UNUSED(app);
@@ -120,7 +111,7 @@ static bool tx_send_payload_frames(
             (uint16_t)i,
             &payload->data[i * TAGTINKER_IMAGE_DATA_BYTES_PER_FRAME]);
         ok = tx_send_frame(app, frame, len, app->data_frame_repeats);
-        /* Short delay to avoid tag overflow */
+
         if(ok && ((i + 1U) % 32U) == 0U && (i + 1U) < frame_count) {
             furi_delay_ms(1);
         }
@@ -157,8 +148,7 @@ static bool tx_send_image_chunk(
 }
 
 static uint32_t tx_chunk_settle_delay_ms(uint16_t width, uint16_t height, bool color_clear) {
-    /* Tag needs time to process each chunk before accepting the next one.
-     * Keep this as short as possible while remaining reliable. */
+
     UNUSED(color_clear);
     size_t work_pixels = (size_t)width * height;
     uint32_t delay_ms = 500U + (uint32_t)(work_pixels / 20U);
@@ -171,18 +161,11 @@ static uint16_t tx_pick_chunk_height(uint16_t width, uint16_t height, bool secon
     UNUSED(second_plane);
     if(width == 0U || height == 0U) return 1U;
 
-    /*
-     * Keep each plane buffer ≤ 8 KB so two planes + encode overhead fits
-     * in the Flipper's heap even right after BLE teardown.
-     * 8 KB (down from 12 KB) leaves extra headroom for the encoder's
-     * internal allocations and any lingering BLE buffers.
-     */
-    size_t per_plane_budget = 8192U; /* 8 KB */
+    size_t per_plane_budget = 8192U;
     uint16_t chunk_h = (uint16_t)(per_plane_budget / width);
     if(chunk_h == 0U) chunk_h = 1U;
     if(chunk_h > height) chunk_h = height;
 
-    /* Round down to 8-row boundary for alignment, but keep at least 1 */
     if(chunk_h >= 16U) {
         chunk_h = (uint16_t)(chunk_h & ~7U);
         if(chunk_h == 0U) chunk_h = 8U;
@@ -391,19 +374,6 @@ static bool tx_bmp_open(const char* path, File* file, TxBmpInfo* info) {
     return true;
 }
 
-/*
- * Zero-allocation streaming BMP transmitter with RLE compression.
- *
- * Two-pass approach:
- *   Pass 1: Read all pixels from BMP, count RLE compressed bit length.
- *   Pass 2: Re-read pixels, RLE-encode on-the-fly into IR data frames.
- *
- * Total stack usage: ~200 bytes.  Zero heap allocation.
- *
- * Flow: PING -> PARAM (full image dims, RLE) -> DATA frames (streamed) -> REFRESH
- */
-
-/* Elias gamma bit length for a run count */
 static inline size_t rle_run_bits(uint32_t count) {
     uint8_t n = 0;
     uint32_t v = count;
@@ -417,11 +387,6 @@ static inline uint8_t bmp_read_pixel(const uint8_t* row_buf, uint16_t x) {
     return bit ? 0U : 1U;
 }
 
-/* Map an output row index to a source row using nearest-neighbor rescaling,
- * then read that source row (handling top-down vs bottom-up BMPs and the
- * stacked-plane layout used by 2bpp accent BMPs). The transmitter calls this
- * once per output row, with a small cache so we don't re-seek the file when
- * an upscale maps several output rows to the same source row. */
 static inline uint16_t bmp_map_y(uint16_t out_y, uint16_t tx_h, uint16_t src_h) {
     if(tx_h == 0U || src_h == 0U) return 0U;
     uint32_t y = (uint32_t)out_y * (uint32_t)src_h / (uint32_t)tx_h;
@@ -475,9 +440,6 @@ static bool tx_stream_bmp_image(TagTinkerApp* app) {
         return false;
     }
 
-    /* Output dims come from the target's profile; source dims come from the
-     * BMP file. The streaming pipeline below rescales source -> target with
-     * nearest-neighbor as it reads, so any BMP can drive any tag. */
     uint16_t tx_width  = (job->width  > 0U) ? job->width  : info.width;
     uint16_t tx_height = (job->height > 0U) ? job->height : info.height;
 
@@ -486,16 +448,13 @@ static bool tx_stream_bmp_image(TagTinkerApp* app) {
         accent_color == TagTinkerTagColorRed || accent_color == TagTinkerTagColorYellow;
     bool use_second_plane = app->color_clear || accent_capable;
     bool has_secondary_in_bmp = (info.bpp == 2);
-    /* Plane offset (in source rows) of the secondary plane in 2bpp BMPs. */
+
     uint16_t plane2_off_rows = info.height;
     UNUSED(accent_color);
 
-    /* Source row stride is bounded by max profile width (800 px) -> 104 B,
-     * round up generously to 128 to absorb any future profile additions. */
     uint8_t row_buf[128];
     uint16_t cached_src_y = UINT16_MAX;
 
-    /* ---- PASS 1: Count RLE compressed bit length ---- */
     size_t rle_bits = 0;
     uint8_t run_pixel = 0;
     uint32_t run_count = 0;
@@ -539,16 +498,14 @@ static bool tx_stream_bmp_image(TagTinkerApp* app) {
         return false;
     }
 
-
-
     tx_debug_log("STREAM RLE: bits=%u", (unsigned)rle_bits);
 
     uint32_t raw_bits = (uint32_t)tx_width * tx_height;
     if(use_second_plane) raw_bits *= 2U;
-    
-    bool use_compressed = (app->compression_mode == TagTinkerCompressionRle) || 
+
+    bool use_compressed = (app->compression_mode == TagTinkerCompressionRle) ||
                           (app->compression_mode == TagTinkerCompressionAuto && rle_bits > 0U && rle_bits < raw_bits);
-    
+
     uint32_t target_bits = use_compressed ? (uint32_t)rle_bits : raw_bits;
     uint32_t padded_bytes = (target_bits + 7U) / 8U;
     padded_bytes += (TAGTINKER_IMAGE_DATA_BYTES_PER_FRAME - (padded_bytes % TAGTINKER_IMAGE_DATA_BYTES_PER_FRAME)) % TAGTINKER_IMAGE_DATA_BYTES_PER_FRAME;
@@ -563,7 +520,7 @@ static bool tx_stream_bmp_image(TagTinkerApp* app) {
     }
 
     if(use_compressed) {
-        /* ---- PASS 2: RLE encode into a small heap buffer ---- */
+
         size_t enc_bit_pos = 0;
 
         #define ENC_BIT(b) do { \
@@ -615,7 +572,7 @@ static bool tx_stream_bmp_image(TagTinkerApp* app) {
         #undef ENC_BIT
         #undef ENC_RUN
     } else {
-        /* ---- PASS 2: RAW encode into heap buffer ---- */
+
         size_t bit_idx = 0;
         cached_src_y = UINT16_MAX;
         for(uint16_t y = 0; ok && y < tx_height; y++) {
@@ -653,7 +610,6 @@ static bool tx_stream_bmp_image(TagTinkerApp* app) {
 
     if(!ok) { free(encoded); return false; }
 
-    /* Transmit encoded buffer */
     TagTinkerImagePayload payload;
     payload.data = encoded;
     payload.byte_count = padded_bytes;
@@ -671,12 +627,10 @@ static int32_t tx_thread_callback(void* context) {
     TagTinkerApp* app = context;
     bool ok = true;
 
-    /* Boost priority for IR timing */
     furi_thread_set_current_priority(FuriThreadPriorityHighest);
 
     tagtinker_ir_init();
 
-    /* Let OS settle (especially BLE teardown) before IR blasting */
     if(app->image_tx_job.mode == TagTinkerTxModeBmpImage || app->image_tx_job.mode == TagTinkerTxModeTextImage) {
         furi_delay_ms(500);
     }
@@ -706,8 +660,8 @@ static int32_t tx_thread_callback(void* context) {
     } while(app->tx_spam && app->tx_active);
 
     app->tx_active = false;
-    /* Use event payload to securely pass result instead of querying running thread! */
-    view_dispatcher_send_custom_event(app->view_dispatcher, 101 + (ok ? 0 : 1)); 
+
+    view_dispatcher_send_custom_event(app->view_dispatcher, 101 + (ok ? 0 : 1));
     return 0;
 }
 
@@ -716,10 +670,6 @@ static void transmit_draw_cb(Canvas* canvas, void* _model) {
     TagTinkerApp* app = model->app;
     uint32_t t = model->tick;
 
-    /* Static title - large bold "Tinkering Tag" with the instruction below.
-     * Kept text-only (no busy animation) because the IR blaster runs at the
-     * highest thread priority and starves the GUI; trying to animate during
-     * transmission either looks janky or steals CPU from the IR timing. */
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 12, AlignCenter, AlignTop, "Tinkering Tag");
 
@@ -728,9 +678,6 @@ static void transmit_draw_cb(Canvas* canvas, void* _model) {
         canvas_draw_str_aligned(
             canvas, 64, 28, AlignCenter, AlignTop, "Point the flipper at the tag");
 
-        /* Tiny three-dot loading indicator: rotates one bright dot through
-         * the dot triplet so even when the tick is delayed by IR bursts the
-         * change is obvious and cheap to draw. */
         const int dot_y = 44;
         const int dot_cx = 64;
         const int dot_spacing = 6;
@@ -747,24 +694,9 @@ static void transmit_draw_cb(Canvas* canvas, void* _model) {
         canvas_draw_str_aligned(canvas, 64, 30, AlignCenter, AlignTop, "Flipped ;)");
     }
 
-    /* Bottom action button. */
     canvas_set_font(canvas, FontSecondary);
     {
-        // Real centered filled pill with the actual I_ButtonCenter_7x7 icon,
-        // matching fox_lab/message_view.c's message_draw_one_button()
-        // reference exactly (icon_gap=3/pad_x=10 included) - this app now
-        // carries its own images/ButtonCenter_7x7.png
-        // (fap_icon_assets="images" in application.fam), the same per-app-
-        // local-copy convention fox_lab/fox_chameleon/etc. already use,
-        // rather than the hand-drawn back-arrow glyph this screen used as a
-        // stand-in before. OK-and-Back-activated via transmit_input_cb()
-        // below, since this is simultaneously "the only button" and "a back
-        // button" - both keys satisfy it per the user's 2026-09-13
-        // direction. This screen used to draw plain "[<-] Label" hint text
-        // with no button box at all and no InputKeyOk handling whatsoever
-        // (only the default scene-manager Back path worked) - flagged as
-        // "Pattern C-incorrect" by the 2026-09-13 footer-button audit
-        // (FOOTER_BUTTON_AUDIT.md project doc).
+
         const char* label = app->tx_spam ? "Stop Repeat" : (app->tx_active ? "Cancel" : "Back");
         const Icon* icon = &I_ButtonCenter_7x7;
         int32_t icon_w = icon_get_width(icon);
@@ -795,12 +727,6 @@ static bool transmit_input_cb(InputEvent* event, void* context) {
     TagTinkerApp* app = context;
     if(event->type != InputTypeShort || event->key != InputKeyOk) return false;
 
-    // OK now does exactly what Back already does on this screen (stop a
-    // repeating transmit, cancel an in-progress one, or navigate back once
-    // idle) by invoking the same scene-manager back-event path Back uses,
-    // rather than duplicating tagtinker_scene_transmit_on_event()'s
-    // tx_active/scene-chain-fallback logic. See the button drawn in
-    // transmit_draw_cb() above.
     scene_manager_handle_back_event(app->scene_manager);
     return true;
 }
@@ -856,7 +782,7 @@ bool tagtinker_scene_transmit_on_event(void* context, SceneManagerEvent event) {
         view_commit_model(app->transmit_view, true);
         return true;
     } else if(event.type == SceneManagerEventTypeCustom) {
-        if(event.event == 101 || event.event == 102) { /* Thread Done */
+        if(event.event == 101 || event.event == 102) {
             app->tx_active = false;
             tagtinker_ir_deinit();
             TxViewModel* model = view_get_model(app->transmit_view);
@@ -872,7 +798,7 @@ bool tagtinker_scene_transmit_on_event(void* context, SceneManagerEvent event) {
 
 void tagtinker_scene_transmit_on_exit(void* context) {
     TagTinkerApp* app = context;
-    
+
     app->tx_active = false;
     tagtinker_ir_stop();
     furi_thread_join(app->tx_thread);

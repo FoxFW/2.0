@@ -1,6 +1,7 @@
 #include "flipper.pb.h"
 #include "rpc_i.h"
 #include <desktop/desktop.h>
+#include <string.h>
 
 #define TAG "RpcDesktop"
 
@@ -95,6 +96,7 @@ void* rpc_desktop_alloc(RpcSession* session) {
     furi_assert(session);
 
     RpcDesktop* rpc_desktop = malloc(sizeof(RpcDesktop));
+    memset(rpc_desktop, 0, sizeof(RpcDesktop));
     rpc_desktop->desktop = furi_record_open(RECORD_DESKTOP);
     rpc_desktop->status_pubsub = desktop_api_get_status_pubsub(rpc_desktop->desktop);
     rpc_desktop->session = session;
@@ -131,6 +133,8 @@ void rpc_desktop_free(void* context) {
     furi_assert(rpc_desktop->desktop);
     furi_record_close(RECORD_DESKTOP);
 
+    furi_kernel_lock();
     rpc_desktop->session = NULL;
     free(rpc_desktop);
+    furi_kernel_unlock();
 }

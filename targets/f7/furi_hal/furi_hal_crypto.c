@@ -110,10 +110,10 @@ bool furi_hal_crypto_enclave_ensure_key(uint8_t key_slot) {
     uint8_t last_valid_slot = ENCLAVE_FACTORY_KEY_SLOTS;
     uint8_t empty_iv[16] = {0};
     furi_hal_crypto_enclave_verify(&keys_nb, &valid_keys_nb);
-    if(key_slot <= ENCLAVE_FACTORY_KEY_SLOTS) { // It's a factory key
+    if(key_slot <= ENCLAVE_FACTORY_KEY_SLOTS) {
         if(key_slot > keys_nb) return false;
-    } else { // Unique key
-        if(keys_nb < ENCLAVE_FACTORY_KEY_SLOTS) // Some factory keys are missing
+    } else {
+        if(keys_nb < ENCLAVE_FACTORY_KEY_SLOTS)
             return false;
         for(uint8_t i = key_slot; i > ENCLAVE_FACTORY_KEY_SLOTS; i--) {
             if(furi_hal_crypto_enclave_load_key(i, empty_iv)) {
@@ -124,7 +124,7 @@ bool furi_hal_crypto_enclave_ensure_key(uint8_t key_slot) {
         }
         if(last_valid_slot == key_slot)
             return true;
-        else // Generate missing unique keys
+        else
             return furi_hal_crypto_generate_unique_keys(last_valid_slot + 1, key_slot);
     }
     return true;
@@ -480,7 +480,7 @@ static bool furi_hal_crypto_process_block_no_read_bswap(const uint8_t* in, size_
 }
 
 static void furi_hal_crypto_ctr_prep_iv(uint8_t* iv) {
-    /* append counter to IV */
+
     iv[CRYPTO_CTR_IV_LEN] = 0;
     iv[CRYPTO_CTR_IV_LEN + 1] = 0;
     iv[CRYPTO_CTR_IV_LEN + 2] = 0;
@@ -518,18 +518,16 @@ bool furi_hal_crypto_ctr(
     const uint8_t* input,
     uint8_t* output,
     size_t length) {
-    /* prepare IV and counter */
+
     uint8_t iv_and_counter[CRYPTO_CTR_IV_LEN + CRYPTO_CTR_CTR_LEN];
-    memcpy(iv_and_counter, iv, CRYPTO_CTR_IV_LEN); //-V1086
+    memcpy(iv_and_counter, iv, CRYPTO_CTR_IV_LEN);
     furi_hal_crypto_ctr_prep_iv(iv_and_counter);
 
-    /* load key and IV and set the mode to CTR */
     if(!furi_hal_crypto_load_key_bswap(key, iv_and_counter, CRYPTO_AES_CTR)) {
         furi_hal_crypto_unload_key();
         return false;
     }
 
-    /* process the input and write to output */
     bool state = furi_hal_crypto_ctr_payload(input, output, length);
 
     furi_hal_crypto_unload_key();
@@ -538,7 +536,7 @@ bool furi_hal_crypto_ctr(
 }
 
 static void furi_hal_crypto_gcm_prep_iv(uint8_t* iv) {
-    /* append counter to IV */
+
     iv[CRYPTO_GCM_IV_LEN] = 0;
     iv[CRYPTO_GCM_IV_LEN + 1] = 0;
     iv[CRYPTO_GCM_IV_LEN + 2] = 0;
@@ -546,7 +544,6 @@ static void furi_hal_crypto_gcm_prep_iv(uint8_t* iv) {
 }
 
 static bool furi_hal_crypto_gcm_init(bool decrypt) {
-    /* GCM init phase */
 
     MODIFY_REG(AES1->CR, AES_CR_GCMPH, CRYPTO_GCM_PH_INIT);
     if(decrypt) {
@@ -566,7 +563,6 @@ static bool furi_hal_crypto_gcm_init(bool decrypt) {
 }
 
 static bool furi_hal_crypto_gcm_header(const uint8_t* aad, size_t aad_length) {
-    /* GCM header phase */
 
     MODIFY_REG(AES1->CR, AES_CR_GCMPH, CRYPTO_GCM_PH_HEADER);
     SET_BIT(AES1->CR, AES_CR_EN);
@@ -596,7 +592,6 @@ static bool furi_hal_crypto_gcm_payload(
     uint8_t* output,
     size_t length,
     bool decrypt) {
-    /* GCM payload phase */
 
     MODIFY_REG(AES1->CR, AES_CR_GCMPH, CRYPTO_GCM_PH_PAYLOAD);
     SET_BIT(AES1->CR, AES_CR_EN);
@@ -626,7 +621,6 @@ static bool furi_hal_crypto_gcm_payload(
 }
 
 static bool furi_hal_crypto_gcm_finish(size_t aad_length, size_t payload_length, uint8_t* tag) {
-    /* GCM final phase */
 
     MODIFY_REG(AES1->CR, AES_CR_GCMPH, CRYPTO_GCM_PH_FINAL);
 
@@ -664,14 +658,11 @@ bool furi_hal_crypto_gcm(
     size_t length,
     uint8_t* tag,
     bool decrypt) {
-    /* GCM init phase */
 
-    /* prepare IV and counter */
     uint8_t iv_and_counter[CRYPTO_GCM_IV_LEN + CRYPTO_GCM_CTR_LEN];
-    memcpy(iv_and_counter, iv, CRYPTO_GCM_IV_LEN); //-V1086
+    memcpy(iv_and_counter, iv, CRYPTO_GCM_IV_LEN);
     furi_hal_crypto_gcm_prep_iv(iv_and_counter);
 
-    /* load key and IV and set the mode to CTR */
     if(!furi_hal_crypto_load_key_bswap(key, iv_and_counter, CRYPTO_AES_GCM)) {
         furi_hal_crypto_unload_key();
         return false;
@@ -682,8 +673,6 @@ bool furi_hal_crypto_gcm(
         return false;
     }
 
-    /* GCM header phase */
-
     if(aad_length > 0) {
         if(!furi_hal_crypto_gcm_header(aad, aad_length)) {
             furi_hal_crypto_unload_key();
@@ -691,14 +680,10 @@ bool furi_hal_crypto_gcm(
         }
     }
 
-    /* GCM payload phase */
-
     if(!furi_hal_crypto_gcm_payload(input, output, length, decrypt)) {
         furi_hal_crypto_unload_key();
         return false;
     }
-
-    /* GCM final phase */
 
     if(!furi_hal_crypto_gcm_finish(aad_length, length, tag)) {
         furi_hal_crypto_unload_key();

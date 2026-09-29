@@ -26,15 +26,13 @@ static void rpc_system_app_send_state_response(
     RpcAppSystem* rpc_app,
     PB_App_AppState state,
     const char* name) {
-    PB_Main* response = malloc(sizeof(PB_Main));
+    PB_Main response = PB_Main_init_default;
 
-    response->which_content = PB_Main_app_state_response_tag;
-    response->content.app_state_response.state = state;
+    response.which_content = PB_Main_app_state_response_tag;
+    response.content.app_state_response.state = state;
 
     FURI_LOG_D(TAG, "%s", name);
-    rpc_send(rpc_app->session, response);
-
-    free(response);
+    rpc_send(rpc_app->session, &response);
 }
 
 static void rpc_system_app_send_error_response(
@@ -42,7 +40,7 @@ static void rpc_system_app_send_error_response(
     uint32_t command_id,
     PB_CommandStatus status,
     const char* name) {
-    // Not describing all possible errors as only APP_NOT_RUNNING is used
+
     const char* status_str = status == PB_CommandStatus_ERROR_APP_NOT_RUNNING ? "APP_NOT_RUNNING" :
                                                                                 "UNKNOWN";
     FURI_LOG_E(TAG, "%s: %s, id %lu, status: %d", name, status_str, command_id, status);
@@ -83,7 +81,7 @@ static void rpc_system_app_start_process(const PB_Main* request, void* context) 
         const char* app_args = request->content.app_start_request.args;
 
         if(app_args && strcmp(app_args, "RPC") == 0) {
-            // If app is being started in RPC mode - pass RPC context via args string
+
             snprintf(app_args_temp, RPC_SYSTEM_APP_TEMP_ARGS_SIZE, "RPC %08lX", (uint32_t)rpc_app);
             app_args = app_args_temp;
         }
@@ -121,19 +119,17 @@ static void rpc_system_app_lock_status_process(const PB_Main* request, void* con
 
     FURI_LOG_D(TAG, "LockStatus");
 
-    PB_Main* response = malloc(sizeof(PB_Main));
+    PB_Main response = PB_Main_init_default;
 
-    response->command_id = request->command_id;
-    response->which_content = PB_Main_app_lock_status_response_tag;
+    response.command_id = request->command_id;
+    response.which_content = PB_Main_app_lock_status_response_tag;
 
     Loader* loader = furi_record_open(RECORD_LOADER);
-    response->content.app_lock_status_response.locked = loader_is_locked(loader);
+    response.content.app_lock_status_response.locked = loader_is_locked(loader);
     furi_record_close(RECORD_LOADER);
 
     FURI_LOG_D(TAG, "LockStatus: response");
-    rpc_send_and_release(rpc_app->session, response);
-
-    free(response);
+    rpc_send_and_release(rpc_app->session, &response);
 }
 
 static void rpc_system_app_exit_request(const PB_Main* request, void* context) {
@@ -300,17 +296,15 @@ static void rpc_system_app_get_error_process(const PB_Main* request, void* conte
     RpcAppSystem* rpc_app = context;
     furi_assert(rpc_app);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
+    PB_Main response = PB_Main_init_default;
 
-    response->command_id = request->command_id;
-    response->which_content = PB_Main_app_get_error_response_tag;
-    response->content.app_get_error_response.code = rpc_app->error_code;
-    response->content.app_get_error_response.text = rpc_app->error_text;
+    response.command_id = request->command_id;
+    response.which_content = PB_Main_app_get_error_response_tag;
+    response.content.app_get_error_response.code = rpc_app->error_code;
+    response.content.app_get_error_response.text = rpc_app->error_text;
 
     FURI_LOG_D(TAG, "GetError");
-    rpc_send(rpc_app->session, response);
-
-    free(response);
+    rpc_send(rpc_app->session, &response);
 }
 
 static void rpc_system_app_data_exchange_process(const PB_Main* request, void* context) {
@@ -361,7 +355,7 @@ void rpc_system_app_send_exited(RpcAppSystem* rpc_app) {
 void rpc_system_app_confirm(RpcAppSystem* rpc_app, bool result) {
     furi_check(rpc_app);
     furi_check(rpc_app->last_command_id != 0);
-    /* Ensure that only commands of these types can be confirmed */
+
     furi_check(
         rpc_app->last_event_type == RpcAppEventTypeAppExit ||
         rpc_app->last_event_type == RpcAppEventTypeLoadFile ||
@@ -420,10 +414,10 @@ void rpc_system_app_error_reset(RpcAppSystem* rpc_app) {
 void rpc_system_app_exchange_data(RpcAppSystem* rpc_app, const uint8_t* data, size_t data_size) {
     furi_check(rpc_app);
 
-    PB_Main* request = malloc(sizeof(PB_Main));
+    PB_Main request = PB_Main_init_default;
 
-    request->which_content = PB_Main_app_data_exchange_request_tag;
-    PB_App_DataExchangeRequest* content = &request->content.app_data_exchange_request;
+    request.which_content = PB_Main_app_data_exchange_request_tag;
+    PB_App_DataExchangeRequest* content = &request.content.app_data_exchange_request;
 
     if(data && data_size) {
         content->data = malloc(PB_BYTES_ARRAY_T_ALLOCSIZE(data_size));
@@ -433,15 +427,14 @@ void rpc_system_app_exchange_data(RpcAppSystem* rpc_app, const uint8_t* data, si
         content->data = NULL;
     }
 
-    rpc_send_and_release(rpc_app->session, request);
-
-    free(request);
+    rpc_send_and_release(rpc_app->session, &request);
 }
 
 void* rpc_system_app_alloc(RpcSession* session) {
     furi_assert(session);
 
     RpcAppSystem* rpc_app = malloc(sizeof(RpcAppSystem));
+    memset(rpc_app, 0, sizeof(RpcAppSystem));
     rpc_app->session = session;
 
     RpcHandler rpc_handler = {
@@ -502,5 +495,8 @@ void rpc_system_app_free(void* context) {
         furi_delay_tick(1);
     }
 
+    furi_kernel_lock();
+    free(rpc_app->error_text);
     free(rpc_app);
+    furi_kernel_unlock();
 }

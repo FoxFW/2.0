@@ -1,8 +1,3 @@
-/**
- * @file file_browser.h
- * GUI: FileBrowser view module API
- */
-
 #pragma once
 
 #include <gui/view.h>

@@ -8,9 +8,8 @@ void nfc_scene_restore_original_popup_callback(void* context) {
 void nfc_scene_restore_original_on_enter(void* context) {
     NfcApp* nfc = context;
 
-    // Setup view
     Popup* popup = nfc->popup;
-    // [NO_DOLPHIN] popup_set_icon(popup, 48, 6, &I_DolphinDone_80x58);
+
     popup_set_header(popup, "Original file\nrestored", 5, 22, AlignLeft, AlignBottom);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, nfc);
@@ -40,6 +39,5 @@ bool nfc_scene_restore_original_on_event(void* context, SceneManagerEvent event)
 void nfc_scene_restore_original_on_exit(void* context) {
     NfcApp* nfc = context;
 
-    // Clear view
     popup_reset(nfc->popup);
 }

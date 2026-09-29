@@ -3,7 +3,7 @@
 #include <furi_hal.h>
 #include <gui/elements.h>
 #include <stdio.h>
- 
+
 typedef struct {
     uint8_t hour;
     uint8_t minute;
@@ -62,26 +62,24 @@ static void desktop_clock_lock_timer_callback(void* context) {
         clock_lock->tick_callback(clock_lock->tick_context);
     }
 }
- 
-#define SEG_W    22   // digit width
-#define SEG_H    40   // digit height
-#define SEG_T     3   // segment thickness
-#define SEG_GAP   3   // gap between digits
-#define COL_W    10   // colon area width
 
-// Segment bitmask: bit0=A(top) bit1=B(top-right) bit2=C(bot-right)
-//                  bit3=D(bottom) bit4=E(bot-left) bit5=F(top-left) bit6=G(middle)
+#define SEG_W    22
+#define SEG_H    40
+#define SEG_T     3
+#define SEG_GAP   3
+#define COL_W    10
+
 static const uint8_t seg_map[10] = {
-    0b0111111, // 0: ABCDEF
-    0b0000110, // 1: BC
-    0b1011011, // 2: ABDEG
-    0b1001111, // 3: ABCDG
-    0b1100110, // 4: BCFG
-    0b1101101, // 5: ACDFG
-    0b1111101, // 6: ACDEFG
-    0b0000111, // 7: ABC
-    0b1111111, // 8: all
-    0b1101111, // 9: ABCDFG
+    0b0111111,
+    0b0000110,
+    0b1011011,
+    0b1001111,
+    0b1100110,
+    0b1101101,
+    0b1111101,
+    0b0000111,
+    0b1111111,
+    0b1101111,
 };
 
 static void draw_7seg_digit(Canvas* canvas, int16_t x, int16_t y, uint8_t d) {
@@ -103,9 +101,6 @@ static void desktop_clock_lock_draw_callback(Canvas* canvas, void* model) {
 
     canvas_clear(canvas);
 
-    // While ringing, flash the whole screen inverted every other tick and
-    // show an "ALARM" banner above the clock instead of the usual empty
-    // space - hard to miss even at a glance.
     bool invert = m->ringing && m->blink_on;
     if(invert) {
         canvas_draw_box(canvas, 0, 0, 128, 64);
@@ -114,11 +109,9 @@ static void desktop_clock_lock_draw_callback(Canvas* canvas, void* model) {
         canvas_set_color(canvas, ColorBlack);
     }
 
-    // Layout: HH:MM centered in the usable area (below 13px status bar)
-    // Total width = 4 digits + colon + 3 gaps
     const int16_t total_w = 4 * SEG_W + COL_W + 3 * SEG_GAP;
     const int16_t sx = (128 - total_w) / 2;
-    const int16_t sy = 13 + (51 - SEG_H) / 2;  // 51 = 64-13 usable px
+    const int16_t sy = 13 + (51 - SEG_H) / 2;
 
     if(m->ringing) {
         canvas_set_font(canvas, FontPrimary);
@@ -131,7 +124,6 @@ static void desktop_clock_lock_draw_callback(Canvas* canvas, void* model) {
     draw_7seg_digit(canvas, x, sy, m->hour / 10);   x += SEG_W + SEG_GAP;
     draw_7seg_digit(canvas, x, sy, m->hour % 10);   x += SEG_W;
 
-    // Colon — two dots centered in COL_W
     int16_t cx = x + COL_W / 2;
     canvas_draw_disc(canvas, cx, sy + SEG_H / 3,     3);
     canvas_draw_disc(canvas, cx, sy + SEG_H * 2 / 3, 3);
@@ -140,10 +132,6 @@ static void desktop_clock_lock_draw_callback(Canvas* canvas, void* model) {
     draw_7seg_digit(canvas, x, sy, m->minute / 10);  x += SEG_W + SEG_GAP;
     draw_7seg_digit(canvas, x, sy, m->minute % 10);
 
-    // Brightness overlay (Up/Down) and the short-press Back "hold to exit"
-    // hint share this box - both are plain-language reminders drawn filled
-    // and framed so they stay legible over the digits behind them. Neither
-    // shows while ringing - that state already has its own dismiss hint.
     if(!m->ringing && m->show_brightness) {
         const int16_t box_w = 90, box_h = 20;
         const int16_t box_x = (128 - box_w) / 2;
@@ -188,11 +176,6 @@ static bool desktop_clock_lock_input_callback(InputEvent* event, void* context) 
         return true;
     }
 
-    // Quick backlight shortcut, only meaningful outside the ringing state -
-    // don't want a stray Left/Right to interfere with someone fumbling to
-    // silence an alarm. Left turns the backlight off now, Right turns it
-    // back on (see DesktopClockLockBacklightCallback for what "on" means
-    // relative to the Keep Backlight On setting).
     if(!ringing && event->type == InputTypeShort && clock_lock->backlight_callback) {
         if(event->key == InputKeyLeft) {
             clock_lock->backlight_callback(clock_lock->backlight_context, false);
@@ -201,8 +184,6 @@ static bool desktop_clock_lock_input_callback(InputEvent* event, void* context) 
         }
     }
 
-    // Fox brightness quick-adjust, same restriction as the backlight
-    // shortcut above.
     if(!ringing && event->type == InputTypeShort && clock_lock->brightness_callback) {
         if(event->key == InputKeyUp) {
             clock_lock->brightness_callback(clock_lock->brightness_context, true);
@@ -211,9 +192,6 @@ static bool desktop_clock_lock_input_callback(InputEvent* event, void* context) 
         }
     }
 
-    // Short-press Back shows the "hold to exit" hint for a couple of
-    // seconds, same restriction as the backlight shortcut above - don't
-    // want it popping up over the ringing screen's own dismiss hint.
     if(!ringing && event->type == InputTypeShort && event->key == InputKeyBack) {
         with_view_model(
             clock_lock->view,
@@ -228,13 +206,13 @@ static bool desktop_clock_lock_input_callback(InputEvent* event, void* context) 
 
     return true;
 }
- 
+
 static void desktop_clock_lock_enter_callback(void* context) {
     DesktopClockLockView* clock_lock = context;
- 
+
     DateTime dt;
     furi_hal_rtc_get_datetime(&dt);
- 
+
     with_view_model(
         clock_lock->view,
         ClockLockModel* model,
@@ -254,10 +232,10 @@ static void desktop_clock_lock_exit_callback(void* context) {
     furi_timer_stop(clock_lock->timer);
     furi_timer_stop(clock_lock->hint_timer);
 }
- 
+
 DesktopClockLockView* desktop_clock_lock_alloc(void) {
     DesktopClockLockView* clock_lock = malloc(sizeof(DesktopClockLockView));
- 
+
     clock_lock->callback = NULL;
     clock_lock->context = NULL;
     clock_lock->backlight_callback = NULL;
@@ -274,7 +252,7 @@ DesktopClockLockView* desktop_clock_lock_alloc(void) {
     view_set_input_callback(clock_lock->view, desktop_clock_lock_input_callback);
     view_set_enter_callback(clock_lock->view, desktop_clock_lock_enter_callback);
     view_set_exit_callback(clock_lock->view, desktop_clock_lock_exit_callback);
- 
+
     clock_lock->timer = furi_timer_alloc(
         desktop_clock_lock_timer_callback, FuriTimerTypePeriodic, clock_lock);
     clock_lock->hint_timer = furi_timer_alloc(
@@ -290,11 +268,11 @@ void desktop_clock_lock_free(DesktopClockLockView* clock_lock) {
     view_free(clock_lock->view);
     free(clock_lock);
 }
- 
+
 View* desktop_clock_lock_get_view(DesktopClockLockView* clock_lock) {
     return clock_lock->view;
 }
- 
+
 void desktop_clock_lock_set_callback(
     DesktopClockLockView* clock_lock,
     DesktopClockLockViewCallback callback,

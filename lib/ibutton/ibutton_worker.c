@@ -1,4 +1,5 @@
 #include "ibutton_worker_i.h"
+#include <core/kernel.h>
 #include "ibutton_protocols.h"
 
 #include <core/check.h>
@@ -119,10 +120,12 @@ void ibutton_worker_stop(iButtonWorker* worker) {
 void ibutton_worker_free(iButtonWorker* worker) {
     furi_check(worker);
 
+    furi_kernel_lock();
     furi_message_queue_free(worker->messages);
     furi_thread_free(worker->thread);
 
     free(worker);
+    furi_kernel_unlock();
 }
 
 void ibutton_worker_start_thread(iButtonWorker* worker) {
@@ -150,8 +153,7 @@ void ibutton_worker_switch_mode(iButtonWorker* worker, iButtonWorkerMode mode) {
 
 void ibutton_worker_notify_emulate(iButtonWorker* worker) {
     iButtonMessage message = {.type = iButtonMessageNotifyEmulate};
-    // we're running in an interrupt context, so we can't wait
-    // and we can drop message if queue is full, that's ok for that message
+
     furi_message_queue_put(worker->messages, &message, 0);
 }
 

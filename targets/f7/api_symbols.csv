@@ -13,7 +13,6 @@ Header,+,applications/services/desktop/desktop.h,,
 Header,+,applications/services/desktop/desktop_settings.h,,
 Header,+,applications/services/desktop/helpers/pin_code.h,,
 Header,+,applications/services/dialogs/dialogs.h,,
-Header,+,applications/services/dolphin/dolphin.h,,
 Header,+,applications/services/expansion/expansion.h,,
 Header,+,applications/services/expansion/expansion_settings.h,,
 Header,+,applications/services/gpio_remap/gpio_remap_settings.h,,
@@ -130,7 +129,6 @@ Header,+,lib/mlib/m-list.h,,
 Header,+,lib/mlib/m-rbtree.h,,
 Header,+,lib/mlib/m-tuple.h,,
 Header,+,lib/mlib/m-variant.h,,
-Header,+,lib/music_worker/music_worker.h,,
 Header,+,lib/nanopb/pb.h,,
 Header,+,lib/nanopb/pb_decode.h,,
 Header,+,lib/nanopb/pb_encode.h,,
@@ -973,6 +971,7 @@ Function,+,cli_settings_save,void,const CliSettings*
 Function,+,cli_shell_alloc,CliShell*,"CliShellMotd, void*, PipeSide*, CliRegistry*, const CliCommandExternalConfig*"
 Function,+,cli_shell_free,void,CliShell*
 Function,+,cli_shell_join,void,CliShell*
+Function,+,cli_shell_preregister_builtin_commands,void,"CliRegistry*, _Bool"
 Function,+,cli_shell_set_prompt,void,"CliShell*, const char*"
 Function,+,cli_shell_start,void,CliShell*
 Function,+,cli_sleep,_Bool,"PipeSide*, uint32_t"
@@ -1040,9 +1039,11 @@ Function,+,datetime_validate_datetime,_Bool,DateTime*
 Function,+,desktop_api_clear_pin,void,Desktop*
 Function,+,desktop_api_get_settings,void,"Desktop*, DesktopSettings*"
 Function,-,desktop_api_get_status_pubsub,FuriPubSub*,Desktop*
+Function,+,desktop_api_get_usb_mode,DesktopUsbMode,Desktop*
 Function,-,desktop_api_is_locked,_Bool,Desktop*
 Function,+,desktop_api_set_pin,void,"Desktop*, const DesktopPinCode*"
 Function,+,desktop_api_set_settings,void,"Desktop*, const DesktopSettings*"
+Function,+,desktop_api_set_usb_mode,void,"Desktop*, DesktopUsbMode"
 Function,-,desktop_api_unlock,void,Desktop*
 Function,+,desktop_pin_code_check,_Bool,const DesktopPinCode*
 Function,+,desktop_pin_code_is_equal,_Bool,"const DesktopPinCode*, const DesktopPinCode*"
@@ -1101,13 +1102,6 @@ Function,+,dir_walk_read,DirWalkResult,"DirWalk*, FuriString*, FileInfo*"
 Function,+,dir_walk_set_filter_cb,void,"DirWalk*, DirWalkFilterCb, void*"
 Function,+,dir_walk_set_recursive,void,"DirWalk*, _Bool"
 Function,-,div,div_t,"int, int"
-Function,+,dolphin_deed,void,DolphinDeed
-Function,+,dolphin_flush,void,Dolphin*
-Function,+,dolphin_get_pubsub,FuriPubSub*,Dolphin*
-Function,+,dolphin_get_settings,void,"Dolphin*, DolphinSettings*"
-Function,+,dolphin_set_settings,void,"Dolphin*, DolphinSettings*"
-Function,+,dolphin_stats,DolphinStats,Dolphin*
-Function,+,dolphin_upgrade_level,void,Dolphin*
 Function,-,dprintf,int,"int, const char*, ..."
 Function,-,drand48,double,
 Function,-,drem,double,"double, double"
@@ -2503,12 +2497,14 @@ Function,-,llroundf,long long int,float
 Function,-,llroundl,long long int,long double
 Function,+,loader_clear_launch_queue,void,Loader*
 Function,+,loader_enqueue_launch,void,"Loader*, const char*, const char*, LoaderDeferredLaunchFlag"
+Function,+,loader_ensure_menu_built,void,Loader*
 Function,+,loader_get_application_id,_Bool,"Loader*, FuriString*"
 Function,+,loader_get_application_launch_path,_Bool,"Loader*, FuriString*"
 Function,+,loader_get_application_name,_Bool,"Loader*, FuriString*"
 Function,+,loader_get_pubsub,FuriPubSub*,Loader*
 Function,+,loader_is_locked,_Bool,Loader*
 Function,+,loader_lock,_Bool,Loader*
+Function,+,loader_release_hidden_menu,void,Loader*
 Function,+,loader_show_menu,void,Loader*
 Function,+,loader_signal,_Bool,"Loader*, uint32_t, void*"
 Function,+,loader_start,LoaderStatus,"Loader*, const char*, const char*, FuriString*"
@@ -2771,6 +2767,7 @@ Function,+,memmgr_heap_enable_thread_trace,void,FuriThreadId
 Function,+,memmgr_heap_get_max_free_block,size_t,
 Function,+,memmgr_heap_get_thread_memory,size_t,FuriThreadId
 Function,+,memmgr_heap_printf_free_blocks,void,
+Function,+,memmgr_heap_write_fragmentation_map,void,"MemmgrHeapMapWriteCallback, void*, const char*"
 Function,+,memmgr_pool_get_free,size_t,
 Function,+,memmgr_pool_get_max_block,size_t,
 Function,+,memmove,void*,"void*, const void*, size_t"
@@ -2957,18 +2954,6 @@ Function,-,modf,double,"double, double*"
 Function,-,modff,float,"float, float*"
 Function,-,modfl,long double,"long double, long double*"
 Function,-,mrand48,long,
-Function,-,music_worker_alloc,MusicWorker*,
-Function,-,music_worker_clear,void,MusicWorker*
-Function,-,music_worker_free,void,MusicWorker*
-Function,-,music_worker_is_playing,_Bool,MusicWorker*
-Function,-,music_worker_load,_Bool,"MusicWorker*, const char*"
-Function,-,music_worker_load_fmf_from_file,_Bool,"MusicWorker*, const char*"
-Function,-,music_worker_load_rtttl_from_file,_Bool,"MusicWorker*, const char*"
-Function,-,music_worker_load_rtttl_from_string,_Bool,"MusicWorker*, const char*"
-Function,-,music_worker_set_callback,void,"MusicWorker*, MusicWorkerCallback, void*"
-Function,-,music_worker_set_volume,void,"MusicWorker*, float"
-Function,-,music_worker_start,void,MusicWorker*
-Function,-,music_worker_stop,void,MusicWorker*
 Function,+,name_generator_make_auto,void,"char*, size_t, const char*"
 Function,+,name_generator_make_auto_basic,void,"char*, size_t, const char*"
 Function,+,name_generator_make_auto_datetime,void,"char*, size_t, const char*, DateTime*"
@@ -3320,6 +3305,7 @@ Function,+,rpc_system_app_send_started,void,RpcAppSystem*
 Function,+,rpc_system_app_set_callback,void,"RpcAppSystem*, RpcAppSystemCallback, void*"
 Function,+,rpc_system_app_set_error_code,void,"RpcAppSystem*, uint32_t"
 Function,+,rpc_system_app_set_error_text,void,"RpcAppSystem*, const char*"
+Function,+,rpc_wait_for_subsystems_ready,void,
 Function,-,rpmatch,int,const char*
 Function,+,saved_struct_get_metadata,_Bool,"const char*, uint8_t*, uint8_t*, size_t*"
 Function,+,saved_struct_load,_Bool,"const char*, void*, size_t, uint8_t, uint8_t"
@@ -3676,6 +3662,7 @@ Function,+,subghz_devices_is_frequency_valid,_Bool,"const SubGhzDevice*, uint32_
 Function,+,subghz_devices_is_rx_data_crc_valid,_Bool,const SubGhzDevice*
 Function,+,subghz_devices_load_external,_Bool,
 Function,+,subghz_devices_load_preset,void,"const SubGhzDevice*, FuriHalSubGhzPreset, uint8_t*"
+Function,+,subghz_devices_preinit,void,
 Function,+,subghz_devices_read_packet,void,"const SubGhzDevice*, uint8_t*, uint8_t*"
 Function,+,subghz_devices_reset,void,const SubGhzDevice*
 Function,+,subghz_devices_rx_pipe_not_empty,_Bool,const SubGhzDevice*
@@ -3786,6 +3773,7 @@ Function,+,subghz_receiver_free,void,SubGhzReceiver*
 Function,+,subghz_receiver_reset,void,SubGhzReceiver*
 Function,+,subghz_receiver_search_decoder_base_by_name,SubGhzProtocolDecoderBase*,"SubGhzReceiver*, const char*"
 Function,+,subghz_receiver_set_filter,void,"SubGhzReceiver*, SubGhzProtocolFlag"
+Function,+,subghz_receiver_set_modulation_filter,void,"SubGhzReceiver*, SubGhzProtocolFlag"
 Function,+,subghz_receiver_set_protocol_enabled_callback,void,"SubGhzReceiver*, SubGhzReceiverProtocolEnabledCallback, void*"
 Function,+,subghz_receiver_set_rx_callback,void,"SubGhzReceiver*, SubGhzReceiverCallback, void*"
 Function,+,subghz_setting_alloc,SubGhzSetting*,
@@ -5044,6 +5032,7 @@ Function,+,view_dispatcher_add_view,void,"ViewDispatcher*, uint32_t, View*"
 Function,+,view_dispatcher_alloc,ViewDispatcher*,
 Function,+,view_dispatcher_alloc_ex,ViewDispatcher*,FuriEventLoop*
 Function,+,view_dispatcher_attach_to_gui,void,"ViewDispatcher*, Gui*, ViewDispatcherType"
+Function,+,view_dispatcher_detach_from_gui,void,ViewDispatcher*
 Function,+,view_dispatcher_enable_queue,void,ViewDispatcher*
 Function,+,view_dispatcher_free,void,ViewDispatcher*
 Function,+,view_dispatcher_get_event_loop,FuriEventLoop*,ViewDispatcher*

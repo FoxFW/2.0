@@ -1,7 +1,3 @@
-/*
- * Startup warning scene
- */
-
 #include "../tagtinker_app.h"
 #include <gui/elements.h>
 

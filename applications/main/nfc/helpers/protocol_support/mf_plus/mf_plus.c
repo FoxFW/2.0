@@ -16,18 +16,11 @@ enum {
     SubmenuIndexUpdate,
 };
 
-// SL3 is the only level with recovered AES content: SL0/SL1/SL2 have no sector keys/blocks here
-// (SL1 is read as MIFARE Classic and never reaches this handler), so only SL3 gets full emulation,
-// More Info, and the Show Keys view. The dictionary attack runs automatically on read (see the read
-// on_event), so there is no manual "Unlock with Dictionary" menu entry.
 static bool nfc_scene_mf_plus_is_sl3(NfcApp* instance) {
     const MfPlusData* data = nfc_device_get_data(instance->nfc_device, NfcProtocolMfPlus);
     return data->security_level == MfPlusSecurityLevel3;
 }
 
-// "Show Keys" lists the recovered SL3 sector and admin keys. Offered on both the read and saved
-// menus for SL3 cards; always present (even with no keys yet) so the view is always reachable. The
-// ISO14443-4/version details live behind the Info screen's "More" hub, not on these menus.
 static void nfc_scene_mf_plus_add_show_keys(NfcApp* instance) {
     if(!nfc_scene_mf_plus_is_sl3(instance)) return;
     submenu_add_item(
@@ -38,16 +31,11 @@ static void nfc_scene_mf_plus_add_show_keys(NfcApp* instance) {
         instance);
 }
 
-// Read menu: writing straight after a read makes no sense, so drop the generic "Write" item
-// (mirrors MIFARE Classic).
 static void nfc_scene_mf_plus_read_menu_on_enter(NfcApp* instance) {
     submenu_remove_item(instance->submenu, SubmenuIndexCommonWrite);
     nfc_scene_mf_plus_add_show_keys(instance);
 }
 
-// Saved menu: the generic "Write" item (advertised only for SL3) writes the dump back to the source
-// card, so relabel it to say exactly that, and offer "Update from Initial Card" (re-read the source
-// card with the saved keys to refresh the dump).
 static void nfc_scene_mf_plus_saved_menu_on_enter(NfcApp* instance) {
     if(nfc_scene_mf_plus_is_sl3(instance)) {
         submenu_change_item_label(
@@ -92,8 +80,6 @@ static void nfc_scene_info_on_enter_mf_plus(NfcApp* instance) {
     furi_string_free(temp_str);
 }
 
-// The Info screen's "More" button lands here; jump straight to the More-info hub (View Dump /
-// ISO14443-4 Data), DESFire-style, since that hub owns its own submenu view and back handling.
 static void nfc_scene_more_info_on_enter_mf_plus(NfcApp* instance) {
     scene_manager_next_scene(instance->scene_manager, NfcSceneMfPlusMoreInfo);
 }
@@ -111,9 +97,7 @@ static NfcCommand nfc_scene_read_poller_callback_mf_plus(NfcGenericEvent event, 
     if(mf_plus_event->type == MfPlusPollerEventTypeReadSuccess) {
         nfc_device_set_data(
             instance->nfc_device, NfcProtocolMfPlus, nfc_poller_get_data(instance->poller));
-        // The identity scan is done. An SL3 card can be dictionary-attacked to recover its keys
-        // and blocks, so continue straight into the dictionary attack (like MIFARE Classic auto-
-        // runs its dict). SL0/SL1/SL2 have nothing further to read here, so finish.
+
         const MfPlusData* data = nfc_device_get_data(instance->nfc_device, NfcProtocolMfPlus);
         const NfcCustomEvent custom_event = (data->security_level == MfPlusSecurityLevel3) ?
                                                 NfcCustomEventPollerIncomplete :
@@ -132,7 +116,7 @@ static void nfc_scene_read_on_enter_mf_plus(NfcApp* instance) {
 }
 
 static bool nfc_scene_read_on_event_mf_plus(NfcApp* instance, SceneManagerEvent event) {
-    // Auto-continue an SL3 identity read into the dictionary attack (mirrors MIFARE Classic).
+
     if(event.type == SceneManagerEventTypeCustom &&
        event.event == NfcCustomEventPollerIncomplete) {
         scene_manager_next_scene(instance->scene_manager, NfcSceneMfPlusDictAttack);
@@ -161,13 +145,11 @@ static void nfc_scene_emulate_on_enter_mf_plus(NfcApp* instance) {
     const MfPlusData* data = nfc_device_get_data(instance->nfc_device, NfcProtocolMfPlus);
 
     if(data->security_level == MfPlusSecurityLevel3) {
-        // SL3 has recovered keys/blocks/config: emulate the full native card, so a reader can
-        // authenticate, read and write it (a reader write mutates the data in place; the generic
-        // emulate-exit diff then saves a .shd shadow).
+
         instance->listener = nfc_listener_alloc(instance->nfc, NfcProtocolMfPlus, data);
         nfc_listener_start(instance->listener, NULL, NULL);
     } else {
-        // SL0/SL1/SL2 have no recovered SL3 memory to emulate: fall back to UID-only, like UL-AES.
+
         const Iso14443_4aData* iso14443_4a_data =
             nfc_device_get_data(instance->nfc_device, NfcProtocolIso14443_4a);
         instance->listener =
@@ -177,10 +159,6 @@ static void nfc_scene_emulate_on_enter_mf_plus(NfcApp* instance) {
     }
 }
 
-// Write the loaded dump's recovered data blocks back to the source card. Answers the write poller:
-// gate on a UID match (write only the card the dump came from), then feed the recovered sector keys
-// and data blocks from the dump. Skipping a sector/block the dump lacks is expressed by leaving
-// key_provided / block_provided false.
 static NfcCommand nfc_scene_write_poller_callback_mf_plus(NfcGenericEvent event, void* context) {
     furi_assert(context);
     furi_assert(event.protocol == NfcProtocolMfPlus);
@@ -194,7 +172,7 @@ static NfcCommand nfc_scene_write_poller_callback_mf_plus(NfcGenericEvent event,
 
     switch(mfp_event->type) {
     case MfPlusPollerEventTypeRequestMode: {
-        // Only write the exact card the dump came from: match the UID before entering write mode.
+
         const MfPlusData* tag_data = nfc_poller_get_data(instance->poller);
         size_t tag_uid_len = 0, dump_uid_len = 0;
         const uint8_t* tag_uid = mf_plus_get_uid(tag_data, &tag_uid_len);
@@ -209,7 +187,7 @@ static NfcCommand nfc_scene_write_poller_callback_mf_plus(NfcGenericEvent event,
         break;
     }
     case MfPlusPollerEventTypeRequestWriteSector: {
-        // Provide the sector's recovered AES key (prefer A) so the poller can authenticate to write.
+
         const uint8_t sector = mfp_event->data->write_sector_request.sector;
         if(mf_plus_is_key_found(write_data, sector, MfPlusKeyTypeA)) {
             mfp_event->data->write_sector_request.key = write_data->key_a[sector];
@@ -223,7 +201,7 @@ static NfcCommand nfc_scene_write_poller_callback_mf_plus(NfcGenericEvent event,
         break;
     }
     case MfPlusPollerEventTypeRequestWriteBlock: {
-        // Provide the block only if the dump captured it.
+
         const uint16_t block_num = mfp_event->data->write_block_request.block_num;
         if(mf_plus_is_block_read(write_data, block_num)) {
             mfp_event->data->write_block_request.block = write_data->block[block_num];
@@ -252,10 +230,6 @@ static void nfc_scene_write_on_enter_mf_plus(NfcApp* instance) {
     furi_string_set(instance->text_box_store, "Use the source\ncard only");
 }
 
-// On save-name confirm (the dump file is already written by the generic handler), cache the
-// recovered SL3 keys under /ext/nfc/.cache so a later read of this same card authenticates straight
-// from the cache instead of re-running the whole dictionary attack (mirrors MIFARE Classic). Only
-// SL3 carries recovered keys; the cache save is a no-op for a card with none.
 static bool nfc_scene_save_name_on_event_mf_plus(NfcApp* instance, SceneManagerEvent event) {
     bool consumed = false;
 
@@ -269,10 +243,6 @@ static bool nfc_scene_save_name_on_event_mf_plus(NfcApp* instance, SceneManagerE
     return consumed;
 }
 
-// SL3 exposes full native emulation (a reader can authenticate and read the recovered card) plus
-// write-to-card (write the recovered data blocks back to the source card); SL0/SL1/SL2 have no
-// recovered memory, so they only emulate the UID and can't be written. Evaluated at runtime per
-// loaded card -- a static .features field would wrongly offer these for every level.
 #define MF_PLUS_SL3_FEATURES \
     (NfcProtocolFeatureEmulateFull | NfcProtocolFeatureMoreInfo | NfcProtocolFeatureWrite)
 #define MF_PLUS_UID_FEATURES (NfcProtocolFeatureEmulateUid | NfcProtocolFeatureMoreInfo)

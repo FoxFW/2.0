@@ -6,7 +6,6 @@
 #define TPMS_KEY_FILE_VERSION 1
 #define TPMS_KEY_FILE_TYPE "Flipper Tire Pressure Monitoring System Key File"
 
-/** TPMSRxKeyState state */
 typedef enum {
     TPMSRxKeyStateIDLE,
     TPMSRxKeyStateBack,
@@ -14,7 +13,6 @@ typedef enum {
     TPMSRxKeyStateAddKey,
 } TPMSRxKeyState;
 
-/** TPMSHopperState state */
 typedef enum {
     TPMSHopperStateOFF,
     TPMSHopperStateRunnig,
@@ -38,7 +36,6 @@ typedef enum {
     TPMSViewBoxList,
 } TPMSView;
 
-/** Editable fields on the Receiver Info screen. */
 typedef enum {
     TPMSFieldPressure = 0,
     TPMSFieldTemperature,
@@ -47,7 +44,6 @@ typedef enum {
     TPMSFieldCount,
 } TPMSField;
 
-/** TPMSTxRx state */
 typedef enum {
     TPMSTxRxStateIDLE,
     TPMSTxRxStateRx,
@@ -62,5 +58,5 @@ typedef enum {
 
 typedef enum {
     TPMSRelearnTypeCommon,
-    //TPMSRelearnAnotherOEM,
+
 } TPMSRelearnType;

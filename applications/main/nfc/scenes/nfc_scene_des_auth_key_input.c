@@ -9,7 +9,6 @@ void nfc_scene_des_auth_key_input_byte_input_callback(void* context) {
 void nfc_scene_des_auth_key_input_on_enter(void* context) {
     NfcApp* nfc = context;
 
-    // Setup view
     NfcProtocol protocol = nfc_device_get_protocol(nfc->nfc_device);
     uint8_t* key = (protocol == NfcProtocolFelica) ? nfc->felica_auth->card_key.data :
                                                      nfc->mf_ul_auth->tdes_key.data;
@@ -51,7 +50,6 @@ bool nfc_scene_des_auth_key_input_on_event(void* context, SceneManagerEvent even
 void nfc_scene_des_auth_key_input_on_exit(void* context) {
     NfcApp* nfc = context;
 
-    // Clear view
     byte_input_set_result_callback(nfc->byte_input, NULL, NULL, NULL, NULL, 0);
     byte_input_set_header_text(nfc->byte_input, "");
 }

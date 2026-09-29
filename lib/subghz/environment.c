@@ -51,14 +51,14 @@ void subghz_environment_set_came_atomo_rainbow_table_file_name(
     const char* filename) {
     UNUSED(instance);
     UNUSED(filename);
-    // Do nothing :)
+
     return;
 }
 
 const char*
     subghz_environment_get_came_atomo_rainbow_table_file_name(SubGhzEnvironment* instance) {
     UNUSED(instance);
-    // No table, sorry
+
     return "";
 }
 

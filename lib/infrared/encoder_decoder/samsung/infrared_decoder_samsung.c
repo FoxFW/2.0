@@ -26,7 +26,6 @@ bool infrared_decoder_samsung32_interpret(InfraredCommonDecoder* decoder) {
     return result;
 }
 
-// timings start from Space (delay between message and repeat)
 InfraredStatus infrared_decoder_samsung32_decode_repeat(InfraredCommonDecoder* decoder) {
     furi_assert(decoder);
 

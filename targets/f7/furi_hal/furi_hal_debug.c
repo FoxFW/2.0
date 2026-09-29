@@ -9,12 +9,12 @@
 volatile bool furi_hal_debug_gdb_session_active = false;
 
 void furi_hal_debug_enable(void) {
-    // Low power mode debug
+
     LL_DBGMCU_EnableDBGSleepMode();
     LL_DBGMCU_EnableDBGStopMode();
     LL_DBGMCU_EnableDBGStandbyMode();
     LL_EXTI_EnableIT_32_63(LL_EXTI_LINE_48);
-    // SWD GPIO
+
     furi_hal_gpio_init_ex(
         &gpio_swdio,
         GpioModeAltFunctionPushPull,
@@ -26,12 +26,12 @@ void furi_hal_debug_enable(void) {
 }
 
 void furi_hal_debug_disable(void) {
-    // Low power mode debug
+
     LL_DBGMCU_DisableDBGSleepMode();
     LL_DBGMCU_DisableDBGStopMode();
     LL_DBGMCU_DisableDBGStandbyMode();
     LL_EXTI_DisableIT_32_63(LL_EXTI_LINE_48);
-    // SWD GPIO
+
     furi_hal_gpio_init_simple(&gpio_swdio, GpioModeAnalog);
     furi_hal_gpio_init_simple(&gpio_swclk, GpioModeAnalog);
 }

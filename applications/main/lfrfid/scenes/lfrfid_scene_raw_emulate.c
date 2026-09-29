@@ -23,7 +23,6 @@ void lfrfid_scene_raw_emulate_on_enter(void* context) {
     LfRfidEmulateRawState* state = malloc(sizeof(LfRfidEmulateRawState));
     scene_manager_set_scene_state(app->scene_manager, LfRfidSceneRawEmulate, (uint32_t)state);
 
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 3, &I_RFIDDolphinReceive_97x61);
     view_dispatcher_switch_to_view(app->view_dispatcher, LfRfidViewPopup);
     lfrfid_worker_start_thread(app->lfworker);
     lfrfid_make_app_folder(app);

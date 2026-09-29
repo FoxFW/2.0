@@ -1,23 +1,3 @@
-/* Fox XBM Converter - converts screenshots between FoxFW's .xbm format and
- * monochrome .bmp, so they're easy to view/edit on a PC and bring back.
- *
- * UI flow:
- *   Menu (two big buttons, Up/Down to pick, OK to choose)
- *     -> file browser, scoped to /ext/Screenshots and filtered to the
- *        matching extension (reuses the same gui/modules/file_browser.h
- *        module fox_file_browser/ffb.c is built on, so it looks and
- *        behaves like FFB's own browsing view)
- *     -> Converting screen with a live progress bar
- *     -> "Image Saved!" splash, showing the output filename
- *     -> automatically back to Menu (or OK/Back to skip the wait)
- *
- * The app can also be launched directly with a file path as its argument
- * (e.g. via loader_enqueue_launch("Fox XBM Converter", path, ...) from
- * another app such as FFB) - in that case it skips the menu and browser
- * entirely, auto-detects the direction from the extension, converts that
- * one file, shows the result, and exits instead of returning to a menu.
- */
-
 #include <furi.h>
 #include <gui/gui.h>
 #include <gui/elements.h>
@@ -67,7 +47,7 @@ typedef struct {
     bool browser_started;
     bool single_file_mode;
 
-    uint8_t menu_selected; /* 0 = XBM->BMP, 1 = BMP->XBM */
+    uint8_t menu_selected;
     ConvertMode pending_mode;
 
     char convert_title[32];
@@ -78,19 +58,11 @@ typedef struct {
     char result_line2[48];
 } FoxXbmApp;
 
-/* Draw callbacks don't receive the context passed to view_set_context() -
- * only canvas + the view's own model - so they reach the app through this
- * single-instance pointer instead, same as fox_file_browser/ffb.c's
- * s_ffv_ctx. */
 static FoxXbmApp* s_app = NULL;
 
 static void begin_browse(FoxXbmApp* app, ConvertMode mode);
 static void do_conversion(FoxXbmApp* app, ConvertMode mode, const char* src_path);
 static void return_to_start(FoxXbmApp* app);
-
-/* ------------------------------------------------------------------ */
-/* Small helpers                                                        */
-/* ------------------------------------------------------------------ */
 
 static bool has_extension_ci(const char* path, const char* ext) {
     size_t path_len = strlen(path);
@@ -118,10 +90,6 @@ static void build_dest_path(const char* src_path, ConvertMode mode, char* out, s
     out[base_len] = '\0';
     strlcat(out, new_ext, out_size);
 }
-
-/* ------------------------------------------------------------------ */
-/* Menu view                                                             */
-/* ------------------------------------------------------------------ */
 
 static void draw_menu_button(
     Canvas* canvas,
@@ -177,10 +145,6 @@ static bool menu_input_cb(InputEvent* event, void* context) {
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* File browser                                                         */
-/* ------------------------------------------------------------------ */
-
 static void begin_browse(FoxXbmApp* app, ConvertMode mode) {
     app->pending_mode = mode;
     storage_common_mkdir(app->storage, SCREENSHOTS_DIR);
@@ -201,10 +165,6 @@ static void browser_selected_callback(void* context) {
     do_conversion(app, app->pending_mode, furi_string_get_cstr(app->picked_path));
 }
 
-/* Back at the browser's own root (SCREENSHOTS_DIR) - file_browser has
- * nowhere left to navigate up to, so it hands Back to us via the
- * dispatcher's navigation callback, same as ViewBrowser in
- * fox_file_browser/ffb.c's ffv_nav_callback(). */
 static bool nav_callback(void* context) {
     FoxXbmApp* app = context;
     if(app->current_view == ViewIdBrowser) {
@@ -214,10 +174,6 @@ static bool nav_callback(void* context) {
     }
     return false;
 }
-
-/* ------------------------------------------------------------------ */
-/* Converting view                                                       */
-/* ------------------------------------------------------------------ */
 
 static void converting_draw_cb(Canvas* canvas, void* model) {
     UNUSED(model);
@@ -239,9 +195,7 @@ static void converting_draw_cb(Canvas* canvas, void* model) {
 static bool converting_input_cb(InputEvent* event, void* context) {
     UNUSED(event);
     UNUSED(context);
-    /* Conversion runs synchronously (see do_conversion()), so in practice
-     * this is never reached while it's in progress - kept as a no-op
-     * rather than omitted so the view still has a defined input handler. */
+
     return false;
 }
 
@@ -251,10 +205,6 @@ static void ui_progress_cb(uint8_t percent, void* context) {
     with_view_model(app->converting_view, uint8_t * _model, { UNUSED(_model); }, true);
     furi_delay_ms(2);
 }
-
-/* ------------------------------------------------------------------ */
-/* Result view                                                          */
-/* ------------------------------------------------------------------ */
 
 static void result_draw_cb(Canvas* canvas, void* model) {
     UNUSED(model);
@@ -280,10 +230,6 @@ static bool result_input_cb(InputEvent* event, void* context) {
 static void result_timer_cb(void* context) {
     return_to_start((FoxXbmApp*)context);
 }
-
-/* ------------------------------------------------------------------ */
-/* Conversion driver                                                     */
-/* ------------------------------------------------------------------ */
 
 static void do_conversion(FoxXbmApp* app, ConvertMode mode, const char* src_path) {
     app->pending_mode = mode;
@@ -331,10 +277,6 @@ static void return_to_start(FoxXbmApp* app) {
         view_dispatcher_switch_to_view(app->view_dispatcher, ViewIdMenu);
     }
 }
-
-/* ------------------------------------------------------------------ */
-/* App lifecycle                                                         */
-/* ------------------------------------------------------------------ */
 
 static FoxXbmApp* app_alloc(void) {
     FoxXbmApp* app = malloc(sizeof(FoxXbmApp));
@@ -419,9 +361,7 @@ int32_t fox_xbm_converter_app(void* p) {
     FoxXbmApp* app = app_alloc();
 
     if(args && args[0] != '\0') {
-        /* Launched with a file path (e.g. from another app via
-         * loader_enqueue_launch) - convert just that file and exit,
-         * rather than showing the menu. */
+
         app->single_file_mode = true;
         if(has_extension_ci(args, ".xbm")) {
             do_conversion(app, ModeXbmToBmp, args);

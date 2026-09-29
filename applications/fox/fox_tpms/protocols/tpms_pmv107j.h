@@ -29,6 +29,4 @@ SubGhzProtocolStatus
 
 void tpms_protocol_decoder_pmv107j_get_string(void* context, FuriString* output);
 
-/** Re-pack generic's data word from its id/pressure/temperature/battery_low
- * and recompute the inverted-pressure integrity byte and CRC-8. */
 void tpms_protocol_pmv107j_pack(TPMSBlockGeneric* generic);

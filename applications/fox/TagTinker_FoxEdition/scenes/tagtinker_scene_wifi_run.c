@@ -1,21 +1,3 @@
-/*
- * WiFi Run
- * ========
- *
- * 1. Renders a VariableItemList of the selected plugin's parameters.
- *    - Enum  : cycle through options.
- *    - Bool  : Off/On toggle.
- *    - Int   : numeric range.
- *    - String: tap to open text_input, write back into wifi_param_values.
- * 2. Adds a "Generate" item at the bottom that:
- *    - Picks a target (defaults to the currently-selected target;
- *      if none, asks the user via the popup).
- *    - Sends RUN_PLUGIN to the ESP.
- *    - Switches to a Popup view that streams progress updates.
- *    - On RESULT_END, writes a BMP and chains to the existing transmit
- *      scene via tagtinker_prepare_bmp_tx().
- *    - On ERROR, shows the message in the popup.
- */
 #include "../tagtinker_app.h"
 #include "../wifi/tagtinker_wifi.h"
 #include "../wifi/tagtinker_wifi_bmp.h"
@@ -31,7 +13,6 @@
 #define EVT_ERROR        0xD4u
 #define EVT_RESULT_DONE  0xD5u
 
-/* Per-scene state held in the app to avoid statics. */
 static TagTinkerWifiBmpWriter s_bmp_writer;
 static int8_t s_string_param_being_edited = -1;
 
@@ -41,21 +22,13 @@ static TagTinkerWifiPlugin* current_plugin(TagTinkerApp* app) {
     return &arr[app->wifi_selected_plugin];
 }
 
-/* ---- Variable-item callbacks --------------------------------------------*/
-
-/* Because VariableItem doesn't directly expose row index in its callback,
- * we encode the param index in the high byte of the variable item's
- * `current_value_index` when a callback fires - we re-pack it elsewhere.
- * Simpler: we maintain a parallel array of the items we created, in order,
- * and use variable_item_set_current_value_text to update the displayed text.
- * The scenes module provides no easier way; this approach is minimal. */
 static VariableItem* s_param_items[6];
 
 static void item_changed_enum(VariableItem* item) {
     TagTinkerApp* app = variable_item_get_context(item);
     TagTinkerWifiPlugin* p = current_plugin(app);
     if(!p) return;
-    /* Locate the param index for this item by matching pointer in s_param_items. */
+
     for(uint8_t i = 0; i < p->param_count; i++) {
         if(s_param_items[i] != item) continue;
         const TtWifiParam* sp = &p->params[i];
@@ -102,8 +75,6 @@ static void item_enter_cb(void* ctx, uint32_t index) {
     TagTinkerWifiPlugin* p = current_plugin(app);
     if(!p) return;
 
-    /* The very last item is "Generate"; any string-param item opens the
-     * text_input view. */
     if(index < p->param_count) {
         const TtWifiParam* sp = &p->params[index];
         if(sp->type != TT_PARAM_STRING) return;
@@ -114,12 +85,8 @@ static void item_enter_cb(void* ctx, uint32_t index) {
     }
 }
 
-/* ---- Build the param list ---------------------------------------------- */
-
 static void seed_param_value(TagTinkerApp* app, const TtWifiParam* sp, uint8_t i) {
-    /* If we already have a value (e.g. text_input edit), keep it. The
-     * scene's on_enter wipes the slots fresh per plugin to prevent the
-     * shared array leaking values across plugin selections. */
+
     if(app->wifi_param_values[i][0] != 0) return;
     strncpy(app->wifi_param_values[i], sp->default_value,
             sizeof(app->wifi_param_values[i]) - 1);
@@ -142,7 +109,7 @@ static void build_param_list(TagTinkerApp* app) {
         if(sp->type == TT_PARAM_ENUM) {
             it = variable_item_list_add(list, sp->label, sp->option_count,
                                         item_changed_enum, app);
-            /* Default-select the option matching the seeded value. */
+
             uint8_t sel = 0;
             for(uint8_t j = 0; j < sp->option_count; j++) {
                 if(strcmp(app->wifi_param_values[i], sp->options[j]) == 0) {
@@ -168,7 +135,7 @@ static void build_param_list(TagTinkerApp* app) {
             char buf[16]; snprintf(buf, sizeof(buf), "%ld", (long)cur);
             variable_item_set_current_value_text(it, buf);
         } else {
-            /* String: clickable, opens text_input. */
+
             it = variable_item_list_add(list, sp->label, 1, NULL, app);
             variable_item_set_current_value_text(it,
                 app->wifi_param_values[i][0] ? app->wifi_param_values[i] : "(set)");
@@ -179,7 +146,6 @@ static void build_param_list(TagTinkerApp* app) {
     variable_item_list_set_enter_callback(list, item_enter_cb, app);
 }
 
-/* ---- Text input for STRING params -------------------------------------- */
 static char s_text_buf[64];
 
 static void text_done_cb(void* ctx) {
@@ -198,10 +164,6 @@ static void open_text_input_for_param(TagTinkerApp* app, uint8_t i) {
     view_dispatcher_switch_to_view(app->view_dispatcher, TagTinkerViewTextInput);
 }
 
-/* ---- Run + result handling --------------------------------------------- */
-
-/* The wifi_plugins scene installed its own callback; we hot-swap it on
- * scene enter and restore on exit. */
 static TtWifiEventCb s_prev_cb;
 static void*         s_prev_user;
 
@@ -218,10 +180,8 @@ static void run_event_cb(const TtWifiEvent* e, void* user) {
         uint16_t w = (uint16_t)(e->u0 & 0xFFFFu);
         uint16_t h = (uint16_t)(e->u0 >> 16);
         uint8_t  pl = (uint8_t)(e->u1 ? e->u1 : 1);
-        /* Pick a palette accent that matches the destination tag's color
-         * so the BMP file embeds the right BGR for previewers. The IR TX
-         * path itself only cares about plane bits + the target profile. */
-        uint8_t ar = 0xE0, ag = 0x10, ab = 0x10;  /* default red */
+
+        uint8_t ar = 0xE0, ag = 0x10, ab = 0x10;
         if(app->selected_target >= 0 && app->selected_target < app->target_count) {
             const TagTinkerTarget* t = &app->targets[app->selected_target];
             if(t->profile.color == TagTinkerTagColorYellow) {
@@ -258,8 +218,7 @@ static void run_event_cb(const TtWifiEvent* e, void* user) {
         view_dispatcher_send_custom_event(app->view_dispatcher, EVT_ERROR);
         break;
     default:
-        /* Hello/status/plugin events still useful: forward to the previous
-         * callback so the plugin-list scene can refresh on return. */
+
         if(s_prev_cb) s_prev_cb(e, s_prev_user);
         break;
     }
@@ -285,14 +244,10 @@ static void show_error_popup(TagTinkerApp* app) {
 static void start_run(TagTinkerApp* app) {
     TagTinkerWifiPlugin* p = current_plugin(app);
     if(!p) return;
-    /* Need a target to pick the canvas size. Default to selected_target;
-     * else fallback to a reasonable sane size. */
+
     uint16_t tw = app->esl_width  ? app->esl_width  : 296;
     uint16_t th = app->esl_height ? app->esl_height : 128;
-    /* Honour the tag's accent capability: red/yellow profiles get the
-     * accent plane, mono profiles stay mono. The BMP writer + the IR TX
-     * pipeline already understand 2-plane BMPs (same convention as the
-     * web image prep tool), so plugins can use the accent freely. */
+
     uint8_t accent = TT_ACCENT_NONE;
     if(app->selected_target >= 0 && app->selected_target < app->target_count) {
         const TagTinkerTarget* t = &app->targets[app->selected_target];
@@ -322,18 +277,12 @@ static void start_run(TagTinkerApp* app) {
                               p->index, tw, th, accent, kv, n);
 }
 
-/* ---- Scene entry / event ---------------------------------------------- */
-
 void tagtinker_scene_wifi_run_on_enter(void* ctx) {
     TagTinkerApp* app = ctx;
     s_string_param_being_edited = -1;
-    /* Reset the shared param-value array so the new plugin starts fresh
-     * with its own defaults (otherwise e.g. Crypto's "BTC" leaks into
-     * Weather's "Location" slot). */
+
     memset(app->wifi_param_values, 0, sizeof(app->wifi_param_values));
 
-    /* Hot-swap the WiFi callback so progress/result frames land here.
-     * The previous callback (the plugins scene's) is restored on exit. */
     if(app->wifi) {
         tagtinker_wifi_set_callback(
             (TagTinkerWifi*)app->wifi, run_event_cb, app,
@@ -378,7 +327,7 @@ bool tagtinker_scene_wifi_run_on_event(void* ctx, SceneManagerEvent event) {
         return true;
     case EVT_RESULT_DONE: {
         app->wifi_run_in_flight = false;
-        /* Hand the BMP to the existing TX path. */
+
         if(app->selected_target < 0 || app->selected_target >= app->target_count) {
             strncpy(app->wifi_last_error,
                     "No saved tags - scan one in Targeted Payloads first",
@@ -398,17 +347,13 @@ bool tagtinker_scene_wifi_run_on_event(void* ctx, SceneManagerEvent event) {
 
 void tagtinker_scene_wifi_run_on_exit(void* ctx) {
     TagTinkerApp* app = ctx;
-    /* Restore the plugins-scene callback. */
+
     if(app->wifi && s_prev_cb) {
         tagtinker_wifi_set_callback(
             (TagTinkerWifi*)app->wifi, s_prev_cb, s_prev_user, NULL, NULL);
         s_prev_cb = NULL; s_prev_user = NULL;
     }
-    /* Release the ~10 KB pixel buffer if a transfer was abandoned mid-flight
-     * (e.g. the user backs out of the popup before RESULT_END). Without this
-     * the buffer leaks on every run and the IR transmit scene that follows
-     * has noticeably less heap to malloc its plane buffers - the OOM crashes
-     * we were seeing. abort() is a no-op if the writer is already closed. */
+
     tagtinker_wifi_bmp_abort(&s_bmp_writer);
     variable_item_list_reset(app->var_item_list);
     popup_reset(app->popup);

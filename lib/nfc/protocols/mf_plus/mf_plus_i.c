@@ -14,23 +14,11 @@
 
 #define TAG "MfPlus"
 
-// Identify the MIFARE Plus product from the ATS historical bytes by their discriminating nibbles,
-// the way PM3 and NXP's own TagInfo do -- NOT by a full-length match. The block is
-// C1 05 <type/size> <gen> <caps> <crc16>, and the trailing bytes (caps + CRC) float between
-// sub-variants/configs (a real SE showed C1 05 21 30 00 77 C1, not the AN10833 ...F6 D1), so only
-// the type/size nibbles are reliable. Matched against TagInfo's fingerprint table (v6.2.0):
-//   - S / X mask their size: byte2 = 0x2F, byte3 = 0x2F; the caps byte's SVC bit tells them apart
-//     (set = X "VCS/VCSL/SVC", clear = S "Only VCSL"). Real S = ...2F 2F 00 35 C7, X = ...2F 2F 01
-//     BC D6 (both byte-identical to TagInfo's table).
-//   - SE has byte3 = 0x30 and byte2 in {0x20, 0x21}: TagInfo lists two SE fingerprints,
-//     C1 05 21 30 00 77 C1 and C1 05 20 30 00 AB 9B, differing only in that size/gen nibble.
-// Returns MfPlusTypeUnknown for anything that is not a C1-05 MIFARE-Plus block, so a DESFire (also
-// SAK 0x20) is never mis-claimed.
 static MfPlusType mf_plus_type_from_ats(const uint8_t* historical_bytes, size_t len) {
     if(len != MF_PLUS_T1_TK_VALUE_LEN) return MfPlusTypeUnknown;
     if(historical_bytes[0] != 0xC1 || historical_bytes[1] != 0x05) return MfPlusTypeUnknown;
     if((historical_bytes[2] & 0xF0) != 0x20)
-        return MfPlusTypeUnknown; // high nibble 2 = MIFARE Plus
+        return MfPlusTypeUnknown;
 
     if(historical_bytes[3] == 0x30 && (historical_bytes[2] == 0x21 || historical_bytes[2] == 0x20))
         return MfPlusTypeSE;
@@ -40,9 +28,6 @@ static MfPlusType mf_plus_type_from_ats(const uint8_t* historical_bytes, size_t 
     return MfPlusTypeUnknown;
 }
 
-// SL0/SL3 expose no product-independent size byte, so once the card is confirmed Plus fall back to
-// the ATQA size coding: bit 2 (0x0004) = 2K, bit 1 (0x0002) = 4K. Size refinement only, never type
-// identification (same as PM3 hf mfp info).
 static MfPlusSize mf_plus_size_from_atqa(const uint8_t atqa[2]) {
     const uint16_t atqa_value = atqa[0] | ((uint16_t)atqa[1] << 8);
     if(atqa_value & 0x0004) return MfPlusSize2K;
@@ -61,9 +46,7 @@ MfPlusError mf_plus_get_type_from_version(
 
     if((mf_plus_data->version.hw_type & 0x0F) == 0x02) {
         error = MfPlusErrorNone;
-        // Mifare Plus EV1/EV2
 
-        // Revision
         switch(mf_plus_data->version.hw_major) {
         case 0x11:
             mf_plus_data->type = MfPlusTypeEV1;
@@ -79,7 +62,6 @@ MfPlusError mf_plus_get_type_from_version(
             break;
         }
 
-        // Storage size
         switch(mf_plus_data->version.hw_storage) {
         case 0x16:
             mf_plus_data->size = MfPlusSize2K;
@@ -90,21 +72,16 @@ MfPlusError mf_plus_get_type_from_version(
             FURI_LOG_D(TAG, "4K");
             break;
         default:
-            // No recognized storage byte (e.g. probe-only/older silicon) -> fall back to ATQA.
+
             mf_plus_data->size = mf_plus_size_from_atqa(iso14443_4a_data->iso14443_3a_data->atqa);
             FURI_LOG_D(TAG, "Unknown storage size; size from ATQA");
             break;
         }
 
-        // Security level from the SAK bit map (AN10833): 0x20 -> SL3, 0x10/0x11 -> SL2,
-        // 0x08/0x18 -> SL1. GetVersion already gave the authoritative type/size, so the SAK here
-        // only refines SL; an unrecognized SAK leaves it Unknown rather than guessing SL1 (which
-        // previously collapsed every non-0x20 card, mislabelling genuine SL2 as SL1).
         const uint8_t sak = iso14443_4a_data->iso14443_3a_data->sak;
         switch(sak) {
         case 0x20:
-            // GetVersion already confirmed Plus here; the probe only refines SL0 vs SL3. Keep the
-            // prior SL3 default when the probe was inconclusive.
+
             if(probed_security_level != MfPlusSecurityLevelUnknown) {
                 mf_plus_data->security_level = probed_security_level;
                 FURI_LOG_D(
@@ -151,11 +128,6 @@ MfPlusError mf_plus_get_type_from_iso4(
     const uint8_t* historical_bytes =
         ats_matchable ? simple_array_cget_data(iso4_data->ats_data.t1_tk) : NULL;
 
-    // SAK 0x20 is shared with DESFire and cannot separate SL0 from SL3. When the poller's active
-    // probe resolved the level (non-Unknown), it has already confirmed "Plus, not DESFire", so we
-    // may report a Plus regardless of the ATS. Handle that here, before the ATS-nibble gate below,
-    // so an unmatched or short ATS still yields a generic Plus instead of Unknown. 2K vs 4K needs the
-    // AN10833-forbidden ATQA nibble, so non-SE size stays Unknown.
     if(sak == 0x20 && probed_security_level != MfPlusSecurityLevelUnknown) {
         const MfPlusType ats_type = mf_plus_type_from_ats(historical_bytes, historical_bytes_len);
         mf_plus_data->type = (ats_type == MfPlusTypeUnknown) ? MfPlusTypePlus : ats_type;
@@ -176,7 +148,7 @@ MfPlusError mf_plus_get_type_from_iso4(
 
     switch(sak) {
     case 0x08: {
-        // SAK 0x08 = 2K SL1 (S/X); an SE (1K only) can also surface here as SL1.
+
         const MfPlusType type = mf_plus_type_from_ats(historical_bytes, historical_bytes_len);
         if(type != MfPlusTypeUnknown) {
             mf_plus_data->type = type;
@@ -190,8 +162,7 @@ MfPlusError mf_plus_get_type_from_iso4(
         break;
     }
     case 0x10:
-        // SAK 0x10 is Plus 2K SL2 (AN10833). The bare SAK does not justify the S/X/SE product, so
-        // report a generic Plus rather than over-claiming X.
+
         mf_plus_data->type = MfPlusTypePlus;
         mf_plus_data->size = MfPlusSize2K;
         mf_plus_data->security_level = MfPlusSecurityLevel2;
@@ -200,7 +171,7 @@ MfPlusError mf_plus_get_type_from_iso4(
 
         break;
     case 0x11:
-        // SAK 0x11 is Plus 4K SL2 (AN10833); generic Plus for the same reason as 0x10.
+
         mf_plus_data->type = MfPlusTypePlus;
         mf_plus_data->size = MfPlusSize4K;
         mf_plus_data->security_level = MfPlusSecurityLevel2;
@@ -209,7 +180,7 @@ MfPlusError mf_plus_get_type_from_iso4(
 
         break;
     case 0x18: {
-        // SAK 0x18 = 4K SL1; only S/X reach this size (SE is 1K-only).
+
         const MfPlusType type = mf_plus_type_from_ats(historical_bytes, historical_bytes_len);
         if(type == MfPlusTypeS || type == MfPlusTypeX) {
             mf_plus_data->type = type;
@@ -223,9 +194,7 @@ MfPlusError mf_plus_get_type_from_iso4(
         break;
     }
     case 0x20: {
-        // Reached only when the probe gave no usable result: gate on the MIFARE-Plus ATS nibbles so
-        // a DESFire (also SAK 0x20) is not hijacked. SE is always 1K; other products take their size
-        // from ATQA (the only SL3 size signal).
+
         const MfPlusType ats_type = mf_plus_type_from_ats(historical_bytes, historical_bytes_len);
         if(ats_type != MfPlusTypeUnknown) {
             mf_plus_data->type = ats_type;
@@ -266,7 +235,6 @@ bool mf_plus_security_level_load(MfPlusSecurityLevel* data, FlipperFormat* ff) {
     FuriString* security_level_string = furi_string_alloc();
     flipper_format_read_string(ff, MF_PLUS_FFF_SECURITY_LEVEL_KEY, security_level_string);
 
-    // Take the last character of the string
     char security_level_char = furi_string_get_char(
         security_level_string, furi_string_utf8_length(security_level_string) - 1);
 
@@ -425,8 +393,6 @@ bool mf_plus_size_save(const MfPlusSize* data, FlipperFormat* ff) {
     return success;
 }
 
-/* ---- SL3 payload: geometry, block-read bitmap, and (de)serialization ---- */
-
 #define MF_PLUS_FFF_DATA_FORMAT_VERSION_KEY "Data format version"
 #define MF_PLUS_FFF_SIGNATURE_KEY           "Signature"
 
@@ -444,9 +410,6 @@ const char* mf_plus_get_admin_key_name(MfPlusAdminKeyType type) {
     return mf_plus_admin_key_names[type];
 }
 
-// Single source of truth for the admin keys' 0x90xx auth addresses. The enum skips 0x9002 (the
-// SL2->SL3 key we never recover), so this is a table rather than 0x9000 + index. Both the poller
-// (which address to authenticate) and the listener (which key a reader is addressing) derive from it.
 typedef struct {
     uint16_t address;
     MfPlusAdminKeyType type;
@@ -482,7 +445,6 @@ bool mf_plus_admin_key_type_from_address(uint16_t address, MfPlusAdminKeyType* t
     return false;
 }
 
-// Lock the mask-fits-domain invariants at compile time.
 _Static_assert(MfPlusAdminKeyNum <= 8, "admin_key_mask (uint8_t) too small");
 _Static_assert(MF_PLUS_CONFIG_BLOCK_NUM <= 8, "config_read_mask (uint8_t) too small");
 _Static_assert(MF_PLUS_MAX_SECTORS <= 64, "key masks (uint64_t) too small");
@@ -517,7 +479,7 @@ uint8_t mf_plus_get_sector_count(MfPlusSize size) {
 }
 
 uint16_t mf_plus_sector_get_first_block(uint8_t sector) {
-    // 4K layout: 32 small sectors (4 blocks) then 8 large sectors (16 blocks).
+
     return (sector < 32) ? (uint16_t)sector * 4 : (uint16_t)(128 + (sector - 32) * 16);
 }
 
@@ -537,9 +499,7 @@ void mf_plus_set_block_read(MfPlusData* data, uint16_t block_num, const MfPlusBl
 }
 
 bool mf_plus_is_card_read(const MfPlusData* data) {
-    // Fully read == every data block captured. The poller bumps its sector counter even when a
-    // sector aborts on a MAC mismatch or a denied block, so this block-level check (not that
-    // counter) is the honest full-vs-partial verdict, mirroring mf_classic_is_card_read.
+
     const uint16_t block_count = mf_plus_get_block_count(data->size);
     if(block_count == 0) return false;
     for(uint16_t i = 0; i < block_count; i++) {
@@ -560,7 +520,6 @@ void mf_plus_get_read_sectors_and_keys(
         if(mf_plus_is_key_found(data, s, MfPlusKeyTypeA)) keys++;
         if(mf_plus_is_key_found(data, s, MfPlusKeyTypeB)) keys++;
 
-        // A sector counts as read once all of its data blocks have been captured.
         const uint16_t first = mf_plus_sector_get_first_block(s);
         const uint8_t count = mf_plus_sector_get_block_count(s);
         bool all_read = true;
@@ -624,8 +583,6 @@ void mf_plus_merge_update(MfPlusData* base, const MfPlusData* fresh) {
     furi_check(base);
     furi_check(fresh);
 
-    // Per-field overlay: copy only what `fresh` actually recovered, never clearing a field `base`
-    // already had (see mf_plus.h for why a successful re-read can still come back with less).
     for(uint16_t block = 0; block < MF_PLUS_MAX_BLOCKS; block++) {
         if(mf_plus_is_block_read(fresh, block)) {
             mf_plus_set_block_read(base, block, &fresh->block[block]);
@@ -655,7 +612,6 @@ void mf_plus_merge_update(MfPlusData* base, const MfPlusData* fresh) {
     }
 }
 
-// Render `len` bytes as "AA BB .." when known, or an equal run of "??" when not.
 static void mf_plus_bytes_to_str(FuriString* out, const uint8_t* data, size_t len, bool known) {
     furi_string_reset(out);
     for(size_t i = 0; i < len; i++) {
@@ -668,17 +624,11 @@ static void mf_plus_bytes_to_str(FuriString* out, const uint8_t* data, size_t le
     furi_string_trim(out);
 }
 
-// Parse `len` space-separated bytes into `out`. Returns true only if every byte is valid hex,
-// and leaves `out` untouched on failure (parses into a local, commits on success). The paired
-// writer emits all-hex (known) or an all-"??" run (unknown), so a leading '?' is a legitimately
-// unknown field (returns false quietly); a too-short line or a non-hex byte in a hex field is
-// treated as unknown and logged. The length guard also prevents an out-of-bounds string read
-// (firmware builds NDEBUG, so FuriString's index assert is compiled out).
 static bool mf_plus_str_to_bytes(FuriString* str, uint8_t* out, size_t len) {
     furi_check(len <= MF_PLUS_SIGNATURE_SIZE);
     furi_string_trim(str);
-    if(furi_string_size(str) < (3 * len - 1)) return false; // truncated / too short
-    if(furi_string_get_char(str, 0) == '?') return false; // legitimate unknown ("?? ..")
+    if(furi_string_size(str) < (3 * len - 1)) return false;
+    if(furi_string_get_char(str, 0) == '?') return false;
 
     uint8_t tmp[MF_PLUS_SIGNATURE_SIZE];
     for(size_t i = 0; i < len; i++) {
@@ -705,7 +655,6 @@ bool mf_plus_sl3_data_save(const MfPlusData* data, FlipperFormat* ff) {
 
         bool ok = true;
 
-        // Blocks / keys / config exist only for a fully-AES (SL3) card.
         if(data->security_level == MfPlusSecurityLevel3) {
             if(!flipper_format_write_comment_cstr(ff, "SL3 blocks and keys, \'??\' means unknown"))
                 break;
@@ -754,9 +703,6 @@ bool mf_plus_sl3_data_save(const MfPlusData* data, FlipperFormat* ff) {
         }
         if(!ok) break;
 
-        // Originality signature, written LAST and only when the card actually has one. EV0/S/X have
-        // none, so omitting it avoids a misleading all-"??" line; its absence loads as "no
-        // signature". Level-independent (EV1/EV2 expose it at any security level).
         if(data->signature_present) {
             mf_plus_bytes_to_str(val, data->signature, MF_PLUS_SIGNATURE_SIZE, true);
             if(!flipper_format_write_string(ff, MF_PLUS_FFF_SIGNATURE_KEY, val)) break;
@@ -771,12 +717,12 @@ bool mf_plus_sl3_data_save(const MfPlusData* data, FlipperFormat* ff) {
 }
 
 bool mf_plus_sl3_data_load(MfPlusData* data, FlipperFormat* ff) {
-    // Legacy metadata-only dumps have no "Data format version" -> nothing more to read.
+
     uint32_t dfv = 0;
     if(!flipper_format_read_uint32(ff, MF_PLUS_FFF_DATA_FORMAT_VERSION_KEY, &dfv, 1)) {
         return true;
     }
-    // Refuse a payload written by a newer, unknown layout rather than misparsing it as v1.
+
     if(dfv > mf_plus_data_format_version) {
         FURI_LOG_W(TAG, "Unsupported MFP data format version %lu", (unsigned long)dfv);
         return false;
@@ -836,8 +782,6 @@ bool mf_plus_sl3_data_load(MfPlusData* data, FlipperFormat* ff) {
         }
         if(!ok) break;
 
-        // The signature is written last and only when present, so its absence is not an error: it
-        // simply means the card has no originality signature.
         data->signature_present = false;
         if(flipper_format_read_string(ff, MF_PLUS_FFF_SIGNATURE_KEY, val)) {
             data->signature_present =

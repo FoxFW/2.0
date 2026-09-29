@@ -1,9 +1,6 @@
 #include "subghz_protocol_groups.h"
 #include <string.h>
 
-/* Index must match the group's position here - used as the return value
- * of subghz_protocol_group_for_name() and as the row order in the
- * Protocol List scene. */
 const char* const subghz_protocol_group_names[SUBGHZ_PROTOCOL_GROUP_COUNT] = {
     "VAG",
     "Porsche",
@@ -66,6 +63,7 @@ static const SubGhzProtocolGroupMapEntry subghz_protocol_group_map[] = {
     {"KIA/HYU V6", GROUP_KIA},
     {"SUZUKI", GROUP_SUZUKI},
     {"Mitsubishi V0", GROUP_MITSUBISHI},
+    {"Mitsubishi V0-a", GROUP_MITSUBISHI},
     {"Star Line", GROUP_STARLINE},
     {"Scher-Khan", GROUP_SCHERKHAN},
     {"Sheriff CFM", GROUP_SHERIFF},

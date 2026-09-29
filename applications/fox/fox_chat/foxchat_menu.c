@@ -119,7 +119,7 @@ static bool chat_fetch_messages(App* app) {
             const char* pipe2 = pipe1 ? strchr(pipe1 + 1, '|') : NULL;
             ChatMessage* cm = &app->chat_messages[app->chat_message_count];
             if(pipe1 != NULL && pipe2 != NULL) {
-                // "<time>|<full_time>|<text>" - current protocol
+
                 size_t tlen = (size_t)(pipe1 - rest);
                 if(tlen > sizeof(cm->time) - 1) tlen = sizeof(cm->time) - 1;
                 memcpy(cm->time, rest, tlen);
@@ -133,7 +133,7 @@ static bool chat_fetch_messages(App* app) {
                 strncpy(cm->text, pipe2 + 1, sizeof(cm->text) - 1);
                 cm->text[sizeof(cm->text) - 1] = '\0';
             } else if(pipe1 != NULL) {
-                // "<time>|<text>" - older ESP32 firmware without full_time
+
                 size_t tlen = (size_t)(pipe1 - rest);
                 if(tlen > sizeof(cm->time) - 1) tlen = sizeof(cm->time) - 1;
                 memcpy(cm->time, rest, tlen);
@@ -219,17 +219,26 @@ void chat_message_submitted(App* app) {
     app_render_log(app);
     bool posted = false;
     esp_at_send(app->esp_at, cmd);
-    EspAtMsg msg;
-    if(!esp_at_receive(app->esp_at, &msg, 10000)) {
-        app_log(app, "No response.");
-    } else if(strcmp(msg.line, "ERROR:PROFANITY") == 0) {
-        app_log(app, "Blocked - message flagged by content filter.");
-    } else if(strcmp(msg.line, "ERROR:RATELIMIT") == 0) {
-        app_log(app, "Too soon - wait a few seconds and try again.");
-    } else if(strcmp(msg.line, "OK") == 0) {
-        posted = true;
-    } else {
-        app_log(app, "%s", msg.line);
+
+    uint32_t post_deadline = furi_get_tick() + 10000;
+    for(;;) {
+        EspAtMsg msg;
+        uint32_t remaining = (furi_get_tick() < post_deadline) ? (post_deadline - furi_get_tick()) : 0;
+        if(remaining == 0 || !esp_at_receive(app->esp_at, &msg, remaining)) {
+            app_log(app, "No response.");
+            break;
+        }
+        if(strncmp(msg.line, "DISCORDHEAP:", 12) == 0) continue;
+        if(strcmp(msg.line, "ERROR:PROFANITY") == 0) {
+            app_log(app, "Blocked - message flagged by content filter.");
+        } else if(strcmp(msg.line, "ERROR:RATELIMIT") == 0) {
+            app_log(app, "Too soon - wait a few seconds and try again.");
+        } else if(strcmp(msg.line, "OK") == 0) {
+            posted = true;
+        } else {
+            app_log(app, "%s", msg.line);
+        }
+        break;
     }
 
     if(posted && chat_fetch_messages(app)) {

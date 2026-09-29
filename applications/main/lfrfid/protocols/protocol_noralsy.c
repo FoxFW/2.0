@@ -59,9 +59,7 @@ static void protocol_noralsy_decode(ProtocolNoralsy* protocol) {
 }
 
 static bool protocol_noralsy_can_be_decoded(ProtocolNoralsy* protocol) {
-    // check 12 bits preamble
-    // If necessary, use 0xBB0214FF for 32 bit preamble check
-    // However, it is not confirmed the 13-16 bit are static.
+
     if(bit_lib_get_bits_16(protocol->encoded_data, 0, 12) != 0b101110110000) return false;
     uint8_t calc1 = noralsy_chksum(&protocol->encoded_data[4], 40);
     uint8_t calc2 = noralsy_chksum(&protocol->encoded_data[0], 76);
@@ -144,7 +142,6 @@ bool protocol_noralsy_write_data(ProtocolNoralsy* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_noralsy_encoder_start(protocol);
     protocol_noralsy_decode(protocol);
 
@@ -154,11 +151,7 @@ bool protocol_noralsy_write_data(ProtocolNoralsy* protocol, void* data) {
         request->t5577.block[0] =
             (LFRFID_T5577_MODULATION_MANCHESTER | LFRFID_T5577_BITRATE_RF_32 |
              (3 << LFRFID_T5577_MAXBLOCK_SHIFT) | LFRFID_T5577_ST_TERMINATOR);
-        // In fact, base on the current two dump samples from Iceman server,
-        // Noralsy are usually T5577s with config = 0x00088C6A
-        // But the `C` and `A` are not explainable by the ATA5577C datasheet
-        // and they don't affect reading whatsoever.
-        // So we are mimicing Proxmark's solution here. Leave those nibbles as zero.
+
         request->t5577.block[1] = bit_lib_get_bits_32(protocol->encoded_data, 0, 32);
         request->t5577.block[2] = bit_lib_get_bits_32(protocol->encoded_data, 32, 32);
         request->t5577.block[3] = bit_lib_get_bits_32(protocol->encoded_data, 64, 32);

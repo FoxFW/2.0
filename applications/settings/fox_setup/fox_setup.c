@@ -10,20 +10,6 @@
 #include <assets_icons.h>
 #include "fox_setup_icons.h"
 
-/* Check whether a PIN is stored in Fox.data WITHOUT calling
- * desktop_pin_code_is_set() — that function lives in the firmware and would
- * need an api_symbols.csv export to be callable from a FAP.
- * Instead we read the raw Fox.data file and decode the pin_length byte.
- *
- * FoxSettingsData layout (all uint8_t after the header, __packed__):
- *   offset  0 : uint32_t magic          (4 bytes)
- *   offset  4 : uint16_t version        (2 bytes)
- *   offset  6 : uint8_t  override_flag  (1 byte)
- *   offset  7 : uint8_t  _pad           (1 byte)
- *   offset  8 : uint8_t  device_name[16](16 bytes)
- *   offset 24 : uint8_t  pin_hash[21]   (21 bytes)
- *   offset 45 : uint8_t  pin_length     (1 byte)  ← this is the one we need
- */
 #define FOX_PIN_LENGTH_OFFSET  45
 #define FOX_SETTINGS_XOR_KEY   0xAD
 #define FOX_SETTINGS_INT_PATH  "/int/Fox.data"
@@ -50,7 +36,7 @@ static bool fox_setup_pin_is_set(void) {
 
 #define FOX_SETUP_FLAG_DIR          "/ext/apps_data/fox_setup"
 #define FOX_SETUP_FLAG_PATH         "/ext/apps_data/fox_setup/completed.flag"
-#define FOX_SETUP_DONE_INT_PATH     "/int/fox_setup.done"  /* desktop checks this path */
+#define FOX_SETUP_DONE_INT_PATH     "/int/fox_setup.done"
 #define FOX_SETUP_PENDING_NAME_PATH "/ext/apps_data/fox_setup/name.pending"
 #define FOX_SETUP_PENDING_PIN_PATH  "/ext/apps_data/fox_setup/fox_pend.tmp"
 #define FOX_SETUP_AUTO_ARG          "auto"
@@ -65,8 +51,6 @@ typedef enum {
     Page6_Complete,
 } FoxSetupPage;
 
-// If a PIN is already set we skip Page4 + Page5 entirely.
-// Called wherever we would navigate to Page4_PinPrompt.
 static FoxSetupPage fox_post_rename_page(void) {
     return fox_setup_pin_is_set() ? Page6_Complete : Page4_PinPrompt;
 }
@@ -85,17 +69,13 @@ typedef struct {
 typedef struct {
     FoxSetupPage current_page;
     bool         completed;
-    bool         name_changed;   /* true only when name.pending was written */
-    bool         pin_changed;    /* true only when fox_pend.tmp was written */
+    bool         name_changed;
+    bool         pin_changed;
     bool         wiper_launch;
     char         device_name[FURI_HAL_VERSION_ARRAY_NAME_LENGTH];
     PinState     pin;
-    uint32_t     ignore_input_until;  // Debounces stale/buffered input events
-                                       // that can be queued during the loader's
-                                       // app-load transition when auto-launched
-                                       // at boot. Not needed when launched from
-                                       // the Apps menu (input queue is already
-                                       // clean by then).
+    uint32_t     ignore_input_until;
+
 } FoxSetupModel;
 
 typedef enum {
@@ -116,14 +96,8 @@ typedef struct {
     FuriMutex*      mutex;
 } FoxSetupApp;
 
-// ===========================================================
-// FLAG FILE  (simple existence check — no version hash needed)
-// ===========================================================
-
 static bool fox_setup_already_ran(void) {
-    /* Check both flags so a single write failure can't cause the wizard to
-     * reappear.  fox_setup writes /ext/.../completed.flag; the desktop writes
-     * /int/fox_setup.done.  Either one existing means setup is done.        */
+
     Storage* storage = furi_record_open(RECORD_STORAGE);
     bool ext_done = storage_file_exists(storage, FOX_SETUP_FLAG_PATH);
     bool int_done = storage_file_exists(storage, FOX_SETUP_DONE_INT_PATH);
@@ -132,10 +106,7 @@ static bool fox_setup_already_ran(void) {
 }
 
 static void fox_setup_write_flag(void) {
-    /* Write both the EXT completed.flag (checked by fox_setup_already_ran) and
-     * the INT fox_setup.done (checked by the desktop launch thread).  Writing
-     * two independent files means a single storage write failure can't cause
-     * the wizard to reappear on the next boot.                              */
+
     Storage* storage = furi_record_open(RECORD_STORAGE);
     storage_simply_mkdir(storage, FOX_SETUP_FLAG_DIR);
 
@@ -156,11 +127,6 @@ static void fox_setup_write_flag(void) {
     furi_record_close(RECORD_STORAGE);
 }
 
-// PIN is applied by desktop.c on next boot — avoids any extern dependency.
-// Encodes digits using the same 2-key scheme as desktop_view_pin_input.c
-// and writes fox_pend.tmp.  The desktop's 2-second tick picks this file up
-// and applies the PIN within 2 seconds of fox_setup exiting — no reboot and
-// no FAP-level desktop API access required.
 static void fox_setup_write_pending_pin(const char* pin_data, uint8_t pin_len) {
     static const uint8_t k1[10] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2};
     static const uint8_t k2[10] = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1};
@@ -184,11 +150,6 @@ static void fox_setup_write_pending_pin(const char* pin_data, uint8_t pin_len) {
     storage_file_free(f);
     furi_record_close(RECORD_STORAGE);
 }
-
-// ===========================================================
-// PIN DRAWING HELPERS — mirrors desktop_view_pin_input.c's grid layout so
-// the wizard's PIN page matches the lock screen / PIN settings page exactly.
-// ===========================================================
 
 #define PIN_GRID_ROWS 3
 #define PIN_GRID_COLS 4
@@ -258,7 +219,7 @@ static void fox_setup_draw_pin(Canvas* canvas, FoxSetupModel* model) {
                 int16_t text_y = box_y + (PIN_KEY_HEIGHT / 2) + 1;
 
                 if(row == 0) {
-                    // Back/delete glyph
+
                     int16_t x = box_x + 6;
                     int16_t y = box_y + 1;
                     canvas_draw_line(canvas, x, y + 4, x + 4, y);
@@ -281,14 +242,8 @@ static void fox_setup_draw_pin(Canvas* canvas, FoxSetupModel* model) {
     }
 }
 
-// ===========================================================
-// MAIN VIEW DRAW CALLBACK
-// ===========================================================
-
 static void fox_setup_draw_main(Canvas* canvas, void* ctx) {
-    // Flipper's view system always passes view->model to the draw callback,
-    // NOT view->context. We store the app pointer in the model so we can
-    // retrieve it here without a NULL dereference.
+
     FoxSetupApp* app = *(FoxSetupApp**)ctx;
     furi_mutex_acquire(app->mutex, FuriWaitForever);
     FoxSetupModel* model = app->model;
@@ -346,13 +301,13 @@ static void fox_setup_draw_main(Canvas* canvas, void* ctx) {
             canvas_draw_str_aligned(canvas, 64, 14, AlignCenter, AlignCenter, "Setup Complete!");
             canvas_set_font(canvas, FontSecondary);
             if(model->name_changed) {
-                /* Name change requires namechanger_srv on next boot — restart needed */
+
                 canvas_draw_str_aligned(canvas, 64, 32, AlignCenter, AlignCenter,
                                         "Flipper will restart");
                 canvas_draw_str_aligned(canvas, 64, 43, AlignCenter, AlignCenter,
                                         "to apply your changes.");
             } else {
-                /* PIN changes are applied at next startup automatically — no restart msg */
+
                 canvas_draw_str_aligned(canvas, 64, 37, AlignCenter, AlignCenter,
                                         "Please join our Discord!");
             }
@@ -363,18 +318,10 @@ static void fox_setup_draw_main(Canvas* canvas, void* ctx) {
     furi_mutex_release(app->mutex);
 }
 
-// ===========================================================
-// TEXT INPUT CALLBACK
-// ===========================================================
-
 static void fox_setup_text_input_done(void* ctx) {
     FoxSetupApp* app = ctx;
     view_dispatcher_send_custom_event(app->view_dispatcher, EventRenameOk);
 }
-
-// ===========================================================
-// MAIN VIEW INPUT CALLBACK
-// ===========================================================
 
 static bool fox_setup_input_main(InputEvent* event, void* ctx) {
     FoxSetupApp* app = ctx;
@@ -383,13 +330,6 @@ static bool fox_setup_input_main(InputEvent* event, void* ctx) {
     furi_mutex_acquire(app->mutex, FuriWaitForever);
     FoxSetupModel* model = app->model;
 
-    // Debounce stale input. When auto-launched at boot, the loader's app-load
-    // transition can leave buffered input events sitting in the queue (e.g.
-    // residual presses from whatever was on screen the instant before, or
-    // events generated during the transition itself). Those get delivered the
-    // moment this callback registers, causing the spotty first-press behavior
-    // seen only on auto-launch (never when launched cleanly from the Apps menu).
-    // Simply discard anything that arrives before the window closes.
     if(model->ignore_input_until && furi_get_tick() < model->ignore_input_until) {
         furi_mutex_release(app->mutex);
         return true;
@@ -441,10 +381,10 @@ static bool fox_setup_input_main(InputEvent* event, void* ctx) {
 
         case Page4_PinPrompt:
             if(key == InputKeyBack) {
-                /* Back goes to the rename page */
+
                 model->current_page = Page2_RenamePrompt;
             } else if(key == InputKeyLeft) {
-                /* Skip — bypass PIN setup entirely and go to Done */
+
                 model->current_page = Page6_Complete;
             } else if(key == InputKeyOk || key == InputKeyRight) {
                 PinState* p = &model->pin;
@@ -480,7 +420,7 @@ static bool fox_setup_input_main(InputEvent* event, void* ctx) {
                 p->selected_col = (p->selected_col + 1) % PIN_GRID_COLS;
             } else if(key == InputKeyOk) {
                 if(p->selected_col < 3) {
-                    // Digit cell (1-9)
+
                     uint8_t idx = (p->selected_row * 3) + p->selected_col;
                     if(*cur_len < PIN_MAX_LEN) {
                         cur_buf[*cur_len] = (char)('1' + idx);
@@ -488,7 +428,7 @@ static bool fox_setup_input_main(InputEvent* event, void* ctx) {
                         cur_buf[*cur_len] = 0;
                     }
                 } else if(p->selected_row == 0) {
-                    // Back/delete cell
+
                     if(*cur_len > 0) {
                         (*cur_len)--;
                         cur_buf[*cur_len] = 0;
@@ -500,14 +440,14 @@ static bool fox_setup_input_main(InputEvent* event, void* ctx) {
                         model->current_page = Page4_PinPrompt;
                     }
                 } else if(p->selected_row == 1) {
-                    // "0" cell
+
                     if(*cur_len < PIN_MAX_LEN) {
                         cur_buf[*cur_len] = '0';
                         (*cur_len)++;
                         cur_buf[*cur_len] = 0;
                     }
                 } else {
-                    // Done cell
+
                     if(*cur_len >= PIN_MIN_LEN) {
                         if(!p->confirming) {
                             p->confirming = true;
@@ -526,7 +466,7 @@ static bool fox_setup_input_main(InputEvent* event, void* ctx) {
                     }
                 }
             } else if(key == InputKeyBack) {
-                // Physical Back button mirrors the on-grid Back cell
+
                 if(*cur_len > 0) {
                     (*cur_len)--;
                     cur_buf[*cur_len] = 0;
@@ -556,22 +496,16 @@ static bool fox_setup_input_main(InputEvent* event, void* ctx) {
     }
 
     furi_mutex_release(app->mutex);
-    // Force a redraw. Our app uses a direct model pointer + mutex rather than
-    // with_view_model(), which means model changes don't automatically schedule
-    // a repaint. Re-switching to the same view is the lightest way to do it.
+
     view_dispatcher_switch_to_view(app->view_dispatcher, ViewIdMain);
     return consumed;
 }
-
-// ===========================================================
-// CUSTOM EVENT / NAV CALLBACKS
-// ===========================================================
 
 static bool fox_setup_custom_event(void* ctx, uint32_t event) {
     FoxSetupApp* app = ctx;
 
     if(event == EventRenameOk) {
-        // Copy name out under mutex before doing file I/O
+
         char name_copy[FURI_HAL_VERSION_ARRAY_NAME_LENGTH];
         furi_mutex_acquire(app->mutex, FuriWaitForever);
         strlcpy(name_copy, app->model->device_name, sizeof(name_copy));
@@ -609,10 +543,6 @@ static bool fox_setup_nav_event(void* ctx) {
     return true;
 }
 
-// ===========================================================
-// MAIN ENTRY POINT
-// ===========================================================
-
 int32_t fox_setup_app(void* p) {
     bool auto_launch  = (p != NULL) && (strcmp((const char*)p, FOX_SETUP_AUTO_ARG)  == 0);
     bool wiper_launch = (p != NULL) && (strcmp((const char*)p, FOX_SETUP_WIPER_ARG) == 0);
@@ -625,8 +555,7 @@ int32_t fox_setup_app(void* p) {
     app->model->current_page = Page1_Welcome;
     app->model->wiper_launch = wiper_launch;
     if(auto_launch) {
-        // 600ms is enough to flush any input events queued during the loader's
-        // transition without making manual interaction feel sluggish.
+
         app->model->ignore_input_until = furi_get_tick() + furi_ms_to_ticks(600);
     }
     app->mutex = furi_mutex_alloc(FuriMutexTypeNormal);
@@ -643,11 +572,6 @@ int32_t fox_setup_app(void* p) {
     view_set_draw_callback(app->main_view, fox_setup_draw_main);
     view_set_input_callback(app->main_view, fox_setup_input_main);
 
-    // Allocate a minimal model that holds only the app pointer.
-    // Flipper's view system passes view->model (not view->context) to the draw
-    // callback, so without this the callback receives NULL and crashes.
-    // ViewModelTypeLockFree is correct here — the pointer itself never changes
-    // after init, and all mutable state is protected by app->mutex as before.
     view_allocate_model(app->main_view, ViewModelTypeLockFree, sizeof(FoxSetupApp*));
     FoxSetupApp** model_slot = (FoxSetupApp**)view_get_model(app->main_view);
     *model_slot = app;
@@ -663,11 +587,7 @@ int32_t fox_setup_app(void* p) {
     view_dispatcher_run(app->view_dispatcher);
 
     bool write_flag    = !wiper_launch;
-    /* Only name changes need an immediate reboot (so namechanger_srv can
-     * apply the new name on the next boot).  PIN changes are applied
-     * automatically by desktop_srv at startup — no deliberate reboot needed.
-     * For auto_launch the desktop's slideshow handles the reboot; for
-     * manual launch fox_setup reboots itself.                             */
+
     bool should_reboot = app->model->completed &&
                          app->model->name_changed &&
                          !wiper_launch &&

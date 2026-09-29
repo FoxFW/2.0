@@ -1,5 +1,5 @@
 #include "subghz_setting.h"
-#include "types.h" // IWYU pragma: keep
+#include "types.h"
 
 #include <furi.h>
 #include <m-list.h>
@@ -13,9 +13,8 @@
 #define FREQUENCY_FLAG_DEFAULT (1 << 31)
 #define FREQUENCY_MASK         (0xFFFFFFFF ^ FREQUENCY_FLAG_DEFAULT)
 
-/* Default */
 static const uint32_t subghz_frequency_list[] = {
-    /* 300 - 348 */
+
     300000000,
     302757000,
     303000000,
@@ -44,7 +43,6 @@ static const uint32_t subghz_frequency_list[] = {
     348000000,
     350000000,
 
-    /* 387 - 464 */
     387000000,
     390000000,
     418000000,
@@ -52,26 +50,25 @@ static const uint32_t subghz_frequency_list[] = {
     430500000,
     431000000,
     431500000,
-    433075000, /* LPD433 first */
+    433075000,
     433220000,
     433420000,
     433657070,
     433889000,
-    433920000 | FREQUENCY_FLAG_DEFAULT, /* LPD433 mid */
+    433920000 | FREQUENCY_FLAG_DEFAULT,
     434075000,
     434176948,
     434190000,
     434390000,
     434420000,
     434620000,
-    434775000, /* LPD433 last channels */
+    434775000,
     438900000,
     440175000,
     462750000,
     464000000,
     467750000,
 
-    /* 779 - 928 */
     779000000,
     868350000,
     868400000,
@@ -101,7 +98,7 @@ typedef struct {
     size_t custom_preset_data_size;
 } SubGhzSettingCustomPresetItem;
 
-ARRAY_DEF(SubGhzSettingCustomPresetItemArray, SubGhzSettingCustomPresetItem, M_POD_OPLIST) //-V658
+ARRAY_DEF(SubGhzSettingCustomPresetItemArray, SubGhzSettingCustomPresetItem, M_POD_OPLIST)
 
 #define M_OPL_SubGhzSettingCustomPresetItemArray_t() \
     ARRAY_OPLIST(SubGhzSettingCustomPresetItemArray, M_POD_OPLIST)
@@ -174,7 +171,7 @@ static void subghz_setting_load_default_preset(
     preset_data_count += 2;
     item->custom_preset_data_size = sizeof(uint8_t) * preset_data_count + sizeof(uint8_t) * 8;
     item->custom_preset_data = malloc(item->custom_preset_data_size);
-    //load preset register + pa table
+
     memcpy(&item->custom_preset_data[0], &preset_data[0], item->custom_preset_data_size);
 }
 
@@ -211,7 +208,6 @@ static void subghz_setting_load_default_region(
         instance, "FM12K", subghz_device_cc1101_preset_2fsk_dev12khz_async_regs);
 }
 
-// Region check removed
 void subghz_setting_load_default(SubGhzSetting* instance) {
     subghz_setting_load_default_region(
         instance, subghz_frequency_list, subghz_hopper_frequency_list);
@@ -249,7 +245,6 @@ void subghz_setting_load(SubGhzSetting* instance, const char* file_path) {
                 break;
             }
 
-            // Standard frequencies (optional)
             temp_bool = true;
             flipper_format_read_bool(fff_data_file, "Add_standard_frequencies", &temp_bool, 1);
             if(!temp_bool) {
@@ -260,14 +255,13 @@ void subghz_setting_load(SubGhzSetting* instance, const char* file_path) {
                 FURI_LOG_I(TAG, "Keeping standard frequencies");
             }
 
-            // Load frequencies
             if(!flipper_format_rewind(fff_data_file)) {
                 FURI_LOG_E(TAG, "Rewind error");
                 break;
             }
             while(flipper_format_read_uint32(
                 fff_data_file, "Frequency", (uint32_t*)&temp_data32, 1)) {
-                //Todo FL-3535: add a frequency support check depending on the selected radio device
+
                 if(furi_hal_subghz_is_frequency_valid(temp_data32)) {
                     FURI_LOG_I(TAG, "Frequency loaded %lu", temp_data32);
                     FrequencyList_push_back(instance->frequencies, temp_data32);
@@ -276,7 +270,6 @@ void subghz_setting_load(SubGhzSetting* instance, const char* file_path) {
                 }
             }
 
-            // Load hopper frequencies
             if(!flipper_format_rewind(fff_data_file)) {
                 FURI_LOG_E(TAG, "Rewind error");
                 break;
@@ -291,7 +284,6 @@ void subghz_setting_load(SubGhzSetting* instance, const char* file_path) {
                 }
             }
 
-            // Default frequency (optional)
             if(!flipper_format_rewind(fff_data_file)) {
                 FURI_LOG_E(TAG, "Rewind error");
                 break;
@@ -300,7 +292,6 @@ void subghz_setting_load(SubGhzSetting* instance, const char* file_path) {
                 subghz_setting_set_default_frequency(instance, temp_data32);
             }
 
-            // custom preset (optional)
             if(!flipper_format_rewind(fff_data_file)) {
                 FURI_LOG_E(TAG, "Rewind error");
                 break;

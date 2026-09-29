@@ -6,8 +6,6 @@
 extern "C" {
 #endif
 
-// text styling
-
 #define ANSI_RESET  "\e[0m"
 #define ANSI_BOLD   "\e[1m"
 #define ANSI_FAINT  "\e[2m"
@@ -49,8 +47,6 @@ extern "C" {
 
 #define ANSI_FLIPPER_BRAND_ORANGE "\e[38;2;255;130;0m"
 
-// cursor positioning
-
 #define ANSI_CURSOR_UP_BY(rows)                    "\e[" rows "A"
 #define ANSI_CURSOR_DOWN_BY(rows)                  "\e[" rows "B"
 #define ANSI_CURSOR_RIGHT_BY(cols)                 "\e[" cols "C"
@@ -60,8 +56,6 @@ extern "C" {
 #define ANSI_CURSOR_HOR_POS(pos)                   "\e[" pos "G"
 #define ANSI_CURSOR_POS(row, col)                  "\e[" row ";" col "H"
 
-// erasing
-
 #define ANSI_ERASE_FROM_CURSOR_TO_END   "0"
 #define ANSI_ERASE_FROM_START_TO_CURSOR "1"
 #define ANSI_ERASE_ENTIRE               "2"
@@ -69,8 +63,6 @@ extern "C" {
 #define ANSI_ERASE_DISPLAY(portion)  "\e[" portion "J"
 #define ANSI_ERASE_LINE(portion)     "\e[" portion "K"
 #define ANSI_ERASE_SCROLLBACK_BUFFER ANSI_ERASE_DISPLAY("3")
-
-// misc
 
 #define ANSI_INSERT_MODE_ENABLE  "\e[4h"
 #define ANSI_INSERT_MODE_DISABLE "\e[4l"
@@ -121,31 +113,12 @@ typedef struct {
     CliKeyCombo result;
 } CliAnsiParserResult;
 
-/**
- * @brief Allocates an ANSI parser
- */
 CliAnsiParser* cli_ansi_parser_alloc(void);
 
-/**
- * @brief Frees an ANSI parser
- */
 void cli_ansi_parser_free(CliAnsiParser* parser);
 
-/**
- * @brief Feeds an ANSI parser a character
- */
 CliAnsiParserResult cli_ansi_parser_feed(CliAnsiParser* parser, char c);
 
-/**
- * @brief Feeds an ANSI parser a timeout event
- * 
- * As a user of the ANSI parser API, you are responsible for calling this
- * function some time after the last character was fed into the parser. The
- * recommended timeout is about 10 ms. The exact value does not matter as long
- * as it is small enough for the user not notice a delay, but big enough that
- * when a terminal is sending an escape sequence, this function does not get
- * called in between the characters of the sequence.
- */
 CliAnsiParserResult cli_ansi_parser_feed_timeout(CliAnsiParser* parser);
 
 #ifdef __cplusplus

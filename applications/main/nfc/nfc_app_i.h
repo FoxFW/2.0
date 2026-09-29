@@ -66,7 +66,6 @@
 #include <gui/modules/validators.h>
 #include <toolbox/path.h>
 #include <toolbox/name_generator.h>
-#include <dolphin/dolphin.h>
 
 #define NFC_NAME_SIZE             22
 #define NFC_TEXT_STORE_SIZE       128
@@ -117,9 +116,9 @@ typedef struct {
     uint16_t nested_target_key;
     uint16_t msb_count;
     bool enhanced_dict;
-    uint16_t current_key_idx; // Current key index for CUID dictionary mode
+    uint16_t current_key_idx;
     uint8_t*
-        cuid_key_indices_bitmap; // Bitmap of key indices present in CUID dictionary (256 bits = 32 bytes)
+        cuid_key_indices_bitmap;
 } NfcMfClassicDictAttackContext;
 
 typedef struct {
@@ -131,40 +130,35 @@ typedef struct {
 } NfcMfUltralightCDictContext;
 
 typedef enum {
-    NfcMfUltralightCWriteDictIdle, /**< No dict open; safe to open either dict. */
-    NfcMfUltralightCWriteDictUser, /**< User dict currently open. */
-    NfcMfUltralightCWriteDictSystem, /**< System dict currently open. */
-    NfcMfUltralightCWriteDictExhausted, /**< All dicts tried; do not re-open. */
+    NfcMfUltralightCWriteDictIdle,
+    NfcMfUltralightCWriteDictUser,
+    NfcMfUltralightCWriteDictSystem,
+    NfcMfUltralightCWriteDictExhausted,
 } NfcMfUltralightCWriteDictState;
 
 typedef struct {
-    bool copy_key; /**< True = overwrite target 3DES key with source key pages. */
-    NfcMfUltralightCWriteDictState dict_state; /**< Which dict is open for write-phase auth. */
+    bool copy_key;
+    NfcMfUltralightCWriteDictState dict_state;
 } NfcMfUltralightCWriteContext;
 
 typedef struct {
-    // User keys are tried before the built-in system dictionary, both within a single poller pass
-    // so no recovered key is lost between phases. Either handle may be NULL (file absent / empty).
+
     KeysDict* user_dict;
     KeysDict* system_dict;
-    bool on_system_dict; // false: still feeding user keys; true: user exhausted, feeding system keys
+    bool on_system_dict;
     uint8_t sectors_total;
     uint8_t sectors_read;
     uint8_t current_sector;
     uint8_t keys_found;
     size_t dict_keys_total;
     size_t dict_keys_current;
-    // The poller has no NextSector event, so the scene restarts the combined key stream whenever
-    // RequestKey's target changes between requests. The target is a sector key (sector, key_type)
-    // or an admin key (admin_type); these track the previous request across both.
+
     bool request_seen;
     bool last_is_admin;
     uint8_t last_sector;
     uint8_t last_key_type;
     uint8_t last_admin_type;
-    // Per-UID key cache (/ext/nfc/.cache), populated from a prior save. When present, its key for the
-    // current target is offered before the dictionaries so a known card authenticates on the first
-    // try; cache_key_fed guards it to one offer per target (a re-keyed card then falls to the dicts).
+
     MfPlusKeyCache* key_cache;
     bool cache_key_fed;
 } NfcMfPlusDictAttackContext;
@@ -177,10 +171,6 @@ struct NfcApp {
     NotificationApp* notifications;
     SceneManager* scene_manager;
 
-    /* Startup loading wheel - shown immediately on launch, before the
-     * (sometimes multi-second, on first use after boot) NFC chip acquire
-     * in nfc_alloc() runs, so the apps menu doesn't sit frozen with no
-     * feedback. Removed once the real scene is ready. */
     Loading* startup_loading;
     ViewHolder* startup_holder;
 
@@ -193,7 +183,6 @@ struct NfcApp {
     RpcAppSystem* rpc_ctx;
     NfcRpcState rpc_state;
 
-    // Common Views
     Submenu* submenu;
     DialogEx* dialog_ex;
     Popup* popup;

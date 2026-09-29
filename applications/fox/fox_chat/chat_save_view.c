@@ -31,10 +31,7 @@ static bool chat_save_result_input_cb(InputEvent* event, void* context) {
         chat_save_result_view_dismiss(app);
         return true;
     }
-    /* Back is intentionally left unhandled here - it bubbles up to
-     * fox_chat's shared navigation_callback (main.c), matching every
-     * other view in this app (chat_list_view, chat_detail_view,
-     * terminal, message_view all do the same for InputKeyBack). */
+
     return false;
 }
 

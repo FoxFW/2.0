@@ -4,11 +4,6 @@
 #include "../desktop_settings_app.h"
 #include "desktop_settings_scene.h"
 
-// Mirrors the RGB Mod Settings sub-screen in notification_settings_app.c
-// (Settings > LCD and Notifications), just surfaced directly from Fox
-// Settings for discoverability - reuses the same rgb_backlight_* functions
-// and NotificationSettings.rgb storage, so both entry points stay in sync.
-
 #define RGB_BACKLIGHT_INSTALLED_COUNT 2
 static const char* const rgb_backlight_installed_text[RGB_BACKLIGHT_INSTALLED_COUNT] = {
     "OFF",
@@ -16,8 +11,6 @@ static const char* const rgb_backlight_installed_text[RGB_BACKLIGHT_INSTALLED_CO
 };
 static const bool rgb_backlight_installed_value[RGB_BACKLIGHT_INSTALLED_COUNT] = {false, true};
 
-// White Backlight ON keeps the stock white LED running alongside the RGB
-// LEDs (original FoxFW behavior); OFF drives RGB only, same as Momentum.
 #define RGB_BACKLIGHT_WHITE_MODE_COUNT 2
 static const char* const rgb_backlight_white_mode_text[RGB_BACKLIGHT_WHITE_MODE_COUNT] = {
     "OFF",
@@ -210,7 +203,7 @@ static void desktop_settings_scene_rgb_rainbow_step_changed(VariableItem* item) 
 
 static void desktop_settings_scene_rgb_rainbow_saturation_changed(VariableItem* item) {
     DesktopSettingsApp* app = variable_item_get_context(item);
-    // saturation must be 1..255, so we do (0..254)+1
+
     uint8_t index = variable_item_get_current_value_index(item) + 1;
     char valtext[4] = {};
     snprintf(valtext, sizeof(valtext), "%d", index);
@@ -265,7 +258,6 @@ void desktop_settings_scene_rgb_settings_on_enter(void* context) {
     variable_item_set_locked(
         item, app->notification->settings.rgb.rgb_backlight_installed == 0, "RGB MOD \nOFF!");
 
-    // We (humans) number LEDs left to right as 1..3, hardware order is 2..0
     item = variable_item_list_add(
         list,
         "LED 1 Color",

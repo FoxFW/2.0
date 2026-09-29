@@ -1,4 +1,4 @@
-#include "subghz_txrx_i.h" // IWYU pragma: keep
+#include "subghz_txrx_i.h"
 #include "subghz_txrx_create_protocol_key.h"
 #include <lib/subghz/transmitter.h>
 #include <lib/subghz/protocols/protocol_items.h>
@@ -31,7 +31,7 @@ bool subghz_txrx_gen_data_protocol(
         subghz_receiver_search_decoder_base_by_name(instance->receiver, protocol_name);
 
     if(instance->decoder_result == NULL) {
-        //TODO FL-3502: Error
+
         FURI_LOG_E(TAG, "Protocol not found!");
         return false;
     }
@@ -91,7 +91,7 @@ bool subghz_txrx_gen_data_protocol_and_te(
     return ret;
 }
 
-bool subghz_txrx_gen_keeloq_protocol( //TODO lead to a general appearance
+bool subghz_txrx_gen_keeloq_protocol(
     SubGhzTxRx* instance,
     const char* preset_name,
     uint32_t frequency,
@@ -508,8 +508,6 @@ void subghz_txrx_gen_serial_gangqi(uint64_t* result_key) {
     uint8_t serial_low = (uint8_t)(serial & 0xFF);
     uint8_t bytesum = (uint8_t)(0xC8 - serial_high - serial_low - const_and_button);
 
-    // Add bytesum to the end
-    // serial | const_and_button
     *result_key = ((uint64_t)serial << 18) | ((uint64_t)const_and_button << 10) |
                   ((uint64_t)bytesum << 2);
 }
@@ -517,11 +515,7 @@ void subghz_txrx_gen_serial_gangqi(uint64_t* result_key) {
 void subghz_txrx_gen_key_marantec(uint64_t* result_key) {
     uint64_t randkey = (uint64_t)rand();
     uint32_t serial = (uint32_t)((randkey) & 0xFFFFF);
-    // 0x130 is the constant
-    // 0x4 is the button code
-    // 0x86 is the serial constant
-    // serial is random value that we pre generate above
-    // At the end we will put the crc sum
+
     uint64_t full_key_no_crc = (uint64_t)((uint64_t)0x130 << 40 | (uint64_t)serial << 20 |
                                           (uint64_t)0x4 << 16 | (uint64_t)0x86 << 8);
 

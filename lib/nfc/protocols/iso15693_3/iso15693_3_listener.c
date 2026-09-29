@@ -83,7 +83,7 @@ NfcCommand iso15693_3_listener_run(NfcGenericEvent event, void* context) {
             }
 
         } else if(bit_buffer_get_size(rx_buffer) == 0) {
-            // Special case: Single EOF
+
             const Iso15693_3Error error = iso15693_3_listener_process_single_eof(instance);
             if(error == Iso15693_3ErrorUnexpectedResponse) {
                 if(instance->callback) {

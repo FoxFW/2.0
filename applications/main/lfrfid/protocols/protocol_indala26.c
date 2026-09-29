@@ -56,7 +56,7 @@ void protocol_indala26_decoder_start(ProtocolIndala* protocol) {
 }
 
 static bool protocol_indala26_check_preamble(uint8_t* data, size_t bit_index) {
-    // Preamble 10100000 00000000 00000000 00000000 1
+
     if(*(uint32_t*)&data[bit_index / 8] != 0b00000000000000000000000010100000) return false;
     if(bit_lib_get_bit(data, bit_index + 32) != 1) return false;
     return true;
@@ -116,7 +116,7 @@ bool protocol_indala26_decoder_feed(ProtocolIndala* protocol, bool level, uint32
     }
 
     if(duration > (INDALA26_US_PER_BIT / 4)) {
-        // Try to decode wrong phase synced data
+
         if(level) {
             duration += 120;
         } else {
@@ -196,7 +196,6 @@ LevelDuration protocol_indala26_encoder_yield(ProtocolIndala* protocol) {
     return level_duration;
 }
 
-// factory code
 static uint8_t get_fc(const uint8_t* data) {
     uint8_t fc = 0;
 
@@ -212,7 +211,6 @@ static uint8_t get_fc(const uint8_t* data) {
     return fc;
 }
 
-// card number
 static uint16_t get_cn(const uint8_t* data) {
     uint16_t cn = 0;
 
@@ -251,7 +249,6 @@ void protocol_indala26_render_data_internal(
     const bool even_parity = bit_lib_get_bit(protocol->data, 1);
     const bool odd_parity = bit_lib_get_bit(protocol->data, 5);
 
-    // indala checksum
     uint8_t checksum_sum = 0;
     checksum_sum += ((fc_and_card >> 14) & 1);
     checksum_sum += ((fc_and_card >> 12) & 1);
@@ -269,7 +266,6 @@ void protocol_indala26_render_data_internal(
         checksum_correct = false;
     }
 
-    // wiegand parity
     uint8_t even_parity_sum = 0;
     for(int8_t i = 12; i < 24; i++) {
         if(((fc_and_card >> i) & 1) == 1) {

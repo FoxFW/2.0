@@ -269,7 +269,6 @@ void nfc_render_mf_desfire_file_settings_data(
         return;
     }
 
-    // Limit record size
     bool trim_data = record_size > MF_DESFIRE_RENDER_MAX_RECORD_SIZE;
     if(trim_data) {
         record_size = MF_DESFIRE_RENDER_MAX_RECORD_SIZE;

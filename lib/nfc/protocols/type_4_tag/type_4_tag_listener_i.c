@@ -372,7 +372,6 @@ Type4TagError
         const Iso14443_4aError iso14443_4a_error =
             iso14443_4a_listener_send_block(instance->iso14443_4a_listener, instance->tx_buffer);
 
-        // Keep error flag to show unknown command on screen
         if(error != Type4TagErrorCustomCommand) {
             error = type_4_tag_process_error(iso14443_4a_error);
         }

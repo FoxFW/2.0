@@ -6,19 +6,12 @@
 
 #define TAG "MfClassicPoller"
 
-// TODO FL-3926: Buffer writes for Hardnested, set state to Log when finished and sum property matches
-// TODO FL-3926: Store target key in CUID dictionary
-// TODO FL-3926: Dead code for malloc returning NULL?
-// TODO FL-3926: Auth1 static encrypted exists (rare)
-// TODO FL-3926: Use keys found by NFC plugins, cached keys
-
 #define MF_CLASSIC_MAX_BUFF_SIZE (64)
 
-// Ordered by frequency, labeled chronologically
 const MfClassicBackdoorKeyPair mf_classic_backdoor_keys[] = {
-    {{{0xa3, 0x96, 0xef, 0xa4, 0xe2, 0x4f}}, MfClassicBackdoorAuth3}, // Fudan (static encrypted)
-    {{{0xa3, 0x16, 0x67, 0xa8, 0xce, 0xc1}}, MfClassicBackdoorAuth1}, // Fudan, Infineon, NXP
-    {{{0x51, 0x8b, 0x33, 0x54, 0xe7, 0x60}}, MfClassicBackdoorAuth2}, // Fudan
+    {{{0xa3, 0x96, 0xef, 0xa4, 0xe2, 0x4f}}, MfClassicBackdoorAuth3},
+    {{{0xa3, 0x16, 0x67, 0xa8, 0xce, 0xc1}}, MfClassicBackdoorAuth1},
+    {{{0x51, 0x8b, 0x33, 0x54, 0xe7, 0x60}}, MfClassicBackdoorAuth2},
 };
 const size_t mf_classic_backdoor_keys_count = COUNT_OF(mf_classic_backdoor_keys);
 const uint16_t valid_sums[] =
@@ -65,10 +58,8 @@ void mf_classic_poller_free(MfClassicPoller* instance) {
     bit_buffer_free(instance->tx_encrypted_buffer);
     bit_buffer_free(instance->rx_encrypted_buffer);
 
-    // Clean up resources in MfClassicPollerDictAttackContext
     MfClassicPollerDictAttackContext* dict_attack_ctx = &instance->mode_ctx.dict_attack_ctx;
 
-    // Free the dictionaries
     if(dict_attack_ctx->mf_classic_system_dict) {
         keys_dict_free(dict_attack_ctx->mf_classic_system_dict);
         dict_attack_ctx->mf_classic_system_dict = NULL;
@@ -78,7 +69,6 @@ void mf_classic_poller_free(MfClassicPoller* instance) {
         dict_attack_ctx->mf_classic_user_dict = NULL;
     }
 
-    // Free the nested nonce array if it exists
     if(dict_attack_ctx->nested_nonce.nonces) {
         free(dict_attack_ctx->nested_nonce.nonces);
         dict_attack_ctx->nested_nonce.nonces = NULL;
@@ -217,7 +207,7 @@ NfcCommand mf_classic_handler_check_write_conditions(MfClassicPoller* instance) 
     MfClassicSectorTrailer* sec_tr = &write_ctx->sec_tr;
 
     do {
-        // Check last block in sector to write
+
         uint8_t sec_tr_block_num =
             mf_classic_get_sector_trailer_num_by_sector(write_ctx->current_sector);
         if(write_ctx->current_block == sec_tr_block_num) {
@@ -226,7 +216,6 @@ NfcCommand mf_classic_handler_check_write_conditions(MfClassicPoller* instance) 
             break;
         }
 
-        // Check write and read access
         if(mf_classic_is_allowed_access_data_block(
                sec_tr, write_ctx->current_block, MfClassicKeyTypeA, MfClassicActionDataWrite)) {
             write_ctx->key_type_write = MfClassicKeyTypeA;
@@ -283,7 +272,7 @@ NfcCommand mf_classic_poller_handler_read_block(MfClassicPoller* instance) {
     MfClassicError error = MfClassicErrorNone;
 
     do {
-        // Authenticate to sector
+
         error = mf_classic_poller_auth(
             instance, write_ctx->current_block, auth_key, write_ctx->key_type_read, NULL, false);
         if(error != MfClassicErrorNone) {
@@ -292,7 +281,6 @@ NfcCommand mf_classic_poller_handler_read_block(MfClassicPoller* instance) {
             break;
         }
 
-        // Read block from tag
         error = mf_classic_poller_read_block(
             instance, write_ctx->current_block, &write_ctx->tag_block);
         if(error != MfClassicErrorNone) {
@@ -325,13 +313,12 @@ NfcCommand mf_classic_poller_handler_write_block(MfClassicPoller* instance) {
     MfClassicError error = MfClassicErrorNone;
 
     do {
-        // Request block to write
+
         instance->mfc_event.type = MfClassicPollerEventTypeRequestWriteBlock;
         instance->mfc_event_data.write_block_data.block_num = write_ctx->current_block;
         command = instance->callback(instance->general_event, instance->context);
         if(!instance->mfc_event_data.write_block_data.write_block_provided) break;
 
-        // Compare tag and saved block
         if(memcmp(
                write_ctx->tag_block.data,
                instance->mfc_event_data.write_block_data.write_block.data,
@@ -340,7 +327,6 @@ NfcCommand mf_classic_poller_handler_write_block(MfClassicPoller* instance) {
             break;
         }
 
-        // Reauth if necessary
         if(write_ctx->need_halt_before_write) {
             error = mf_classic_poller_auth(
                 instance,
@@ -357,7 +343,6 @@ NfcCommand mf_classic_poller_handler_write_block(MfClassicPoller* instance) {
             }
         }
 
-        // Write block
         error = mf_classic_poller_write_block(
             instance,
             write_ctx->current_block,
@@ -382,13 +367,12 @@ NfcCommand mf_classic_poller_handler_write_value_block(MfClassicPoller* instance
     MfClassicPollerWriteContext* write_ctx = &instance->mode_ctx.write_ctx;
 
     do {
-        // Request block to write
+
         instance->mfc_event.type = MfClassicPollerEventTypeRequestWriteBlock;
         instance->mfc_event_data.write_block_data.block_num = write_ctx->current_block;
         command = instance->callback(instance->general_event, instance->context);
         if(!instance->mfc_event_data.write_block_data.write_block_provided) break;
 
-        // Compare tag and saved block
         if(memcmp(
                write_ctx->tag_block.data,
                instance->mfc_event_data.write_block_data.write_block.data,
@@ -566,9 +550,8 @@ NfcCommand mf_classic_poller_handler_analyze_backdoor(MfClassicPoller* instance)
     instance->mode_ctx.dict_attack_ctx.enhanced_dict = true;
 
     size_t current_key_index =
-        mf_classic_backdoor_keys_count - 1; // Default to the last valid index
+        mf_classic_backdoor_keys_count - 1;
 
-    // Find the current key in the backdoor_keys array
     for(size_t i = 0; i < mf_classic_backdoor_keys_count; i++) {
         if(memcmp(
                dict_attack_ctx->current_key.data,
@@ -579,14 +562,12 @@ NfcCommand mf_classic_poller_handler_analyze_backdoor(MfClassicPoller* instance)
         }
     }
 
-    // Choose the next key to try
     size_t next_key_index = (current_key_index + 1) % mf_classic_backdoor_keys_count;
     uint8_t backdoor_version = mf_classic_backdoor_keys[next_key_index].type - 1;
 
     FURI_LOG_D(TAG, "Trying backdoor v%d", backdoor_version);
     dict_attack_ctx->current_key = mf_classic_backdoor_keys[next_key_index].key;
 
-    // Attempt backdoor authentication
     MfClassicError error = mf_classic_poller_auth(
         instance, 0, &dict_attack_ctx->current_key, MfClassicKeyTypeA, NULL, true);
     if((next_key_index == 0) &&
@@ -594,7 +575,6 @@ NfcCommand mf_classic_poller_handler_analyze_backdoor(MfClassicPoller* instance)
         FURI_LOG_D(TAG, "No backdoor identified");
         dict_attack_ctx->backdoor = MfClassicBackdoorNone;
 
-        // Check if any keys were cached - if so, go directly to nested attack
         bool has_cached_keys = false;
         for(uint8_t sector = 0; sector < instance->sectors_total; sector++) {
             if(mf_classic_is_key_found(instance->data, sector, MfClassicKeyTypeA) ||
@@ -616,7 +596,7 @@ NfcCommand mf_classic_poller_handler_analyze_backdoor(MfClassicPoller* instance)
     } else if(
         (error == MfClassicErrorAuth) &&
         (next_key_index == (mf_classic_backdoor_keys_count - 1))) {
-        // We've tried all backdoor keys, this is a unique key and an important research finding
+
         furi_crash("New backdoor: please report!");
     }
 
@@ -624,7 +604,7 @@ NfcCommand mf_classic_poller_handler_analyze_backdoor(MfClassicPoller* instance)
 }
 
 NfcCommand mf_classic_poller_handler_backdoor_read_sector(MfClassicPoller* instance) {
-    // TODO FL-3926: Reauth not needed
+
     NfcCommand command = NfcCommandContinue;
     MfClassicPollerDictAttackContext* dict_attack_ctx = &instance->mode_ctx.dict_attack_ctx;
     MfClassicError error = MfClassicErrorNone;
@@ -636,16 +616,15 @@ NfcCommand mf_classic_poller_handler_backdoor_read_sector(MfClassicPoller* insta
 
     do {
         if(dict_attack_ctx->current_block >= instance->sectors_total * 4) {
-            // We've read all blocks, reset current_block and move to next state
+
             dict_attack_ctx->current_block = 0;
             instance->state = MfClassicPollerStateNestedController;
             break;
         }
 
-        // Authenticate with the backdoor key
         error = mf_classic_poller_auth(
             instance,
-            first_block_in_sector, // Authenticate to the first block of the sector
+            first_block_in_sector,
             &(dict_attack_ctx->current_key),
             MfClassicKeyTypeA,
             NULL,
@@ -657,7 +636,6 @@ NfcCommand mf_classic_poller_handler_backdoor_read_sector(MfClassicPoller* insta
             break;
         }
 
-        // Read all blocks in the sector
         for(uint8_t block_in_sector = 0; block_in_sector < blocks_in_sector; block_in_sector++) {
             uint8_t block_to_read = first_block_in_sector + block_in_sector;
 
@@ -668,7 +646,6 @@ NfcCommand mf_classic_poller_handler_backdoor_read_sector(MfClassicPoller* insta
                 break;
             }
 
-            // Set the block as read in the data structure
             mf_classic_set_block_read(instance->data, block_to_read, &block);
         }
 
@@ -676,20 +653,16 @@ NfcCommand mf_classic_poller_handler_backdoor_read_sector(MfClassicPoller* insta
             break;
         }
 
-        // Move to the next sector
         current_sector++;
         dict_attack_ctx->current_block = mf_classic_get_first_block_num_of_sector(current_sector);
 
-        // Update blocks_in_sector and first_block_in_sector for the next sector
         if(current_sector < instance->sectors_total) {
             blocks_in_sector = mf_classic_get_blocks_num_in_sector(current_sector);
             first_block_in_sector = mf_classic_get_first_block_num_of_sector(current_sector);
         }
 
-        // Halt the card after each sector to reset the authentication state
         mf_classic_poller_halt(instance);
 
-        // Send an event to the app that a sector has been read
         command = mf_classic_poller_handle_data_update(instance);
 
     } while(false);
@@ -707,7 +680,6 @@ NfcCommand mf_classic_poller_handler_request_key(MfClassicPoller* instance) {
         dict_attack_ctx->current_key = instance->mfc_event_data.key_request_data.key;
         dict_attack_ctx->requested_key_type = instance->mfc_event_data.key_request_data.key_type;
 
-        // In CUID mode, go directly to the appropriate Auth state based on key_type
         if(dict_attack_ctx->mode == MfClassicPollerModeDictAttackCUID &&
            dict_attack_ctx->requested_key_type == MfClassicKeyTypeB) {
             instance->state = MfClassicPollerStateAuthKeyB;
@@ -727,7 +699,7 @@ NfcCommand mf_classic_poller_handler_auth_a(MfClassicPoller* instance) {
 
     if(mf_classic_is_key_found(
            instance->data, dict_attack_ctx->current_sector, MfClassicKeyTypeA)) {
-        // In CUID mode, skip directly to RequestKey since we test keys by specific type
+
         if(dict_attack_ctx->mode == MfClassicPollerModeDictAttackCUID) {
             instance->state = MfClassicPollerStateRequestKey;
         } else {
@@ -753,7 +725,7 @@ NfcCommand mf_classic_poller_handler_auth_a(MfClassicPoller* instance) {
             instance->state = MfClassicPollerStateReadSector;
         } else {
             mf_classic_poller_halt(instance);
-            // In CUID mode, skip directly to RequestKey since we test keys by specific type
+
             if(dict_attack_ctx->mode == MfClassicPollerModeDictAttackCUID) {
                 instance->state = MfClassicPollerStateRequestKey;
             } else {
@@ -771,7 +743,7 @@ NfcCommand mf_classic_poller_handler_auth_b(MfClassicPoller* instance) {
 
     if(mf_classic_is_key_found(
            instance->data, dict_attack_ctx->current_sector, MfClassicKeyTypeB)) {
-        // In CUID mode, just request next key since we iterate by key_idx
+
         if(dict_attack_ctx->mode == MfClassicPollerModeDictAttackCUID) {
             instance->state = MfClassicPollerStateRequestKey;
         } else if(mf_classic_is_key_found(
@@ -821,7 +793,6 @@ NfcCommand mf_classic_poller_handler_next_sector(MfClassicPoller* instance) {
         instance->mfc_event_data.next_sector_data.current_sector = dict_attack_ctx->current_sector;
         command = instance->callback(instance->general_event, instance->context);
 
-        // In CUID mode, NFC app manages sector based on key_idx - read it back
         if(dict_attack_ctx->mode == MfClassicPollerModeDictAttackCUID) {
             dict_attack_ctx->current_sector =
                 instance->mfc_event_data.next_sector_data.current_sector;
@@ -911,7 +882,7 @@ NfcCommand mf_classic_poller_handler_key_reuse_start(MfClassicPoller* instance) 
             if(dict_attack_ctx->reuse_key_sector == instance->sectors_total) {
                 instance->mfc_event.type = MfClassicPollerEventTypeKeyAttackStop;
                 command = instance->callback(instance->general_event, instance->context);
-                // Nested entrypoint
+
                 bool nested_active = dict_attack_ctx->nested_phase != MfClassicNestedPhaseNone;
                 if((dict_attack_ctx->enhanced_dict) &&
                    ((nested_active &&
@@ -1079,7 +1050,6 @@ NfcCommand mf_classic_poller_handler_key_reuse_read_sector(MfClassicPoller* inst
     return command;
 }
 
-// Helper function to add a nonce to the array
 static bool add_nested_nonce(
     MfClassicNestedNonceArray* array,
     uint32_t cuid,
@@ -1179,7 +1149,6 @@ NfcCommand mf_classic_poller_handler_nested_calibrate(MfClassicPoller* instance)
     uint8_t nt_enc_collected = 0;
     bool use_backdoor = (dict_attack_ctx->backdoor != MfClassicBackdoorNone);
 
-    // Step 1: Perform full authentication once
     error = mf_classic_poller_auth(
         instance,
         block,
@@ -1221,7 +1190,7 @@ NfcCommand mf_classic_poller_handler_nested_calibrate(MfClassicPoller* instance)
         }
 
         uint32_t nt_enc = bit_lib_bytes_to_num_be(auth_ctx.nt.data, sizeof(MfClassicNt));
-        // Store the decrypted static encrypted nonce
+
         dict_attack_ctx->static_encrypted_nonce =
             crypto1_decrypt_nt_enc(cuid, nt_enc, dict_attack_ctx->nested_known_key);
 
@@ -1233,8 +1202,6 @@ NfcCommand mf_classic_poller_handler_nested_calibrate(MfClassicPoller* instance)
         return command;
     }
 
-    // Original calibration logic for non-static encrypted tags
-    // Step 2: Perform nested authentication multiple times
     for(uint8_t collection_cycle = 0; collection_cycle < MF_CLASSIC_NESTED_CALIBRATION_COUNT;
         collection_cycle++) {
         error = mf_classic_poller_auth_nested(
@@ -1276,7 +1243,6 @@ NfcCommand mf_classic_poller_handler_nested_calibrate(MfClassicPoller* instance)
         return command;
     }
 
-    // Find the distance between each nonce
     FURI_LOG_D(TAG, "Calculating distance between nonces");
     uint64_t known_key = bit_lib_bytes_to_num_be(dict_attack_ctx->nested_known_key.data, 6);
     uint8_t valid_distances = 0;
@@ -1306,9 +1272,8 @@ NfcCommand mf_classic_poller_handler_nested_calibrate(MfClassicPoller* instance)
         }
     }
 
-    // Calculate median and standard deviation
     if(valid_distances > 0) {
-        // Sort the distances array (bubble sort)
+
         for(uint8_t i = 0; i < valid_distances - 1; i++) {
             for(uint8_t j = 0; j < valid_distances - i - 1; j++) {
                 if(distances[j] > distances[j + 1]) {
@@ -1319,13 +1284,11 @@ NfcCommand mf_classic_poller_handler_nested_calibrate(MfClassicPoller* instance)
             }
         }
 
-        // Calculate median
         uint16_t median =
             (valid_distances % 2 == 0) ?
                 (distances[valid_distances / 2 - 1] + distances[valid_distances / 2]) / 2 :
                 distances[valid_distances / 2];
 
-        // Calculate standard deviation
         float sum = 0, sum_sq = 0;
         for(uint8_t i = 0; i < valid_distances; i++) {
             sum += distances[i];
@@ -1335,7 +1298,6 @@ NfcCommand mf_classic_poller_handler_nested_calibrate(MfClassicPoller* instance)
         float variance = (sum_sq / valid_distances) - (mean * mean);
         float std_dev = sqrtf(variance);
 
-        // Filter out values over 3 standard deviations away from the median
         for(uint8_t i = 0; i < valid_distances; i++) {
             if(fabsf((float)distances[i] - median) <= 3 * std_dev) {
                 if(distances[i] < dict_attack_ctx->d_min) dict_attack_ctx->d_min = distances[i];
@@ -1343,7 +1305,6 @@ NfcCommand mf_classic_poller_handler_nested_calibrate(MfClassicPoller* instance)
             }
         }
 
-        // Some breathing room
         dict_attack_ctx->d_min = (dict_attack_ctx->d_min > 3) ? dict_attack_ctx->d_min - 3 : 0;
         dict_attack_ctx->d_max += 3;
     }
@@ -1373,8 +1334,7 @@ static inline bool is_byte_found(uint8_t* found, uint8_t byte) {
 }
 
 NfcCommand mf_classic_poller_handler_nested_collect_nt_enc(MfClassicPoller* instance) {
-    // TODO FL-3926: Handle when nonce is not collected (retry counter? Do not increment nested_target_key)
-    // TODO FL-3926: Look into using MfClassicNt more
+
     NfcCommand command = NfcCommandContinue;
     MfClassicPollerDictAttackContext* dict_attack_ctx = &instance->mode_ctx.dict_attack_ctx;
 
@@ -1403,7 +1363,6 @@ NfcCommand mf_classic_poller_handler_nested_collect_nt_enc(MfClassicPoller* inst
         uint8_t nt_enc_collected = 0;
         uint8_t parity = 0;
 
-        // Step 1: Perform full authentication once
         error = mf_classic_poller_auth(
             instance,
             block,
@@ -1419,13 +1378,9 @@ NfcCommand mf_classic_poller_handler_nested_collect_nt_enc(MfClassicPoller* inst
 
         FURI_LOG_D(TAG, "Full authentication successful");
 
-        // Step 2: Perform nested authentication a variable number of times to get nt_enc at a different PRNG offset
-        // eg. Collect most commonly observed nonce from 3 auths to known sector and 4th to target, then separately the
-        //     most commonly observed nonce from 4 auths to known sector and 5th to target. This gets us a nonce pair,
-        //     at a known distance (confirmed by parity bits) telling us the nt_enc plain.
         for(uint8_t collection_cycle = 0; collection_cycle < (nt_enc_per_collection - 1);
             collection_cycle++) {
-            // This loop must match the calibrated loop
+
             error = mf_classic_poller_auth_nested(
                 instance,
                 block,
@@ -1459,7 +1414,7 @@ NfcCommand mf_classic_poller_handler_nested_collect_nt_enc(MfClassicPoller* inst
         }
 
         uint32_t nt_enc = bit_lib_bytes_to_num_be(auth_ctx.nt.data, sizeof(MfClassicNt));
-        // Collect parity bits
+
         const uint8_t* parity_data = bit_buffer_get_parity(instance->rx_plain_buffer);
         for(int i = 0; i < 4; i++) {
             parity = (parity << 1) | (((parity_data[0] >> i) & 0x01) ^ 0x01);
@@ -1468,19 +1423,17 @@ NfcCommand mf_classic_poller_handler_nested_collect_nt_enc(MfClassicPoller* inst
         uint32_t nt_prev = 0, decrypted_nt_prev = 0, found_nt = 0;
         uint16_t dist = 0;
         if(is_weak && !(dict_attack_ctx->static_encrypted)) {
-            // Ensure this isn't the same nonce as the previous collection
+
             if((dict_attack_ctx->nested_nonce.count == 1) &&
                (dict_attack_ctx->nested_nonce.nonces[0].nt_enc == nt_enc)) {
                 FURI_LOG_D(TAG, "Duplicate nonce, dismissing collection attempt");
                 break;
             }
 
-            // Decrypt the previous nonce
             nt_prev = nt_enc_temp_arr[nt_enc_collected - 1];
             decrypted_nt_prev =
                 crypto1_decrypt_nt_enc(cuid, nt_prev, dict_attack_ctx->nested_known_key);
 
-            // Find matching nt_enc plain at expected distance
             found_nt = 0;
             uint8_t found_nt_cnt = 0;
             uint16_t current_dist = dict_attack_ctx->d_min;
@@ -1507,17 +1460,16 @@ NfcCommand mf_classic_poller_handler_nested_collect_nt_enc(MfClassicPoller* inst
                 dist = UINT16_MAX;
             }
         } else {
-            // Hardnested
+
             if(!is_byte_found(dict_attack_ctx->nt_enc_msb, (nt_enc >> 24) & 0xFF)) {
                 set_byte_found(dict_attack_ctx->nt_enc_msb, (nt_enc >> 24) & 0xFF);
                 dict_attack_ctx->msb_count++;
-                // Add unique parity to sum
+
                 dict_attack_ctx->msb_par_sum += nfc_util_even_parity32(parity & 0x08);
             }
             parity ^= 0x0F;
         }
 
-        // Add the nonce to the array
         if(add_nested_nonce(
                &dict_attack_ctx->nested_nonce,
                cuid,
@@ -1582,7 +1534,7 @@ static MfClassicKey* search_dicts_for_nonce_key(
             }
             bool full_match = true;
             for(uint8_t j = 0; j < nonce_array->count; j++) {
-                // Verify nonce matches encrypted parity bits for all nonces
+
                 uint32_t nt_enc_plain = crypto1_decrypt_nt_enc(
                     nonce_array->nonces[j].cuid, nonce_array->nonces[j].nt_enc, stack_key);
                 if(is_weak) {
@@ -1597,7 +1549,7 @@ static MfClassicKey* search_dicts_for_nonce_key(
             }
             if(full_match) {
                 MfClassicKey* new_candidate = malloc(sizeof(MfClassicKey));
-                if(new_candidate == NULL) return NULL; // malloc failed
+                if(new_candidate == NULL) return NULL;
                 memcpy(new_candidate, &stack_key, sizeof(MfClassicKey));
                 return new_candidate;
             }
@@ -1608,8 +1560,7 @@ static MfClassicKey* search_dicts_for_nonce_key(
 }
 
 NfcCommand mf_classic_poller_handler_nested_dict_attack(MfClassicPoller* instance) {
-    // TODO FL-3926: Handle when nonce is not collected (retry counter? Do not increment nested_target_key)
-    // TODO FL-3926: Look into using MfClassicNt more
+
     NfcCommand command = NfcCommandContinue;
     MfClassicPollerDictAttackContext* dict_attack_ctx = &instance->mode_ctx.dict_attack_ctx;
 
@@ -1636,7 +1587,7 @@ NfcCommand mf_classic_poller_handler_nested_dict_attack(MfClassicPoller* instanc
 
         if(((is_weak) && (dict_attack_ctx->nested_nonce.count == 0)) ||
            ((!is_weak) && (dict_attack_ctx->nested_nonce.count < 8))) {
-            // Step 1: Perform full authentication once
+
             error = mf_classic_poller_auth(
                 instance,
                 block,
@@ -1653,7 +1604,6 @@ NfcCommand mf_classic_poller_handler_nested_dict_attack(MfClassicPoller* instanc
 
             FURI_LOG_D(TAG, "Full authentication successful");
 
-            // Step 2: Collect nested nt and parity
             error = mf_classic_poller_auth_nested(
                 instance,
                 target_block,
@@ -1670,7 +1620,7 @@ NfcCommand mf_classic_poller_handler_nested_dict_attack(MfClassicPoller* instanc
             }
 
             uint32_t nt_enc = bit_lib_bytes_to_num_be(auth_ctx.nt.data, sizeof(MfClassicNt));
-            // Collect parity bits
+
             const uint8_t* parity_data = bit_buffer_get_parity(instance->rx_plain_buffer);
             for(int i = 0; i < 4; i++) {
                 parity = (parity << 1) | (((parity_data[0] >> i) & 0x01) ^ 0x01);
@@ -1692,10 +1642,10 @@ NfcCommand mf_classic_poller_handler_nested_dict_attack(MfClassicPoller* instanc
 
             dict_attack_ctx->auth_passed = true;
         }
-        // If we have sufficient nonces, search the dictionaries for the key
+
         if((is_weak && (dict_attack_ctx->nested_nonce.count == 1)) ||
            (is_last_iter_for_hard_key && (dict_attack_ctx->nested_nonce.count == 8))) {
-            // Identify key candidates
+
             MfClassicKey* key_candidate = search_dicts_for_nonce_key(
                 dict_attack_ctx,
                 &dict_attack_ctx->nested_nonce,
@@ -1767,7 +1717,7 @@ NfcCommand mf_classic_poller_handler_nested_log(MfClassicPoller* instance) {
         bool params_write_success = true;
         for(size_t i = 0; i < nonce_pair_count; i++) {
             MfClassicNestedNonce* nonce = &dict_attack_ctx->nested_nonce.nonces[i];
-            // TODO FL-3926: Avoid repeating logic here
+
             uint8_t nonce_sector = nonce->key_idx / (weak_prng ? 4 : 2);
             MfClassicKeyType nonce_key_type =
                 (nonce->key_idx % (weak_prng ? 4 : 2) < (weak_prng ? 2 : 1)) ? MfClassicKeyTypeA :
@@ -1857,7 +1807,7 @@ bool is_valid_sum(uint16_t sum) {
 }
 
 NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance) {
-    // This function guides the nested attack through its phases, and iterates over the target keys
+
     NfcCommand command = mf_classic_poller_handle_data_update(instance);
     MfClassicPollerDictAttackContext* dict_attack_ctx = &instance->mode_ctx.dict_attack_ctx;
     bool initial_dict_attack_iter = false;
@@ -1889,7 +1839,7 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
             initial_dict_attack_iter = true;
         }
     }
-    // Identify PRNG type
+
     if(dict_attack_ctx->nested_phase == MfClassicNestedPhaseAnalyzePRNG) {
         if(dict_attack_ctx->nested_nonce.count < MF_CLASSIC_NESTED_ANALYZE_NT_COUNT) {
             instance->state = MfClassicPollerStateNestedCollectNt;
@@ -1901,8 +1851,7 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
             return command;
         } else if(dict_attack_ctx->prng_type == MfClassicPrngTypeNoTag) {
             FURI_LOG_E(TAG, "No tag detected");
-            // Free nonce array
-            // TODO FL-3926: Consider using .count here
+
             if(dict_attack_ctx->nested_nonce.nonces) {
                 free(dict_attack_ctx->nested_nonce.nonces);
                 dict_attack_ctx->nested_nonce.nonces = NULL;
@@ -1912,8 +1861,7 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
             return command;
         }
         if(dict_attack_ctx->nested_nonce.nonces) {
-            // Free nonce array
-            // TODO FL-3926: Consider using .count here
+
             free(dict_attack_ctx->nested_nonce.nonces);
             dict_attack_ctx->nested_nonce.nonces = NULL;
             dict_attack_ctx->nested_nonce.count = 0;
@@ -1921,7 +1869,7 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
         dict_attack_ctx->nested_phase = MfClassicNestedPhaseDictAttack;
         initial_dict_attack_iter = true;
     }
-    // Accelerated nested dictionary attack
+
     bool is_weak = dict_attack_ctx->prng_type == MfClassicPrngTypeWeak;
     uint16_t dict_target_key_max = (dict_attack_ctx->prng_type == MfClassicPrngTypeWeak) ?
                                        (instance->sectors_total * 2) :
@@ -1935,7 +1883,7 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
         } else {
             dict_attack_ctx->auth_passed = true;
             if(dict_attack_ctx->nested_nonce.count > 0) {
-                // Free nonce array
+
                 furi_assert(dict_attack_ctx->nested_nonce.nonces);
                 free(dict_attack_ctx->nested_nonce.nonces);
                 dict_attack_ctx->nested_nonce.nonces = NULL;
@@ -1950,8 +1898,7 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
         bool is_last_iter_for_hard_key =
             ((!is_weak) && ((dict_attack_ctx->nested_target_key % 8) == 7));
         if(initial_dict_attack_iter) {
-            // Initialize dictionaries
-            // Note: System dict should always exist
+
             dict_attack_ctx->mf_classic_system_dict =
                 keys_dict_check_presence(MF_CLASSIC_NESTED_SYSTEM_DICT_PATH) ?
                     keys_dict_alloc(
@@ -1970,7 +1917,7 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
         }
         if((is_weak && (dict_attack_ctx->nested_nonce.count == 1)) ||
            (is_last_iter_for_hard_key && (dict_attack_ctx->nested_nonce.count == 8))) {
-            // Key verify and reuse
+
             dict_attack_ctx->nested_phase = MfClassicNestedPhaseDictAttackVerify;
             dict_attack_ctx->auth_passed = false;
             instance->state = MfClassicPollerStateKeyReuseStartNoOffset;
@@ -1997,14 +1944,14 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
             }
             dict_attack_ctx->nested_target_key = 0;
             if(mf_classic_is_card_read(instance->data)) {
-                // All keys have been collected
+
                 FURI_LOG_D(TAG, "All keys collected and sectors read");
                 dict_attack_ctx->nested_phase = MfClassicNestedPhaseFinished;
                 instance->state = MfClassicPollerStateSuccess;
                 return command;
             }
             if(dict_attack_ctx->backdoor == MfClassicBackdoorAuth3) {
-                // Skip initial calibration for static encrypted backdoored tags
+
                 dict_attack_ctx->calibrated = true;
             }
             dict_attack_ctx->nested_phase = MfClassicNestedPhaseCalibrate;
@@ -2012,15 +1959,15 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
             return command;
         }
         if(dict_attack_ctx->attempt_count == 0) {
-            // Check if the nested target key is a known key
+
             if(mf_classic_nested_is_target_key_found(instance, true)) {
-                // Continue to next key
+
                 instance->state = MfClassicPollerStateNestedController;
                 return command;
             }
         }
         if(dict_attack_ctx->attempt_count >= 3) {
-            // Unpredictable, skip
+
             FURI_LOG_E(TAG, "Failed to collect nonce, skipping key");
             dict_attack_ctx->nested_target_key++;
             dict_attack_ctx->attempt_count = 0;
@@ -2028,7 +1975,7 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
         instance->state = MfClassicPollerStateNestedDictAttack;
         return command;
     }
-    // Calibration
+
     bool initial_collect_nt_enc_iter = false;
     bool recalibrated = false;
     if(!(dict_attack_ctx->calibrated)) {
@@ -2046,7 +1993,7 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
         recalibrated = true;
         dict_attack_ctx->nested_phase = MfClassicNestedPhaseCollectNtEnc;
     }
-    // Collect and log nonces
+
     if(dict_attack_ctx->nested_phase == MfClassicNestedPhaseCollectNtEnc) {
         if(((is_weak) && (dict_attack_ctx->nested_nonce.count == 2)) ||
            ((is_weak) && (dict_attack_ctx->backdoor == MfClassicBackdoorAuth3) &&
@@ -2061,16 +2008,16 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
         } else {
             nonce_collect_key_max = instance->sectors_total * 2;
         }
-        // Target all remaining sectors, key A and B
+
         if(dict_attack_ctx->nested_target_key < nonce_collect_key_max) {
             if((!(is_weak)) && (dict_attack_ctx->msb_count == (UINT8_MAX + 1))) {
                 if(is_valid_sum(dict_attack_ctx->msb_par_sum)) {
-                    // All Hardnested nonces collected
+
                     dict_attack_ctx->nested_target_key++;
                     dict_attack_ctx->current_key_checked = false;
                     instance->state = MfClassicPollerStateNestedController;
                 } else {
-                    // Nonces do not match an expected sum
+
                     dict_attack_ctx->attempt_count++;
                     instance->state = MfClassicPollerStateNestedCollectNtEnc;
                 }
@@ -2099,11 +2046,10 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
             }
             dict_attack_ctx->auth_passed = true;
 
-            // If we have tried to collect this nonce too many times, skip
             if((is_weak && (dict_attack_ctx->attempt_count >= MF_CLASSIC_NESTED_RETRY_MAXIMUM)) ||
                (!(is_weak) &&
                 (dict_attack_ctx->attempt_count >= MF_CLASSIC_NESTED_HARD_RETRY_MAXIMUM))) {
-                // Unpredictable, skip
+
                 FURI_LOG_W(TAG, "Failed to collect nonce, skipping key");
                 if(dict_attack_ctx->nested_nonce.nonces) {
                     free(dict_attack_ctx->nested_nonce.nonces);
@@ -2131,7 +2077,7 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
 
             if(!(dict_attack_ctx->current_key_checked)) {
                 if(dict_attack_ctx->nested_target_key == nonce_collect_key_max) {
-                    // All nonces have been collected
+
                     FURI_LOG_D(TAG, "All nonces collected");
                     instance->state = MfClassicPollerStateNestedController;
                     return command;
@@ -2139,9 +2085,8 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
 
                 dict_attack_ctx->current_key_checked = true;
 
-                // Check if the nested target key is a known key
                 if(mf_classic_nested_is_target_key_found(instance, false)) {
-                    // Continue to next key
+
                     if(!(dict_attack_ctx->static_encrypted)) {
                         dict_attack_ctx->nested_target_key++;
                         dict_attack_ctx->current_key_checked = false;
@@ -2150,7 +2095,6 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
                     return command;
                 }
 
-                // If it is not a known key, we'll need to calibrate for static encrypted backdoored tags
                 if((dict_attack_ctx->backdoor == MfClassicBackdoorAuth3) &&
                    (dict_attack_ctx->nested_target_key < nonce_collect_key_max) &&
                    !(recalibrated)) {
@@ -2162,7 +2106,6 @@ NfcCommand mf_classic_poller_handler_nested_controller(MfClassicPoller* instance
             }
             FURI_LOG_T(TAG, "Collecting a nonce");
 
-            // Collect a nonce
             dict_attack_ctx->auth_passed = false;
             instance->state = MfClassicPollerStateNestedCollectNtEnc;
             return command;

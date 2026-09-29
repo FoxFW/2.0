@@ -27,7 +27,6 @@
 #define CC_WORCTRL   0x20
 #define CC_FREND1    0x21
 
-// OOK 650kHz
 static const uint8_t preset_ook_650_async[] = {
     CC_IOCFG0,   0x0D,
     CC_FIFOTHR,  0x07,
@@ -50,7 +49,6 @@ static const uint8_t preset_ook_650_async[] = {
     0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-// OOK 270kHz
 static const uint8_t preset_ook_270_async[] = {
     CC_IOCFG0,   0x0D,
     CC_FIFOTHR,  0x47,
@@ -73,7 +71,6 @@ static const uint8_t preset_ook_270_async[] = {
     0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-// 2FSK Dev 2.38kHz
 static const uint8_t preset_2fsk_238_async[] = {
     CC_IOCFG0,   0x0D,
     CC_FIFOTHR,  0x47,
@@ -97,7 +94,6 @@ static const uint8_t preset_2fsk_238_async[] = {
     0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-// 2FSK Dev 47.6kHz
 static const uint8_t preset_2fsk_476_async[] = {
     CC_IOCFG0,   0x0D,
     CC_FIFOTHR,  0x47,
@@ -121,7 +117,6 @@ static const uint8_t preset_2fsk_476_async[] = {
     0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-// TX OOK
 static const uint8_t preset_ook_tx[] = {
     CC_IOCFG0,   0x0D,
     CC_FIFOTHR,  0x07,
@@ -190,10 +185,6 @@ static const uint8_t preset_fsk_tx_476[] = {
     0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-// ============================================================
-// Capture state machine
-// ============================================================
-
 #define MIN_PULSE_US           100
 #define MAX_PULSE_US           32767
 #define SILENCE_GAP_US         50000
@@ -204,7 +195,6 @@ static const uint8_t preset_fsk_tx_476[] = {
 static bool rolljam_is_jammer_pattern_mod(RawSignal* s, uint8_t mod_index) {
     if(s->size < 20) return false;
 
-    // Calcular estadísticas una sola vez
     int16_t max_abs = 0;
     int64_t sum = 0;
     for(size_t i = 0; i < s->size; i++) {
@@ -217,7 +207,7 @@ static bool rolljam_is_jammer_pattern_mod(RawSignal* s, uint8_t mod_index) {
     FURI_LOG_D(TAG, "JamCheck: mod=%d max=%d mean=%ld size=%d",
                mod_index, max_abs, mean, (int)s->size);
 
-    if(mod_index == 2 || mod_index == 3) { // ModIndex_FM238=2, FM476=3
+    if(mod_index == 2 || mod_index == 3) {
         if((int)s->size < 120) {
             FURI_LOG_W(TAG, "Jammer FSK rechazado: size=%d < 120", (int)s->size);
             return true;
@@ -230,7 +220,7 @@ static bool rolljam_is_jammer_pattern_mod(RawSignal* s, uint8_t mod_index) {
         return true;
     }
 
-    if(mod_index == 1) { // ModIndex_AM270=1
+    if(mod_index == 1) {
         if(mean < 3000) {
             FURI_LOG_W(TAG, "Jammer AM270 rechazado: mean=%ld < 3000 (max=%d)", mean, max_abs);
             return true;
@@ -239,8 +229,6 @@ static bool rolljam_is_jammer_pattern_mod(RawSignal* s, uint8_t mod_index) {
 
     return false;
 }
-
-
 
 #define MIN_VARIANCE 2000
 
@@ -379,10 +367,6 @@ static void capture_rx_callback(bool level, uint32_t duration, void* context) {
     }
 }
 
-// ============================================================
-// Capture start/stop
-// ============================================================
-
 void rolljam_capture_start(RollJamApp* app) {
     FURI_LOG_I(TAG, "Capture start: freq=%lu mod=%d offset=%lu",
                app->frequency, app->mod_index, app->jam_offset_hz);
@@ -445,10 +429,6 @@ void rolljam_capture_stop(RollJamApp* app) {
     FURI_LOG_I(TAG, "  Sig2: size=%d valid=%d", app->signal_second.size, app->signal_second.valid);
 }
 
-// ============================================================
-// Validation
-// ============================================================
-
 bool rolljam_signal_is_valid(RawSignal* signal) {
     if(g_cap.state != CapDone) {
         static int check_count = 0;
@@ -492,10 +472,6 @@ bool rolljam_signal_is_valid(RawSignal* signal) {
     cap_ctx_reset(&g_cap);
     return false;
 }
-
-// ============================================================
-// Signal cleanup
-// ============================================================
 
 void rolljam_signal_cleanup(RawSignal* signal) {
     if(signal->size < (size_t)MIN_FRAME_PULSES) return;
@@ -552,10 +528,6 @@ void rolljam_signal_cleanup(RawSignal* signal) {
     }
     free(cleaned);
 }
-
-// ============================================================
-// TX
-// ============================================================
 
 typedef struct {
     const int16_t*  data;
@@ -620,10 +592,6 @@ void rolljam_transmit_signal(RollJamApp* app, RawSignal* signal) {
     furi_hal_subghz_idle();
     FURI_LOG_I(TAG, "TX: all repeats done");
 }
-
-// ============================================================
-// Save
-// ============================================================
 
 void rolljam_save_signal(RollJamApp* app, RawSignal* signal) {
     if(!signal->valid || signal->size == 0) {

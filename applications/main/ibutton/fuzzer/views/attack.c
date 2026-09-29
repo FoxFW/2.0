@@ -20,11 +20,11 @@ struct FuzzerViewAttack {
 };
 
 typedef struct {
-    uint8_t time_delay; // 1 = 100ms
-    uint8_t time_delay_min; // 1 = 100ms
-    uint8_t emu_time; // 1 = 100ms
-    uint8_t emu_time_min; // 1 = 100ms
-    bool td_emt_cursor; // false - time_delay, true - emu_time
+    uint8_t time_delay;
+    uint8_t time_delay_min;
+    uint8_t emu_time;
+    uint8_t emu_time_min;
+    bool td_emt_cursor;
     const char* attack_name;
     const char* protocol_name;
     FuzzerAttackState attack_state;
@@ -172,7 +172,7 @@ static void fuzzer_view_attack_draw_running(Canvas* canvas, FuzzerViewAttackMode
 
 static void fuzzer_view_attack_draw_end(Canvas* canvas, FuzzerViewAttackModel* model) {
     UNUSED(model);
-    // elements_button_center(canvas, "Restart"); // Reset
+
     elements_button_left(canvas, "Exit");
 }
 
@@ -180,11 +180,9 @@ void fuzzer_view_attack_draw(Canvas* canvas, FuzzerViewAttackModel* model) {
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
 
-    // Header - Attack name
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, LINE_1_Y, AlignCenter, AlignBottom, model->attack_name);
 
-    // Time delays line or Status line
     switch(model->attack_state) {
     case FuzzerAttackStateIdle:
         fuzzer_view_attack_draw_time_delays_line(canvas, model);
@@ -223,11 +221,9 @@ void fuzzer_view_attack_draw(Canvas* canvas, FuzzerViewAttackModel* model) {
         break;
     }
 
-    // Protocol name
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 64, LINE_3_Y, AlignCenter, AlignBottom, model->protocol_name);
 
-    // Current UID
     canvas_set_font(canvas, FontPrimary);
     if(128 < canvas_string_width(canvas, furi_string_get_cstr(model->uid_str))) {
         canvas_set_font(canvas, FontSecondary);
@@ -235,7 +231,6 @@ void fuzzer_view_attack_draw(Canvas* canvas, FuzzerViewAttackModel* model) {
     canvas_draw_str_aligned(
         canvas, 64, LINE_4_Y, AlignCenter, AlignBottom, furi_string_get_cstr(model->uid_str));
 
-    // Btns
     canvas_set_font(canvas, FontSecondary);
     if(model->attack_state == FuzzerAttackStateAttacking ||
        model->attack_state == FuzzerAttackStateEmulating) {
@@ -263,7 +258,7 @@ static bool fuzzer_view_attack_input_idle(
         return true;
     } else if(event->key == InputKeyLeft) {
         if(!model->td_emt_cursor) {
-            // TimeDelay --
+
             if(event->type == InputTypeShort) {
                 if(model->time_delay > model->time_delay_min) {
                     model->time_delay--;
@@ -276,7 +271,7 @@ static bool fuzzer_view_attack_input_idle(
                 }
             }
         } else {
-            // EmuTime --
+
             if(event->type == InputTypeShort) {
                 if(model->emu_time > model->emu_time_min) {
                     model->emu_time--;
@@ -292,7 +287,7 @@ static bool fuzzer_view_attack_input_idle(
         return true;
     } else if(event->key == InputKeyRight) {
         if(!model->td_emt_cursor) {
-            // TimeDelay ++
+
             if(event->type == InputTypeShort) {
                 if(model->time_delay < FUZZ_TIME_DELAY_MAX) {
                     model->time_delay++;
@@ -304,7 +299,7 @@ static bool fuzzer_view_attack_input_idle(
                 }
             }
         } else {
-            // EmuTime ++
+
             if(event->type == InputTypeShort) {
                 if(model->emu_time < FUZZ_TIME_DELAY_MAX) {
                     model->emu_time++;
@@ -337,7 +332,7 @@ static bool fuzzer_view_attack_input_end(
     UNUSED(model);
     if((event->key == InputKeyBack || event->key == InputKeyLeft) &&
        event->type == InputTypeShort) {
-        // Exit if Ended
+
         view_attack->callback(FuzzerCustomEventViewAttackExit, view_attack->context);
     }
     return true;
@@ -347,14 +342,6 @@ bool fuzzer_view_attack_input(InputEvent* event, void* context) {
     furi_assert(context);
     FuzzerViewAttack* view_attack = context;
 
-    // if(event->key == InputKeyBack && event->type == InputTypeShort) {
-    //     view_attack->callback(FuzzerCustomEventViewAttackBack, view_attack->context);
-    //     return true;
-    // } else if(event->key == InputKeyOk && event->type == InputTypeShort) {
-    //     view_attack->callback(FuzzerCustomEventViewAttackOk, view_attack->context);
-    //     return true;
-    // } else
-    // {
     with_view_model(
         view_attack->view,
         FuzzerViewAttackModel * model,
@@ -401,7 +388,6 @@ bool fuzzer_view_attack_input(InputEvent* event, void* context) {
             }
         },
         true);
-    // }
 
     return true;
 }
@@ -424,7 +410,6 @@ FuzzerViewAttack* fuzzer_view_attack_alloc() {
 
     FuzzerViewAttack* view_attack = malloc(sizeof(FuzzerViewAttack));
 
-    // View allocation and configuration
     view_attack->view = view_alloc();
     view_allocate_model(view_attack->view, ViewModelTypeLocking, sizeof(FuzzerViewAttackModel));
     view_set_context(view_attack->view, view_attack);
@@ -438,18 +423,17 @@ FuzzerViewAttack* fuzzer_view_attack_alloc() {
         FuzzerViewAttackModel * model,
         {
             model->time_delay = fuzzer_proto_get_def_idle_time();
-            model->time_delay_min = 1; // model->time_delay;
+            model->time_delay_min = 1;
 
             model->emu_time = fuzzer_proto_get_def_emu_time();
 
-            model->emu_time_min = 2; // model->emu_time;
+            model->emu_time_min = 2;
 
             model->uid_str = furi_string_alloc_set_str("Not_set");
-            // malloc(ATTACK_SCENE_MAX_UID_LENGTH + 1);
+
             model->attack_state = FuzzerAttackStateOff;
             model->td_emt_cursor = false;
 
-            // strcpy(model->uid_str, "Not_set");
             model->attack_name = "Not_set";
             model->protocol_name = "Not_set";
         },

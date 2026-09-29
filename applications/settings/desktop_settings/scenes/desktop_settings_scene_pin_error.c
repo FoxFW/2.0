@@ -1,6 +1,4 @@
-// desktop_i.h was previously included here but nothing from it is actually used
-// in this scene — it was vestigial and breaks external FAP compilation.
-#include <desktop/helpers/pin_code.h>   // SDK-style path (was absolute applications/services/...)
+#include <desktop/helpers/pin_code.h>
 #include "desktop_settings_scene.h"
 #include "desktop_settings_icons.h"
 

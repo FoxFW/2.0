@@ -1,8 +1,3 @@
-/**
- * @file gui.h
- * GUI: main API
- */
-
 #pragma once
 
 #include "view_port.h"
@@ -12,22 +7,20 @@
 extern "C" {
 #endif
 
-/** Gui layers */
 typedef enum {
-    GuiLayerDesktop, /**< Desktop layer for internal use. Like fullscreen but with status bar */
+    GuiLayerDesktop,
 
-    GuiLayerWindow, /**< Window layer, status bar is shown */
+    GuiLayerWindow,
 
-    GuiLayerStatusBarLeft,   /**< Status bar left-side layer, auto-layout */
-    GuiLayerStatusBarRight,  /**< Status bar right-side layer, auto-layout */
-    GuiLayerStatusBarCenter, /**< Status bar center layer, fixed center position */
+    GuiLayerStatusBarLeft,
+    GuiLayerStatusBarRight,
+    GuiLayerStatusBarCenter,
 
-    GuiLayerFullscreen, /**< Fullscreen layer, no status bar */
+    GuiLayerFullscreen,
 
-    GuiLayerMAX /**< Don't use or move, special value */
+    GuiLayerMAX
 } GuiLayer;
 
-/** Gui Canvas Commit Callback */
 typedef void (*GuiCanvasCommitCallback)(
     uint8_t* data,
     size_t size,

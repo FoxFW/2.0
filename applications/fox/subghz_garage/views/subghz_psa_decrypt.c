@@ -3,7 +3,7 @@
 #include <gui/elements.h>
 #include <furi.h>
 
-#define PSA_TOTAL_KEYS 0x2000000UL // 32M
+#define PSA_TOTAL_KEYS 0x2000000UL
 
 struct SubGhzViewPsaDecrypt {
     View* view;
@@ -39,7 +39,7 @@ static void subghz_view_psa_decrypt_draw(Canvas* canvas, void* _model) {
     canvas_clear(canvas);
 
     if(!model->done) {
-        // Title / status
+
         canvas_set_font(canvas, FontPrimary);
         if(model->status_line[0]) {
             canvas_draw_str_aligned(canvas, 64, 2, AlignCenter, AlignTop, model->status_line);
@@ -47,7 +47,6 @@ static void subghz_view_psa_decrypt_draw(Canvas* canvas, void* _model) {
             canvas_draw_str_aligned(canvas, 64, 2, AlignCenter, AlignTop, "PSA Decrypt");
         }
 
-        // Progress bar outline + fill
         canvas_draw_rframe(canvas, 3, 15, 122, 12, 2);
         uint8_t fill = (uint8_t)((uint16_t)model->progress * 116 / 100);
         if(fill > 2) {
@@ -58,14 +57,12 @@ static void subghz_view_psa_decrypt_draw(Canvas* canvas, void* _model) {
 
         canvas_set_font(canvas, FontSecondary);
 
-        // Keys line: "42% - 13.4M / 32M keys"
         char keys_str[32];
         char tested_buf[12];
         subghz_view_psa_decrypt_format_count(tested_buf, sizeof(tested_buf), model->keys_tested);
         snprintf(keys_str, sizeof(keys_str), "%d%% - %s / 32M keys", model->progress, tested_buf);
         canvas_draw_str(canvas, 2, 38, keys_str);
 
-        // Speed + ETA line: "438K keys/sec  ETA 1m 42s"
         char speed_str[40];
         char speed_buf[12];
         subghz_view_psa_decrypt_format_count(speed_buf, sizeof(speed_buf), model->keys_per_sec);
@@ -78,7 +75,6 @@ static void subghz_view_psa_decrypt_draw(Canvas* canvas, void* _model) {
         }
         canvas_draw_str(canvas, 2, 48, speed_str);
 
-        // Elapsed line: "Elapsed: 1m 30s"
         char elapsed_str[24];
         uint32_t el_m = model->elapsed_sec / 60;
         uint32_t el_s = model->elapsed_sec % 60;
@@ -89,7 +85,6 @@ static void subghz_view_psa_decrypt_draw(Canvas* canvas, void* _model) {
         }
         canvas_draw_str(canvas, 2, 58, elapsed_str);
 
-        // Cancel hint - bottom right
         canvas_draw_str_aligned(canvas, 126, 64, AlignRight, AlignBottom, "Hold BACK");
     } else {
         canvas_set_font(canvas, FontPrimary);

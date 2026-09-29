@@ -494,13 +494,6 @@ static ModAnalApp* app_alloc(void) {
           && app->preset_idx < app->preset_count - 1u)
         app->preset_idx++;
 
-    /* Register input + add the view port last, after all the SD-card
-     * reads above - registering earlier meant a button pressed during
-     * that loading window queued into input_queue same as any real press,
-     * then got silently thrown away by the drain (plus a 150ms delay!)
-     * that used to sit right after app_alloc() in the entry point below.
-     * Nothing can queue before this point now, so that dead window - and
-     * the drain that was working around it - is gone entirely. */
     view_port_draw_callback_set(app->view_port, draw_cb, app);
     view_port_input_callback_set(app->view_port, input_cb, app->input_queue);
     gui_add_view_port(app->gui, app->view_port, GuiLayerFullscreen);
@@ -544,12 +537,12 @@ static void app_free(ModAnalApp* app) {
 
 int32_t subghz_modulation_analyzer_app(void* p) {
     char return_marker[24] = {0};
-    bool return_to_garage = false;
+    bool launched_from_garage_menu = false;
     if(p && ((const char*)p)[0]) {
         const char* arg = (const char*)p;
-        if(strncmp(arg, "garage:", 7) == 0) {
-            return_to_garage = true;
-            arg += 7;
+        if(strncmp(arg, "gmenu:", 6) == 0) {
+            launched_from_garage_menu = true;
+            arg += 6;
         } else if(strncmp(arg, "core:", 5) == 0) {
             arg += 5;
         }
@@ -636,10 +629,12 @@ int32_t subghz_modulation_analyzer_app(void* p) {
                     write_result_to_settings(app, chosen_freq, chosen_preset);
 
                     if(return_marker[0]) {
+                        const char* ok_marker =
+                            launched_from_garage_menu ? "gmenu:readraw" : "readraw";
                         Storage* s = furi_record_open(RECORD_STORAGE);
                         File* f = storage_file_alloc(s);
                         if(storage_file_open(f, "/ext/subghz/.focus_menu", FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
-                            storage_file_write(f, "readraw", 7);
+                            storage_file_write(f, ok_marker, strlen(ok_marker));
                         }
                         storage_file_close(f);
                         storage_file_free(f);
@@ -660,10 +655,17 @@ int32_t subghz_modulation_analyzer_app(void* p) {
 
     if(return_marker[0]) {
         if(!app->ok_result_selected) {
+            char marker_buf[32] = {0};
+            if(launched_from_garage_menu) {
+                strcpy(marker_buf, "gmenu:");
+                strlcat(marker_buf, return_marker, sizeof(marker_buf));
+            } else {
+                strncpy(marker_buf, return_marker, sizeof(marker_buf) - 1);
+            }
             Storage* s = furi_record_open(RECORD_STORAGE);
             File* f = storage_file_alloc(s);
             if(storage_file_open(f, "/ext/subghz/.focus_menu", FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
-                storage_file_write(f, return_marker, strlen(return_marker));
+                storage_file_write(f, marker_buf, strlen(marker_buf));
             }
             storage_file_close(f);
             storage_file_free(f);
@@ -673,7 +675,7 @@ int32_t subghz_modulation_analyzer_app(void* p) {
         Loader* loader = furi_record_open(RECORD_LOADER);
         loader_enqueue_launch(
             loader,
-            return_to_garage ? EXT_PATH("apps/Sub-GHz/subghz_garage.fap") : "subghz",
+            "subghz",
             NULL,
             LoaderDeferredLaunchFlagNone);
         furi_record_close(RECORD_LOADER);

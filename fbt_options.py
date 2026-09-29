@@ -126,14 +126,6 @@ FIRMWARE_APPS = {
         # Fox custom apps promoted into the main menu (e.g. FoxHub)
         "foxapps",
     ],
-    "unit_tests": [
-        "basic_services",
-        "updater_app",
-        "radio_device_cc1101_ext",
-        "unit_tests",
-        "infrared",
-        "archive",
-    ],
 }
 
 FIRMWARE_APP_SET = "default"

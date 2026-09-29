@@ -18,19 +18,16 @@ typedef enum {
     NfcCliArgumentTypeUnknown
 } NfcCliArgumentType;
 
-/**
- * @brief Error codes for different processing states
- */
 typedef enum {
-    NfcCliProcessorErrorNone, /**< Command was parsed successfully and execute callback will be invoked*/
-    NfcCliProcessorErrorNoneButHelp, /**< There was no error, but help needs to be printed. Command wil not be executed */
-    NfcCliProcessorErrorActionNotFound, /**< Wrong action was passed as first command parameter */
-    NfcCliProcessorErrorKeyNotSupported, /**< Unsupported key was passed in arguments. Details will be printed in erro_message*/
-    NfcCliProcessorErrorKeyParameterInGroup, /**< Parameter which requires value was passed in group. Example: -sckd */
-    NfcCliProcessorErrorKeyParameterValueMissing, /**< Value is missing for the parameter which requires it */
-    NfcCliProcessorErrorKeyDuplication, /**< Some argument key was duplicated in input parameters */
-    NfcCliProcessorErrorKeyParseError, /**< Error happened during argument value parsing */
-    NfcCliProcessorErrorKeyRequiredMissing, /**< Some keys required for command execution is missing*/
+    NfcCliProcessorErrorNone,
+    NfcCliProcessorErrorNoneButHelp,
+    NfcCliProcessorErrorActionNotFound,
+    NfcCliProcessorErrorKeyNotSupported,
+    NfcCliProcessorErrorKeyParameterInGroup,
+    NfcCliProcessorErrorKeyParameterValueMissing,
+    NfcCliProcessorErrorKeyDuplication,
+    NfcCliProcessorErrorKeyParseError,
+    NfcCliProcessorErrorKeyRequiredMissing,
 
     NfcCliProcessorErrorNum
 } NfcCliProcessorError;
@@ -283,7 +280,7 @@ static NfcCliProcessorError nfc_cli_parse_argument(
         result = nfc_cli_parse_group_key(instance, argument);
     else if((type == NfcCliArgumentTypeShortNameKey) || (type == NfcCliArgumentTypeLongNameKey)) {
         result = nfc_cli_parse_single_key(instance, argument, args, false);
-    } else if(type == NfcCliArgumentTypeUnknown) { //-V547
+    } else if(type == NfcCliArgumentTypeUnknown) {
         result = NfcCliProcessorErrorKeyNotSupported;
         furi_string_printf(
             instance->error_message,

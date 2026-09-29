@@ -1,5 +1,4 @@
 #include "../lfrfid_i.h"
-#include <dolphin/dolphin.h>
 
 static const NotificationSequence sequence_blink_set_yellow = {
     &message_blink_set_color_yellow,
@@ -81,7 +80,6 @@ bool lfrfid_scene_read_on_event(void* context, SceneManagerEvent event) {
             notification_message(app->notifications, &sequence_success);
             furi_string_reset(app->file_name);
             scene_manager_next_scene(app->scene_manager, LfRfidSceneReadSuccess);
-            dolphin_deed(DolphinDeedRfidReadSuccess);
             consumed = true;
         } else if(event.event == LfRfidEventReadStartPSK) {
             if(app->read_type == LFRFIDWorkerReadTypeAuto) {

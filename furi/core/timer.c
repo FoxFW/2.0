@@ -12,7 +12,6 @@ struct FuriTimer {
     void* cb_context;
 };
 
-// IMPORTANT: container MUST be the FIRST struct member
 static_assert(offsetof(FuriTimer, container) == 0);
 
 #define TIMER_DELETED_EVENT (1U << 0)
@@ -29,7 +28,6 @@ static void furi_timer_flush_epilogue(void* context, uint32_t arg) {
 
     EventGroupHandle_t hEvent = context;
 
-    // See https://github.com/FreeRTOS/FreeRTOS-Kernel/issues/1142
     vTaskSuspendAll();
     xEventGroupSetBits(hEvent, TIMER_DELETED_EVENT);
     (void)xTaskResumeAll();
@@ -128,7 +126,6 @@ uint32_t furi_timer_is_running(FuriTimer* instance) {
 
     TimerHandle_t hTimer = (TimerHandle_t)instance;
 
-    /* Return 0: not running, 1: running */
     return (uint32_t)xTimerIsTimerActive(hTimer);
 }
 
@@ -158,7 +155,7 @@ void furi_timer_set_thread_priority(FuriTimerThreadPriority priority) {
     furi_check(!furi_kernel_is_irq_or_masked());
 
     TaskHandle_t task_handle = xTimerGetTimerDaemonTaskHandle();
-    furi_check(task_handle); // Don't call this method before timer task start
+    furi_check(task_handle);
 
     if(priority == FuriTimerThreadPriorityNormal) {
         vTaskPrioritySet(task_handle, configTIMER_TASK_PRIORITY);

@@ -9,10 +9,8 @@
 #include <gui/modules/text_input.h>
 
 #include "esp_at.h"
-#include "fox_splash.h"
 
 typedef enum {
-    FoxCommanderViewSplash,
     FoxCommanderViewMenu,
     FoxCommanderViewMessage,
     FoxCommanderViewTerminal,
@@ -101,8 +99,6 @@ typedef struct {
 typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
-
-    FoxSplash* splash;
 
     Submenu* submenu;
     TextInput* text_input;

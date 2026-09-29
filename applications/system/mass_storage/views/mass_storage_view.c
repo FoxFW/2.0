@@ -4,6 +4,8 @@
 
 struct MassStorage {
     View* view;
+    MassStorageDisconnectCallback disconnect_callback;
+    void* disconnect_context;
 };
 
 typedef struct {
@@ -12,6 +14,8 @@ typedef struct {
     uint32_t bytes_read, bytes_written;
     uint32_t update_time;
     bool connection_error;
+    bool sd_card_mode;
+    uint32_t loading_deadline;
 } MassStorageModel;
 
 static void append_suffixed_byte_count(FuriString* string, uint32_t count) {
@@ -46,7 +50,12 @@ static void mass_storage_draw_callback(Canvas* canvas, void* _model) {
 
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(
-        canvas, canvas_width(canvas) / 2, 0, AlignCenter, AlignTop, "USB Mass Storage");
+        canvas,
+        canvas_width(canvas) / 2,
+        0,
+        AlignCenter,
+        AlignTop,
+        model->sd_card_mode ? "Mass Storage Mode" : "USB Mass Storage");
 
     canvas_set_font(canvas, FontSecondary);
     elements_string_fit_width(canvas, model->file_name, 89 - 2);
@@ -70,6 +79,31 @@ static void mass_storage_draw_callback(Canvas* canvas, void* _model) {
         furi_string_cat_str(model->status_string, "ps");
     }
     canvas_draw_str(canvas, 12, 44, furi_string_get_cstr(model->status_string));
+
+    if(model->sd_card_mode && model->loading_deadline != 0 &&
+       furi_get_tick() < model->loading_deadline) {
+        uint16_t w_width = canvas_string_width(canvas, furi_string_get_cstr(model->status_string));
+        canvas_set_font(canvas, FontPrimary);
+        canvas_draw_str(canvas, 12 + w_width + 6, 44, "LOADING");
+    }
+
+    if(model->sd_card_mode) {
+        elements_button_center(canvas, "Disconnect");
+    }
+}
+
+static bool mass_storage_input_callback(InputEvent* event, void* context) {
+    MassStorage* mass_storage = context;
+    bool sd_card_mode = false;
+    with_view_model(
+        mass_storage->view, MassStorageModel * model, { sd_card_mode = model->sd_card_mode; }, false);
+    if(sd_card_mode && event->type == InputTypeShort && event->key == InputKeyOk) {
+        if(mass_storage->disconnect_callback) {
+            mass_storage->disconnect_callback(mass_storage->disconnect_context);
+        }
+        return true;
+    }
+    return false;
 }
 
 MassStorage* mass_storage_alloc() {
@@ -87,6 +121,9 @@ MassStorage* mass_storage_alloc() {
         false);
     view_set_context(mass_storage->view, mass_storage);
     view_set_draw_callback(mass_storage->view, mass_storage_draw_callback);
+    view_set_input_callback(mass_storage->view, mass_storage_input_callback);
+    mass_storage->disconnect_callback = NULL;
+    mass_storage->disconnect_context = NULL;
 
     return mass_storage;
 }
@@ -141,6 +178,24 @@ void mass_storage_set_stats(MassStorage* mass_storage, uint32_t read, uint32_t w
             model->bytes_read = read;
             model->bytes_written = written;
             model->update_time = now;
+        },
+        true);
+}
+
+void mass_storage_set_sd_card_mode(
+    MassStorage* mass_storage,
+    bool sd_card_mode,
+    MassStorageDisconnectCallback callback,
+    void* context) {
+    furi_assert(mass_storage);
+    mass_storage->disconnect_callback = callback;
+    mass_storage->disconnect_context = context;
+    with_view_model(
+        mass_storage->view,
+        MassStorageModel * model,
+        {
+            model->sd_card_mode = sd_card_mode;
+            model->loading_deadline = sd_card_mode ? (furi_get_tick() + 20000) : 0;
         },
         true);
 }

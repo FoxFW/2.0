@@ -7,7 +7,7 @@ static void radio_device_loader_power_on() {
     uint8_t attempts = 0;
     while(!furi_hal_power_is_otg_enabled() && attempts++ < 5) {
         furi_hal_power_enable_otg();
-        //CC1101 power-up time
+
         furi_delay_ms(10);
     }
 }

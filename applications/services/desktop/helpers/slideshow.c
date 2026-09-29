@@ -33,14 +33,14 @@ _Static_assert(sizeof(SlideshowFrameHeader) == 2, "Incorrect SlideshowFrameHeade
 #pragma pack(pop)
 
 Slideshow* slideshow_alloc(void) {
-    Slideshow* ret = malloc(sizeof(Slideshow));
+    Slideshow* ret = calloc(1, sizeof(Slideshow));
     ret->loaded = false;
     return ret;
 }
 
 void slideshow_free(Slideshow* slideshow) {
     Icon* icon = &slideshow->icon;
-    if(icon) { //-V547
+    if(icon) {
         for(int frame_idx = 0; frame_idx < icon->frame_count; ++frame_idx) {
             uint8_t* frame_data = (uint8_t*)icon->frames[frame_idx];
             free(frame_data);
@@ -68,7 +68,7 @@ bool slideshow_load(Slideshow* slideshow, const char* fspath) {
         FURI_CONST_ASSIGN(icon->frame_count, header.frame_count);
         FURI_CONST_ASSIGN(icon->width, header.width);
         FURI_CONST_ASSIGN(icon->height, header.height);
-        icon->frames = malloc(header.frame_count * sizeof(uint8_t*));
+        icon->frames = calloc(header.frame_count, sizeof(uint8_t*));
         for(int frame_idx = 0; frame_idx < header.frame_count; ++frame_idx) {
             SlideshowFrameHeader frame_header;
             if(storage_file_read(slideshow_file, &frame_header, sizeof(frame_header)) !=

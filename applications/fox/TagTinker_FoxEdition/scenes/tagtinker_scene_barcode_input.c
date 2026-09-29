@@ -1,7 +1,3 @@
-/*
- * Barcode input scene.
- */
-
 #include "../tagtinker_app.h"
 
 static void unsupported_tag_back_cb(GuiButtonType type, InputType input_type, void* ctx) {
@@ -57,8 +53,6 @@ bool tagtinker_scene_barcode_input_on_event(void* ctx, SceneManagerEvent event) 
         view_dispatcher_switch_to_view(app->view_dispatcher, TagTinkerViewWidget);
         return true;
     }
-
-
 
     app->selected_target = tagtinker_ensure_target(app, app->barcode);
 

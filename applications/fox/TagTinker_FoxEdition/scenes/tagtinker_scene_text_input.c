@@ -1,7 +1,3 @@
-/*
- * Text input scene.
- */
-
 #include "../tagtinker_app.h"
 
 static void text_input_done_cb(void* ctx) {
@@ -83,7 +79,6 @@ bool tagtinker_scene_text_input_on_event(void* ctx, SceneManagerEvent event) {
         return true;
     }
 
-    /* Configure settings (Add Preset flow) */
     scene_manager_next_scene(app->scene_manager, TagTinkerSceneSizePicker);
     return true;
 }

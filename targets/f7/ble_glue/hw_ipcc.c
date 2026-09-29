@@ -49,27 +49,12 @@ void HW_IPCC_Tx_Handler(void) {
 }
 
 void HW_IPCC_Enable(void) {
-    /**
-  * Such as IPCC IP available to the CPU2, it is required to keep the IPCC clock running
-    when FUS is running on CPU2 and CPU1 enters deep sleep mode
-  */
-    /**
-   * When the device is out of standby, it is required to use the EXTI mechanism to wakeup CPU2
-   */
+
     LL_C2_EXTI_EnableEvent_32_63(LL_EXTI_LINE_41);
     LL_EXTI_EnableRisingTrig_32_63(LL_EXTI_LINE_41);
 
-    /**
-   * In case the SBSFU is implemented, it may have already set the C2BOOT bit to startup the CPU2.
-   * In that case, to keep the mechanism transparent to the user application, it shall call the system command
-   * SHCI_C2_Reinit( ) before jumping to the application.
-   * When the CPU2 receives that command, it waits for its event input to be set to restart the CPU2 firmware.
-   * This is required because once C2BOOT has been set once, a clear/set on C2BOOT has no effect.
-   * When SHCI_C2_Reinit( ) is not called, generating an event to the CPU2 does not have any effect
-   * So, by default, the application shall both set the event flag and set the C2BOOT bit.
-   */
-    __SEV(); /* Set the internal event flag and send an event to the CPU2 */
-    __WFE(); /* Clear the internal event flag */
+    __SEV();
+    __WFE();
     LL_PWR_EnableBootC2();
 }
 

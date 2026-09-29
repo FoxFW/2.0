@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 #include "../acknowledgements.h"
 
 void picopass_scene_acknowledgements_widget_callback(

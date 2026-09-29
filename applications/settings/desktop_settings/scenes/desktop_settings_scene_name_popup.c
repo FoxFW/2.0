@@ -36,10 +36,7 @@ bool desktop_settings_scene_name_popup_on_event(void* context, SceneManagerEvent
     if(event.type == SceneManagerEventTypeCustom) {
         switch(event.event) {
         case SCENE_EVENT_EXIT:
-            /* Stop the view dispatcher — this causes view_dispatcher_run() to
-             * return, which triggers desktop_settings_app_free(), which writes
-             * the namechanger file and calls furi_hal_power_reset() to apply
-             * the new device name. Going back to start would skip all of that. */
+
             view_dispatcher_stop(app->view_dispatcher);
             consumed = true;
             break;

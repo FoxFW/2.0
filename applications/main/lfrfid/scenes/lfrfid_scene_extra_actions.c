@@ -1,5 +1,4 @@
 #include "../lfrfid_i.h"
-#include <dolphin/dolphin.h>
 
 typedef enum {
     SubmenuIndexASK,
@@ -63,7 +62,6 @@ void lfrfid_scene_extra_actions_on_enter(void* context) {
     submenu_set_selected_item(
         submenu, scene_manager_get_scene_state(app->scene_manager, LfRfidSceneExtraActions));
 
-    // clear key
     furi_string_reset(app->file_name);
     app->protocol_id = PROTOCOL_NO;
     app->read_type = LFRFIDWorkerReadTypeAuto;
@@ -79,12 +77,10 @@ bool lfrfid_scene_extra_actions_on_event(void* context, SceneManagerEvent event)
         if(event.event == SubmenuIndexASK) {
             app->read_type = LFRFIDWorkerReadTypeASKOnly;
             scene_manager_next_scene(app->scene_manager, LfRfidSceneRead);
-            dolphin_deed(DolphinDeedRfidRead);
             consumed = true;
         } else if(event.event == SubmenuIndexPSK) {
             app->read_type = LFRFIDWorkerReadTypePSKOnly;
             scene_manager_next_scene(app->scene_manager, LfRfidSceneRead);
-            dolphin_deed(DolphinDeedRfidRead);
             consumed = true;
         } else if(event.event == SubmenuIndexClearT5577) {
             scene_manager_set_scene_state(

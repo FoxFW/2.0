@@ -14,7 +14,6 @@
 
 extern const SubGhzProtocol subghz_protocol_porsche_cayenne;
 
-// Decoder
 void* subghz_protocol_decoder_porsche_cayenne_alloc(SubGhzEnvironment* environment);
 void subghz_protocol_decoder_porsche_cayenne_free(void* context);
 void subghz_protocol_decoder_porsche_cayenne_reset(void* context);
@@ -29,7 +28,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_porsche_cayenne_deserialize(
     FlipperFormat* flipper_format);
 void subghz_protocol_decoder_porsche_cayenne_get_string(void* context, FuriString* output);
 
-// Encoder
 void* subghz_protocol_encoder_porsche_cayenne_alloc(SubGhzEnvironment* environment);
 void subghz_protocol_encoder_porsche_cayenne_free(void* context);
 SubGhzProtocolStatus subghz_protocol_encoder_porsche_cayenne_deserialize(

@@ -103,7 +103,7 @@ static int datetime_cmp(const DateTime* dt_1, const DateTime* dt_2) {
 
 static bool is_bip_block_empty(const MfClassicBlock* block) {
     furi_assert(block);
-    // check if all but last byte are zero (last is checksum)
+
     for(size_t i = 0; i < sizeof(block->data) - 1; i++) {
         if(block->data[i] != 0) {
             return false;
@@ -200,7 +200,7 @@ static bool bip_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // verify sector 0 key A
+
         MfClassicSectorTrailer* sec_tr = mf_classic_get_sector_trailer_by_sector(data, 0);
 
         if(data->type != MfClassicType1k) break;
@@ -210,30 +210,25 @@ static bool bip_parse(const NfcDevice* device, FuriString* parsed_data) {
             break;
         }
 
-        // verify sector 0 key B
         key = bit_lib_bytes_to_num_be(sec_tr->key_b.data, 6);
         if(key != bip_1k_keys[0].b) {
             break;
         }
 
-        // Get Card ID, little-endian 4 bytes at sector 0 block 1, bytes 4-7
         const uint8_t card_id_start_block_num =
             mf_classic_get_first_block_num_of_sector(BIP_CARD_ID_SECTOR_NUMBER);
         const uint8_t* block_start_ptr = &data->block[card_id_start_block_num + 1].data[0];
 
         bip_data.card_id = bit_lib_bytes_to_num_le(block_start_ptr + 4, 4);
 
-        // Get balance, little-endian 2 bytes at sector 8 block 1, bytes 0-1
         const uint8_t balance_start_block_num =
             mf_classic_get_first_block_num_of_sector(BIP_BALANCE_SECTOR_NUMBER);
         block_start_ptr = &data->block[balance_start_block_num + 1].data[0];
 
         bip_data.balance = bit_lib_bytes_to_num_le(block_start_ptr, 2);
 
-        // Get balance flags (negative balance, etc.), little-endian 2 bytes at sector 8 block 1, bytes 2-3
         bip_data.flags = bit_lib_bytes_to_num_le(block_start_ptr + 2, 2);
 
-        // Get trip time window, proprietary format, at sector 5 block 1, bytes 0-7
         const uint8_t trip_time_window_start_block_num =
             mf_classic_get_first_block_num_of_sector(BIP_TRIP_TIME_WINDOW_SECTOR_NUMBER);
         const MfClassicBlock* trip_window_block_ptr =
@@ -241,7 +236,6 @@ static bool bip_parse(const NfcDevice* device, FuriString* parsed_data) {
 
         bip_parse_datetime(trip_window_block_ptr, &bip_data.trip_time_window);
 
-        // Last 3 top-ups: sector 10, ring-buffer of 3 blocks, timestamp in bytes 0-7, amount in bytes 9-10
         const uint8_t top_ups_start_block_num =
             mf_classic_get_first_block_num_of_sector(BIP_LAST_TOP_UPS_SECTOR_NUMBER);
         for(size_t i = 0; i < 3; i++) {
@@ -255,7 +249,6 @@ static bool bip_parse(const NfcDevice* device, FuriString* parsed_data) {
             top_up->amount = bit_lib_bytes_to_num_le(&block->data[9], 2) >> 2;
         }
 
-        // Last 3 charges (i.e. trips), sector 11, ring-buffer of 3 blocks, timestamp in bytes 0-7, amount in bytes 10-11
         const uint8_t trips_start_block_num =
             mf_classic_get_first_block_num_of_sector(BIP_TRIPS_INFO_SECTOR_NUMBER);
         for(size_t i = 0; i < 3; i++) {
@@ -269,9 +262,6 @@ static bool bip_parse(const NfcDevice* device, FuriString* parsed_data) {
             charge->amount = bit_lib_bytes_to_num_le(&block->data[10], 2) >> 2;
         }
 
-        // All data is now parsed and stored in bip_data, now print it
-
-        // Print basic info
         furi_string_printf(
             parsed_data,
             "\e#Tarjeta Bip!\n"
@@ -284,7 +274,6 @@ static bool bip_parse(const NfcDevice* device, FuriString* parsed_data) {
 
         bip_print_datetime(&bip_data.trip_time_window, parsed_data);
 
-        // Find newest top-up
         size_t newest_top_up = 0;
         for(size_t i = 1; i < 3; i++) {
             const DateTime* newest = &bip_data.top_ups[newest_top_up].datetime;
@@ -294,7 +283,6 @@ static bool bip_parse(const NfcDevice* device, FuriString* parsed_data) {
             }
         }
 
-        // Print top-ups, newest first
         furi_string_cat_printf(parsed_data, "\n\e#Last Top-ups");
         for(size_t i = 0; i < 3; i++) {
             const BipTransaction* top_up = &bip_data.top_ups[(3u + newest_top_up - i) % 3];
@@ -302,7 +290,6 @@ static bool bip_parse(const NfcDevice* device, FuriString* parsed_data) {
             bip_print_datetime(&top_up->datetime, parsed_data);
         }
 
-        // Find newest charge
         size_t newest_charge = 0;
         for(size_t i = 1; i < 3; i++) {
             const DateTime* newest = &bip_data.charges[newest_charge].datetime;
@@ -312,7 +299,6 @@ static bool bip_parse(const NfcDevice* device, FuriString* parsed_data) {
             }
         }
 
-        // Print charges
         furi_string_cat_printf(parsed_data, "\n\e#Last Charges (Trips)");
         for(size_t i = 0; i < 3; i++) {
             const BipTransaction* charge = &bip_data.charges[(3u + newest_charge - i) % 3];
@@ -326,7 +312,6 @@ static bool bip_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin bip_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = bip_verify,
@@ -334,14 +319,12 @@ static const NfcSupportedCardsPlugin bip_plugin = {
     .parse = bip_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor bip_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &bip_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* bip_plugin_ep(void) {
     return &bip_plugin_descriptor;
 }

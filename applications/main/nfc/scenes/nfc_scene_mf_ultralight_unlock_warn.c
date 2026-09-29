@@ -1,5 +1,4 @@
 #include "../nfc_app_i.h"
-#include <dolphin/dolphin.h>
 
 void nfc_scene_mf_ultralight_unlock_warn_dialog_callback(DialogExResult result, void* context) {
     NfcApp* nfc = context;
@@ -16,7 +15,7 @@ void nfc_scene_mf_ultralight_unlock_warn_on_enter(void* context) {
 
     MfUltralightAuthType type = nfc->mf_ul_auth->type;
     if((type == MfUltralightAuthTypeReader) || (type == MfUltralightAuthTypeManual)) {
-        // Build dialog text
+
         FuriString* password_str =
             furi_string_alloc_set_str("Try to unlock the card with\npassword: ");
         for(size_t i = 0; i < sizeof(nfc->mf_ul_auth->password.data); i++) {
@@ -40,7 +39,7 @@ void nfc_scene_mf_ultralight_unlock_warn_on_enter(void* context) {
         dialog_ex_set_header(dialog_ex, "Risky action!", 64, 4, AlignCenter, AlignTop);
         dialog_ex_set_text(
             dialog_ex, "Wrong password\ncan block your\ncard.", 4, 18, AlignLeft, AlignTop);
-        // [NO_DOLPHIN] dialog_ex_set_icon(dialog_ex, 83, 22, &I_WarningDolphinFlip_45x42);
+
         dialog_ex_set_center_button_text(dialog_ex, "OK");
     }
 
@@ -60,7 +59,6 @@ bool nfc_scene_mf_ultralight_unlock_warn_on_event(void* context, SceneManagerEve
                 nfc_detected_protocols_set(
                     nfc->detected_protocols, mfu_protocol, COUNT_OF(mfu_protocol));
                 scene_manager_next_scene(nfc->scene_manager, NfcSceneRead);
-                dolphin_deed(DolphinDeedNfcRead);
                 consumed = true;
             } else if(event.event == DialogExResultLeft) {
                 if(type == MfUltralightAuthTypeReader) {
@@ -71,7 +69,7 @@ bool nfc_scene_mf_ultralight_unlock_warn_on_event(void* context, SceneManagerEve
                 }
             }
         } else if(event.type == SceneManagerEventTypeBack) {
-            // Cannot press back
+
             consumed = true;
         }
     } else {
@@ -81,7 +79,6 @@ bool nfc_scene_mf_ultralight_unlock_warn_on_event(void* context, SceneManagerEve
                 nfc_detected_protocols_set(
                     nfc->detected_protocols, mfu_protocol, COUNT_OF(mfu_protocol));
                 scene_manager_next_scene(nfc->scene_manager, NfcSceneRead);
-                dolphin_deed(DolphinDeedNfcRead);
                 consumed = true;
             }
         }

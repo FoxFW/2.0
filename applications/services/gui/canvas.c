@@ -18,21 +18,18 @@ Canvas* canvas_init(void) {
     Canvas* canvas = malloc(sizeof(Canvas));
     canvas->compress_icon = compress_icon_alloc(ICON_DECOMPRESSOR_BUFFER_SIZE);
 
-    // Initialize mutex
     canvas->mutex = furi_mutex_alloc(FuriMutexTypeNormal);
 
-    // Initialize callback array
     CanvasCallbackPairArray_init(canvas->canvas_callback_pair);
+    CanvasCallbackPairArray_reserve(canvas->canvas_callback_pair, 16);
 
-    // Setup u8g2
     u8g2_Setup_st756x_flipper(&canvas->fb, U8G2_R0, u8x8_hw_spi_stm32, u8g2_gpio_and_delay_stm32);
     canvas->orientation = CanvasOrientationHorizontal;
-    // Initialize display
+
     u8g2_InitDisplay(&canvas->fb);
-    // Wake up display
+
     u8g2_SetPowerSave(&canvas->fb, 0);
 
-    // Clear buffer and send to device
     canvas_clear(canvas);
     canvas_commit(canvas);
 
@@ -71,7 +68,6 @@ void canvas_commit(Canvas* canvas) {
     furi_check(canvas);
     u8g2_SendBuffer(&canvas->fb);
 
-    // Iterate over callbacks
     canvas_lock(canvas);
     for
         M_EACH(p, canvas->canvas_callback_pair, CanvasCallbackPairArray_t) {
@@ -170,7 +166,7 @@ void canvas_set_font(Canvas* canvas, Font font) {
     } else if(font == FontBigNumbers) {
         u8g2_SetFont(&canvas->fb, u8g2_font_profont22_tn);
     } else if(font == FontBatteryPercent) {
-        u8g2_SetFont(&canvas->fb, u8g2_font_5x7_tr); //u8g2_font_micro_tr);
+        u8g2_SetFont(&canvas->fb, u8g2_font_5x7_tr);
     } else {
         furi_crash();
     }
@@ -366,7 +362,7 @@ void canvas_draw_u8g2_bitmap(
     IconRotation rotation) {
 #ifdef U8G2_WITH_INTERSECTION
     if(u8g2_IsIntersection(u8g2, x, y, x + width, y + height) == 0) return;
-#endif /* U8G2_WITH_INTERSECTION */
+#endif
 
     switch(rotation) {
     case IconRotation0:

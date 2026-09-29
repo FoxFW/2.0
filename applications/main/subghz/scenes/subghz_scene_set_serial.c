@@ -66,7 +66,7 @@ void subghz_scene_set_serial_on_enter(void* context) {
         byte_ptr = (uint8_t*)&subghz->gen_info->phoenix_v2.serial;
         byte_count = sizeof(subghz->gen_info->phoenix_v2.serial);
         break;
-    // Not needed for these types
+
     case GenData:
     case GenSecPlus1:
     default:
@@ -77,9 +77,8 @@ void subghz_scene_set_serial_on_enter(void* context) {
     furi_assert(byte_ptr);
     furi_assert(byte_count > 0);
 
-    *((uint32_t*)byte_ptr) = __bswap32(*((uint32_t*)byte_ptr)); // Convert
+    *((uint32_t*)byte_ptr) = __bswap32(*((uint32_t*)byte_ptr));
 
-    // Setup view
     ByteInput* byte_input = subghz->byte_input;
     byte_input_set_header_text(byte_input, "Enter SERIAL in hex");
     byte_input_set_result_callback(
@@ -98,7 +97,7 @@ bool subghz_scene_set_serial_on_event(void* context, SceneManagerEvent event) {
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == SubGhzCustomEventByteInputDone) {
-            // Swap bytes
+
             switch(subghz->gen_info->type) {
             case GenFaacSLH:
                 subghz->gen_info->faac_slh.serial = __bswap32(subghz->gen_info->faac_slh.serial);
@@ -145,7 +144,7 @@ bool subghz_scene_set_serial_on_event(void* context, SceneManagerEvent event) {
                 subghz->gen_info->phoenix_v2.serial =
                     __bswap32(subghz->gen_info->phoenix_v2.serial);
                 break;
-            // Not needed for these types
+
             case GenData:
             case GenSecPlus1:
             default:
@@ -170,7 +169,7 @@ bool subghz_scene_set_serial_on_event(void* context, SceneManagerEvent event) {
             case GenPhoenixV2:
                 scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSetCounter);
                 break;
-            // Not needed for these types
+
             case GenData:
             case GenSecPlus1:
             default:
@@ -187,7 +186,6 @@ bool subghz_scene_set_serial_on_event(void* context, SceneManagerEvent event) {
 void subghz_scene_set_serial_on_exit(void* context) {
     SubGhz* subghz = context;
 
-    // Clear view
     byte_input_set_result_callback(subghz->byte_input, NULL, NULL, NULL, NULL, 0);
     byte_input_set_header_text(subghz->byte_input, "");
 }

@@ -1,5 +1,3 @@
-//#include "emv_i.h"
-
 #include "flipper_format.h"
 #include <core/common_defines.h>
 #include "protocols/emv/emv.h"
@@ -71,7 +69,7 @@ bool emv_load(EmvData* data, FlipperFormat* ff, uint32_t version) {
     bool parsed = false;
 
     do {
-        // Read ISO14443_4A data
+
         if(!iso14443_4a_load(data->iso14443_4a_data, ff, version)) break;
 
         EmvApplication* app = &data->emv_application;

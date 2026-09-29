@@ -8,10 +8,6 @@
 #define GAP_MAC_ADDR_SIZE (6)
 #define GAP_KEY_SIZE      (0x10)
 
-/*
- * GAP helpers - background thread that handles BLE GAP events and advertising.
- */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -86,9 +82,9 @@ typedef struct {
 } GapConfig;
 
 typedef struct {
-    // Encryption Root key. Must be unique per-device (or app)
+
     uint8_t erk[GAP_KEY_SIZE];
-    // Identity Root key. Used for resolving RPAs, if configured
+
     uint8_t irk[GAP_KEY_SIZE];
 } GapRootSecurityKeys;
 

@@ -2,7 +2,6 @@
 
 #include <lib/subghz/devices/devices.h>
 
-/** SubGhzRadioDeviceType */
 typedef enum {
     SubGhzRadioDeviceTypeInternal,
     SubGhzRadioDeviceTypeExternalCC1101,

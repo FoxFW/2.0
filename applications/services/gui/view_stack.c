@@ -31,7 +31,6 @@ static void view_stack_enter(void* context) {
     ViewStack* view_stack = context;
     ViewStackModel* model = view_get_model(&view_stack->view);
 
-    /* if more than 1 Stack View hold same view they have to reassign update_callback_context */
     for(int i = 0; i < MAX_VIEWS; ++i) {
         if(model->views[i]) {
             view_set_update_callback_context(model->views[i], &view_stack->view);
@@ -144,8 +143,6 @@ void view_stack_remove_view(ViewStack* view_stack, View* view) {
     furi_assert(view_stack);
     furi_assert(view);
 
-    /* Removing view on-the-go is dangerous, but it is protected with
-     * Locking model, so system is consistent at any time. */
     bool result = false;
     ViewStackModel* model = view_get_model(&view_stack->view);
     for(int i = 0; i < MAX_VIEWS; ++i) {

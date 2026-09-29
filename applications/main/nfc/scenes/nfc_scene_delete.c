@@ -10,7 +10,6 @@ void nfc_scene_delete_widget_callback(GuiButtonType result, InputType type, void
 void nfc_scene_delete_on_enter(void* context) {
     NfcApp* nfc = context;
 
-    // Setup Custom Widget view
     FuriString* temp_str;
     temp_str = furi_string_alloc();
 

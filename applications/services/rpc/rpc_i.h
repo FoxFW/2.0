@@ -23,6 +23,8 @@ typedef struct {
 
 void rpc_send(RpcSession* session, PB_Main* main_message);
 
+void rpc_send_reserve(RpcSession* session, size_t min_capacity);
+
 void rpc_send_and_release(RpcSession* session, PB_Main* main_message);
 
 void rpc_send_and_release_empty(RpcSession* session, uint32_t command_id, PB_CommandStatus status);
@@ -37,7 +39,6 @@ void rpc_system_app_free(void* ctx);
 void* rpc_system_gui_alloc(RpcSession* session);
 void rpc_system_gui_free(void* ctx);
 void* rpc_system_gpio_alloc(RpcSession* session);
-void rpc_system_gpio_free(void* ctx);
 void* rpc_system_property_alloc(RpcSession* session);
 
 void* rpc_desktop_alloc(RpcSession* session);

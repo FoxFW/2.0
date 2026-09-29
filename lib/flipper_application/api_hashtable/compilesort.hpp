@@ -1,7 +1,3 @@
-/**
- * Implementation of compile-time sort for symbol table entries.
- */
-
 #pragma once
 
 #ifdef __cplusplus
@@ -63,8 +59,8 @@ constexpr void quick_sort(RAIt first, RAIt last, Compare cmp = Compare{}) {
         cstd::partition(first, last, [=](auto const& elem) { return cmp(elem, pivot); });
     auto const middle2 =
         cstd::partition(middle1, last, [=](auto const& elem) { return !cmp(pivot, elem); });
-    quick_sort(first, middle1, cmp); // assert(std::is_sorted(first, middle1, cmp));
-    quick_sort(middle2, last, cmp); // assert(std::is_sorted(middle2, last, cmp));
+    quick_sort(first, middle1, cmp);
+    quick_sort(middle2, last, cmp);
 }
 
 template <typename Range>

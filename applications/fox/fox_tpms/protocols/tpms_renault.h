@@ -29,6 +29,4 @@ SubGhzProtocolStatus
 
 void tpms_protocol_decoder_renault_get_string(void* context, FuriString* output);
 
-/** Re-pack generic's data word from its id/pressure/temperature (battery_low
- * isn't part of this protocol's payload) and recompute the CRC-8. */
 void tpms_protocol_renault_pack(TPMSBlockGeneric* generic);

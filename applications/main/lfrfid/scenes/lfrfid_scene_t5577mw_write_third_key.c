@@ -17,7 +17,6 @@ void lfrfid_scene_t5577mw_write_third_key_on_enter(void* context) {
             AlignCenter,
             AlignTop);
     }
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 3, &I_RFIDDolphinSend_97x61);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, LfRfidViewPopup);
     notification_message(app->notifications, &sequence_blink_start_magenta);

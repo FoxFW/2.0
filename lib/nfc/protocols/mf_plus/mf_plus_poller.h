@@ -8,110 +8,72 @@
 extern "C" {
 #endif
 
-/**
- * @brief MIFARE Plus poller opaque type definition.
- */
 typedef struct MfPlusPoller MfPlusPoller;
 
-/**
- * @brief Enumeration of possible MfPlus poller event types.
- */
-
 typedef enum {
-    MfPlusPollerEventTypeRequestMode, /**< Poller requests the app to choose a mode. */
-    MfPlusPollerEventTypeRequestKey, /**< Poller requests a candidate key for a sector. */
-    MfPlusPollerEventTypeDataUpdate, /**< Poller reports read progress. */
-    MfPlusPollerEventTypeReadSuccess, /**< Card was read successfully. */
-    MfPlusPollerEventTypeReadFailed, /**< Poller failed to read the card. */
-    MfPlusPollerEventTypeRequestWriteSector, /**< Poller requests the AES key for a sector to write. */
-    MfPlusPollerEventTypeRequestWriteBlock, /**< Poller requests the block data to write. */
-    MfPlusPollerEventTypeWriteSuccess, /**< Card was written successfully. */
-    MfPlusPollerEventTypeWriteFailed, /**< Poller failed to write the card. */
+    MfPlusPollerEventTypeRequestMode,
+    MfPlusPollerEventTypeRequestKey,
+    MfPlusPollerEventTypeDataUpdate,
+    MfPlusPollerEventTypeReadSuccess,
+    MfPlusPollerEventTypeReadFailed,
+    MfPlusPollerEventTypeRequestWriteSector,
+    MfPlusPollerEventTypeRequestWriteBlock,
+    MfPlusPollerEventTypeWriteSuccess,
+    MfPlusPollerEventTypeWriteFailed,
 } MfPlusPollerEventType;
 
-/**
- * @brief MIFARE Plus poller mode.
- */
 typedef enum {
-    MfPlusPollerModeInfo, /**< Identify only (default): version/type/SL/size, no authentication. */
-    MfPlusPollerModeRead, /**< SL3 read: signature + auth + read all sectors with supplied keys. */
-    MfPlusPollerModeWrite, /**< SL3 write: write the dump's data blocks back to the source card. */
+    MfPlusPollerModeInfo,
+    MfPlusPollerModeRead,
+    MfPlusPollerModeWrite,
 } MfPlusPollerMode;
 
-/** Filled by the app on MfPlusPollerEventTypeRequestMode. */
 typedef struct {
     MfPlusPollerMode mode;
 } MfPlusPollerEventDataRequestMode;
 
-/** The poller sets the request target; the app fills key + key_provided on RequestKey. The app
- *  MUST eventually answer key_provided = false (dictionary exhausted) so the scan can advance.
- *  When is_admin is false the target is (sector, key_type); when true it is admin_type (a 0x90xx
- *  key), and sector/key_type are unused. */
 typedef struct {
     bool is_admin;
-    uint8_t sector; // valid when !is_admin
-    MfPlusKeyType key_type; // valid when !is_admin
-    MfPlusAdminKeyType admin_type; // valid when is_admin
+    uint8_t sector;
+    MfPlusKeyType key_type;
+    MfPlusAdminKeyType admin_type;
     MfPlusKey key;
     bool key_provided;
 } MfPlusPollerEventDataKeyRequest;
 
-/** Filled by the poller on MfPlusPollerEventTypeDataUpdate. */
 typedef struct {
     uint8_t current_sector;
     uint8_t sectors_read;
     uint8_t keys_found;
 } MfPlusPollerEventDataUpdate;
 
-/** The poller sets `sector`; the app fills the recovered AES key + its type + key_provided on
- *  MfPlusPollerEventTypeRequestWriteSector. key_provided = false skips the whole sector (its key is
- *  not in the dump, so it can't be authenticated to write). */
 typedef struct {
-    uint8_t sector; // poller -> app
-    MfPlusKeyType key_type; // app -> poller
-    MfPlusKey key; // app -> poller
-    bool key_provided; // app -> poller
+    uint8_t sector;
+    MfPlusKeyType key_type;
+    MfPlusKey key;
+    bool key_provided;
 } MfPlusPollerEventDataWriteSectorRequest;
 
-/** The poller sets `block_num`; the app fills the block + block_provided on
- *  MfPlusPollerEventTypeRequestWriteBlock. block_provided = false skips the block (not in the dump). */
 typedef struct {
-    uint16_t block_num; // poller -> app
-    MfPlusBlock block; // app -> poller
-    bool block_provided; // app -> poller
+    uint16_t block_num;
+    MfPlusBlock block;
+    bool block_provided;
 } MfPlusPollerEventDataWriteBlockRequest;
 
-/**
- * @brief MIFARE Plus poller event data.
- */
 typedef union {
-    MfPlusError error; /**< Error code indicating card reading fail reason. */
-    MfPlusPollerEventDataRequestMode mode_request; /**< Mode request context. */
-    MfPlusPollerEventDataKeyRequest key_request; /**< Key request context. */
-    MfPlusPollerEventDataUpdate data_update; /**< Read progress context. */
-    MfPlusPollerEventDataWriteSectorRequest write_sector_request; /**< Write sector-key request. */
-    MfPlusPollerEventDataWriteBlockRequest write_block_request; /**< Write block-data request. */
+    MfPlusError error;
+    MfPlusPollerEventDataRequestMode mode_request;
+    MfPlusPollerEventDataKeyRequest key_request;
+    MfPlusPollerEventDataUpdate data_update;
+    MfPlusPollerEventDataWriteSectorRequest write_sector_request;
+    MfPlusPollerEventDataWriteBlockRequest write_block_request;
 } MfPlusPollerEventData;
 
-/**
- * @brief MIFARE Plus poller event structure.
- *
- * Upon emission of an event, an instance of this struct will be passed to the callback.
- */
 typedef struct {
-    MfPlusPollerEventType type; /**< Type of emitted event. */
-    MfPlusPollerEventData* data; /**< Pointer to event specific data. */
+    MfPlusPollerEventType type;
+    MfPlusPollerEventData* data;
 } MfPlusPollerEvent;
 
-/**
- * @brief Read MfPlus card version.
- *
- * Must ONLY be used inside the callback function.
- *
- * @param[in, out] instance pointer to the instance to be used in the transaction.
- * @param[out] data pointer to the MfPlusVersion structure to be filled with version data.
- * @return MfPlusErrorNone on success, an error code on failure.
- */
 MfPlusError mf_plus_poller_read_version(MfPlusPoller* instance, MfPlusVersion* data);
 
 #ifdef __cplusplus

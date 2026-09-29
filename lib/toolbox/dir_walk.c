@@ -63,7 +63,7 @@ static bool dir_walk_filter(DirWalk* dir_walk, const char* name, FileInfo* filei
 static DirWalkResult
     dir_walk_iter(DirWalk* dir_walk, FuriString* return_path, FileInfo* fileinfo) {
     DirWalkResult result = DirWalkError;
-    char* name = malloc(256); // FIXME: remove magic number
+    char* name = malloc(256);
     FileInfo info;
     bool end = false;
 
@@ -76,7 +76,7 @@ static DirWalkResult
 
             if(dir_walk_filter(dir_walk, name, &info)) {
                 if(return_path != NULL) {
-                    furi_string_printf( //-V576
+                    furi_string_printf(
                         return_path,
                         "%s/%s",
                         furi_string_get_cstr(dir_walk->path),
@@ -91,7 +91,7 @@ static DirWalkResult
             }
 
             if(file_info_is_dir(&info) && dir_walk->recursive) {
-                // step into
+
                 DirIndexList_push_back(dir_walk->index_list, dir_walk->current_index);
                 dir_walk->current_index = 0;
                 storage_dir_close(dir_walk->file);
@@ -101,11 +101,11 @@ static DirWalkResult
             }
         } else if(storage_file_get_error(dir_walk->file) == FSE_NOT_EXIST) {
             if(DirIndexList_size(dir_walk->index_list) == 0) {
-                // last
+
                 result = DirWalkLast;
                 end = true;
             } else {
-                // step out
+
                 uint32_t index;
                 DirIndexList_pop_back(&index, dir_walk->index_list);
                 dir_walk->current_index = 0;
@@ -119,7 +119,6 @@ static DirWalkResult
 
                 storage_dir_open(dir_walk->file, furi_string_get_cstr(dir_walk->path));
 
-                // rewind
                 while(true) {
                     if(index == dir_walk->current_index) {
                         result = DirWalkOK;

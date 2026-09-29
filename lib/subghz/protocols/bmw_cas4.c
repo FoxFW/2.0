@@ -77,8 +77,6 @@ const SubGhzProtocol subghz_protocol_bmw_cas4 = {
     .encoder = &subghz_protocol_bmw_cas4_encoder,
 };
 
-// Encoder stubs
-
 void* subghz_protocol_encoder_bmw_cas4_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderBmwCas4* instance = calloc(1, sizeof(SubGhzProtocolEncoderBmwCas4));
@@ -116,8 +114,6 @@ LevelDuration subghz_protocol_encoder_bmw_cas4_yield(void* context) {
     UNUSED(context);
     return level_duration_reset();
 }
-
-// Decoder
 
 static void bmw_cas4_rebuild_raw_data(SubGhzProtocolDecoderBmwCas4* instance) {
     memset(instance->raw_data, 0, sizeof(instance->raw_data));

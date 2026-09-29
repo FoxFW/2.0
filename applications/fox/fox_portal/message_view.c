@@ -138,7 +138,7 @@ static bool message_input_cb(InputEvent* event, void* context) {
                 loader_enqueue_launch(
                     loader,
                     EXT_PATH("apps/Fox/ESP32/foxhub.fap"),
-                    "SKIPSPLASH_WIFICONN",
+                    "WIFICONN",
                     LoaderDeferredLaunchFlagGui);
                 furi_record_close(RECORD_LOADER);
                 view_dispatcher_stop(app->view_dispatcher);

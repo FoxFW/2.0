@@ -4,6 +4,7 @@
 #include "../blocks/encoder.h"
 #include "../blocks/generic.h"
 #include "../blocks/math.h"
+#include "../blocks/custom_btn_i.h"
 #include "keeloq_common.h"
 
 #define TAG "SubGhzProtocolKiaV3V4"
@@ -212,10 +213,6 @@ static const char* subghz_protocol_kia_v3_v4_get_name_button(uint8_t btn) {
         return "Unknown";
     }
 }
-
-// ============================================================================
-// ENCODER IMPLEMENTATION
-// ============================================================================
 
 void* subghz_protocol_encoder_kia_v3_v4_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -444,6 +441,14 @@ SubGhzProtocolStatus
         instance->serial = serial;
         instance->btn = (uint8_t)btn;
         instance->cnt = (uint16_t)cnt;
+
+        uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
+        if(mult == 0U) mult = 1U;
+        instance->cnt = (uint16_t)((instance->cnt + mult) & 0xFFFFU);
+        flipper_format_rewind(flipper_format);
+        uint32_t cnt_store = instance->cnt;
+        flipper_format_insert_or_update_uint32(flipper_format, "Cnt", &cnt_store, 1);
+
         instance->generic.serial = instance->serial;
         instance->generic.btn = instance->btn;
         instance->generic.cnt = instance->cnt;
@@ -551,10 +556,6 @@ uint8_t subghz_protocol_encoder_kia_v3_v4_get_button(void* context) {
     SubGhzProtocolEncoderKiaV3V4* instance = context;
     return instance->btn;
 }
-
-// ============================================================================
-// DECODER IMPLEMENTATION
-// ============================================================================
 
 void* subghz_protocol_decoder_kia_v3_v4_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -779,6 +780,19 @@ SubGhzProtocolStatus
         if(flipper_format_read_uint32(flipper_format, "CRC", &temp, 1)) {
             instance->crc = (uint8_t)temp;
         }
+
+        flipper_format_rewind(flipper_format);
+        if(flipper_format_read_uint32(flipper_format, "Serial", &temp, 1)) {
+            instance->generic.serial = temp;
+        }
+        flipper_format_rewind(flipper_format);
+        if(flipper_format_read_uint32(flipper_format, "Btn", &temp, 1)) {
+            instance->generic.btn = (uint8_t)temp;
+        }
+        flipper_format_rewind(flipper_format);
+        if(flipper_format_read_uint32(flipper_format, "Cnt", &temp, 1)) {
+            instance->generic.cnt = temp;
+        }
     }
 
     return ret;
@@ -792,6 +806,22 @@ static uint64_t compute_yek(uint64_t key) {
     return yek;
 }
 
+static uint8_t kia_v3_v4_ui_button(uint8_t custom, uint8_t original_btn) {
+    switch(custom) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        return 0x1U;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        return 0x2U;
+    case SUBGHZ_CUSTOM_BTN_LEFT:
+        return 0x3U;
+    case SUBGHZ_CUSTOM_BTN_RIGHT:
+        return 0x4U;
+    case SUBGHZ_CUSTOM_BTN_OK:
+    default:
+        return original_btn;
+    }
+}
+
 void subghz_protocol_decoder_kia_v3_v4_get_string(void* context, FuriString* output) {
     furi_assert(context);
     SubGhzProtocolDecoderKiaV3V4* instance = context;
@@ -801,6 +831,13 @@ void subghz_protocol_decoder_kia_v3_v4_get_string(void* context, FuriString* out
     uint32_t key_lo = (uint32_t)(instance->generic.data & 0xFFFFFFFF);
     uint32_t yek_hi = (uint32_t)(yek >> 32);
     uint32_t yek_lo = (uint32_t)(yek & 0xFFFFFFFF);
+
+    subghz_custom_btn_set_max(4);
+    uint8_t display_btn = (uint8_t)instance->generic.btn;
+    uint8_t custom_btn_id = subghz_custom_btn_get();
+    if(custom_btn_id != SUBGHZ_CUSTOM_BTN_OK) {
+        display_btn = kia_v3_v4_ui_button(custom_btn_id, (uint8_t)instance->generic.btn);
+    }
 
     furi_string_cat_printf(
         output,
@@ -816,8 +853,8 @@ void subghz_protocol_decoder_kia_v3_v4_get_string(void* context, FuriString* out
         yek_hi,
         yek_lo,
         instance->generic.serial,
-        instance->generic.btn,
-        subghz_protocol_kia_v3_v4_get_name_button(instance->generic.btn),
+        display_btn,
+        subghz_protocol_kia_v3_v4_get_name_button(display_btn),
         instance->generic.cnt,
         instance->crc);
 }

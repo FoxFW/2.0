@@ -30,28 +30,19 @@ SubGhzProtocolStatus
 void subghz_protocol_encoder_psa_stop(void* context);
 LevelDuration subghz_protocol_encoder_psa_yield(void* context);
 
-// Progress callback: progress 0-100, keys_tested count, return false to cancel
 typedef bool (*PsaDecryptProgressCallback)(uint8_t progress, uint32_t keys_tested, void* context);
 
-// Run full brute-force decrypt on a loaded FlipperFormat file
-// Returns true if decryption succeeded
-// result_str: filled with key info on success (can be NULL)
-// progress_cb: called with 0-100 progress, return false to cancel (can be NULL)
 bool subghz_protocol_psa_decrypt_file(
     FlipperFormat* flipper_format,
     FuriString* result_str,
     PsaDecryptProgressCallback progress_cb,
     void* progress_ctx);
 
-// Extract BF parameters (w0, w1) from a FlipperFormat file for external offload
-// Returns true if the file needs TEA brute-force (mode36)
 bool subghz_protocol_psa_get_bf_params(
     FlipperFormat* flipper_format,
     uint32_t* w0,
     uint32_t* w1);
 
-// Apply externally-computed BF result back to a FlipperFormat file
-// counter: the found key counter, dec_v0/dec_v1: decrypted TEA words, bf_type: 1 or 2
 bool subghz_protocol_psa_apply_bf_result(
     FlipperFormat* flipper_format,
     FuriString* result_str,

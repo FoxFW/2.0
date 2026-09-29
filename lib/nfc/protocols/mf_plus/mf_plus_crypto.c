@@ -5,8 +5,6 @@
 #include <stdbool.h>
 #include <mbedtls/aes.h>
 
-/* ---- AES-128 primitives (firmware mbedtls, software) ---- */
-
 static void mf_plus_crypto_aes_ecb(
     bool encrypt,
     const uint8_t key[MF_PLUS_AES_KEY_SIZE],
@@ -31,11 +29,9 @@ static void mf_plus_crypto_aes_cbc(
     const uint8_t* input,
     uint8_t* output,
     size_t length) {
-    // CBC needs whole 16-byte blocks; a zero/partial length is a caller-contract violation
-    // (mbedtls would no-op or error) — fail loud rather than skip or emit crypto silently.
+
     furi_check(length != 0 && (length % MF_PLUS_AES_BLOCK_SIZE) == 0);
 
-    // mbedtls updates the IV in place; keep the caller's const IV intact.
     uint8_t iv_local[MF_PLUS_AES_BLOCK_SIZE];
     memcpy(iv_local, iv, MF_PLUS_AES_BLOCK_SIZE);
 
@@ -86,8 +82,6 @@ void mf_plus_crypto_cbc_decrypt(
     size_t length) {
     mf_plus_crypto_aes_cbc(false, key, iv, input, output, length);
 }
-
-/* ---- AES-CMAC (RFC 4493) on top of AES-ECB ---- */
 
 static void mf_plus_crypto_cmac_shift_left(
     const uint8_t in[MF_PLUS_AES_BLOCK_SIZE],
@@ -173,8 +167,6 @@ void mf_plus_crypto_cmac8(
     }
 }
 
-/* ---- Session keys (AN10922) ---- */
-
 void mf_plus_crypto_derive_session_keys(
     const uint8_t key[MF_PLUS_AES_KEY_SIZE],
     const uint8_t rnd_a[MF_PLUS_AES_BLOCK_SIZE],
@@ -183,7 +175,6 @@ void mf_plus_crypto_derive_session_keys(
     uint8_t k_mac[MF_PLUS_AES_KEY_SIZE]) {
     uint8_t sv[MF_PLUS_AES_BLOCK_SIZE];
 
-    // Kenc: RndA[11..15] || RndB[11..15] || (RndA[4..8] ^ RndB[4..8]) || 0x11
     memcpy(&sv[0], &rnd_a[11], 5);
     memcpy(&sv[5], &rnd_b[11], 5);
     for(int i = 0; i < 5; i++) {
@@ -192,7 +183,6 @@ void mf_plus_crypto_derive_session_keys(
     sv[15] = 0x11;
     mf_plus_crypto_ecb_encrypt(key, sv, k_enc);
 
-    // Kmac: RndA[7..11] || RndB[7..11] || (RndA[0..4] ^ RndB[0..4]) || 0x22
     memcpy(&sv[0], &rnd_a[7], 5);
     memcpy(&sv[5], &rnd_b[7], 5);
     for(int i = 0; i < 5; i++) {
@@ -202,8 +192,6 @@ void mf_plus_crypto_derive_session_keys(
     mf_plus_crypto_ecb_encrypt(key, sv, k_mac);
 }
 
-// Cap on the payload appended to the fixed stack buffer below; keeps the bound check and
-// the buffer size locked together. Real callers MAC one 16-byte block at a time.
 #define MF_PLUS_CRYPTO_MAC_MAX_DATA (256)
 
 void mf_plus_crypto_calculate_mac(
@@ -214,7 +202,7 @@ void mf_plus_crypto_calculate_mac(
     const uint8_t* data,
     size_t data_length,
     uint8_t mac[MF_PLUS_MAC_SIZE]) {
-    // Header is cmd(1)+ctr(2)+TI(4)=7 bytes.
+
     furi_check(data_length <= MF_PLUS_CRYPTO_MAC_MAX_DATA);
 
     uint8_t buf[7 + MF_PLUS_CRYPTO_MAC_MAX_DATA];
@@ -231,11 +219,6 @@ void mf_plus_crypto_calculate_mac(
     mf_plus_crypto_cmac8(k_mac, buf, n, mac);
 }
 
-/* ---- Data-encryption IVs (see header for the write-IV validation caveat) ---- */
-
-// Little-endian {R_ctr, W_ctr} as the 4-byte counter word {R_lo, R_hi, W_lo, W_hi} that both IVs
-// repeat. For a read-only session (W_ctr == 0, R_ctr < 256) this is {R_lo, 0, 0, 0}, matching PM3's
-// single-low-byte layout byte-for-byte.
 static void mf_plus_crypto_iv_counter_word(uint16_t r_ctr, uint16_t w_ctr, uint8_t word[4]) {
     word[0] = (uint8_t)(r_ctr & 0xFF);
     word[1] = (uint8_t)(r_ctr >> 8);
@@ -248,7 +231,7 @@ void mf_plus_crypto_build_read_iv(
     uint16_t r_ctr,
     uint16_t w_ctr,
     uint8_t iv[MF_PLUS_AES_BLOCK_SIZE]) {
-    // Read IV: counter word repeated across IV[0..11], TI at IV[12..15].
+
     uint8_t word[4];
     mf_plus_crypto_iv_counter_word(r_ctr, w_ctr, word);
     for(size_t i = 0; i < 3; i++) {
@@ -262,7 +245,7 @@ void mf_plus_crypto_build_write_iv(
     uint16_t r_ctr,
     uint16_t w_ctr,
     uint8_t iv[MF_PLUS_AES_BLOCK_SIZE]) {
-    // Write IV: TI at IV[0..3], counter word repeated across IV[4..15].
+
     memcpy(&iv[0], ti, 4);
     uint8_t word[4];
     mf_plus_crypto_iv_counter_word(r_ctr, w_ctr, word);

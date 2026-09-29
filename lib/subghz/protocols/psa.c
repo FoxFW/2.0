@@ -31,6 +31,13 @@ static const SubGhzBlockConst subghz_protocol_psa_const = {
 #define PSA_KEY1_BITS 0x40
 #define PSA_KEY2_BITS 0x50
 
+#define PSA_AM_PRE_MIN 60
+#define PSA_AM_PRE_MAX 200
+#define PSA_AM_PRE_THRESHOLD 8
+#define PSA_AM_PRE_GLITCH_DECAY 2
+#define PSA_AM_PRE_MAX_GLITCH 3
+#define PSA_AM_RESYNC_BITS 8
+
 #define TEA_DELTA 0x9E3779B9U
 #define TEA_ROUNDS 32
 
@@ -56,7 +63,6 @@ static const uint32_t PSA_BF2_KEY_SCHEDULE[4] = {
 #define PSA_BF2_START 0xF3000000U
 #define PSA_BF2_END 0xF4000000U
 
-// Custom button mapping functions
 static const char* psa_button_name(uint8_t btn) {
     switch(btn) {
     case 0x0:
@@ -86,12 +92,12 @@ static uint8_t psa_btn_to_custom(uint8_t btn) {
 static uint8_t psa_custom_to_btn(uint8_t custom_btn, uint8_t fallback_btn) {
     switch(custom_btn) {
     case SUBGHZ_CUSTOM_BTN_UP:
-        return 0x0; // Lock
+        return 0x0;
     case SUBGHZ_CUSTOM_BTN_DOWN:
-        return 0x1; // Unlock
+        return 0x1;
     case SUBGHZ_CUSTOM_BTN_LEFT:
     case SUBGHZ_CUSTOM_BTN_RIGHT:
-        return 0x2; // Trunk
+        return 0x2;
     default:
         return fallback_btn;
     }
@@ -150,6 +156,11 @@ struct SubGhzProtocolDecoderPSA {
     uint32_t te_sum;
     uint16_t te_count;
     uint32_t te_detected;
+
+    uint8_t pre_glitch;
+    uint8_t am_await_high;
+    uint8_t am_bits[96];
+    uint8_t am_bits_len;
 };
 
 struct SubGhzProtocolEncoderPSA {
@@ -193,7 +204,8 @@ const SubGhzProtocolEncoder subghz_protocol_psa_encoder = {
 const SubGhzProtocol subghz_protocol_psa = {
     .name = SUBGHZ_PROTOCOL_PSA_NAME,
     .type = SubGhzProtocolTypeDynamic,
-    .flag = SubGhzProtocolFlag_433 | SubGhzProtocolFlag_FM | SubGhzProtocolFlag_Decodable |
+    .flag = SubGhzProtocolFlag_315 | SubGhzProtocolFlag_433 | SubGhzProtocolFlag_AM | SubGhzProtocolFlag_FM |
+            SubGhzProtocolFlag_Decodable |
             SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Save | SubGhzProtocolFlag_Send,
     .decoder = &subghz_protocol_psa_decoder,
     .encoder = &subghz_protocol_psa_encoder,
@@ -255,7 +267,7 @@ static void psa_second_stage_xor_decrypt(uint8_t* buffer) {
 static void psa_second_stage_xor_encrypt(uint8_t* buffer) {
     uint8_t E6 = buffer[8];
     uint8_t E7 = buffer[9];
-    
+
     uint8_t P[6];
     P[0] = buffer[2];
     P[1] = buffer[3];
@@ -263,14 +275,14 @@ static void psa_second_stage_xor_encrypt(uint8_t* buffer) {
     P[3] = buffer[5];
     P[4] = buffer[6];
     P[5] = buffer[7];
-    
+
     uint8_t E5 = P[5] ^ E7 ^ E6;
     uint8_t E0 = P[2] ^ E5;
     uint8_t E2 = P[4] ^ E0;
     uint8_t E4 = P[3] ^ E2;
     uint8_t E3 = P[0] ^ E5;
     uint8_t E1 = P[1] ^ E3;
-    
+
     buffer[2] = E0;
     buffer[3] = E1;
     buffer[4] = E2;
@@ -355,7 +367,6 @@ static uint8_t psa_calculate_tea_crc(uint32_t v0, uint32_t v1) {
     return (uint8_t)(crc & 0xFF);
 }
 
-// CRC-16 lookup table (polynomial 0x8005, no reflection)
 static const uint16_t psa_crc16_table[256] = {
     0x0000, 0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
     0x8033, 0x0036, 0x003C, 0x8039, 0x0028, 0x802D, 0x8027, 0x0022,
@@ -478,14 +489,14 @@ __attribute__((optimize("O3"))) static bool psa_brute_force_decrypt_bf2(SubGhzPr
             PSA_BF2_KEY_SCHEDULE[2] ^ counter,
             PSA_BF2_KEY_SCHEDULE[3] ^ counter,
         };
-        
+
         uint32_t dec_v0 = w0;
         uint32_t dec_v1 = w1;
         psa_tea_decrypt(&dec_v0, &dec_v1, working_key);
-        
+
         if((counter & 0xFFFFFF) == (dec_v0 >> 8)) {
             psa_unpack_tea_result_to_buffer(buffer, dec_v0, dec_v1);
-            
+
             uint8_t crc_buffer[6] = {
                 (uint8_t)((dec_v0 >> 24) & 0xFF),
                 (uint8_t)((dec_v0 >> 8) & 0xFF),
@@ -496,10 +507,10 @@ __attribute__((optimize("O3"))) static bool psa_brute_force_decrypt_bf2(SubGhzPr
             };
             uint16_t crc16 = psa_calculate_crc16_bf2(crc_buffer, 6);
             uint16_t expected_crc = (((dec_v1 >> 16) & 0xFF) << 8) | (dec_v1 & 0xFF);
-            
+
             if(crc16 == expected_crc) {
                 psa_extract_fields_mode36(buffer, instance);
-				instance->decrypted_seed = counter; // bf2 found key
+				instance->decrypted_seed = counter;
                 return true;
             }
         }
@@ -522,7 +533,6 @@ static bool psa_direct_xor_decrypt(SubGhzProtocolDecoderPSA* instance, uint8_t* 
     return false;
 }
 
-// Fast decrypt: only tries mode23 XOR (no brute force, safe for UI thread)
 static void psa_decrypt_fast(SubGhzProtocolDecoderPSA* instance) {
     uint8_t buffer[48] = {0};
     psa_setup_byte_buffer(buffer, instance->key1_low, instance->key1_high, instance->key2_low);
@@ -535,8 +545,6 @@ static void psa_decrypt_fast(SubGhzProtocolDecoderPSA* instance) {
     }
 }
 
-// Full decrypt: tries mode23 first, then brute force mode36
-// WARNING: can take ~30 seconds, only call from manual context
 static void psa_decrypt_full(SubGhzProtocolDecoderPSA* instance, PsaDecryptProgressCallback progress_cb, void* progress_ctx) {
     uint8_t buffer[48] = {0};
     psa_setup_byte_buffer(buffer, instance->key1_low, instance->key1_high, instance->key2_low);
@@ -636,6 +644,13 @@ void subghz_protocol_decoder_psa_reset(void* context) {
     instance->decrypted_crc = 0;
     instance->decrypted_seed = 0;
     instance->decrypted_type = 0;
+
+    instance->pre_glitch = 0;
+    instance->am_await_high = 0;
+    instance->am_bits_len = 0;
+    instance->te_sum = 0;
+    instance->te_count = 0;
+    instance->te_detected = 0;
 }
 
 #define PSA_FIRE_CALLBACK_IF_NEW(instance)                                          \
@@ -650,6 +665,142 @@ void subghz_protocol_decoder_psa_reset(void* context) {
             }                                                                        \
         }                                                                            \
     } while(0)
+
+static void psa_add_am_bit(SubGhzProtocolDecoderPSA* instance, uint8_t bit) {
+    bit = bit ? 0 : 1;
+    if(instance->am_bits_len >= 96) {
+        for(uint8_t i = 1; i < 96; i++) {
+            instance->am_bits[i - 1] = instance->am_bits[i];
+        }
+        instance->am_bits[95] = bit;
+    } else {
+        instance->am_bits[instance->am_bits_len++] = bit;
+    }
+    uint32_t carry = (instance->decode_data_low >> 31) & 1;
+    instance->decode_data_low = (instance->decode_data_low << 1) | bit;
+    instance->decode_data_high = (instance->decode_data_high << 1) | carry;
+    instance->decode_count_bit++;
+    if(instance->decode_count_bit == PSA_KEY1_BITS) {
+        instance->key1_low = instance->decode_data_low;
+        instance->key1_high = instance->decode_data_high;
+        instance->decode_data_low = 0;
+        instance->decode_data_high = 0;
+    }
+}
+
+static bool psa_am_frame_at(
+    const SubGhzProtocolDecoderPSA* instance,
+    uint8_t off,
+    uint32_t* hi,
+    uint32_t* lo,
+    uint32_t* k2,
+    uint8_t* nib) {
+    if(instance->am_bits_len < off + 80) return false;
+    uint32_t h = 0, l = 0, k = 0;
+    uint8_t i;
+    for(i = 0; i < 32; i++) h = (h << 1) | instance->am_bits[off + i];
+    for(i = 32; i < 64; i++) l = (l << 1) | instance->am_bits[off + i];
+    for(i = 64; i < 80; i++) k = (k << 1) | instance->am_bits[off + i];
+    *hi = h;
+    *lo = l;
+    *k2 = k;
+    *nib = (uint8_t)((h >> 16) & 0xF);
+    return true;
+}
+
+static bool psa_am_varied(uint32_t hi, uint32_t lo) {
+    uint8_t vals[8] = {
+        (uint8_t)((hi >> 24) & 0xFF),
+        (uint8_t)((hi >> 16) & 0xFF),
+        (uint8_t)((hi >> 8) & 0xFF),
+        (uint8_t)(hi & 0xFF),
+        (uint8_t)((lo >> 24) & 0xFF),
+        (uint8_t)((lo >> 16) & 0xFF),
+        (uint8_t)((lo >> 8) & 0xFF),
+        (uint8_t)(lo & 0xFF)};
+    uint8_t n = 0;
+    for(uint8_t i = 0; i < 8; i++) {
+        bool seen = false;
+        for(uint8_t j = 0; j < i; j++) {
+            if(vals[j] == vals[i]) {
+                seen = true;
+                break;
+            }
+        }
+        if(!seen) n++;
+    }
+    return n >= 4;
+}
+
+static bool psa_am_complete(SubGhzProtocolDecoderPSA* instance) {
+    if(instance->am_bits_len < 80) return false;
+
+    uint8_t max_off = instance->am_bits_len - 80;
+    if(max_off > 8) max_off = 8;
+
+    int16_t best_off = -1;
+    int16_t best_score = -1;
+    uint32_t hi = 0, lo = 0, k2 = 0;
+    uint8_t nib = 0;
+
+    for(uint8_t off = 0; off <= max_off; off++) {
+        if(!psa_am_frame_at(instance, off, &hi, &lo, &k2, &nib)) continue;
+        if(nib != 0xA) continue;
+        if(!psa_am_varied(hi, lo)) continue;
+        int16_t score = 0;
+        int8_t bit = 31;
+        while(bit >= 20 && ((hi >> bit) & 1)) {
+            score++;
+            bit--;
+        }
+        if(score > best_score) {
+            best_score = score;
+            best_off = (int16_t)off;
+        }
+    }
+
+    if(best_off < 0) {
+        instance->decode_data_low = 0;
+        instance->decode_data_high = 0;
+        instance->decode_count_bit = 0;
+        instance->am_bits_len = 0;
+        instance->state = PSADecoderState0;
+        return false;
+    }
+
+    psa_am_frame_at(instance, (uint8_t)best_off, &hi, &lo, &k2, &nib);
+    instance->key1_high = hi;
+    instance->key1_low = lo;
+    instance->key2_low = k2;
+    instance->key2_high = 0;
+    instance->validation_field = (uint16_t)(k2 & 0xFFFF);
+    instance->mode_serialize = 2;
+    instance->status_flag = 0x80;
+
+    uint8_t buffer[48] = {0};
+    psa_setup_byte_buffer(buffer, instance->key1_low, instance->key1_high, instance->key2_low);
+    if(psa_direct_xor_decrypt(instance, buffer)) {
+        instance->mode_serialize = 0x23;
+        instance->decrypted = 0x50;
+    } else {
+        instance->decrypted = 0x00;
+        instance->mode_serialize = 0x36;
+    }
+
+    instance->generic.data = ((uint64_t)instance->key1_high << 32) | instance->key1_low;
+    instance->generic.data_count_bit = 64;
+    instance->decoder.decode_data = instance->generic.data;
+    instance->decoder.decode_count_bit = 64;
+
+    PSA_FIRE_CALLBACK_IF_NEW(instance);
+
+    instance->decode_data_low = 0;
+    instance->decode_data_high = 0;
+    instance->decode_count_bit = 0;
+    instance->am_bits_len = 0;
+    instance->state = PSADecoderState0;
+    return true;
+}
 
 void subghz_protocol_decoder_psa_feed(void* context, bool level, uint32_t duration) {
     furi_assert(context);
@@ -786,9 +937,8 @@ void subghz_protocol_decoder_psa_feed(void* context, bool level, uint32_t durati
                         instance->mode_serialize = 0x36;
                     }
 
-                    // Only fire callback if decrypted or validation nibble matches
                     if(instance->decrypted != 0x50 &&
-                       (instance->validation_field & 0xf) != 0xa) {
+                       ((instance->key1_high >> 16) & 0xF) != 0xA) {
                         instance->decode_data_low = 0;
                         instance->decode_data_high = 0;
                         instance->decode_count_bit = 0;
@@ -922,7 +1072,7 @@ void subghz_protocol_decoder_psa_feed(void* context, bool level, uint32_t durati
 
                 instance->validation_field = (uint16_t)(instance->decode_data_low & 0xFFFF);
 
-                if((instance->validation_field & 0xf) == 0xa) {
+                if(((instance->key1_high >> 16) & 0xF) == 0xA) {
                     instance->key2_low = instance->decode_data_low;
                     instance->key2_high = instance->decode_data_high;
                     instance->mode_serialize = 1;
@@ -958,155 +1108,184 @@ void subghz_protocol_decoder_psa_feed(void* context, bool level, uint32_t durati
         }
         break;
 
-    case PSADecoderState3:
+    case PSADecoderState3: {
         if(level) {
+            instance->prev_duration = duration;
             return;
         }
+        uint32_t high = prev_dur;
+        uint32_t period = high + duration;
+        uint32_t te_avg3 =
+            (instance->te_count > 0) ? (instance->te_sum / instance->te_count) : PSA_TE_SHORT_125;
+        if(te_avg3 < PSA_AM_PRE_MIN) te_avg3 = PSA_TE_SHORT_125;
+        uint32_t period_est = te_avg3 * 2;
+        uint32_t cell_mid = period_est + (period_est >> 1);
+        uint32_t cell_hi = period_est + period_est + (period_est >> 1);
+        uint32_t cell_min = PSA_AM_PRE_MIN * 2;
+        bool is_cell =
+            (period >= cell_min && period <= cell_mid && high >= PSA_AM_PRE_MIN &&
+             high <= PSA_AM_PRE_MAX && duration >= PSA_AM_PRE_MIN && duration <= PSA_AM_PRE_MAX);
+        bool is_boundary = (!is_cell && period > cell_mid && period <= cell_hi);
 
-        // Adaptive AM preamble: accept 76-174us, average to detect actual TE
-        if(duration >= 76 && duration <= 174) {
-            if(prev_dur >= 76 && prev_dur <= 174) {
-                instance->pattern_counter++;
-                instance->te_sum += duration;
-                instance->te_count++;
-            } else {
-                instance->pattern_counter = 0;
-                instance->te_sum = duration;
-                instance->te_count = 1;
+        if(is_cell) {
+            instance->pattern_counter++;
+            instance->pre_glitch = 0;
+            instance->te_sum += (period >> 1);
+            instance->te_count++;
+            if(instance->te_count > 32) {
+                instance->te_sum = te_avg3 * 8;
+                instance->te_count = 8;
             }
             instance->prev_duration = duration;
             return;
-        } else {
-            // Check if this is the preamble-to-data transition (2x detected TE)
-            uint32_t te_avg = (instance->te_count > 0) ?
-                (instance->te_sum / instance->te_count) : PSA_TE_SHORT_125;
-            uint32_t te_long_expected = te_avg * 2;
-            uint32_t long_diff = psa_abs_diff(duration, te_long_expected);
+        }
 
-            if(long_diff <= te_avg && instance->pattern_counter > PSA_PATTERN_THRESHOLD_2) {
-                instance->te_detected = te_avg;
-                new_state = PSADecoderState4;
-                instance->decode_data_low = 0;
-                instance->decode_data_high = 0;
-                instance->decode_count_bit = 0;
-                manchester_advance(instance->manchester_state, ManchesterEventReset,
-                                 &instance->manchester_state, NULL);
-                instance->state = new_state;
-                instance->pattern_counter = 0;
+        if(is_boundary && instance->pattern_counter >= PSA_AM_PRE_THRESHOLD) {
+            instance->te_detected = te_avg3;
+            instance->decode_data_low = 0;
+            instance->decode_data_high = 0;
+            instance->decode_count_bit = 0;
+            instance->am_bits_len = 0;
+            manchester_advance(
+                instance->manchester_state, ManchesterEventReset, &instance->manchester_state, NULL);
+            instance->am_await_high = 0;
+            instance->state = PSADecoderState4;
+            instance->pattern_counter = 0;
+            instance->pre_glitch = 0;
+            instance->prev_duration = duration;
+            return;
+        }
+
+        if(instance->pattern_counter >= PSA_AM_PRE_THRESHOLD) {
+            instance->te_detected = te_avg3;
+            instance->decode_data_low = 0;
+            instance->decode_data_high = 0;
+            instance->decode_count_bit = 0;
+            instance->am_bits_len = 0;
+            manchester_advance(
+                instance->manchester_state, ManchesterEventReset, &instance->manchester_state, NULL);
+            instance->am_await_high = 1;
+            instance->state = PSADecoderState4;
+            instance->pattern_counter = 0;
+            instance->pre_glitch = 0;
+            instance->prev_duration = duration;
+            return;
+        }
+
+        instance->pre_glitch++;
+        if(instance->pattern_counter >= PSA_AM_PRE_GLITCH_DECAY) {
+            instance->pattern_counter -= PSA_AM_PRE_GLITCH_DECAY;
+        } else {
+            instance->pattern_counter = 0;
+        }
+        if(instance->pre_glitch <= PSA_AM_PRE_MAX_GLITCH && instance->pattern_counter > 0) {
+            instance->prev_duration = duration;
+            return;
+        }
+        new_state = PSADecoderState0;
+        instance->pattern_counter = 0;
+        instance->pre_glitch = 0;
+        break;
+    }
+
+    case PSADecoderState4: {
+        uint32_t te_s = instance->te_detected ? instance->te_detected : PSA_TE_SHORT_125;
+        uint32_t te_l = te_s * 2;
+        uint32_t te_tol = (te_s * 7) / 10;
+        uint32_t midpoint = te_s + (te_s >> 1);
+
+        if(instance->am_await_high) {
+            if(duration > te_l + te_tol) {
                 instance->prev_duration = duration;
                 return;
             }
+            instance->am_await_high = 0;
+            manchester_advance(
+                instance->manchester_state, ManchesterEventReset, &instance->manchester_state, NULL);
+            instance->decode_data_low = 0;
+            instance->decode_data_high = 0;
+            instance->decode_count_bit = 0;
+            instance->am_bits_len = 0;
         }
 
-        new_state = PSADecoderState0;
-        instance->pattern_counter = 0;
-        break;
+        if(instance->decode_count_bit >= PSA_KEY2_BITS && duration > te_l + te_tol) {
+            if(psa_am_complete(instance)) return;
+        }
 
-    case PSADecoderState4: {
         if(instance->decode_count_bit >= PSA_MAX_BITS) {
-            new_state = PSADecoderState0;
-            break;
+            if(!psa_am_complete(instance)) {
+                new_state = PSADecoderState0;
+            }
+            if(instance->state == PSADecoderState0) break;
+            return;
         }
 
-        uint32_t te_s = instance->te_detected ? instance->te_detected : PSA_TE_SHORT_125;
-        uint32_t te_l = te_s * 2;
-        uint32_t te_tol = te_s / 2;
-        uint32_t midpoint = (te_s + te_l) / 2;
-
-        // End marker check: HIGH pulse beyond long range at 80 bits
-        if(level && instance->decode_count_bit == PSA_KEY2_BITS && duration > midpoint) {
-            uint32_t end_expected = te_s * 4;
-            uint32_t end_diff = psa_abs_diff(duration, end_expected);
-            if(end_diff <= te_s * 2) {
-                instance->validation_field = (uint16_t)(instance->decode_data_low & 0xFFFF);
-                instance->key2_low = instance->decode_data_low;
-                instance->key2_high = instance->decode_data_high;
-                instance->mode_serialize = 2;
-                instance->status_flag = 0x80;
-
-                uint8_t buffer[48] = {0};
-                psa_setup_byte_buffer(buffer, instance->key1_low, instance->key1_high, instance->key2_low);
-                if(psa_direct_xor_decrypt(instance, buffer)) {
-                    instance->mode_serialize = 0x23;
-                    instance->decrypted = 0x50;
-                } else {
-                    instance->decrypted = 0x00;
-                    instance->mode_serialize = 0x36;
-                }
-
-                if(instance->decrypted != 0x50 &&
-                   (instance->validation_field & 0xf) != 0xa) {
-                    instance->decode_data_low = 0;
-                    instance->decode_data_high = 0;
-                    instance->decode_count_bit = 0;
-                    new_state = PSADecoderState0;
-                    instance->state = new_state;
-                    return;
-                }
-
-                instance->generic.data = ((uint64_t)instance->key1_high << 32) | instance->key1_low;
-                instance->generic.data_count_bit = 64;
-                instance->decoder.decode_data = instance->generic.data;
-                instance->decoder.decode_count_bit = 64;
-
-                PSA_FIRE_CALLBACK_IF_NEW(instance);
-
+        if(duration > te_l + te_tol) {
+            if(instance->decode_count_bit >= PSA_KEY2_BITS) {
+                if(psa_am_complete(instance)) return;
+            }
+            if(instance->decode_count_bit < PSA_AM_RESYNC_BITS) {
                 instance->decode_data_low = 0;
                 instance->decode_data_high = 0;
                 instance->decode_count_bit = 0;
-                new_state = PSADecoderState0;
-                instance->state = new_state;
+                instance->am_bits_len = 0;
+                manchester_advance(
+                    instance->manchester_state, ManchesterEventReset, &instance->manchester_state,
+                    NULL);
                 return;
             }
-        }
-
-        // Manchester decode: process BOTH high and low pulses (unlike original AM path)
-        if(duration > te_l + te_tol) {
             if(duration > 10000) {
                 new_state = PSADecoderState0;
+                instance->am_bits_len = 0;
                 break;
             }
             return;
         }
 
-        uint8_t manchester_input;
-        bool decoded_bit = false;
-
+        uint8_t manchester_input4;
         if(duration <= midpoint) {
             if(psa_abs_diff(duration, te_s) > te_tol) {
-                return;
-            }
-            manchester_input = level ? ManchesterEventShortLow : ManchesterEventShortHigh;
-        } else {
-            if(psa_abs_diff(duration, te_l) > te_tol) {
-                return;
-            }
-            manchester_input = level ? ManchesterEventLongLow : ManchesterEventLongHigh;
-        }
-
-        if(instance->decode_count_bit < PSA_KEY2_BITS) {
-            if(manchester_advance(instance->manchester_state,
-                                 (ManchesterEvent)manchester_input,
-                                 &instance->manchester_state,
-                                 &decoded_bit)) {
-                uint32_t carry = (instance->decode_data_low >> 31) & 1;
-                // PSA AM uses inverted Manchester convention
-                decoded_bit = !decoded_bit;
-                instance->decode_data_low = (instance->decode_data_low << 1) | (decoded_bit ? 1 : 0);
-                instance->decode_data_high = (instance->decode_data_high << 1) | carry;
-                instance->decode_count_bit++;
-
-                if(instance->decode_count_bit == PSA_KEY1_BITS) {
-                    instance->key1_low = instance->decode_data_low;
-                    instance->key1_high = instance->decode_data_high;
+                if(instance->decode_count_bit < PSA_AM_RESYNC_BITS) {
                     instance->decode_data_low = 0;
                     instance->decode_data_high = 0;
+                    instance->decode_count_bit = 0;
+                    instance->am_bits_len = 0;
+                    manchester_advance(
+                        instance->manchester_state, ManchesterEventReset,
+                        &instance->manchester_state, NULL);
                 }
+                return;
             }
+            manchester_input4 = level ? ManchesterEventShortLow : ManchesterEventShortHigh;
+        } else {
+            if(psa_abs_diff(duration, te_l) > te_tol) {
+                if(instance->decode_count_bit < PSA_AM_RESYNC_BITS) {
+                    instance->decode_data_low = 0;
+                    instance->decode_data_high = 0;
+                    instance->decode_count_bit = 0;
+                    instance->am_bits_len = 0;
+                    manchester_advance(
+                        instance->manchester_state, ManchesterEventReset,
+                        &instance->manchester_state, NULL);
+                }
+                return;
+            }
+            manchester_input4 = level ? ManchesterEventLongLow : ManchesterEventLongHigh;
+        }
+
+        bool decoded_bit4 = false;
+        if(manchester_advance(
+               instance->manchester_state,
+               (ManchesterEvent)manchester_input4,
+               &instance->manchester_state,
+               &decoded_bit4)) {
+            psa_add_am_bit(instance, decoded_bit4 ? 1 : 0);
         }
         break;
     }
     }
+
+    if(new_state == PSADecoderState0) instance->am_bits_len = 0;
 
     instance->state = new_state;
     instance->prev_duration = duration;
@@ -1128,7 +1307,7 @@ SubGhzProtocolStatus subghz_protocol_decoder_psa_serialize(
 
     if(instance->decrypted != 0x50 && instance->status_flag == 0x80) {
         psa_decrypt_fast(instance);
-        
+
         if(instance->decrypted == 0x50) {
             instance->generic.cnt = instance->decrypted_counter;
             instance->generic.serial = instance->decrypted_serial;
@@ -1145,7 +1324,7 @@ SubGhzProtocolStatus subghz_protocol_decoder_psa_serialize(
 
     do {
         char key2_str[32];
-        snprintf(key2_str, sizeof(key2_str), 
+        snprintf(key2_str, sizeof(key2_str),
                  "%02X %02X %02X %02X %02X %02X %02X %02X",
                  (unsigned int)((instance->key2_high >> 24) & 0xFF),
                  (unsigned int)((instance->key2_high >> 16) & 0xFF),
@@ -1244,7 +1423,7 @@ SubGhzProtocolStatus subghz_protocol_decoder_psa_deserialize(void* context, Flip
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        
+
         uint64_t key1 = instance->generic.data;
         instance->key1_low = (uint32_t)(key1 & 0xFFFFFFFF);
         instance->key1_high = (uint32_t)((key1 >> 32) & 0xFFFFFFFF);
@@ -1284,16 +1463,16 @@ SubGhzProtocolStatus subghz_protocol_decoder_psa_deserialize(void* context, Flip
         uint8_t type = 0;
         uint16_t crc = 0;
         uint32_t seed = 0;
-        
+
         bool has_decrypted_data = true;
-        
+
         if(flipper_format_read_string(flipper_format, "Serial", temp_str)) {
             const char* serial_str = furi_string_get_cstr(temp_str);
             for(size_t i = 0; i < strlen(serial_str); i++) {
                 char c = serial_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 serial = (serial << 4) | nibble;
             }
@@ -1306,8 +1485,8 @@ SubGhzProtocolStatus subghz_protocol_decoder_psa_deserialize(void* context, Flip
             for(size_t i = 0; i < strlen(cnt_str); i++) {
                 char c = cnt_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 counter = (counter << 4) | nibble;
             }
@@ -1321,8 +1500,8 @@ SubGhzProtocolStatus subghz_protocol_decoder_psa_deserialize(void* context, Flip
             for(size_t i = 0; i < strlen(btn_str); i++) {
                 char c = btn_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 btn_val = (btn_val << 4) | nibble;
             }
@@ -1337,8 +1516,8 @@ SubGhzProtocolStatus subghz_protocol_decoder_psa_deserialize(void* context, Flip
             for(size_t i = 0; i < strlen(type_str); i++) {
                 char c = type_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 type_val = (type_val << 4) | nibble;
             }
@@ -1353,8 +1532,8 @@ SubGhzProtocolStatus subghz_protocol_decoder_psa_deserialize(void* context, Flip
             for(size_t i = 0; i < strlen(crc_str); i++) {
                 char c = crc_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 crc_val = (crc_val << 4) | nibble;
             }
@@ -1368,8 +1547,8 @@ SubGhzProtocolStatus subghz_protocol_decoder_psa_deserialize(void* context, Flip
             for(size_t i = 0; i < strlen(seed_str); i++) {
                 char c = seed_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 seed = (seed << 4) | nibble;
             }
@@ -1383,13 +1562,13 @@ SubGhzProtocolStatus subghz_protocol_decoder_psa_deserialize(void* context, Flip
             instance->decrypted_crc = crc;
             instance->decrypted_seed = seed;
             instance->decrypted = 0x50;
-            
+
             instance->generic.cnt = counter;
             instance->generic.serial = serial;
             instance->generic.btn = button;
         } else {
             psa_decrypt_fast(instance);
-            
+
             instance->generic.cnt = instance->decrypted_counter;
             instance->generic.serial = instance->decrypted_serial;
             instance->generic.btn = instance->decrypted_button;
@@ -1406,11 +1585,10 @@ void subghz_protocol_decoder_psa_get_string(void* context, FuriString* output) {
     furi_assert(context);
     SubGhzProtocolDecoderPSA* instance = context;
 
-
     uint16_t key2_value = (uint16_t)(instance->key2_low & 0xFFFF);
 
     if(instance->decrypted == 0x50 && instance->decrypted_type != 0) {
-        // Always update original button when loading a new file
+
         subghz_custom_btn_set_original(psa_btn_to_custom(instance->generic.btn));
         subghz_custom_btn_set_max(4);
         uint8_t display_btn = psa_get_btn_code();
@@ -1467,10 +1645,9 @@ void subghz_protocol_decoder_psa_get_string(void* context, FuriString* output) {
     }
 }
 
-
 static void psa_build_buffer_mode23(SubGhzProtocolEncoderPSA* instance, uint8_t* buffer, uint8_t* preserve_buffer01) {
     memset(buffer, 0, 48);
-    
+
     buffer[2] = (uint8_t)((instance->serial >> 16) & 0xFF);
     buffer[3] = (uint8_t)((instance->serial >> 8) & 0xFF);
     buffer[4] = (uint8_t)(instance->serial & 0xFF);
@@ -1478,14 +1655,14 @@ static void psa_build_buffer_mode23(SubGhzProtocolEncoderPSA* instance, uint8_t*
     buffer[6] = (uint8_t)(instance->counter & 0xFF);
     buffer[7] = (uint8_t)(instance->crc & 0xFF);
     buffer[8] = (uint8_t)(instance->button & 0xF);
-    
+
     uint8_t original_buffer9 = 0;
     bool has_original_key2 = (instance->key2_low != 0);
     if(has_original_key2) {
         original_buffer9 = (uint8_t)(instance->key2_low & 0xFF);
         buffer[9] = original_buffer9;
     }
-    
+
     uint8_t initial_plaintext[6];
     initial_plaintext[0] = buffer[2];
     initial_plaintext[1] = buffer[3];
@@ -1494,11 +1671,11 @@ static void psa_build_buffer_mode23(SubGhzProtocolEncoderPSA* instance, uint8_t*
     initial_plaintext[4] = buffer[6];
     initial_plaintext[5] = buffer[7];
     uint8_t initial_button = buffer[8] & 0xF;
-    
+
     bool found = false;
     uint8_t buffer9_to_use = has_original_key2 ? original_buffer9 : 0;
     uint8_t buffer9_end = has_original_key2 ? original_buffer9 + 1 : 255;
-    
+
     for(uint8_t buffer9_try = buffer9_to_use; buffer9_try < buffer9_end && !found; buffer9_try++) {
         for(uint8_t buffer8_high_try = 0; buffer8_high_try < 16 && !found; buffer8_high_try++) {
             buffer[2] = initial_plaintext[0];
@@ -1509,12 +1686,12 @@ static void psa_build_buffer_mode23(SubGhzProtocolEncoderPSA* instance, uint8_t*
             buffer[7] = initial_plaintext[5];
             buffer[8] = initial_button | (buffer8_high_try << 4);
             buffer[9] = buffer9_try;
-            
+
             psa_second_stage_xor_encrypt(buffer);
             psa_calculate_checksum(buffer);
             uint8_t checksum_after = buffer[11];
             uint8_t key2_high_after = checksum_after & 0xF0;
-            
+
             uint8_t validation = (checksum_after ^ buffer[8]) & 0xF0;
             if(validation == 0) {
                 buffer[8] = (buffer[8] & 0x0F) | key2_high_after;
@@ -1524,7 +1701,7 @@ static void psa_build_buffer_mode23(SubGhzProtocolEncoderPSA* instance, uint8_t*
             }
         }
     }
-    
+
     if(!found) {
         buffer[2] = initial_plaintext[0];
         buffer[3] = initial_plaintext[1];
@@ -1534,7 +1711,7 @@ static void psa_build_buffer_mode23(SubGhzProtocolEncoderPSA* instance, uint8_t*
         buffer[7] = initial_plaintext[5];
         buffer[8] = initial_button;
         buffer[9] = has_original_key2 ? original_buffer9 : 0x23;
-        
+
         psa_second_stage_xor_encrypt(buffer);
         psa_calculate_checksum(buffer);
         uint8_t checksum_after = buffer[11];
@@ -1542,7 +1719,7 @@ static void psa_build_buffer_mode23(SubGhzProtocolEncoderPSA* instance, uint8_t*
         buffer[8] = (buffer[8] & 0x0F) | key2_high_after;
         buffer[13] = buffer[9] ^ buffer[8];
     }
-    
+
     if(preserve_buffer01 != NULL) {
         buffer[0] = preserve_buffer01[0];
         buffer[1] = preserve_buffer01[1];
@@ -1554,37 +1731,37 @@ static void psa_build_buffer_mode23(SubGhzProtocolEncoderPSA* instance, uint8_t*
 
 static void psa_build_buffer_mode36(SubGhzProtocolEncoderPSA* instance, uint8_t* buffer, uint8_t* preserve_buffer01) {
     memset(buffer, 0, 48);
-    
+
     uint32_t v0 = ((instance->serial & 0xFFFFFF) << 8) |
                    ((instance->button & 0xF) << 4) |
                    ((instance->counter >> 24) & 0x0F);
     uint32_t v1 = ((instance->counter & 0xFFFFFF) << 8) |
                    (instance->crc & 0xFF);
-    
+
     uint8_t crc = psa_calculate_tea_crc(v0, v1);
     v1 = (v1 & 0xFFFFFF00) | crc;
-    
+
     uint32_t bf_counter = PSA_BF1_START | (instance->serial & 0xFFFFFF);
-    
+
     uint32_t working_key[4];
-    
+
     uint32_t wk2 = PSA_BF1_CONST_U4;
     uint32_t wk3 = bf_counter;
     psa_tea_encrypt(&wk2, &wk3, PSA_BF1_KEY_SCHEDULE);
-    
+
     uint32_t wk0 = (bf_counter << 8) | 0x0E;
     uint32_t wk1 = PSA_BF1_CONST_U5;
     psa_tea_encrypt(&wk0, &wk1, PSA_BF1_KEY_SCHEDULE);
-    
+
     working_key[0] = wk0;
     working_key[1] = wk1;
     working_key[2] = wk2;
     working_key[3] = wk3;
-    
+
     psa_tea_encrypt(&v0, &v1, working_key);
-    
+
     psa_unpack_tea_result_to_buffer(buffer, v0, v1);
-    
+
     if(preserve_buffer01 != NULL) {
         buffer[0] = preserve_buffer01[0];
         buffer[1] = preserve_buffer01[1];
@@ -1596,12 +1773,12 @@ static void psa_build_buffer_mode36(SubGhzProtocolEncoderPSA* instance, uint8_t*
 
 static void psa_encoder_build_upload(SubGhzProtocolEncoderPSA* instance) {
     furi_assert(instance);
-    
+
     uint8_t buffer[48] = {0};
-    
+
     uint8_t preserve_buffer01[2] = {0};
     uint8_t* preserve_ptr = NULL;
-    
+
     if(instance->key1_low != 0 || instance->key1_high != 0) {
         uint8_t orig_buffer[48] = {0};
         psa_setup_byte_buffer(orig_buffer, instance->key1_low, instance->key1_high, instance->key2_low);
@@ -1609,7 +1786,7 @@ static void psa_encoder_build_upload(SubGhzProtocolEncoderPSA* instance) {
         preserve_buffer01[1] = orig_buffer[1];
         preserve_ptr = preserve_buffer01;
     }
-    
+
     if(instance->mode == 0x23) {
         psa_build_buffer_mode23(instance, buffer, preserve_ptr);
     } else if(instance->mode == 0x36) {
@@ -1617,29 +1794,29 @@ static void psa_encoder_build_upload(SubGhzProtocolEncoderPSA* instance) {
     } else {
         return;
     }
-    
+
     uint32_t key1_high = ((uint32_t)buffer[0] << 24) | ((uint32_t)buffer[1] << 16) |
                          ((uint32_t)buffer[2] << 8) | (uint32_t)buffer[3];
     uint32_t key1_low = ((uint32_t)buffer[4] << 24) | ((uint32_t)buffer[5] << 16) |
                         ((uint32_t)buffer[6] << 8) | (uint32_t)buffer[7];
     uint16_t validation_field = ((uint16_t)buffer[8] << 8) | (uint16_t)buffer[9];
-    
+
     size_t index = 0;
     uint32_t te = PSA_TE_LONG_250;
-    
+
     for(int i = 0; i < 80; i++) {
         if(index >= instance->encoder.size_upload - 2) break;
         instance->encoder.upload[index++] = level_duration_make(true, te);
         instance->encoder.upload[index++] = level_duration_make(false, te);
     }
-    
+
     uint32_t te_long_transition = subghz_protocol_psa_const.te_long;
     if(index < instance->encoder.size_upload - 3) {
         instance->encoder.upload[index++] = level_duration_make(false, te);
         instance->encoder.upload[index++] = level_duration_make(true, te_long_transition);
         instance->encoder.upload[index++] = level_duration_make(false, te);
     }
-    
+
     uint64_t key1_data = ((uint64_t)key1_high << 32) | key1_low;
     for(int bit = 63; bit >= 0; bit--) {
         if(index >= instance->encoder.size_upload - 2) break;
@@ -1652,7 +1829,7 @@ static void psa_encoder_build_upload(SubGhzProtocolEncoderPSA* instance) {
             instance->encoder.upload[index++] = level_duration_make(true, te);
         }
     }
-    
+
     for(int bit = 15; bit >= 0; bit--) {
         if(index >= instance->encoder.size_upload - 2) break;
         bool bit_value = (validation_field >> bit) & 1;
@@ -1664,17 +1841,17 @@ static void psa_encoder_build_upload(SubGhzProtocolEncoderPSA* instance) {
             instance->encoder.upload[index++] = level_duration_make(true, te);
         }
     }
-    
+
     uint32_t end_duration = PSA_TE_END_1000;
     if(index < instance->encoder.size_upload - 1) {
         instance->encoder.upload[index++] = level_duration_make(true, end_duration);
         instance->encoder.upload[index++] = level_duration_make(false, end_duration);
     }
-    
+
     instance->encoder.size_upload = index;
     instance->encoder.front = 0;
     instance->encoder.repeat = 10;
-    
+
     instance->key1_high = key1_high;
     instance->key1_low = key1_low;
     instance->key2_low = validation_field;
@@ -1707,21 +1884,21 @@ void subghz_protocol_encoder_psa_free(void* context) {
 SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, FlipperFormat* flipper_format) {
     furi_assert(context);
     SubGhzProtocolEncoderPSA* instance = context;
-    
+
     SubGhzProtocolStatus ret = SubGhzProtocolStatusError;
     FuriString* temp_str = furi_string_alloc();
-    
+
     do {
         flipper_format_rewind(flipper_format);
         ret = subghz_block_generic_deserialize(&instance->generic, flipper_format);
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        
+
         uint64_t key1 = instance->generic.data;
         instance->key1_low = (uint32_t)(key1 & 0xFFFFFFFF);
         instance->key1_high = (uint32_t)((key1 >> 32) & 0xFFFFFFFF);
-        
+
         flipper_format_rewind(flipper_format);
         if(flipper_format_read_string(flipper_format, "Key_2", temp_str)) {
             const char* key2_str = furi_string_get_cstr(temp_str);
@@ -1746,24 +1923,24 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
         } else {
             break;
         }
-        
+
         uint32_t serial = 0;
         uint32_t counter = 0;
         uint8_t button = 0;
         uint8_t type = 0;
         uint16_t crc = 0;
         uint32_t seed = 0;
-        
+
         bool has_decrypted_data = true;
-        
+
         flipper_format_rewind(flipper_format);
         if(flipper_format_read_string(flipper_format, "Serial", temp_str)) {
             const char* serial_str = furi_string_get_cstr(temp_str);
             for(size_t i = 0; i < strlen(serial_str); i++) {
                 char c = serial_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 serial = (serial << 4) | nibble;
             }
@@ -1777,8 +1954,8 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
             for(size_t i = 0; i < strlen(cnt_str); i++) {
                 char c = cnt_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 counter = (counter << 4) | nibble;
             }
@@ -1796,8 +1973,8 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
             for(size_t i = 0; i < strlen(btn_str); i++) {
                 char c = btn_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 btn_val = (btn_val << 4) | nibble;
             }
@@ -1819,8 +1996,8 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
             for(size_t i = 0; i < strlen(type_str); i++) {
                 char c = type_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 type_val = (type_val << 4) | nibble;
             }
@@ -1836,8 +2013,8 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
             for(size_t i = 0; i < strlen(crc_str); i++) {
                 char c = crc_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 crc_val = (crc_val << 4) | nibble;
             }
@@ -1852,8 +2029,8 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
             for(size_t i = 0; i < strlen(seed_str); i++) {
                 char c = seed_str[i];
                 if(c == ' ') continue;
-                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' : 
-                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 
+                uint8_t nibble = (c >= '0' && c <= '9') ? c - '0' :
+                               (c >= 'A' && c <= 'F') ? c - 'A' + 10 :
                                (c >= 'a' && c <= 'f') ? c - 'a' + 10 : 0;
                 seed = (seed << 4) | nibble;
             }
@@ -1866,7 +2043,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
             instance->type = type;
             instance->crc = crc;
             instance->seed = (uint8_t)(seed & 0xFF);
-            
+
             instance->mode = instance->type;
             if(instance->mode == 0x23 || instance->mode == 0) {
                 instance->mode = 0x23;
@@ -1875,17 +2052,15 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
             } else {
                 instance->mode = 0x23;
             }
-            
-            // Setup custom button system
-            // Save original button from FILE before any d-pad remapping
-            uint8_t file_btn = button; // 'button' was read directly from file above
+
+            uint8_t file_btn = button;
             subghz_custom_btn_set_original(psa_btn_to_custom(file_btn));
             subghz_custom_btn_set_max(4);
             if(!subghz_block_generic_global_button_override_get(&instance->button)) {
                 instance->button = psa_get_btn_code();
             }
             FURI_LOG_I("PSA_ENC", "file_btn=%02X custom=%02X result=%02X orig=%02X", file_btn, subghz_custom_btn_get(), instance->button, subghz_custom_btn_get_original());
-            
+
             uint32_t override_cnt = 0;
             if(subghz_block_generic_global_counter_override_get(&override_cnt)) {
                 instance->counter = override_cnt;
@@ -1893,16 +2068,16 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
                 uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
                 instance->counter = (instance->counter + mult) & 0xFFFFFFFF;
             }
-                        
+
             psa_encoder_build_upload(instance);
-            
+
             instance->generic.data = ((uint64_t)instance->key1_high << 32) | instance->key1_low;
             instance->generic.cnt = instance->counter;
             instance->generic.serial = instance->serial;
             instance->generic.btn = instance->button;
-            
+
             flipper_format_rewind(flipper_format);
-            
+
             char cnt_str[24];
             if(instance->type == 0x23) {
                 snprintf(cnt_str, sizeof(cnt_str), "%02X %02X",
@@ -1921,7 +2096,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
             snprintf(btn_str, sizeof(btn_str), "%02X", (unsigned int)instance->button);
             flipper_format_rewind(flipper_format);
             flipper_format_insert_or_update_string_cstr(flipper_format, "Btn", btn_str);
-            
+
             char key_str[32];
             uint64_t key1 = ((uint64_t)instance->key1_high << 32) | instance->key1_low;
             snprintf(key_str, sizeof(key_str), "%02X %02X %02X %02X %02X %02X %02X %02X",
@@ -1935,7 +2110,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
                     (unsigned int)(key1 & 0xFF));
             flipper_format_rewind(flipper_format);
             flipper_format_update_string_cstr(flipper_format, "Key", key_str);
-            
+
             char key2_str[32];
             snprintf(key2_str, sizeof(key2_str), "%02X %02X %02X %02X %02X %02X %02X %02X",
                     0, 0, 0, 0, 0, 0,
@@ -1943,16 +2118,15 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
                     (unsigned int)(instance->key2_low & 0xFF));
             flipper_format_rewind(flipper_format);
             flipper_format_update_string_cstr(flipper_format, "Key_2", key2_str);
-            
-            
+
             instance->is_running = true;
             ret = SubGhzProtocolStatusOk;
         } else {
             ret = SubGhzProtocolStatusErrorParserOthers;
         }
-        
+
     } while(false);
-    
+
     furi_string_free(temp_str);
     return ret;
 }
@@ -1984,7 +2158,6 @@ LevelDuration subghz_protocol_encoder_psa_yield(void* context) {
 bool subghz_protocol_psa_decrypt_file(FlipperFormat* flipper_format, FuriString* result_str, PsaDecryptProgressCallback progress_cb, void* progress_ctx) {
     SubGhzProtocolDecoderPSA instance = {0};
 
-    // Read Key (key1)
     uint8_t key1_bytes[8] = {0};
     flipper_format_rewind(flipper_format);
     if(!flipper_format_read_hex(flipper_format, "Key", key1_bytes, 8)) return false;
@@ -1993,7 +2166,6 @@ bool subghz_protocol_psa_decrypt_file(FlipperFormat* flipper_format, FuriString*
     instance.key1_low  = ((uint32_t)key1_bytes[4] << 24) | ((uint32_t)key1_bytes[5] << 16) |
                          ((uint32_t)key1_bytes[6] << 8) | key1_bytes[7];
 
-    // Read Key_2
     FuriString* temp = furi_string_alloc();
     flipper_format_rewind(flipper_format);
     if(!flipper_format_read_string(flipper_format, "Key_2", temp)) {
@@ -2013,12 +2185,10 @@ bool subghz_protocol_psa_decrypt_file(FlipperFormat* flipper_format, FuriString*
     instance.status_flag = 0x80;
     instance.mode_serialize = 0;
 
-    // Run full decrypt router (includes brute force)
     psa_decrypt_full(&instance, progress_cb, progress_ctx);
 
     if(instance.decrypted != 0x50 || instance.decrypted_type == 0) return false;
 
-    // Write results back to file
     flipper_format_rewind(flipper_format);
     char serial_str[16];
     snprintf(serial_str, sizeof(serial_str), "%02X %02X %02X",
@@ -2111,12 +2281,10 @@ bool subghz_protocol_psa_get_bf_params(
     furi_string_free(temp);
     instance.key2_low = (uint32_t)(key2 & 0xFFFFFFFF);
 
-    // Check if XOR decrypt works (mode23) — if so, no BF needed
     uint8_t buffer[48] = {0};
     psa_setup_byte_buffer(buffer, instance.key1_low, instance.key1_high, instance.key2_low);
     if(psa_direct_xor_decrypt(&instance, buffer)) return false;
 
-    // Needs TEA BF — extract w0/w1
     psa_prepare_tea_data(buffer, w0, w1);
     return true;
 }
@@ -2138,7 +2306,6 @@ bool subghz_protocol_psa_apply_bf_result(
     instance.decrypted_seed = counter;
     instance.decrypted_type = 0x36;
 
-    // Write results to flipper format
     flipper_format_rewind(flipper_format);
     char serial_str[16];
     snprintf(serial_str, sizeof(serial_str), "%02X %02X %02X",

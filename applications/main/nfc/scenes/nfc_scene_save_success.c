@@ -8,9 +8,8 @@ void nfc_scene_save_success_popup_callback(void* context) {
 void nfc_scene_save_success_on_enter(void* context) {
     NfcApp* nfc = context;
 
-    // Setup view
     Popup* popup = nfc->popup;
-    // [NO_DOLPHIN] popup_set_icon(popup, 36, 5, &I_DolphinSaved_92x58);
+
     popup_set_header(popup, "Saved", 15, 19, AlignLeft, AlignBottom);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, nfc);
@@ -66,6 +65,5 @@ bool nfc_scene_save_success_on_event(void* context, SceneManagerEvent event) {
 void nfc_scene_save_success_on_exit(void* context) {
     NfcApp* nfc = context;
 
-    // Clear view
     popup_reset(nfc->popup);
 }

@@ -256,7 +256,7 @@ bool mf_desfire_is_equal(const MfDesfireData* data, const MfDesfireData* other) 
 
     return iso14443_4a_is_equal(data->iso14443_4a_data, other->iso14443_4a_data) &&
            memcmp(&data->version, &other->version, sizeof(MfDesfireVersion)) == 0 &&
-           memcmp( //-V1103
+           memcmp(
                &data->free_memory,
                &other->free_memory,
                sizeof(MfDesfireFreeMemory)) == 0 &&

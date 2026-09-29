@@ -18,14 +18,14 @@ static inline size_t consume_samples(uint32_t* array, size_t len, size_t shift) 
 
 static inline void accumulate_lsb(InfraredCommonDecoder* decoder, bool bit) {
     uint16_t index = decoder->databit_cnt / 8;
-    uint8_t shift = decoder->databit_cnt % 8; // LSB first
+    uint8_t shift = decoder->databit_cnt % 8;
 
     if(!shift) decoder->data[index] = 0;
 
     if(bit) {
-        decoder->data[index] |= (0x1 << shift); // add 1
+        decoder->data[index] |= (0x1 << shift);
     } else {
-        (void)decoder->data[index]; // add 0
+        (void)decoder->data[index];
     }
 
     ++decoder->databit_cnt;
@@ -39,7 +39,6 @@ static bool infrared_check_preamble(InfraredCommonDecoder* decoder) {
 
     if(decoder->timings_cnt == 0) return false;
 
-    // align to start at Mark timing
     if(!start_level) {
         decoder->timings_cnt = consume_samples(decoder->timings, decoder->timings_cnt, 1);
     }
@@ -64,11 +63,6 @@ static bool infrared_check_preamble(InfraredCommonDecoder* decoder) {
     return result;
 }
 
-/**
- * decoder->protocol->databit_len[0] contains biggest amount of bits, for this protocol.
- * decoder->protocol->databit_len[1...] contains lesser values, but which can be decoded
- * for some protocol modifications.
- */
 static InfraredStatus infrared_common_decode_bits(InfraredCommonDecoder* decoder) {
     furi_assert(decoder);
 
@@ -81,7 +75,7 @@ static InfraredStatus infrared_common_decode_bits(InfraredCommonDecoder* decoder
 
         if(timings->min_split_time && !level) {
             if(timing > timings->min_split_time) {
-                /* long low timing - check if we're ready for any of protocol modification */
+
                 for(size_t i = 0; i < COUNT_OF(decoder->protocol->databit_len) &&
                                   decoder->protocol->databit_len[i];
                     ++i) {
@@ -90,7 +84,7 @@ static InfraredStatus infrared_common_decode_bits(InfraredCommonDecoder* decoder
                     }
                 }
             } else if(decoder->protocol->databit_len[0] == decoder->databit_cnt) {
-                /* short low timing for longest protocol - this is signal is longer than we expected */
+
                 return InfraredStatusError;
             }
         }
@@ -103,8 +97,7 @@ static InfraredStatus infrared_common_decode_bits(InfraredCommonDecoder* decoder
         }
         decoder->timings_cnt = consume_samples(decoder->timings, decoder->timings_cnt, 1);
 
-        /* check if largest protocol version can be decoded */
-        if(level && (decoder->protocol->databit_len[0] == decoder->databit_cnt) && //-V1051
+        if(level && (decoder->protocol->databit_len[0] == decoder->databit_cnt) &&
            !timings->min_split_time) {
             status = InfraredStatusReady;
             break;
@@ -114,7 +107,6 @@ static InfraredStatus infrared_common_decode_bits(InfraredCommonDecoder* decoder
     return status;
 }
 
-/* Pulse Distance-Width Modulation */
 InfraredStatus
     infrared_common_decode_pdwm(InfraredCommonDecoder* decoder, bool level, uint32_t timing) {
     furi_assert(decoder);
@@ -148,7 +140,6 @@ InfraredStatus
     return status;
 }
 
-/* level switch detection goes in middle of time-quant */
 InfraredStatus
     infrared_common_decode_manchester(InfraredCommonDecoder* decoder, bool level, uint32_t timing) {
     furi_assert(decoder);
@@ -166,7 +157,7 @@ InfraredStatus
     }
 
     if(decoder->protocol->manchester_start_from_space && (decoder->databit_cnt == 0)) {
-        *switch_detect = 1; /* fake as we were previously in the middle of time-quant */
+        *switch_detect = 1;
         accumulate_lsb(decoder, 0);
     }
 
@@ -174,10 +165,10 @@ InfraredStatus
         if(double_timing) {
             return InfraredStatusError;
         }
-        /* only single timing - level switch required in the middle of time-quant */
+
         *switch_detect = 1;
     } else {
-        /* double timing means we're in the middle of time-quant again */
+
         if(single_timing) *switch_detect = 0;
     }
 
@@ -227,7 +218,7 @@ InfraredMessage*
     if(decoder->level == level) {
         infrared_common_decoder_reset(decoder);
     }
-    decoder->level = level; // start with low level (Space timing)
+    decoder->level = level;
 
     decoder->timings[decoder->timings_cnt] = duration;
     decoder->timings_cnt++;
@@ -250,7 +241,7 @@ InfraredMessage*
                 if(message) {
                     continue;
                 } else if(decoder->protocol->databit_len[0] == decoder->databit_cnt) {
-                    /* error: can't decode largest protocol - begin decoding from start */
+
                     decoder->state = InfraredCommonDecoderStateWaitPreamble;
                 }
             } else if(status == InfraredStatusError) {
@@ -278,7 +269,6 @@ InfraredMessage*
 void* infrared_common_decoder_alloc(const InfraredCommonProtocolSpec* protocol) {
     furi_assert(protocol);
 
-    /* protocol->databit_len[0] has to contain biggest value of bits that can be decoded */
     for(size_t i = 1; i < COUNT_OF(protocol->databit_len); ++i) {
         furi_assert(protocol->databit_len[i] <= protocol->databit_len[0]);
     }

@@ -1,6 +1,5 @@
 #include "../ibutton_i.h"
 
-#include <dolphin/dolphin.h>
 
 void ibutton_scene_read_success_on_enter(void* context) {
     iButton* ibutton = context;

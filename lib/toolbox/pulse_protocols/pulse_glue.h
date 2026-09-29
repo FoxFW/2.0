@@ -1,8 +1,3 @@
-/**
- * @file pulse_glue.h
- * 
- * Simple tool to glue separated pulses to corret 
- */
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>

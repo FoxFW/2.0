@@ -61,7 +61,6 @@ bool fuzzer_scene_field_editor_on_event(void* context, SceneManagerEvent event) 
 }
 
 void fuzzer_scene_field_editor_on_exit(void* context) {
-    // furi_assert(context);
-    // PacsFuzzerApp* app = context;
+
     UNUSED(context);
 }

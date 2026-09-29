@@ -30,7 +30,7 @@ typedef enum {
 typedef struct {
     Iso14443_4aData* iso14443_4a_data;
     FuriString* device_name;
-    // Tag specific data
+
     bool is_tag_specific;
     Type4TagPlatform platform;
     FuriString* platform_name;
@@ -47,13 +47,11 @@ typedef struct {
     uint16_t ndef_max_len;
     uint8_t ndef_read_lock;
     uint8_t ndef_write_lock;
-    // Data contained, not tag specific
+
     SimpleArray* ndef_data;
 } Type4TagData;
 
 extern const NfcDeviceBase nfc_device_type_4_tag;
-
-// Virtual methods
 
 Type4TagData* type_4_tag_alloc(void);
 

@@ -8,7 +8,6 @@
 
 #define MF_PLUS_LISTENER_BUF_SIZE (64U)
 
-// SL3 command bytes handled card-side (mirror of the poller).
 #define MF_PLUS_CMD_AUTH_FIRST       (0x70)
 #define MF_PLUS_CMD_AUTH_CONTINUE    (0x72)
 #define MF_PLUS_CMD_READ_ENC         (0x31)
@@ -17,7 +16,7 @@
 #define MF_PLUS_CMD_WRITE_ENC        (0xA1)
 #define MF_PLUS_CMD_WRITE_PLAIN      (0xA3)
 #define MF_PLUS_CMD_WRITE_PERSO      (0xA8)
-// GetVersion (0x60, from mf_plus.h) is chained with 0xAF and can arrive ISO7816-wrapped (0x90 0x60).
+
 #define MF_PLUS_CMD_ADDITIONAL_FRAME (0xAF)
 #define MF_PLUS_ISO_CLA              (0x90)
 
@@ -78,8 +77,7 @@ static const MfPlusData* mf_plus_listener_get_data(const MfPlusListener* instanc
 
 static NfcCommand mf_plus_listener_run(NfcGenericEvent event, void* context) {
     furi_assert(context);
-    // The parent transport is ISO14443-4A (NOT ISO15693, as the type_4_tag template mistakenly
-    // asserts) -- MfPlus is registered as a child of NfcProtocolIso14443_4a.
+
     furi_assert(event.protocol == NfcProtocolIso14443_4a);
     furi_assert(event.event_data);
 
@@ -102,9 +100,6 @@ static NfcCommand mf_plus_listener_run(NfcGenericEvent event, void* context) {
 
         const uint8_t cmd = bit_buffer_get_byte(rx_buffer, 0);
 
-        // GetVersion arrives native (0x60, then 0xAF continuations) or ISO7816-wrapped (0x90 0x60,
-        // then 0x90 0xAF); peek the inner command byte to route both and to keep the multi-frame
-        // chain alive across 0xAF. Any other command aborts an in-flight chain (below).
         const bool wrapped = (cmd == MF_PLUS_ISO_CLA && rx_size >= 2);
         const uint8_t inner = wrapped ? bit_buffer_get_byte(rx_buffer, 1) : cmd;
         if(inner == MF_PLUS_CMD_GET_VERSION) {
@@ -143,9 +138,7 @@ static NfcCommand mf_plus_listener_run(NfcGenericEvent event, void* context) {
             command = mf_plus_listener_write_perso_handler(instance, rx_buffer);
             break;
         default:
-            // Unimplemented command (non-first auth 0x76, wrapped non-GetVersion 0x90 xx, ...): NAK
-            // it like a real card so a reader's info scan gets a response instead of timing out.
-            // (GetVersion 0x60 is routed above -- served for EV1/EV2, NAKed for EV0.)
+
             FURI_LOG_D(TAG, "Unsupported command 0x%02X", cmd);
             command = mf_plus_listener_unsupported_handler(instance, rx_buffer);
             break;

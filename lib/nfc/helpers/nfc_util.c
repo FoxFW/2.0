@@ -18,9 +18,7 @@ uint8_t nfc_util_even_parity8(uint8_t data) {
 }
 
 uint8_t nfc_util_even_parity32(uint32_t data) {
-    // data ^= data >> 16;
-    // data ^= data >> 8;
-    // return !nfc_util_odd_byte_parity[data];
+
     return __builtin_parity(data) & 0xFF;
 }
 
@@ -35,7 +33,7 @@ void nfc_util_odd_parity(const uint8_t* src, uint8_t* dst, uint8_t len) {
     uint8_t parity = 0;
     uint8_t bit = 0;
     while(len--) {
-        parity |= nfc_util_odd_parity8(*src) << (7 - bit); // parity is MSB first
+        parity |= nfc_util_odd_parity8(*src) << (7 - bit);
         bit++;
         if(bit == 8) {
             *dst = parity;

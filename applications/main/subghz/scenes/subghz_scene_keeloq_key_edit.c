@@ -1,10 +1,9 @@
 #include "../subghz_i.h"
 #include <string.h>
 
-// Internal step events used only within this scene
 #define KL_EDIT_EV_KEY_DONE  200u
 #define KL_EDIT_EV_NAME_DONE 201u
-#define KL_EDIT_EV_TYPE_BASE 210u // type 1..8 mapped to events 211..218
+#define KL_EDIT_EV_TYPE_BASE 210u
 
 static void kl_edit_byte_input_cb(void* context) {
     SubGhz* subghz = context;
@@ -80,7 +79,7 @@ static void kl_edit_show_step(SubGhz* subghz) {
 
 void subghz_scene_keeloq_key_edit_on_enter(void* context) {
     SubGhz* subghz = context;
-    // edit_step, key_bytes, name, type, is_new, edit_index are pre-set by the caller scene
+
     kl_edit_show_step(subghz);
 }
 
@@ -106,7 +105,6 @@ bool subghz_scene_keeloq_key_edit_on_event(void* context, SceneManagerEvent even
     if(event.event > KL_EDIT_EV_TYPE_BASE && event.event <= KL_EDIT_EV_TYPE_BASE + 8) {
         subghz->keeloq_edit.type = (uint16_t)(event.event - KL_EDIT_EV_TYPE_BASE);
 
-        // Reconstruct 64-bit key from byte array (big-endian, same as ByteInput display order)
         uint64_t kval = 0;
         for(int b = 0; b < 8; b++) {
             kval = (kval << 8) | (uint64_t)subghz->keeloq_edit.key_bytes[b];

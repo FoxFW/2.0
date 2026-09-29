@@ -1,6 +1,3 @@
-// Flipper Zero parser for H World Hotel Key Cards
-// H World operates around 10,000 hotels, most of which in mainland China
-// Reverse engineering and parser written by @Torron (Github: @zinongli)
 #include "nfc_supported_card_plugin.h"
 #include <flipper_application.h>
 #include <nfc/protocols/mf_classic/mf_classic_poller_sync.h>
@@ -24,41 +21,41 @@ typedef struct {
 } MfClassicKeyPair;
 
 static MfClassicKeyPair hworld_standard_keys[] = {
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 000
-    {.a = 0x543071543071, .b = 0x5F01015F0101}, // 001
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 002
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 003
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 004
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 005
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 006
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 007
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 008
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 009
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 010
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 011
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 012
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 013
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 014
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 015
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0x543071543071, .b = 0x5F01015F0101},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
 };
 
 static MfClassicKeyPair hworld_vip_keys[] = {
-    {.a = 0x000000000000, .b = 0xFFFFFFFFFFFF}, // 000
-    {.a = 0x543071543071, .b = 0x5F01015F0101}, // 001
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 002
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 003
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 004
-    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234}, // 005
-    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234}, // 006
-    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234}, // 007
-    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234}, // 008
-    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234}, // 009
-    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234}, // 010
-    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234}, // 011
-    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234}, // 012
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 013
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 014
-    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF}, // 015
+    {.a = 0x000000000000, .b = 0xFFFFFFFFFFFF},
+    {.a = 0x543071543071, .b = 0x5F01015F0101},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234},
+    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234},
+    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234},
+    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234},
+    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234},
+    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234},
+    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234},
+    {.a = 0xFFFFFFFFFFFF, .b = 0x200510241234},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xFFFFFFFFFFFF, .b = 0xFFFFFFFFFFFF},
 };
 
 static bool hworld_verify(Nfc* nfc) {
@@ -164,10 +161,9 @@ bool hworld_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // Check card type
+
         if(data->type != MfClassicType1k) break;
 
-        // Check static key for verificaiton
         const uint8_t* data_room_sec_key_a_ptr = &data->block[ROOM_SECTOR_KEY_BLOCK].data[0];
         const uint8_t* data_room_sec_key_b_ptr = &data->block[ROOM_SECTOR_KEY_BLOCK].data[10];
         uint64_t data_room_sec_key_a = bit_lib_get_bits_64(data_room_sec_key_a_ptr, 0, 48);
@@ -176,21 +172,18 @@ bool hworld_parse(const NfcDevice* device, FuriString* parsed_data) {
            (data_room_sec_key_b != hworld_standard_keys[ROOM_SECTOR].b))
             break;
 
-        // Check whether this card is VIP
         const uint8_t* data_vip_sec_key_b_ptr = &data->block[VIP_SECTOR_KEY_BLOCK].data[10];
         uint64_t data_vip_sec_key_b = bit_lib_get_bits_64(data_vip_sec_key_b_ptr, 0, 48);
         bool is_hworld_vip = (data_vip_sec_key_b == hworld_vip_keys[VIP_SECTOR].b);
         uint8_t room_floor = data->block[ACCESS_INFO_BLOCK].data[13];
         uint8_t room_num = data->block[ACCESS_INFO_BLOCK].data[14];
 
-        // Check in date & time
         uint16_t check_in_year = data->block[ACCESS_INFO_BLOCK].data[2] + H_WORLD_YEAR_OFFSET;
         uint8_t check_in_month = data->block[ACCESS_INFO_BLOCK].data[3];
         uint8_t check_in_day = data->block[ACCESS_INFO_BLOCK].data[4];
         uint8_t check_in_hour = data->block[ACCESS_INFO_BLOCK].data[5];
         uint8_t check_in_minute = data->block[ACCESS_INFO_BLOCK].data[6];
 
-        // Expire date & time
         uint16_t expire_year = data->block[ACCESS_INFO_BLOCK].data[7] + H_WORLD_YEAR_OFFSET;
         uint8_t expire_month = data->block[ACCESS_INFO_BLOCK].data[8];
         uint8_t expire_day = data->block[ACCESS_INFO_BLOCK].data[9];
@@ -222,7 +215,6 @@ bool hworld_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin hworld_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = hworld_verify,
@@ -230,14 +222,12 @@ static const NfcSupportedCardsPlugin hworld_plugin = {
     .parse = hworld_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor hworld_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &hworld_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* hworld_plugin_ep(void) {
     return &hworld_plugin_descriptor;
 }

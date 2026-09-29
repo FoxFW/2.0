@@ -12,11 +12,6 @@
 #include "scenes/desktop_settings_scene.h"
 #include "views/desktop_settings_view_numeric_pin.h"
 
-/* NOTE: <power/power_service/power.h> removed.
- * power_reboot() is replaced with furi_hal_power_reset() which is a direct
- * hardware reset from furi_hal — guaranteed to be in the API and does not
- * require the power service record to be open. */
-
 static bool desktop_settings_custom_event_callback(void* context, uint32_t event) {
     furi_assert(context);
     DesktopSettingsApp* app = context;
@@ -57,6 +52,7 @@ DesktopSettingsApp* desktop_settings_app_alloc(void) {
     app->wallpaper_view = desktop_settings_view_wallpaper_alloc();
     app->alarm_edit_view = desktop_settings_view_alarm_edit_alloc();
     app->menu_style_view = desktop_settings_view_menu_style_alloc();
+    app->usb_mode_view = desktop_settings_view_usb_mode_alloc();
     app->dialog_ex = dialog_ex_alloc();
 
     app->pin_menu_idx = DesktopSettingsAppViewIdPinInput;
@@ -95,6 +91,10 @@ DesktopSettingsApp* desktop_settings_app_alloc(void) {
         app->view_dispatcher,
         DesktopSettingsAppViewMenuStyle,
         desktop_settings_view_menu_style_get_view(app->menu_style_view));
+    view_dispatcher_add_view(
+        app->view_dispatcher,
+        DesktopSettingsAppViewUsbMode,
+        desktop_settings_view_usb_mode_get_view(app->usb_mode_view));
 
     app->text_input = text_input_alloc();
     view_dispatcher_add_view(
@@ -110,15 +110,13 @@ void desktop_settings_app_free(DesktopSettingsApp* app) {
 
     bool temp_save_name = app->save_name;
     if(temp_save_name) {
-        /* Write the name via the same pending-file mechanism that fox_setup uses.
-         * desktop.c reads this on the next boot, writes NAMECHANGER_PATH correctly,
-         * and reboots again to apply. Writing NAMECHANGER_PATH directly was unreliable. */
+
         Storage* storage = furi_record_open(RECORD_STORAGE);
         const char* pending = EXT_PATH("apps_data/fox_setup/name.pending");
         if(strcmp(app->device_name, "") == 0) {
-            /* Empty name = restore default — write a single null byte as sentinel. */
+
             storage_simply_remove(storage, pending);
-            /* Still need to clear NAMECHANGER_PATH directly for blank names. */
+
             storage_simply_remove(storage, NAMECHANGER_PATH);
         } else {
             storage_simply_mkdir(storage, EXT_PATH("apps_data/fox_setup"));
@@ -143,6 +141,7 @@ void desktop_settings_app_free(DesktopSettingsApp* app) {
     view_dispatcher_remove_view(app->view_dispatcher, DesktopSettingsAppViewWallpaper);
     view_dispatcher_remove_view(app->view_dispatcher, DesktopSettingsAppViewAlarmEdit);
     view_dispatcher_remove_view(app->view_dispatcher, DesktopSettingsAppViewMenuStyle);
+    view_dispatcher_remove_view(app->view_dispatcher, DesktopSettingsAppViewUsbMode);
 
     text_input_free(app->text_input);
     variable_item_list_free(app->variable_item_list);
@@ -155,6 +154,7 @@ void desktop_settings_app_free(DesktopSettingsApp* app) {
     desktop_settings_view_wallpaper_free(app->wallpaper_view);
     desktop_settings_view_alarm_edit_free(app->alarm_edit_view);
     desktop_settings_view_menu_style_free(app->menu_style_view);
+    desktop_settings_view_usb_mode_free(app->usb_mode_view);
     dialog_ex_free(app->dialog_ex);
 
     view_dispatcher_free(app->view_dispatcher);
@@ -164,9 +164,6 @@ void desktop_settings_app_free(DesktopSettingsApp* app) {
     furi_record_close(RECORD_GUI);
     free(app);
 
-    /* Reboot the device after saving a new Flipper name.
-     * Uses furi_hal_power_reset() instead of power_reboot() to avoid
-     * depending on the power service API whose export status is unverified. */
     if(temp_save_name) {
         furi_hal_power_reset();
     }

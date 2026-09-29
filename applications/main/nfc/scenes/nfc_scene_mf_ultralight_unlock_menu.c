@@ -22,7 +22,7 @@ void nfc_scene_mf_ultralight_unlock_menu_on_enter(void* context) {
     if(nfc_device_get_protocol(nfc->nfc_device) == NfcProtocolMfUltralight) {
         const MfUltralightData* mfu_data =
             nfc_device_get_data(nfc->nfc_device, NfcProtocolMfUltralight);
-        // Hide for MFU-C since it uses 3DES
+
         if(mfu_data->type != MfUltralightTypeMfulC) {
             submenu_add_item(
                 submenu,

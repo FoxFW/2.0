@@ -37,16 +37,13 @@ static void
         uint8_t sec_num = mf_classic_get_sector_by_block(block_num);
         MfClassicSectorTrailer* sec_tr = mf_classic_get_sector_trailer_by_sector(data, sec_num);
 
-        // Render key A
         bool key_read = mf_classic_is_key_found(data, sec_num, MfClassicKeyTypeA);
         mf_classic_render_raw_data(sec_tr->key_a.data, sizeof(MfClassicKey), key_read, str);
 
-        // Render access bits
         bool access_bits_read = mf_classic_is_block_read(data, block_num);
         mf_classic_render_raw_data(
             sec_tr->access_bits.data, sizeof(MfClassicAccessBits), access_bits_read, str);
 
-        // Render key B
         key_read = mf_classic_is_key_found(data, sec_num, MfClassicKeyTypeB);
         mf_classic_render_raw_data(sec_tr->key_b.data, sizeof(MfClassicKey), key_read, str);
     } else {

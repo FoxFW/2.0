@@ -24,28 +24,28 @@ void furi_hal_i2c_init(void) {
 
 void furi_hal_i2c_acquire(const FuriHalI2cBusHandle* handle) {
     furi_hal_power_insomnia_enter();
-    // Lock bus access
+
     handle->bus->callback(handle->bus, FuriHalI2cBusEventLock);
-    // Ensure that no active handle set
+
     furi_check(handle->bus->current_handle == NULL);
-    // Set current handle
+
     handle->bus->current_handle = handle;
-    // Activate bus
+
     handle->bus->callback(handle->bus, FuriHalI2cBusEventActivate);
-    // Activate handle
+
     handle->callback(handle, FuriHalI2cBusHandleEventActivate);
 }
 
 void furi_hal_i2c_release(const FuriHalI2cBusHandle* handle) {
-    // Ensure that current handle is our handle
+
     furi_check(handle->bus->current_handle == handle);
-    // Deactivate handle
+
     handle->callback(handle, FuriHalI2cBusHandleEventDeactivate);
-    // Deactivate bus
+
     handle->bus->callback(handle->bus, FuriHalI2cBusEventDeactivate);
-    // Reset current handle
+
     handle->bus->current_handle = NULL;
-    // Unlock bus
+
     handle->bus->callback(handle->bus, FuriHalI2cBusEventUnlock);
     furi_hal_power_insomnia_exit();
 }
@@ -57,14 +57,13 @@ static bool
             return false;
         }
     } while(begin == FuriHalI2cBeginStart && LL_I2C_IsActiveFlag_BUSY(i2c));
-    // Only check if the bus is busy if starting a new transaction, if not we already control the bus
 
     return true;
 }
 
 static bool
     furi_hal_i2c_wait_for_end(I2C_TypeDef* i2c, FuriHalI2cEnd end, FuriHalCortexTimer timer) {
-    // If ending the transaction with a stop condition, wait for it to be detected, otherwise wait for a transfer complete flag
+
     bool wait_for_stop = end == FuriHalI2cEndStop;
     uint32_t end_mask = (wait_for_stop) ? I2C_ISR_STOPF : (I2C_ISR_TC | I2C_ISR_TCR);
 
@@ -126,7 +125,6 @@ static bool furi_hal_i2c_transfer(
         bool should_stop = furi_hal_cortex_timer_is_expired(timer) ||
                            furi_hal_i2c_transfer_is_aborted(i2c);
 
-        // Modifying the data pointer's data is UB if read is true
         if(read && LL_I2C_IsActiveFlag_RXNE(i2c)) {
             *data = LL_I2C_ReceiveData8(i2c);
             data++;
@@ -137,9 +135,8 @@ static bool furi_hal_i2c_transfer(
             size--;
         }
 
-        // Exit on timeout or premature stop, probably caused by a nacked address or byte
         if(should_stop) {
-            ret = size == 0; // If the transfer was over, still a success
+            ret = size == 0;
             break;
         }
     }

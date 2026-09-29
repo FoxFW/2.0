@@ -1,7 +1,6 @@
 #include "ibutton_i.h"
 
 #include <toolbox/path.h>
-#include <dolphin/dolphin.h>
 
 #define TAG "IButtonApp"
 
@@ -289,14 +288,12 @@ int32_t ibutton_app(void* arg) {
         view_dispatcher_attach_to_gui(
             ibutton->view_dispatcher, ibutton->gui, ViewDispatcherTypeDesktop);
         scene_manager_next_scene(ibutton->scene_manager, iButtonSceneRpc);
-        dolphin_deed(DolphinDeedIbuttonEmulate);
 
     } else {
         view_dispatcher_attach_to_gui(
             ibutton->view_dispatcher, ibutton->gui, ViewDispatcherTypeFullscreen);
-        if(key_loaded) { //-V547
+        if(key_loaded) {
             scene_manager_next_scene(ibutton->scene_manager, iButtonSceneEmulate);
-            dolphin_deed(DolphinDeedIbuttonEmulate);
         } else {
             scene_manager_next_scene(ibutton->scene_manager, iButtonSceneStart);
         }

@@ -5,7 +5,7 @@
 
 enum SubmenuIndex {
     SubmenuIndexDirectory,
-    SubmenuIndexDynamic, // dynamic indices start here
+    SubmenuIndexDynamic,
 };
 
 static void nfc_scene_felica_system_submenu_callback(void* context, uint32_t index) {
@@ -74,7 +74,7 @@ bool nfc_scene_felica_system_on_event(void* context, SceneManagerEvent event) {
                 view_dispatcher_switch_to_view(nfc->view_dispatcher, NfcViewWidget);
             } else {
                 const uint32_t service_ind =
-                    event.event - SubmenuIndexDynamic; // offset the three enums above
+                    event.event - SubmenuIndexDynamic;
 
                 text_box_reset(nfc->text_box);
                 furi_string_reset(nfc->text_box_store);
@@ -106,7 +106,6 @@ bool nfc_scene_felica_system_on_event(void* context, SceneManagerEvent event) {
 void nfc_scene_felica_system_on_exit(void* context) {
     NfcApp* nfc = context;
 
-    // Clear views
     widget_reset(nfc->widget);
     text_box_reset(nfc->text_box);
     furi_string_reset(nfc->text_box_store);

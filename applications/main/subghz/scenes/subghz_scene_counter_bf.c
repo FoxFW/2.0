@@ -4,7 +4,6 @@
 
 #define TAG "SubGhzCounterBf"
 
-// How many ticks to wait between transmissions (1 tick ~100ms)
 #define COUNTER_BF_TX_INTERVAL_TICKS 5
 
 typedef enum {

@@ -19,7 +19,6 @@ NfcCommand
 void nfc_scene_mf_ultralight_capture_pass_on_enter(void* context) {
     NfcApp* instance = context;
 
-    // Setup view
     widget_add_string_multiline_element(
         instance->widget,
         54,
@@ -32,7 +31,6 @@ void nfc_scene_mf_ultralight_capture_pass_on_enter(void* context) {
     widget_add_icon_element(instance->widget, 20, 12, &I_Move_flipper_26x39);
     view_dispatcher_switch_to_view(instance->view_dispatcher, NfcViewWidget);
 
-    // Start worker
     const MfUltralightData* data =
         nfc_device_get_data(instance->nfc_device, NfcProtocolMfUltralight);
     instance->listener = nfc_listener_alloc(instance->nfc, NfcProtocolMfUltralight, data);
@@ -59,7 +57,6 @@ bool nfc_scene_mf_ultralight_capture_pass_on_event(void* context, SceneManagerEv
 void nfc_scene_mf_ultralight_capture_pass_on_exit(void* context) {
     NfcApp* instance = context;
 
-    // Clear view
     nfc_listener_stop(instance->listener);
     nfc_listener_free(instance->listener);
     widget_reset(instance->widget);

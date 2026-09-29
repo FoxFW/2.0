@@ -471,18 +471,18 @@ dist_env.PhonyTarget(
     "@echo $( ${UFBT_API_VERSION} $)",
 )
 
-# Dolphin animation builder. Expects "external" directory in current dir
+# Fox animation builder. Expects "external" directory in current dir
 # with animation sources & manifests. Builds & uploads them to connected Flipper
-dolphin_src_dir = original_app_dir.Dir("external")
-if dolphin_src_dir.exists():
-    dolphin_dir = ufbt_build_dir.Dir("dolphin")
-    dolphin_external = dist_env.DolphinExtBuilder(
-        ufbt_build_dir.Dir("dolphin"),
+fox_src_dir = original_app_dir.Dir("external")
+if fox_src_dir.exists():
+    fox_dir = ufbt_build_dir.Dir("fox")
+    fox_external = dist_env.FoxExtBuilder(
+        ufbt_build_dir.Dir("fox"),
         original_app_dir,
-        DOLPHIN_RES_TYPE="external",
+        FOX_RES_TYPE="external",
     )
     dist_env.PhonyTarget(
-        "dolphin_ext",
+        "fox_ext",
         [
             [
                 "${PYTHON3}",
@@ -491,18 +491,18 @@ if dolphin_src_dir.exists():
                 "${FLIP_PORT}",
                 "send",
                 "${SOURCE}",
-                "/ext/dolphin",
+                "/ext/fox",
                 "${ARGS}",
             ]
         ],
-        source=ufbt_build_dir.Dir("dolphin"),
+        source=ufbt_build_dir.Dir("fox"),
     )
 else:
 
-    def missing_dolphin_folder(**kw):
-        raise UserError(f"Dolphin folder not found: {dolphin_src_dir}")
+    def missing_fox_folder(**kw):
+        raise UserError(f"Fox folder not found: {fox_src_dir}")
 
-    dist_env.PhonyTarget("dolphin_ext", Action(missing_dolphin_folder, None))
+    dist_env.PhonyTarget("fox_ext", Action(missing_fox_folder, None))
 
 # print(env.Dump())
 dist_env.PhonyTarget(

@@ -86,7 +86,6 @@ static void reset_evt(usbd_device* dev, uint8_t event, uint8_t ep);
 static void susp_evt(usbd_device* dev, uint8_t event, uint8_t ep);
 static void wkup_evt(usbd_device* dev, uint8_t event, uint8_t ep);
 
-/* Low-level init */
 void furi_hal_usb_init(void) {
     LL_RCC_SetUSBClockSource(LL_RCC_USB_CLKSOURCE_PLLSAI1);
 
@@ -110,7 +109,6 @@ void furi_hal_usb_init(void) {
     usbd_reg_descr(&udev, usb_descriptor_get);
     usbd_reg_event(&udev, usbd_evt_susp, susp_evt);
     usbd_reg_event(&udev, usbd_evt_wkup, wkup_evt);
-    // Reset callback will be enabled after first mode change to avoid getting false reset events
 
     usb.enabled = false;
     usb.interface = NULL;
@@ -241,7 +239,6 @@ void furi_hal_usb_set_state_callback(FuriHalUsbStateCallback cb, void* ctx) {
     furi_hal_usb_send_message(&msg);
 }
 
-/* Get device / configuration descriptors */
 static usbd_respond usb_descriptor_get(usbd_ctlreq* req, void** address, uint16_t* length) {
     const uint8_t dtype = req->wValue >> 8;
     const uint8_t dnumber = req->wValue & 0xFF;
@@ -347,7 +344,7 @@ static void usb_process_mode_start(FuriHalUsbInterface* interface, void* context
 static void usb_process_mode_change(FuriHalUsbInterface* interface, void* context) {
     if((interface != usb.interface) || (context != usb.interface_context)) {
         if(usb.enabled) {
-            // Disable current interface
+
             susp_evt(&udev, 0, 0);
             usbd_connect(&udev, false);
             usb.enabled = false;
@@ -358,7 +355,7 @@ static void usb_process_mode_change(FuriHalUsbInterface* interface, void* contex
 }
 
 static void usb_process_mode_reinit(void) {
-    // Temporary disable callback to avoid getting false reset events
+
     usbd_reg_event(&udev, usbd_evt_reset, NULL);
     FURI_LOG_I(TAG, "USB Reinit");
     susp_evt(&udev, 0, 0);

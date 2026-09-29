@@ -11,17 +11,12 @@
 static bool namechanger_init() {
     Storage* storage = furi_record_open(RECORD_STORAGE);
 
-    // Kostil + velosiped = top ficha
     uint8_t timeout = 0;
     while(timeout < 11) {
         if(storage_sd_status(storage) == FSE_OK) break;
         furi_delay_ms(250);
         timeout++;
-        /*if(timeout == 10) {
-            // Failed to init namechanger, SD card not ready
-            furi_record_close(RECORD_STORAGE);
-            return false;
-        }*/
+
     }
 
     FuriString* str = furi_string_alloc();
@@ -37,12 +32,11 @@ static bool namechanger_init() {
         if(version != NAMECHANGER_VERSION) break;
 
         if(!flipper_format_read_string(file, "Name", str)) break;
-        // Check for size
+
         size_t temp_string_size = furi_string_size(str);
         if(temp_string_size > (size_t)8) break;
         if(temp_string_size < (size_t)2) break;
 
-        // Check for forbidden characters
         const char* name_ptr = furi_string_get_cstr(str);
         bool chars_check_failed = false;
 
@@ -56,7 +50,6 @@ static bool namechanger_init() {
 
         if(chars_check_failed) break;
 
-        // If all checks was good we can set the name
         version_set_custom_name(NULL, strdup(furi_string_get_cstr(str)));
         furi_hal_version_set_name(version_get_custom_name(NULL));
 
@@ -76,7 +69,6 @@ int32_t namechanger_on_system_start(void* p) {
         return 0;
     }
 
-    // Wait for all required services to start and create their records
     uint8_t timeout = 0;
     while(!furi_record_exists(RECORD_CLI_VCP) || !furi_record_exists(RECORD_BT) ||
           !furi_record_exists(RECORD_STORAGE)) {
@@ -87,19 +79,17 @@ int32_t namechanger_on_system_start(void* p) {
         furi_delay_ms(5);
     }
 
-    // Hehe bad code now here, bad bad bad, very bad, bad example, dont take it, make it better
-
     if(namechanger_init()) {
         CliVcp* cli = furi_record_open(RECORD_CLI_VCP);
         cli_vcp_disable(cli);
-        furi_delay_ms(2); // why i added delays here
+        furi_delay_ms(2);
         cli_vcp_enable(cli);
         furi_record_close(RECORD_CLI_VCP);
 
         furi_delay_ms(3);
         Bt* bt = furi_record_open(RECORD_BT);
         if(!bt_profile_restore_default(bt)) {
-            //FURI_LOG_D(TAG, "Failed to touch bluetooth to name change");
+
         }
         furi_record_close(RECORD_BT);
         bt = NULL;

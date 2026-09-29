@@ -7,7 +7,7 @@
 
 #define TAG "InputSettings"
 
-#define INPUT_SETTINGS_VER (2) // version number
+#define INPUT_SETTINGS_VER (2)
 
 #define INPUT_SETTINGS_PATH  INT_PATH(INPUT_SETTINGS_FILE_NAME)
 #define INPUT_SETTINGS_MAGIC (0x29)
@@ -20,9 +20,8 @@ void input_settings_load(InputSettings* settings) {
 
     bool success = false;
 
-    //a useless cycle do-while, may will be used in future with anoter condition
     do {
-        // take version from settings file metadata, if cant then break and fill settings with 0 and save to settings file;
+
         uint8_t version;
         if(!saved_struct_get_metadata(INPUT_SETTINGS_PATH, NULL, &version, NULL)) break;
 
@@ -38,7 +37,6 @@ void input_settings_load(InputSettings* settings) {
             break;
         }
 
-        // if config actual version - load it directly
         if(version == INPUT_SETTINGS_VER) {
             success = saved_struct_load(
                 INPUT_SETTINGS_PATH,
@@ -47,15 +45,14 @@ void input_settings_load(InputSettings* settings) {
                 INPUT_SETTINGS_MAGIC,
                 INPUT_SETTINGS_VER);
         }
-        // in case of another config version we exit from useless cycle to next step
+
     } while(false);
 
-    // fill settings with 0 and save to settings file;
     if(!success) {
         FURI_LOG_W(TAG, "Failed to load file, using defaults");
         memset(settings, 0, sizeof(InputSettings));
         settings->vibro_touch_trigger_mask = INPUT_SETTINGS_VIBRO_TOUCH_TRIGGER_MASK_DEFAULT;
-        //input_settings_save(settings);
+
     }
 }
 

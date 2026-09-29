@@ -4,8 +4,6 @@
 #include <lib/bit_lib/bit_lib.h>
 #include <furi.h>
 
-// Algorithm from https://github.com/RfidResearchGroup/proxmark3.git
-
 #define SWAPENDIAN(x) \
     ((x) = ((x) >> 8 & 0xff00ff) | ((x) & 0xff00ff) << 8, (x) = (x) >> 16 | (x) << 16)
 #define LF_POLY_ODD  (0x29CE5C)

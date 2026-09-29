@@ -37,14 +37,12 @@ struct Iso15693Signal {
     Iso15693SignalBank banks[Iso15693SignalDataRateNum];
 };
 
-// Add an unmodulated signal for the length of Fc / 256 * k (where k = 1 or 4)
 static void iso15693_add_silence(DigitalSignal* signal, Iso15693SignalDataRate data_rate) {
     const uint32_t k = data_rate == Iso15693SignalDataRateHi ? ISO15693_SIGNAL_COEFF_HI :
                                                                ISO15693_SIGNAL_COEFF_LO;
     digital_signal_add_period_with_level(signal, ISO15693_SIGNAL_FC_256 * k, false);
 }
 
-// Add 8 * k subcarrier pulses of Fc / 16 (where k = 1 or 4)
 static void iso15693_add_subcarrier(DigitalSignal* signal, Iso15693SignalDataRate data_rate) {
     const uint32_t k = data_rate == Iso15693SignalDataRateHi ? ISO15693_SIGNAL_COEFF_HI :
                                                                ISO15693_SIGNAL_COEFF_LO;
@@ -64,7 +62,6 @@ static void iso15693_add_bit(DigitalSignal* signal, Iso15693SignalDataRate data_
 }
 
 static inline void iso15693_add_sof(DigitalSignal* signal, Iso15693SignalDataRate data_rate) {
-    // Not adding silence since it only increases response time
 
     for(uint32_t i = 0; i < ISO15693_SIGNAL_FC_768 / ISO15693_SIGNAL_FC_256; ++i) {
         iso15693_add_subcarrier(signal, data_rate);
@@ -80,7 +77,6 @@ static inline void iso15693_add_eof(DigitalSignal* signal, Iso15693SignalDataRat
         iso15693_add_subcarrier(signal, data_rate);
     }
 
-    // Not adding silence since it does nothing here
 }
 
 static inline uint32_t

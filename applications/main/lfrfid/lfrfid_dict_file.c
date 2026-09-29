@@ -20,13 +20,9 @@ bool lfrfid_dict_file_save(ProtocolDict* dict, ProtocolId protocol, const char* 
         if(!flipper_format_file_open_always(file, filename)) break;
         if(!flipper_format_write_header_cstr(file, LFRFID_DICT_FILETYPE, 1)) break;
 
-        // TODO FL-3517: write comment about protocol types into file
-
         if(!flipper_format_write_string_cstr(
                file, "Key type", protocol_dict_get_name(dict, protocol)))
             break;
-
-        // TODO FL-3517: write comment about protocol sizes into file
 
         protocol_dict_get_data(dict, protocol, data, data_size);
 
@@ -49,7 +45,6 @@ static void lfrfid_dict_protocol_indala_data(
     UNUSED(data_size);
     memset(protocol_data, 0, protocol_data_size);
 
-    // fc
     bit_lib_set_bit(protocol_data, 24, bit_lib_get_bit(data, 0));
     bit_lib_set_bit(protocol_data, 16, bit_lib_get_bit(data, 1));
     bit_lib_set_bit(protocol_data, 11, bit_lib_get_bit(data, 2));
@@ -59,7 +54,6 @@ static void lfrfid_dict_protocol_indala_data(
     bit_lib_set_bit(protocol_data, 6, bit_lib_get_bit(data, 6));
     bit_lib_set_bit(protocol_data, 25, bit_lib_get_bit(data, 7));
 
-    // cn
     bit_lib_set_bit(protocol_data, 9, bit_lib_get_bit(data, 8 + 0));
     bit_lib_set_bit(protocol_data, 12, bit_lib_get_bit(data, 8 + 1));
     bit_lib_set_bit(protocol_data, 10, bit_lib_get_bit(data, 8 + 2));
@@ -79,7 +73,6 @@ static void lfrfid_dict_protocol_indala_data(
 
     const uint32_t fc_and_card = data[0] << 16 | data[1] << 8 | data[2];
 
-    // indala checksum
     uint8_t checksum_sum = 0;
     checksum_sum += ((fc_and_card >> 14) & 1);
     checksum_sum += ((fc_and_card >> 12) & 1);
@@ -99,7 +92,6 @@ static void lfrfid_dict_protocol_indala_data(
         bit_lib_set_bit(protocol_data, 28, 0);
     }
 
-    // wiegand parity
     uint8_t even_parity_sum = 0;
     for(int8_t i = 12; i < 24; i++) {
         if(((fc_and_card >> i) & 1) == 1) {
@@ -155,13 +147,11 @@ ProtocolId lfrfid_dict_file_load(ProtocolDict* dict, const char* filename) {
     do {
         if(!flipper_format_file_open_existing(file, filename)) break;
 
-        // header
         uint32_t version;
         if(!flipper_format_read_header(file, str_result, &version)) break;
         if(furi_string_cmp_str(str_result, LFRFID_DICT_FILETYPE) != 0) break;
         if(version != 1) break;
 
-        // type
         if(!flipper_format_read_string(file, "Key type", str_result)) break;
         ProtocolId protocol;
         protocol = protocol_dict_get_protocol_by_name(dict, furi_string_get_cstr(str_result));
@@ -170,7 +160,7 @@ ProtocolId lfrfid_dict_file_load(ProtocolDict* dict, const char* filename) {
             protocol = lfrfid_dict_protocol_fallback(dict, furi_string_get_cstr(str_result), file);
             if(protocol == PROTOCOL_NO) break;
         } else {
-            // data
+
             size_t data_size = protocol_dict_get_data_size(dict, protocol);
             if(!flipper_format_read_hex(file, "Data", data, data_size)) break;
             protocol_dict_set_data(dict, protocol, data, data_size);

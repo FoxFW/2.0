@@ -100,7 +100,7 @@ static void number_input_draw_input(Canvas* canvas, NumberInputModel* model) {
 }
 
 static bool number_input_use_sign(NumberInputModel* model) {
-    //only show sign button if allowed number range needs it
+
     if(model->min_value < 0 && model->max_value >= 0) {
         return true;
     }
@@ -201,7 +201,7 @@ static void number_input_sign(NumberInputModel* model) {
     }
     model->current_number = strtol(furi_string_get_cstr(model->text_buffer), NULL, 10);
     if(model->current_number == 0) {
-        furi_string_set_str(model->text_buffer, ""); //show empty if 0, better for usability
+        furi_string_set_str(model->text_buffer, "");
     }
 }
 
@@ -209,7 +209,7 @@ static void number_input_add_digit(NumberInputModel* model, char* newChar) {
     furi_string_cat_str(model->text_buffer, newChar);
     if((model->max_value >= 0 && is_number_too_large(model)) ||
        (model->min_value < 0 && is_number_too_small(model))) {
-        //you still need to be able to type invalid numbers in some cases to reach valid numbers on later keypress
+
         furi_string_printf(model->text_buffer, "%ld", model->current_number);
         return;
     }
@@ -224,7 +224,7 @@ static void number_input_handle_ok(NumberInputModel* model) {
     char temp_str[2] = {selected, '\0'};
     if(selected == enter_symbol) {
         if(is_number_too_large(model) || is_number_too_small(model)) {
-            return; //Do nothing if number outside allowed range
+            return;
         }
         model->current_number = strtol(furi_string_get_cstr(model->text_buffer), NULL, 10);
         model->callback(model->callback_context, model->current_number);
@@ -247,7 +247,7 @@ static void number_input_view_draw_callback(Canvas* canvas, void* _model) {
         canvas_draw_str(canvas, 2, 9, furi_string_get_cstr(model->header));
     }
     canvas_set_font(canvas, FontKeyboard);
-    // Draw keyboard
+
     for(size_t row = 0; row < keyboard_row_count; row++) {
         const size_t column_count = number_input_get_row_size(row);
         const NumberInputKey* keys = number_input_get_row(row);
@@ -259,7 +259,7 @@ static void number_input_view_draw_callback(Canvas* canvas, void* _model) {
 
             if(keys[column].text == enter_symbol) {
                 if(is_number_too_small(model) || is_number_too_large(model)) {
-                    //in some cases you need to be able to type a number smaller/larger than the limits (expl. min = 50, clear all and editor must allow to type 9 and later 0 for 90)
+
                     if(model->selected_row == row && model->selected_column == column) {
                         canvas_draw_icon(
                             canvas,
@@ -344,7 +344,6 @@ static bool number_input_view_input_callback(InputEvent* event, void* context) {
 
     bool consumed = false;
 
-    // Fetch the model
     NumberInputModel* model = view_get_model(number_input->view);
 
     if(event->type == InputTypeShort || event->type == InputTypeLong ||
@@ -372,7 +371,6 @@ static bool number_input_view_input_callback(InputEvent* event, void* context) {
         }
     }
 
-    // commit view
     view_commit_model(number_input->view, consumed);
 
     return consumed;

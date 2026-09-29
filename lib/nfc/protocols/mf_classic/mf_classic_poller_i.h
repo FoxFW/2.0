@@ -57,12 +57,12 @@ extern const MfClassicBackdoorKeyPair mf_classic_backdoor_keys[];
 extern const size_t mf_classic_backdoor_keys_count;
 
 typedef struct {
-    uint32_t cuid; // Card UID
-    uint8_t key_idx; // Key index
-    uint32_t nt; // Nonce
-    uint32_t nt_enc; // Encrypted nonce
-    uint8_t par; // Parity
-    uint16_t dist; // Distance
+    uint32_t cuid;
+    uint8_t key_idx;
+    uint32_t nt;
+    uint32_t nt_enc;
+    uint8_t par;
+    uint16_t dist;
 } MfClassicNestedNonce;
 
 typedef struct {
@@ -74,18 +74,15 @@ typedef enum {
     MfClassicPollerStateDetectType,
     MfClassicPollerStateStart,
 
-    // Write states
     MfClassicPollerStateRequestSectorTrailer,
     MfClassicPollerStateCheckWriteConditions,
     MfClassicPollerStateReadBlock,
     MfClassicPollerStateWriteBlock,
     MfClassicPollerStateWriteValueBlock,
 
-    // Read states
     MfClassicPollerStateRequestReadSector,
     MfClassicPollerStateReadSectorBlocks,
 
-    // Dict attack states
     MfClassicPollerStateNextSector,
     MfClassicPollerStateAnalyzeBackdoor,
     MfClassicPollerStateBackdoorReadSector,
@@ -101,7 +98,6 @@ typedef enum {
     MfClassicPollerStateSuccess,
     MfClassicPollerStateFail,
 
-    // Enhanced dictionary attack states
     MfClassicPollerStateNestedAnalyzePRNG,
     MfClassicPollerStateNestedCalibrate,
     MfClassicPollerStateNestedCollectNt,
@@ -128,13 +124,13 @@ typedef struct {
     uint8_t current_sector;
     MfClassicKey current_key;
     MfClassicKeyType current_key_type;
-    MfClassicKeyType requested_key_type; // Key type requested from app (for CUID mode)
+    MfClassicKeyType requested_key_type;
     bool auth_passed;
     uint16_t current_block;
     uint8_t reuse_key_sector;
     MfClassicBackdoor backdoor;
-    MfClassicPollerMode mode; // Current attack mode
-    // Enhanced dictionary attack and nested nonce collection
+    MfClassicPollerMode mode;
+
     bool enhanced_dict;
     MfClassicNestedPhase nested_phase;
     MfClassicKey nested_known_key;
@@ -152,11 +148,11 @@ typedef struct {
     uint8_t attempt_count;
     KeysDict* mf_classic_system_dict;
     KeysDict* mf_classic_user_dict;
-    // Hardnested
+
     uint8_t nt_enc_msb
-        [32]; // Bit-packed array to track which unique most significant bytes have been seen (256 bits = 32 bytes)
-    uint16_t msb_par_sum; // Sum of parity bits for each unique most significant byte
-    uint16_t msb_count; // Number of unique most significant bytes seen
+        [32];
+    uint16_t msb_par_sum;
+    uint16_t msb_count;
 } MfClassicPollerDictAttackContext;
 
 typedef struct {

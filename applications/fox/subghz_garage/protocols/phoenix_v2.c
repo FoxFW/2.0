@@ -108,7 +108,7 @@ void subghz_protocol_encoder_phoenix_v2_free(void* context) {
     free(instance->encoder.upload);
     free(instance);
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static uint8_t v2_phoenix_counter_mode = 0;
 
@@ -415,7 +415,7 @@ LevelDuration subghz_protocol_encoder_phoenix_v2_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_phoenix_v2_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -531,7 +531,7 @@ static uint16_t subghz_protocol_phoenix_v2_encrypt_counter(uint64_t full_key, ui
 
     return (uint16_t)byte1 << 8 | byte2;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static uint16_t subghz_protocol_phoenix_v2_decrypt_counter(uint64_t full_key) {
     uint16_t encrypted_value = (uint16_t)((full_key >> 40) & 0xFFFF);

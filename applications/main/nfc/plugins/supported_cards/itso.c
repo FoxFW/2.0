@@ -1,4 +1,3 @@
-/* itso.c - Parser for ITSO cards (United Kingdom). */
 #include "nfc_supported_card_plugin.h"
 #include <flipper_application.h>
 
@@ -66,13 +65,11 @@ static bool itso_parse(const NfcDevice* device, FuriString* parsed_data) {
         char* cardp = cardBuff + 4;
         cardp[18] = '\0';
 
-        // All itso card numbers are prefixed with "633597"
         if(strncmp(cardp, "633597", 6) != 0) break;
 
         char* datep = dateBuff + 12;
         dateBuff[17] = '\0';
 
-        // DateStamp is defined in BS EN 1545 - Days passed since 01/01/1997
         uint32_t dateStamp;
         if(strint_to_uint32(datep, NULL, &dateStamp, 16) != StrintParseNoError) {
             return false;
@@ -81,7 +78,6 @@ static bool itso_parse(const NfcDevice* device, FuriString* parsed_data) {
 
         furi_string_set(parsed_data, "\e#ITSO Card\n");
 
-        // Digit count in each space-separated group
         static const uint8_t digit_count[] = {6, 4, 4, 4};
 
         for(uint32_t i = 0, k = 0; i < COUNT_OF(digit_count); k += digit_count[i++]) {
@@ -108,7 +104,6 @@ static bool itso_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin itso_plugin = {
     .protocol = NfcProtocolMfDesfire,
     .verify = NULL,
@@ -116,14 +111,12 @@ static const NfcSupportedCardsPlugin itso_plugin = {
     .parse = itso_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor itso_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &itso_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* itso_plugin_ep(void) {
     return &itso_plugin_descriptor;
 }

@@ -19,34 +19,31 @@ _Static_assert(
      InputKeyOk == 4 && InputKeyBack == 5),
     "Incorrect InputKey order");
 
-/** InputKey directional keys mappings for different screen orientations
-* 
-*/
 static const InputKey view_port_input_mapping[ViewPortOrientationMAX][InputKeyMAX] = {
     {InputKeyUp,
      InputKeyDown,
      InputKeyRight,
      InputKeyLeft,
      InputKeyOk,
-     InputKeyBack}, //ViewPortOrientationHorizontal
+     InputKeyBack},
     {InputKeyDown,
      InputKeyUp,
      InputKeyLeft,
      InputKeyRight,
      InputKeyOk,
-     InputKeyBack}, //ViewPortOrientationHorizontalFlip
+     InputKeyBack},
     {InputKeyRight,
      InputKeyLeft,
      InputKeyDown,
      InputKeyUp,
      InputKeyOk,
-     InputKeyBack}, //ViewPortOrientationVertical
+     InputKeyBack},
     {InputKeyLeft,
      InputKeyRight,
      InputKeyUp,
      InputKeyDown,
      InputKeyOk,
-     InputKeyBack}, //ViewPortOrientationVerticalFlip
+     InputKeyBack},
 };
 
 static const InputKey view_port_left_hand_input_mapping[InputKeyMAX] =
@@ -59,7 +56,6 @@ static const CanvasOrientation view_port_orientation_mapping[ViewPortOrientation
     [ViewPortOrientationVerticalFlip] = CanvasOrientationVerticalFlip,
 };
 
-// Remaps directional pad buttons on Flipper based on ViewPort orientation
 static void view_port_map_input(InputEvent* event, ViewPortOrientation orientation) {
     furi_check(orientation < ViewPortOrientationMAX && event->key < InputKeyMAX);
 
@@ -140,8 +136,6 @@ uint8_t view_port_get_height(const ViewPort* view_port) {
 void view_port_enabled_set(ViewPort* view_port, bool enabled) {
     furi_check(view_port);
 
-    // We are not going to lockup system, but will notify you instead
-    // Make sure that you don't call viewport methods inside of another mutex, especially one that is used in draw call
     if(furi_mutex_acquire(view_port->mutex, 2) != FuriStatusOk) {
         FURI_LOG_W(TAG, "ViewPort lockup: see %s:%d", __FILE__, __LINE__ - 3);
     }
@@ -182,8 +176,6 @@ void view_port_input_callback_set(
 void view_port_update(ViewPort* view_port) {
     furi_check(view_port);
 
-    // We are not going to lockup system, but will notify you instead
-    // Make sure that you don't call viewport methods inside of another mutex, especially one that is used in draw call
     if(furi_mutex_acquire(view_port->mutex, 2) != FuriStatusOk) {
         FURI_LOG_W(TAG, "ViewPort lockup: see %s:%d", __FILE__, __LINE__ - 3);
     }
@@ -203,8 +195,6 @@ void view_port_draw(ViewPort* view_port, Canvas* canvas) {
     furi_check(view_port);
     furi_check(canvas);
 
-    // We are not going to lockup system, but will notify you instead
-    // Make sure that you don't call viewport methods inside of another mutex, especially one that is used in draw call
     if(furi_mutex_acquire(view_port->mutex, 2) != FuriStatusOk) {
         FURI_LOG_W(TAG, "ViewPort lockup: see %s:%d", __FILE__, __LINE__ - 3);
     }
@@ -242,8 +232,7 @@ void view_port_set_orientation(ViewPort* view_port, ViewPortOrientation orientat
 
 ViewPortOrientation view_port_get_orientation(const ViewPort* view_port) {
     furi_check(view_port);
-    // We are not going to lockup system, but will notify you instead
-    // Make sure that you don't call viewport methods inside of another mutex, especially one that is used in draw call
+
     if(furi_mutex_acquire(view_port->mutex, 2) != FuriStatusOk) {
         FURI_LOG_W(TAG, "ViewPort lockup: see %s:%d", __FILE__, __LINE__ - 3);
     }

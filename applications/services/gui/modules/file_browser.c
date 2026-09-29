@@ -83,7 +83,7 @@ static void BrowserItem_t_clear(BrowserItem_t* obj) {
 }
 
 static int BrowserItem_t_cmp(const BrowserItem_t* a, const BrowserItem_t* b) {
-    // Back indicator comes before everything, then folders, then all other files.
+
     if(a->type == BrowserItemTypeBack) {
         return -1;
     }
@@ -469,7 +469,7 @@ static void browser_list_item_cb(
             FileBrowserModel * model,
             {
                 items_array_push_back(model->items, item);
-                // TODO: calculate if element is visible
+
             },
             false);
         furi_string_free(item.display_name);
@@ -585,8 +585,8 @@ static void browser_draw_list(Canvas* canvas, FileBrowserModel* model) {
             scroll_counter = 0;
         }
 
-        if(custom_icon_data) { //-V547
-            // Currently only 10*10 icons are supported
+        if(custom_icon_data) {
+
             canvas_draw_bitmap(
                 canvas, 2, Y_OFFSET + 1 + i * FRAME_HEIGHT, 10, 10, custom_icon_data);
         } else if((item_type == BrowserItemTypeFile) && (model->file_icon)) {

@@ -6,7 +6,6 @@ App(
     cdefines=["SRV_DESKTOP"],
     requires=[
         "gui",
-        "dolphin",
         "storage",
         "input",
     ],

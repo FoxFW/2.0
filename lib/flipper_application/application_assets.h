@@ -1,7 +1,3 @@
-/**
- * @file application_assets.h
- * Flipper application assets
- */
 #pragma once
 
 #include <storage/storage.h>

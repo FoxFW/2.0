@@ -1,6 +1,6 @@
 #include "cli_shell_completions.h"
 
-ARRAY_DEF(CommandCompletions, FuriString*, FURI_STRING_OPLIST); // -V524 //-V658
+ARRAY_DEF(CommandCompletions, FuriString*, FURI_STRING_OPLIST);
 #define M_OPL_CommandCompletions_t() ARRAY_OPLIST(CommandCompletions)
 
 struct CliShellCompletions {
@@ -16,9 +16,6 @@ struct CliShellCompletions {
 #define COMPLETION_COLUMN_WIDTH   "30"
 #define COMPLETION_COLUMN_WIDTH_I 30
 
-/**
- * @brief Update for the completions menu
- */
 typedef enum {
     CliShellCompletionsActionOpen,
     CliShellCompletionsActionClose,
@@ -41,10 +38,6 @@ typedef struct {
     size_t length;
 } CliShellCompletionSegment;
 
-// ==========
-// Public API
-// ==========
-
 CliShellCompletions*
     cli_shell_completions_alloc(CliRegistry* registry, CliShell* shell, CliShellLine* line) {
     CliShellCompletions* completions = malloc(sizeof(CliShellCompletions));
@@ -62,10 +55,6 @@ void cli_shell_completions_free(CliShellCompletions* completions) {
     free(completions);
 }
 
-// =======
-// Helpers
-// =======
-
 CliShellCompletionSegment cli_shell_completions_segment(CliShellCompletions* completions) {
     furi_assert(completions);
     CliShellCompletionSegment segment;
@@ -73,7 +62,6 @@ CliShellCompletionSegment cli_shell_completions_segment(CliShellCompletions* com
     FuriString* input = furi_string_alloc_set(cli_shell_line_get_editing(completions->line));
     furi_string_left(input, cli_shell_line_get_line_position(completions->line));
 
-    // find index of first non-space character
     size_t first_non_space = 0;
     while(1) {
         size_t ret = furi_string_search_char(input, ' ', first_non_space);
@@ -92,7 +80,7 @@ CliShellCompletionSegment cli_shell_completions_segment(CliShellCompletions* com
         segment.type = CliShellCompletionSegmentTypeArguments;
         segment.start = 0;
         segment.length = 0;
-        // support removed, might reimplement in the future
+
     }
 
     furi_string_free(input);
@@ -122,7 +110,7 @@ void cli_shell_completions_fill_variants(CliShellCompletions* completions) {
         cli_registry_unlock(registry);
 
     } else {
-        // support removed, might reimplement in the future
+
     }
 
     furi_string_free(input);
@@ -155,7 +143,6 @@ void cli_shell_completions_render(
             return;
         }
 
-        // show completions menu (full re-render)
         printf("\n\r");
         size_t position = 0;
         for
@@ -184,7 +171,7 @@ void cli_shell_completions_render(
         completions->is_displaying = true;
 
     } else if(action == CliShellCompletionsActionClose) {
-        // clear completions menu
+
         printf(
             ANSI_CURSOR_HOR_POS("%zu") ANSI_ERASE_DISPLAY(ANSI_ERASE_FROM_CURSOR_TO_END)
                 ANSI_CURSOR_HOR_POS("%zu"),
@@ -197,7 +184,6 @@ void cli_shell_completions_render(
         action == CliShellCompletionsActionLeft || action == CliShellCompletionsActionRight) {
         if(CommandCompletions_empty_p(completions->variants)) return;
 
-        // move selection
         size_t completions_size = CommandCompletions_size(completions->variants);
         size_t old_selection = completions->selected;
         int n_columns = (completions_size >= COMPLETION_COLUMNS) ? COMPLETION_COLUMNS :
@@ -216,7 +202,7 @@ void cli_shell_completions_render(
             if(selection_y_unclamped < 0) {
                 selection_x = CLAMP_WRAPAROUND(selection_x - 1, n_columns - 1, 0);
                 selection_y =
-                    cli_shell_completions_rows_at_column(completions, selection_x) - 1; // -V537
+                    cli_shell_completions_rows_at_column(completions, selection_x) - 1;
             } else if(
                 (size_t)selection_y_unclamped >
                 cli_shell_completions_rows_at_column(completions, selection_x) - 1) {
@@ -231,14 +217,13 @@ void cli_shell_completions_render(
         completions->selected = new_selection;
 
         if(new_selection != old_selection) {
-            // determine selection coordinates relative to top-left of suggestion menu
+
             size_t old_x = (old_selection % COMPLETION_COLUMNS) * COMPLETION_COLUMN_WIDTH_I;
             size_t old_y = old_selection / COMPLETION_COLUMNS;
             size_t new_x = (new_selection % COMPLETION_COLUMNS) * COMPLETION_COLUMN_WIDTH_I;
             size_t new_y = new_selection / COMPLETION_COLUMNS;
             printf("\n\r");
 
-            // print old selection in normal colors
             if(old_y) printf(ANSI_CURSOR_DOWN_BY("%zu"), old_y);
             printf(ANSI_CURSOR_HOR_POS("%zu"), old_x + 1);
             printf(
@@ -248,7 +233,6 @@ void cli_shell_completions_render(
             if(old_y) printf(ANSI_CURSOR_UP_BY("%zu"), old_y);
             printf(ANSI_CURSOR_HOR_POS("1"));
 
-            // print new selection in inverted colors
             if(new_y) printf(ANSI_CURSOR_DOWN_BY("%zu"), new_y);
             printf(ANSI_CURSOR_HOR_POS("%zu"), new_x + 1);
             printf(
@@ -256,7 +240,6 @@ void cli_shell_completions_render(
                 furi_string_get_cstr(
                     *CommandCompletions_cget(completions->variants, new_selection)));
 
-            // return cursor
             printf(ANSI_CURSOR_UP_BY("%zu"), new_y + 1);
             printf(
                 ANSI_CURSOR_HOR_POS("%zu"),
@@ -266,7 +249,7 @@ void cli_shell_completions_render(
 
     } else if(action == CliShellCompletionsActionSelectNoClose) {
         if(!CommandCompletions_size(completions->variants)) return;
-        // insert selection into prompt
+
         CliShellCompletionSegment segment = cli_shell_completions_segment(completions);
         FuriString* input = cli_shell_line_get_selected(completions->line);
         FuriString* completion =
@@ -294,16 +277,12 @@ void cli_shell_completions_render(
     fflush(stdout);
 }
 
-// ==============
-// Input handlers
-// ==============
-
 static bool hide_if_open_and_continue_handling(CliKeyCombo combo, void* context) {
     UNUSED(combo);
     CliShellCompletions* completions = context;
     if(completions->is_displaying)
         cli_shell_completions_render(completions, CliShellCompletionsActionClose);
-    return false; // process other home events
+    return false;
 }
 
 static bool key_combo_cr(CliKeyCombo combo, void* context) {

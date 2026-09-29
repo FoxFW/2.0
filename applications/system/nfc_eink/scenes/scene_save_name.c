@@ -57,7 +57,6 @@ bool nfc_eink_scene_save_name_on_event(void* context, SceneManagerEvent event) {
 
             if(nfc_eink_screen_save(instance->screen, furi_string_get_cstr(instance->file_path))) {
                 scene_manager_next_scene(instance->scene_manager, NfcEinkAppSceneSaveSuccess);
-                dolphin_deed(DolphinDeedNfcSave);
                 memset(instance->text_store, 0, sizeof(instance->text_store));
             }
             consumed = true;

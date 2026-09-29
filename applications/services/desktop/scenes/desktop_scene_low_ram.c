@@ -1,14 +1,3 @@
-/**
- * @file desktop_scene_low_ram.c
- * @brief System-wide low-RAM watchdog popup - see desktop_ram_watchdog_
- *        trigger()/_timer_callback() in desktop.c, which does the actual
- *        work (best-effort app close, USB/CLI soft-disable, GPIO reset)
- *        and pushes this scene right after. This scene is purely the
- *        forced, input-blocking 5-second notice - gui_set_lockdown() is
- *        what makes it visible/capture input over whatever app was
- *        running, the same mechanism the PIN-lock screen uses.
- */
-
 #include <furi_hal.h>
 #include <furi/core/memmgr.h>
 #include <gui/gui_i.h>
@@ -63,9 +52,7 @@ bool desktop_scene_low_ram_on_event(void* context, SceneManagerEvent event) {
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == DesktopLowRamEventDone) {
-            /* Only drop lockdown if nothing else (PIN lock) still needs
-             * it - preserves the lock screen if one was already active
-             * underneath when the watchdog tripped. */
+
             if(!desktop->locked) {
                 Gui* gui = furi_record_open(RECORD_GUI);
                 gui_set_lockdown(gui, false);

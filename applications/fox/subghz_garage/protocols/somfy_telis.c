@@ -378,7 +378,7 @@ LevelDuration subghz_protocol_encoder_somfy_telis_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_somfy_telis_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -657,7 +657,7 @@ static uint8_t subghz_protocol_somfy_telis_get_btn_code(void) {
 
     return btn;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void subghz_protocol_decoder_somfy_telis_get_string(void* context, FuriString* output) {
     furi_assert(context);

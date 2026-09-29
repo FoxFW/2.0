@@ -5,7 +5,6 @@ typedef enum {
     SubGhzCustomEventManagerSet,
     SubGhzCustomEventManagerSetRAW,
 
-    //SubGhzCustomEvent
     SubGhzCustomEventSceneDeleteSuccess = 100,
     SubGhzCustomEventSceneDelete,
     SubGhzCustomEventSceneDeleteBack,
@@ -62,52 +61,34 @@ typedef enum {
 
     SubGhzCustomEventByteInputDone,
 
-    /* Signal Visualizer view */
     SubGhzCustomEventViewSignalVisualizerBack,
 
-    /* RAW player — pause/resume during file playback */
     SubGhzCustomEventViewReadRAWTXPause,
     SubGhzCustomEventViewReadRAWTXResume,
     SubGhzCustomEventViewReadRAWZoomIn,
     SubGhzCustomEventViewReadRAWZoomOut,
 
-    /* Decode RAW — nothing found, offer retry or show timed message */
     SubGhzCustomEventDecodeRawFailedRetry,
     SubGhzCustomEventDecodeRawFailedCancel,
 
-    /* Modulation Analyzer */
     SubGhzCustomEventViewModAnalBack,
     SubGhzCustomEventViewModAnalConfig,
     SubGhzCustomEventViewModAnalTune,
 
-    /* File Prefix (Radio Settings) */
     SubGhzCustomEventSceneFilePrefixDone,
 
-    /* Custom Frequencies (Radio Settings) */
     SubGhzCustomEventSceneCustomFreqAdd,
     SubGhzCustomEventSceneCustomFreqRemove,
     SubGhzCustomEventSceneCustomFreqDone,
 
-    /* Protocol group failed to load (OOM, both attempts) - see
-     * subghz_scene_protocol_load_error.c */
     SubGhzCustomEventProtocolLoadErrorExit,
     SubGhzCustomEventProtocolLoadErrorRetry,
 
-    /* Low-RAM warning shown from Read/Read RAW/Decode RAW/Emulate when
-     * free heap is still below the relevant SUBGHZ_LOW_RAM_FREE_HEAP*
-     * threshold even after subghz_low_ram_mitigate() already tried to fix
-     * it - see subghz_scene_low_ram_warning.c and subghz_i.h's own
-     * threshold comment. Recovery is automatic (Tick-based) - this is just
-     * the Close button. */
     SubGhzCustomEventLowRamWarningExit,
 
-    /* Read (auto-capture mode) - "No Match" screen's Back/Save buttons -
-     * see subghz_scene_reader.c. */
     SubGhzCustomEventReceiverNoMatchBack,
     SubGhzCustomEventReceiverNoMatchSave,
 
-    /* Shared RAM warning screen's Continue button - see
-     * subghz_scene_shared_ram_warning.c. */
     SubGhzCustomEventSharedRamWarningContinue,
 } SubGhzCustomEvent;
 
@@ -182,8 +163,7 @@ typedef enum {
     SetTypeMarantec_868,
     SetTypeRoger_433,
     SetTypeLinear_300_00,
-    // SetTypeNeroSketch, //Deleted in OFW
-    // SetTypeNeroRadio, //Deleted in OFW
+
     SetTypeGateTX,
     SetTypeSecPlus_v1_315_00,
     SetTypeSecPlus_v1_390_00,

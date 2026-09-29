@@ -9,10 +9,8 @@
 #include <gui/modules/text_input.h>
 
 #include "esp_at.h"
-#include "fox_splash.h"
 
 typedef enum {
-    FoxDownloaderViewSplash,
     FoxDownloaderViewMenu,
     FoxDownloaderViewMessage,
     FoxDownloaderViewTerminal,
@@ -99,11 +97,6 @@ typedef struct {
 #define FOX_DOWNLOAD_ERR_MAX  64
 #define FOX_DOWNLOAD_PATH_MAX 160
 
-// How long a single connect attempt (the [DOWNLOAD/START] wait) is allowed
-// to take before giving up - shared between url_download.c (the actual
-// wait) and download_progress_view.c (which fills the Connecting screen's
-// bar based on how much of this budget has elapsed, since there's nothing
-// else - no bytes yet - to show real progress with).
 #define FOX_DOWNLOAD_CONNECT_TIMEOUT_MS 28000
 
 #define FOX_APPS_DIR "/ext/apps"
@@ -116,19 +109,7 @@ typedef struct {
 } DownloaderSettings;
 
 typedef enum {
-    // A plain URL download connects once and starts streaming into the
-    // .download file immediately - there's no separate "check" connection
-    // that gets torn down and reopened. app->download_confirmed tracks
-    // whether the user has actually opted in yet (via the Install button
-    // on the merged Connecting/Downloading progress screen): false right
-    // up until Install is pressed, which is also the point a resume
-    // marker first gets written. Backing out or cancelling before that
-    // point just deletes whatever got downloaded so far, since it was
-    // never something the user asked to keep - see download_pending_cancel
-    // and the DownloadPurposeFile branch in main.c's WORKER_DONE handler.
-    // Catalog installs and GitHub file downloads skip this entirely -
-    // download_found_confirm() marks them confirmed immediately, since
-    // they only ever make one connection to begin with.
+
     DownloadPurposeFile,
     DownloadPurposeCatalogPage,
     DownloadPurposeCatalogInstall,
@@ -187,8 +168,6 @@ typedef struct {
 typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
-
-    FoxSplash* splash;
 
     Submenu* submenu;
     TextInput* text_input;
@@ -258,11 +237,7 @@ typedef struct {
 
     DownloadPurpose download_purpose;
     FoxDownloaderView download_return_view;
-    // See the DownloadPurposeFile comment above. Plain UI-thread bools,
-    // not volatile, since Flipper's ViewDispatcher processes input and
-    // custom (worker-done) events on the same thread one at a time - only
-    // download_connected/download_connect_attempt_tick below cross into
-    // the worker thread and need volatile.
+
     bool download_confirmed;
     volatile bool download_connected;
     volatile uint32_t download_connect_attempt_tick;
@@ -280,17 +255,12 @@ typedef struct {
     FuriThread* download_worker;
     volatile bool download_worker_running;
     volatile bool download_cancel_requested;
-    // Tick download_cancel_requested was set - lets the progress view
-    // tell "cancel is instant" apart from "cancel is taking a while", so
-    // it can show a "Waiting for ESP32" popup only once it's actually
-    // been more than a second with no visible progress.
+
     volatile uint32_t download_cancel_requested_tick;
     FuriMutex* download_progress_mutex;
     volatile uint32_t download_progress_bytes;
     volatile uint32_t download_progress_total;
-    // 1-based current attempt / total attempts, so the progress screen can
-    // show "attempt 2/3" instead of looking frozen at 0% while a stalled
-    // connection is silently being retried in the background.
+
     volatile uint8_t download_progress_attempt;
     volatile uint8_t download_progress_max_attempts;
     volatile bool download_progress_done;

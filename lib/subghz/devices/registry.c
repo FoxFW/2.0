@@ -43,9 +43,6 @@ static SubGhzDeviceRegistry* subghz_device_registry_alloc_manager(void) {
 void subghz_device_registry_init(void) {
     SubGhzDeviceRegistry* subghz_device = subghz_device_registry_alloc_manager();
 
-    //TODO FL-3556: fix path to plugins
-    //if(plugin_manager_load_all(subghz_device->manager, APP_DATA_PATH("plugins")) !=
-    //
     if(plugin_manager_load_all(subghz_device->manager, EXT_PATH("apps_data/subghz/plugins")) !=
        PluginManagerErrorNone) {
         FURI_LOG_E(TAG, "Failed to load all libs");

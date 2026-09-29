@@ -327,7 +327,7 @@ MfDesfireError mf_desfire_poller_create_application(
     if(iso_df_name && iso_df_name_len) {
         uint8_t ks2_pos = bit_buffer_get_size_bytes(instance->input_buffer) - 1;
         uint8_t ks2 = bit_buffer_get_byte(instance->input_buffer, ks2_pos);
-        ks2 |= (1 << 5); // Mark file id present
+        ks2 |= (1 << 5);
         bit_buffer_set_byte(instance->input_buffer, ks2_pos, ks2);
 
         uint8_t iso_df_id_le[sizeof(iso_df_id)];

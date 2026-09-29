@@ -1,11 +1,5 @@
 #include "../tpms_app_i.h"
 
-/* Populated on_enter from tpms_vehicle_groups[] (helpers/tpms_vehicle_groups.c).
- * Static storage duration so the pointer handed to tpms_box_list_set_options()
- * stays valid for as long as this view might redraw - the same requirement
- * the Start scene's compile-time k_start_options array satisfies for free,
- * except here the box list's content is genuinely dynamic (5 vehicle
- * groups pulled from the shared data table rather than 3 hardcoded rows). */
 static TPMSBoxListOption k_vehicle_options[TPMS_VEHICLE_GROUP_COUNT];
 
 static void tpms_scene_vehicle_make_box_list_callback(void* context, uint32_t index) {
@@ -44,10 +38,6 @@ bool tpms_scene_vehicle_make_on_event(void* context, SceneManagerEvent event) {
             consumed = true;
         }
     }
-    // Back isn't handled here - SceneManager's default behaviour (this
-    // scene's on_event returning false for a Back event) pops back to
-    // whichever scene pushed this one, i.e. Start. Same as
-    // tpms_scene_receiver_config.c / tpms_scene_receiver_info.c already do.
 
     return consumed;
 }

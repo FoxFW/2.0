@@ -147,7 +147,7 @@ void fuzzer_view_field_editor_draw(Canvas* canvas, FuzzerViewFieldEditorModel* m
     canvas_draw_str_aligned(
         canvas, GUI_DISPLAY_HORIZONTAL_CENTER, 28, AlignCenter, AlignTop, msg_index);
 #endif
-    // ####### Editor #######
+
     FuriString* temp_s = model->uid_str;
     canvas_set_font(canvas, FontSecondary);
 
@@ -182,7 +182,7 @@ void fuzzer_view_field_editor_draw(Canvas* canvas, FuzzerViewFieldEditorModel* m
         furi_string_get_cstr(temp_s));
 
     uint16_t w = canvas_string_width(canvas, furi_string_get_cstr(temp_s));
-    w -= 11; // '<' & '>'
+    w -= 11;
     w /= 2;
 
     if(model->allow_edit) {
@@ -202,14 +202,9 @@ void fuzzer_view_field_editor_draw(Canvas* canvas, FuzzerViewFieldEditorModel* m
                 EDITOR_STRING_Y + 2);
         }
     } else {
-        // canvas_draw_line(
-        //     canvas,
-        //     GUI_DISPLAY_HORIZONTAL_CENTER - w,
-        //     EDITOR_STRING_Y + 2,
-        //     GUI_DISPLAY_HORIZONTAL_CENTER + w,
-        //     EDITOR_STRING_Y + 2);
+
     }
-    // ####### Editor #######
+
 }
 
 bool fuzzer_view_field_editor_input(InputEvent* event, void* context) {
@@ -316,7 +311,6 @@ void fuzzer_view_field_editor_exit(void* context) {
 FuzzerViewFieldEditor* fuzzer_view_field_editor_alloc() {
     FuzzerViewFieldEditor* view_edit = malloc(sizeof(FuzzerViewFieldEditor));
 
-    // View allocation and configuration
     view_edit->view = view_alloc();
     view_allocate_model(view_edit->view, ViewModelTypeLocking, sizeof(FuzzerViewFieldEditorModel));
     view_set_context(view_edit->view, view_edit);

@@ -8,20 +8,12 @@ extern "C" {
 
 typedef struct SubGhzDevice SubGhzDevice;
 
+void subghz_devices_preinit(void);
+
 void subghz_devices_init(void);
 
-/**
- * Same as subghz_devices_init(), but skips scanning/loading external radio
- * device .fal plugins - only the built-in internal CC1101 device is
- * registered. Call subghz_devices_load_external() later, before looking up
- * an external device by name, to load them on demand.
- */
 void subghz_devices_init_internal_only(void);
 
-/**
- * Loads any external radio device .fal plugins not already loaded into an
- * already-initialized registry. Safe to call more than once.
- */
 bool subghz_devices_load_external(void);
 
 void subghz_devices_deinit(void);

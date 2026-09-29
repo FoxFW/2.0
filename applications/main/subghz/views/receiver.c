@@ -13,8 +13,6 @@
 #define UNLOCK_CNT                3
 #define SUBGHZ_RX_RSSI_HISTORY_SIZE 128
 
-// #define SUBGHZ_RAW_THRESHOLD_MIN (-90.0f)
-
 #define FLIP_TIMEOUT (500)
 
 typedef struct {
@@ -23,7 +21,7 @@ typedef struct {
     uint8_t type;
 } SubGhzReceiverMenuItem;
 
-ARRAY_DEF(SubGhzReceiverMenuItemArray, SubGhzReceiverMenuItem, M_POD_OPLIST) //-V658
+ARRAY_DEF(SubGhzReceiverMenuItemArray, SubGhzReceiverMenuItem, M_POD_OPLIST)
 
 #define M_OPL_SubGhzReceiverMenuItemArray_t() \
     ARRAY_OPLIST(SubGhzReceiverMenuItemArray, M_POD_OPLIST)
@@ -315,7 +313,7 @@ void subghz_view_receiver_draw(Canvas* canvas, SubGhzViewReceiverModel* model) {
             if(model->idx == idx) {
                 subghz_view_receiver_draw_frame(canvas, i, scrollbar);
                 if(model->show_time) {
-                    // Show time of signal one moment
+
                     furi_string_set(str_buff, item_menu->time);
                 }
             } else {
@@ -336,13 +334,11 @@ void subghz_view_receiver_draw(Canvas* canvas, SubGhzViewReceiverModel* model) {
 
     if(model->history_item == 0) {
         if(model->mode == SubGhzViewReceiverModeLive) {
-            // Scrolling RSSI waveform in top area (y=0..33)
+
             subghz_view_rssi_waveform_draw(canvas, model);
 
-            // Separator between waveform and text
             canvas_draw_line(canvas, 0, 34, 127, 34);
 
-            // Frequency in larger font, centered
             canvas_set_font(canvas, FontPrimary);
             char freq_mhz[32];
             snprintf(
@@ -352,7 +348,6 @@ void subghz_view_receiver_draw(Canvas* canvas, SubGhzViewReceiverModel* model) {
                 furi_string_get_cstr(model->frequency_str));
             canvas_draw_str_aligned(canvas, 64, 45, AlignCenter, AlignBottom, freq_mhz);
 
-            // Scan mode label
             canvas_set_font(canvas, FontSecondary);
             canvas_draw_str_aligned(
                 canvas,
@@ -366,8 +361,7 @@ void subghz_view_receiver_draw(Canvas* canvas, SubGhzViewReceiverModel* model) {
                 canvas_draw_icon(canvas, 118, 17, &I_Cos_9x7);
             }
         } else {
-            // [NO_DOLPHIN] canvas_draw_icon(canvas, 0, 0,
-            //     (model->device_type == SubGhzRadioDeviceTypeInternal) ? &I_Scanning_123x52 : &I_Fishing_123x52);
+
             canvas_set_font(canvas, FontPrimary);
             canvas_draw_str(canvas, 63, 46, "Decoding...");
             canvas_set_font(canvas, FontSecondary);
@@ -413,7 +407,7 @@ void subghz_view_receiver_draw(Canvas* canvas, SubGhzViewReceiverModel* model) {
         canvas_draw_icon(canvas, 65, 42, &I_Pin_back_arrow_10x8);
         canvas_draw_icon(canvas, 80, 42, &I_Pin_back_arrow_10x8);
         canvas_draw_icon(canvas, 95, 42, &I_Pin_back_arrow_10x8);
-        // [NO_DOLPHIN] canvas_draw_icon(canvas, 16, 13, &I_WarningDolphin_45x42);
+
         canvas_draw_dot(canvas, 17, 61);
         break;
     case SubGhzViewReceiverBarShowUnlock:
@@ -534,7 +528,7 @@ bool subghz_view_receiver_input(InputEvent* event, void* context) {
             SubGhzViewReceiverModel * model,
             {
                 if(model->history_item != 0) {
-                    // Callback
+
                     subghz_receiver->callback(
                         SubGhzCustomEventViewReceiverDeleteItem, subghz_receiver->context);
                 }
@@ -599,7 +593,6 @@ void subghz_view_receiver_exit(void* context) {
 SubGhzViewReceiver* subghz_view_receiver_alloc(void) {
     SubGhzViewReceiver* subghz_receiver = malloc(sizeof(SubGhzViewReceiver));
 
-    // View allocation and configuration
     subghz_receiver->view = view_alloc();
 
     subghz_receiver->lock = false;

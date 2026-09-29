@@ -220,7 +220,6 @@ static void text_box_prepare_model(Canvas* canvas, TextBoxModel* model) {
     model->line_offset = 0;
     model->lines_on_screen = TEXT_BOX_TEXT_HEIGHT / canvas_current_font_height(canvas);
 
-    // Cache text offset to quick final text offset update if TextBoxFocusEnd is set
     int32_t window_offset[TEXT_BOX_MAX_LINES_PER_SCREEN] = {};
     do {
         window_offset[lines_num % model->lines_on_screen] = model->text_offset;

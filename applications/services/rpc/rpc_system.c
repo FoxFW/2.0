@@ -30,8 +30,8 @@ static void rpc_system_system_ping_process(const PB_Main* request, void* context
     }
 
     PB_Main response = PB_Main_init_default;
-    // PB_CommandStatus_OK is 0 in current case, and var by default is 0 too, commenting PVS warn
-    response.command_status = PB_CommandStatus_OK; //-V1048
+
+    response.command_status = PB_CommandStatus_OK;
     response.command_id = request->command_id;
     response.which_content = PB_Main_system_ping_response_tag;
 
@@ -103,18 +103,16 @@ static void rpc_system_system_device_info_process(const PB_Main* request, void* 
     RpcSession* session = (RpcSession*)context;
     furi_assert(session);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
-    response->which_content = PB_Main_system_device_info_response_tag;
-    response->command_status = PB_CommandStatus_OK;
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
+    response.which_content = PB_Main_system_device_info_response_tag;
+    response.command_status = PB_CommandStatus_OK;
 
     RpcSystemContext device_info_context = {
         .session = session,
-        .response = response,
+        .response = &response,
     };
     furi_hal_info_get(rpc_system_system_device_info_callback, '_', &device_info_context);
-
-    free(response);
 }
 
 static void rpc_system_system_get_datetime_process(const PB_Main* request, void* context) {
@@ -129,21 +127,20 @@ static void rpc_system_system_get_datetime_process(const PB_Main* request, void*
     DateTime datetime;
     furi_hal_rtc_get_datetime(&datetime);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
-    response->which_content = PB_Main_system_get_datetime_response_tag;
-    response->command_status = PB_CommandStatus_OK;
-    response->content.system_get_datetime_response.has_datetime = true;
-    response->content.system_get_datetime_response.datetime.hour = datetime.hour;
-    response->content.system_get_datetime_response.datetime.minute = datetime.minute;
-    response->content.system_get_datetime_response.datetime.second = datetime.second;
-    response->content.system_get_datetime_response.datetime.day = datetime.day;
-    response->content.system_get_datetime_response.datetime.month = datetime.month;
-    response->content.system_get_datetime_response.datetime.year = datetime.year;
-    response->content.system_get_datetime_response.datetime.weekday = datetime.weekday;
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
+    response.which_content = PB_Main_system_get_datetime_response_tag;
+    response.command_status = PB_CommandStatus_OK;
+    response.content.system_get_datetime_response.has_datetime = true;
+    response.content.system_get_datetime_response.datetime.hour = datetime.hour;
+    response.content.system_get_datetime_response.datetime.minute = datetime.minute;
+    response.content.system_get_datetime_response.datetime.second = datetime.second;
+    response.content.system_get_datetime_response.datetime.day = datetime.day;
+    response.content.system_get_datetime_response.datetime.month = datetime.month;
+    response.content.system_get_datetime_response.datetime.year = datetime.year;
+    response.content.system_get_datetime_response.datetime.weekday = datetime.weekday;
 
-    rpc_send_and_release(session, response);
-    free(response);
+    rpc_send_and_release(session, &response);
 }
 
 static void rpc_system_system_set_datetime_process(const PB_Main* request, void* context) {
@@ -216,18 +213,16 @@ static void rpc_system_system_protobuf_version_process(const PB_Main* request, v
     RpcSession* session = (RpcSession*)context;
     furi_assert(session);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
-    response->has_next = false;
-    response->command_status = PB_CommandStatus_OK;
-    response->which_content = PB_Main_system_protobuf_version_response_tag;
-    /* build error here means something wrong with tags in
-     * local repo https://github.com/flipperdevices/flipperzero-protobuf */
-    response->content.system_protobuf_version_response.major = PROTOBUF_MAJOR_VERSION;
-    response->content.system_protobuf_version_response.minor = PROTOBUF_MINOR_VERSION;
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
+    response.has_next = false;
+    response.command_status = PB_CommandStatus_OK;
+    response.which_content = PB_Main_system_protobuf_version_response_tag;
 
-    rpc_send_and_release(session, response);
-    free(response);
+    response.content.system_protobuf_version_response.major = PROTOBUF_MAJOR_VERSION;
+    response.content.system_protobuf_version_response.minor = PROTOBUF_MINOR_VERSION;
+
+    rpc_send_and_release(session, &response);
 }
 
 static void rpc_system_system_power_info_callback(
@@ -261,18 +256,16 @@ static void rpc_system_system_get_power_info_process(const PB_Main* request, voi
     RpcSession* session = (RpcSession*)context;
     furi_assert(session);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
-    response->which_content = PB_Main_system_power_info_response_tag;
-    response->command_status = PB_CommandStatus_OK;
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
+    response.which_content = PB_Main_system_power_info_response_tag;
+    response.command_status = PB_CommandStatus_OK;
 
     RpcSystemContext power_info_context = {
         .session = session,
-        .response = response,
+        .response = &response,
     };
     furi_hal_power_info_get(rpc_system_system_power_info_callback, '_', &power_info_context);
-
-    free(response);
 }
 
 #ifdef APP_UPDATER
@@ -288,17 +281,16 @@ static void rpc_system_system_update_request_process(const PB_Main* request, voi
     UpdatePrepareResult update_prepare_result =
         update_operation_prepare(request->content.system_update_request.update_manifest);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
-    response->has_next = false;
-    response->command_status = (update_prepare_result == UpdatePrepareResultOK) ?
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
+    response.has_next = false;
+    response.command_status = (update_prepare_result == UpdatePrepareResultOK) ?
                                    PB_CommandStatus_OK :
                                    PB_CommandStatus_ERROR_INVALID_PARAMETERS;
-    response->which_content = PB_Main_system_update_response_tag;
-    response->content.system_update_response.code =
+    response.which_content = PB_Main_system_update_response_tag;
+    response.content.system_update_response.code =
         (PB_System_UpdateResponse_UpdateResultCode)update_prepare_result;
-    rpc_send_and_release(session, response);
-    free(response);
+    rpc_send_and_release(session, &response);
 }
 #endif
 

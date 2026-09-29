@@ -34,7 +34,6 @@ bool pulse_joiner_push_pulse(PulseJoiner* pulse_joiner, bool polarity, size_t pe
     furi_check((pulse_joiner->pulse_index + 1) < PULSE_MAX_COUNT);
 
     if(polarity == false && pulse_joiner->pulse_index == 0) {
-        // first negative pulse is omitted
 
     } else {
         pulse_joiner->pulses[pulse_joiner->pulse_index].polarity = polarity;
@@ -49,8 +48,6 @@ bool pulse_joiner_push_pulse(PulseJoiner* pulse_joiner, bool polarity, size_t pe
     }
 
     if(pulse_joiner->pulse_index >= 4) {
-        // we know that first pulse is always high
-        // so we wait 2 edges, hi2low and next low2hi
 
         uint8_t edges_count = 0;
         bool last_polarity = pulse_joiner->pulses[0].polarity;
@@ -80,19 +77,17 @@ void pulse_joiner_pop_pulse(PulseJoiner* pulse_joiner, size_t* period, size_t* p
     uint8_t next_fist_pulse = 0;
 
     for(uint8_t i = 0; i < PULSE_MAX_COUNT; i++) {
-        // count edges
+
         if(pulse_joiner->pulses[i].polarity != last_polarity) {
             edges_count++;
             last_polarity = pulse_joiner->pulses[i].polarity;
         }
 
-        // wait for 2 edges
         if(edges_count == 2) {
             next_fist_pulse = i;
             break;
         }
 
-        // sum pulse time
         if(pulse_joiner->pulses[i].polarity) {
             tmp_period += pulse_joiner->pulses[i].time;
             tmp_pulse += pulse_joiner->pulses[i].time;
@@ -105,7 +100,6 @@ void pulse_joiner_pop_pulse(PulseJoiner* pulse_joiner, size_t* period, size_t* p
     *period = tmp_period;
     *pulse = tmp_pulse;
 
-    // remove counted periods and shift data
     for(uint8_t i = 0; i < PULSE_MAX_COUNT; i++) {
         if((next_fist_pulse + i) < PULSE_MAX_COUNT) {
             pulse_joiner->pulses[i].polarity = pulse_joiner->pulses[next_fist_pulse + i].polarity;

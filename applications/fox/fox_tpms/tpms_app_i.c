@@ -4,16 +4,6 @@
 #define TAG "TPMS"
 #include <flipper_format/flipper_format_i.h>
 
-/* LF 125kHz "relearn"/wake trigger - see lf_relearn_timer's comment in
- * tpms_app_i.h. Ported from flipperzero-tpms's own receiver view
- * (views/tpms_receiver.c: tpms_relearn_start()/tpms_relearn_stop(), bound
- * to the Right key) - same two HAL calls, same idea (leave the RFID coil's
- * normal "read" timer running unmodulated as a bare carrier instead of
- * actually reading anything), just owned at the app level here so both the
- * manual Relearn scene and the guided vehicle-steps flow can fire it. That
- * project's README says "1 second"; its actual code uses a 3-second window
- * - this follows the code, not the doc, on the assumption the code is what
- * was actually tested. */
 #define LF_RELEARN_DURATION_MS 3000
 #define LF_RELEARN_FREQUENCY_HZ 125000.0f
 #define LF_RELEARN_DUTY 0.5f
@@ -179,10 +169,9 @@ void tpms_hopper_update(TPMSApp* app) {
     }
     float rssi = -127.0f;
     if(app->txrx->hopper_state != TPMSHopperStateRSSITimeOut) {
-        // See RSSI Calculation timings in CC1101 17.3 RSSI
+
         rssi = furi_hal_subghz_get_rssi();
 
-        // Stay if RSSI is high enough
         if(rssi > -90.0f) {
             app->txrx->hopper_timeout = 10;
             app->txrx->hopper_state = TPMSHopperStateRSSITimeOut;
@@ -192,10 +181,6 @@ void tpms_hopper_update(TPMSApp* app) {
         app->txrx->hopper_state = TPMSHopperStateRunnig;
     }
 
-    // A guided vehicle-group flow hops a short, brand-relevant {frequency,
-    // modulation} candidate list (tpms_vehicle_groups.c) instead of the
-    // generic ISM frequency table - same hopper_idx_frequency field, just
-    // bounded by whichever list is active.
     bool group_active =
         app->active_vehicle_group >= 0 && app->active_vehicle_group < TPMS_VEHICLE_GROUP_COUNT;
     uint8_t candidate_count = group_active ?
@@ -203,7 +188,6 @@ void tpms_hopper_update(TPMSApp* app) {
                                    subghz_setting_get_hopper_frequency_count(app->setting);
     if(candidate_count == 0) return;
 
-    // Select next frequency/candidate
     if(app->txrx->hopper_idx_frequency < candidate_count - 1) {
         app->txrx->hopper_idx_frequency++;
     } else {
@@ -216,11 +200,7 @@ void tpms_hopper_update(TPMSApp* app) {
     if(app->txrx->txrx_state == TPMSTxRxStateIDLE) {
         subghz_receiver_reset(app->txrx->receiver);
         if(group_active) {
-            // Unlike the generic hop below (frequency-only, via a bare
-            // tpms_rx() retune), a vehicle group's candidates can also
-            // differ by modulation - landing on a new one needs the radio's
-            // custom preset reloaded, so this goes through tpms_begin()
-            // again rather than just tpms_rx().
+
             tpms_vehicle_group_apply_candidate(app, app->txrx->hopper_idx_frequency);
             tpms_begin(
                 app,

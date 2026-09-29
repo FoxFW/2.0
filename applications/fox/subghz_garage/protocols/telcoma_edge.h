@@ -2,24 +2,6 @@
 
 #include "base.h"
 
-/*
- * Static (fixed-code) Manchester remote from the Telcoma / Cardin EDGE family
- * (EDGE2 / EDGE4 / EDGE20, also sold compatible with TANGO/QUASAR/SLIM/SE).
- *
- * 433.92 MHz, OOK/AM, Manchester encoded.
- * Half-bit (TE) ~= 1270us, full bit ~= 2540us (~394 bit/s).
- * On the wire: 0xFF preamble + per-remote serial + a one-hot CHANNEL marker.
- *   - The gate channel decodes as 32 Manchester bits + 1 trailing HIGH stop
- *     half-bit (e.g. 0xFF309FC0).
- *   - Every other channel carries an extra one-hot marker and decodes as 33
- *     bits; we normalise to a canonical 32-bit key (key = raw >> 1), where
- *     key[23:3] = serial and key[2:0] = one-hot channel (gate=0, others 1/2/4).
- * Fixed code: identical value on every press of a given channel; not rolling.
- *
- * NAMING: this is the Telcoma/Cardin EDGE 433.92 fixed-code protocol. It is
- * NOT Cardin S449 (FSK KeeLoq rolling) or S466 (27MHz PWM); those are
- * different products. Ported from Unleashed Firmware PR #1001.
- */
 #define SUBGHZ_PROTOCOL_TELCOMA_EDGE_NAME "Telcoma/Cardin EDGE"
 
 typedef struct SubGhzProtocolDecoderTelcomaEdge SubGhzProtocolDecoderTelcomaEdge;

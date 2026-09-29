@@ -50,8 +50,7 @@ MfPlusData* mf_plus_alloc(void) {
     MfPlusData* data = malloc(sizeof(MfPlusData));
     data->device_name = furi_string_alloc();
     data->iso14443_4a_data = iso14443_4a_alloc();
-    // reset() zeroes the whole SL3 payload, so load's mask accumulation never depends on the
-    // allocator's zero-fill.
+
     mf_plus_reset(data);
 
     return data;
@@ -191,7 +190,7 @@ const char* mf_plus_get_device_name(const MfPlusData* data, NfcDeviceNameType na
         furi_string_printf(
             data->device_name,
             "Mifare %s %s %s",
-            mf_plus_type_strings[data->type], // Includes "Plus" for regular Mifare Plus cards
+            mf_plus_type_strings[data->type],
             mf_plus_size_strings[data->size],
             mf_plus_security_level_strings[data->security_level]);
     } else if(name_type == NfcDeviceNameTypeShort) {

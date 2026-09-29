@@ -11,7 +11,7 @@ struct SubGhzModulationFilter {
 SubGhzModulationFilter* subghz_modulation_filter_alloc(void) {
     SubGhzModulationFilter* instance = malloc(sizeof(SubGhzModulationFilter));
     furi_assert(instance);
-    memset(instance->enabled, 0x01, sizeof(instance->enabled)); /* all ON by default */
+    memset(instance->enabled, 0x01, sizeof(instance->enabled));
     return instance;
 }
 
@@ -21,12 +21,12 @@ void subghz_modulation_filter_free(SubGhzModulationFilter* instance) {
 }
 
 void subghz_modulation_filter_load(SubGhzModulationFilter* instance) {
-    /* No-op: filter is loaded from last_subghz.settings in subghz.c on startup. */
+
     (void)instance;
 }
 
 void subghz_modulation_filter_save(SubGhzModulationFilter* instance) {
-    /* No-op: filter is saved inside last_subghz.settings via subghz_save_all(). */
+
     (void)instance;
 }
 

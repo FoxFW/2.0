@@ -5,12 +5,6 @@
 #include <hci_tl.h>
 #include <furi.h>
 
-///////////////////////////////////////////////////////////////////////////////
-
-/* 
- * TL hooks to catch hardfaults 
- */
-
 int32_t ble_glue_TL_SYS_SendCmd(uint8_t* buffer, uint16_t size) {
     if(ble_glue_get_hardfault_info()) {
         furi_crash("ST(R) Copro(R) HardFault");
@@ -20,7 +14,7 @@ int32_t ble_glue_TL_SYS_SendCmd(uint8_t* buffer, uint16_t size) {
 }
 
 void shci_register_io_bus(tSHciIO* fops) {
-    /* Register IO bus services */
+
     fops->Init = TL_SYS_Init;
     fops->Send = ble_glue_TL_SYS_SendCmd;
 }
@@ -34,7 +28,7 @@ static int32_t ble_glue_TL_BLE_SendCmd(uint8_t* buffer, uint16_t size) {
 }
 
 void hci_register_io_bus(tHciIO* fops) {
-    /* Register IO bus services */
+
     fops->Init = TL_BLE_Init;
     fops->Send = ble_glue_TL_BLE_SendCmd;
 }

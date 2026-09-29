@@ -1,15 +1,4 @@
 #pragma once
-/**
- * auto_rke_protocols.h
- * Additional automotive RKE protocols — Pandora DXL 5000 → Flipper Zero port
- *
- * Protocols:
- *   - Subaru          (ID 0x06) | 433.92 MHz | 48-bit  | OOK PWM
- *   - Hyundai/KiaRIO  (ID 0x11) | 433.92 MHz | 64-bit  | OOK PWM
- *   - Mazda Siemens   (ID 0x15) | 433.92 MHz | 72-bit  | OOK PWM
- *   - VAG -2004       (ID 0x19) | 433.92 MHz | 64-bit  | OOK PWM
- *   - SantaFe 13-16   (ID 0x1A) | 433.92 MHz | 80-bit  | OOK PWM
- */
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -18,21 +7,10 @@
 extern "C" {
 #endif
 
-/* =========================================================================
- * Shared raw pulse buffer
- * All encode functions write into RawBuf.
- * All decode functions read from RawBuf.
- * positive value = HIGH duration in µs
- * negative value = LOW  duration in µs
- * ========================================================================= */
 typedef struct {
     int32_t  pulses[512];
     uint32_t count;
 } RawBuf;
-
-/* =========================================================================
- * 1. SUBARU  (firmware ID 0x06)
- * ========================================================================= */
 
 #define SUBARU_FREQ_HZ       433920000ul
 #define SUBARU_BITS               48u
@@ -49,20 +27,15 @@ typedef struct {
 #define SUBARU_BTN_TRUNK    0x4u
 #define SUBARU_BTN_PANIC    0x8u
 
-/** Subaru RKE frame (Impreza/Forester/Legacy ~2000-2010) */
 typedef struct {
-    uint32_t fixed_id;   /**< 32-bit fixed fob ID                          */
-    uint8_t  counter;    /**< 8-bit rolling counter                        */
-    uint8_t  button;     /**< SUBARU_BTN_*                                 */
-    bool     valid;      /**< true after decode if checksum matched        */
+    uint32_t fixed_id;
+    uint8_t  counter;
+    uint8_t  button;
+    bool     valid;
 } SubaruFrame;
 
 void subaru_encode(const SubaruFrame *frame, RawBuf *buf);
 bool subaru_decode(const RawBuf *buf, SubaruFrame *frame);
-
-/* =========================================================================
- * 2. HYUNDAI / KIA RIO  (firmware ID 0x11)
- * ========================================================================= */
 
 #define HKR_FREQ_HZ          433920000ul
 #define HKR_BITS                  64u
@@ -81,19 +54,14 @@ bool subaru_decode(const RawBuf *buf, SubaruFrame *frame);
 #define HKR_BTN_TRUNK       0x0400u
 #define HKR_BTN_PANIC       0x0800u
 
-/** Hyundai/Kia RIO RKE frame (Accent/Rio/Elantra ~2001-2008, fixed code) */
 typedef struct {
-    uint32_t serial;       /**< 32-bit fixed serial                        */
-    uint16_t button_mask;  /**< HKR_BTN_* bitmask                          */
-    bool     valid;        /**< true after decode if checksum matched      */
+    uint32_t serial;
+    uint16_t button_mask;
+    bool     valid;
 } HKRFrame;
 
 void hkr_encode(const HKRFrame *frame, RawBuf *buf);
 bool hkr_decode(const RawBuf *buf, HKRFrame *frame);
-
-/* =========================================================================
- * 3. MAZDA SIEMENS  (firmware ID 0x15)
- * ========================================================================= */
 
 #define MAZ_FREQ_HZ          433920000ul
 #define MAZ_BITS                  72u
@@ -111,24 +79,16 @@ bool hkr_decode(const RawBuf *buf, HKRFrame *frame);
 #define MAZ_BTN_UNLOCK      0x2u
 #define MAZ_BTN_TRUNK       0x4u
 
-/**
- * Mazda Siemens VDO RKE frame (Mazda 3/6/CX-7 ~2003-2009).
- * hop is the raw Siemens ciphertext — inner cipher is proprietary.
- */
 typedef struct {
-    uint32_t hop;        /**< 32-bit Siemens encrypted hopping word        */
-    uint32_t serial;     /**< 24-bit fixed serial                          */
-    uint8_t  counter;    /**< 8-bit rolling counter                        */
-    uint8_t  button;     /**< MAZ_BTN_*                                    */
-    bool     valid;      /**< true after decode if checksum matched        */
+    uint32_t hop;
+    uint32_t serial;
+    uint8_t  counter;
+    uint8_t  button;
+    bool     valid;
 } MazdaFrame;
 
 void mazda_encode(const MazdaFrame *frame, RawBuf *buf);
 bool mazda_decode(const RawBuf *buf, MazdaFrame *frame);
-
-/* =========================================================================
- * 4. VAG -2004  (firmware ID 0x19)
- * ========================================================================= */
 
 #define VAG_FREQ_HZ          433920000ul
 #define VAG_BITS                  64u
@@ -147,26 +107,20 @@ bool mazda_decode(const RawBuf *buf, MazdaFrame *frame);
 #define VAG_BTN_TRUNK       0x04u
 #define VAG_BTN_PANIC       0x08u
 
-/** VW/Audi/Seat/Skoda pre-2004 RKE frame */
 typedef struct {
-    uint32_t transponder_id;  /**< 32-bit fixed transponder ID             */
-    uint16_t counter;         /**< 16-bit rolling counter                  */
-    uint8_t  button;          /**< VAG_BTN_*                               */
-    bool     valid;           /**< true after decode if checksum matched   */
+    uint32_t transponder_id;
+    uint16_t counter;
+    uint8_t  button;
+    bool     valid;
 } VAGFrame;
 
 void vag_encode(const VAGFrame *frame, RawBuf *buf);
 bool vag_decode(const RawBuf *buf, VAGFrame *frame);
 
-/** Counter window validation — VAG accepts [stored+1, stored+255] */
 static inline bool vag_counter_valid(uint16_t stored, uint16_t received) {
     uint16_t delta = (uint16_t)(received - stored);
     return (delta >= 1u && delta <= 255u);
 }
-
-/* =========================================================================
- * 5. HYUNDAI SANTA FE 2013-2016  (firmware ID 0x1A)
- * ========================================================================= */
 
 #define SFE_FREQ_HZ          433920000ul
 #define SFE_BITS                  80u
@@ -185,22 +139,17 @@ static inline bool vag_counter_valid(uint16_t stored, uint16_t received) {
 #define SFE_BTN_TRUNK       0x04u
 #define SFE_BTN_PANIC       0x08u
 
-/**
- * Hyundai Santa Fe / Solaris RKE frame (TRW fob ~2013-2016).
- * rolling is Hitag2-derived ciphertext.
- */
 typedef struct {
-    uint32_t rolling;    /**< 32-bit Hitag2-derived encrypted word         */
-    uint32_t serial;     /**< 24-bit fixed serial                          */
-    uint8_t  counter;    /**< 8-bit rolling counter                        */
-    uint8_t  button;     /**< SFE_BTN_*                                    */
-    bool     valid;      /**< true after decode if CRC8 matched            */
+    uint32_t rolling;
+    uint32_t serial;
+    uint8_t  counter;
+    uint8_t  button;
+    bool     valid;
 } SantaFeFrame;
 
 void santafe_encode(const SantaFeFrame *frame, RawBuf *buf);
 bool santafe_decode(const RawBuf *buf, SantaFeFrame *frame);
 
-/** Counter window validation — SantaFe accepts [stored+1, stored+32] */
 static inline bool santafe_counter_valid(uint8_t stored, uint8_t received) {
     uint8_t delta = (uint8_t)(received - stored);
     return (delta >= 1u && delta <= 32u);

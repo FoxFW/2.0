@@ -22,7 +22,7 @@
  * ------------------------------------------------------------------------------------------------------------------------------
  * Electra intercom 125 kHz protocol based on 64-bit clock EM4100, but includes some extra data after base EM4100 data (epilogue)
  *
- * Epilogue size is 64 bits, but only first 16 bits matter. Rest 6 bytes - some filler data, 
+ * Epilogue size is 64 bits, but only first 16 bits matter. Rest 6 bytes - some filler data,
  * that arbitrary change is not validated by the Electra intercoms
  *
  * There are curently three known types of epilogue:
@@ -32,12 +32,12 @@
  *
  * First two epilogue bytes may be interpreted as EM4100 data continuation
  * Nevertheless, these bytes have correct row parity bits, but have not correct collumn parity
- 
+
  * For example: 0x7E71AAAAAAAAAAAA epilogue:
  *
  * In binary: | 0b01111110 | 01110001 | 10101010 | 10101010 | 10101010 | 10101010 | 10101010 | 10101010 |
  * In hex:    |   0x7E     |    71    |    AA    |    AA    |    AA    |    AA    |    AA    |    AA    |
- * 
+ *
  * As EM4100 data:
  * 0111 1 // 7
  * 1100 0 // C
@@ -47,7 +47,7 @@
  * 0101 0
  * 1010 1
  * 0101 0
- * 1010 // and no correct column parity 
+ * 1010 // and no correct column parity
  */
 
 #include "bit_lib/bit_lib.h"
@@ -139,17 +139,13 @@ static void electra_decode(
 
     uint8_t decoded_data_index = 0;
     ElectraDecodedData base_data = *((ElectraDecodedData*)(encoded_base_data));
-    //ElectraDecodedData epilogue = *((ElectraDecodedData*)(encoded_epilogue));
 
-    // clean result
     memset(decoded_data, 0, decoded_data_size);
 
-    // header
     for(uint8_t i = 0; i < 9; i++) {
         base_data = base_data << 1;
     }
 
-    // nibbles
     uint8_t value = 0;
     for(uint8_t r = 0; r < EM_ROW_COUNT; r++) {
         uint8_t nibble = 0;
@@ -165,7 +161,6 @@ static void electra_decode(
         }
     }
 
-    // copy first 3 bytes of encoded epilogue to decoded data
     decoded_data[ELECTRA_DECODED_DATA_EPILOGUE_START_POS] =
         encoded_epilogue[ELECTRA_ENCODED_EPILOGUE_SIZE - 1];
     decoded_data[ELECTRA_DECODED_DATA_EPILOGUE_START_POS + 1] =
@@ -184,13 +179,10 @@ static bool electra_can_be_decoded(
     const ElectraDecodedData* base_data = (ElectraDecodedData*)encoded_base_data;
     const ElectraDecodedData* epilogue = (ElectraDecodedData*)encoded_epilogue_data;
 
-    // check electra epilogue. if em4100 header - break
     if((*epilogue & EM_ENCODED_DATA_HEADER) == EM_ENCODED_DATA_HEADER) return false;
 
-    // check header and stop bit
     if((*base_data & EM_HEADER_AND_STOP_MASK) != EM_HEADER_AND_STOP_DATA) return false;
 
-    // check row parity
     for(uint8_t i = 0; i < EM_ROW_COUNT; i++) {
         uint8_t parity_sum = 0;
 
@@ -203,7 +195,6 @@ static bool electra_can_be_decoded(
         }
     }
 
-    // check columns parity
     for(uint8_t i = 0; i < EM_COLUMN_COUNT; i++) {
         uint8_t parity_sum = 0;
 
@@ -220,7 +211,6 @@ static bool electra_can_be_decoded(
         }
     }
 
-    // encoded_epilogue_data lsb encoded
     uint8_t epilogue_filler = encoded_epilogue_data[(ELECTRA_ENCODED_EPILOGUE_SIZE - 1) - 2];
 
     for(uint8_t i = 0; i < ((ELECTRA_ENCODED_EPILOGUE_SIZE - 1) - 2); i++)
@@ -269,13 +259,7 @@ bool protocol_electra_decoder_feed(ProtocolElectra* proto, bool level, uint32_t 
             proto->decoder_manchester_state, event, &proto->decoder_manchester_state, &data);
 
         if(data_ok) {
-            /*
-                EM 4100 BASE DATA (64 bit)         ELECTRA EPILOGUE (64 bit)
-            _________________________________  _________________________________
-            | | | | | | | | | | | | | | | | |  | | | | | | | | | | | | | | | | |    <- new data bit
-            ---------------------------------  --------------------------------- 
-                                             <- epilogue msb is carry bit to base data  
-            */
+
             bool carry = proto->encoded_epilogue >> 63 & 0b1;
 
             proto->encoded_base_data = (proto->encoded_base_data << 1) | carry;
@@ -315,16 +299,14 @@ static void em_write_nibble(bool low_nibble, uint8_t data, ElectraDecodedData* e
 }
 
 bool protocol_electra_encoder_start(ProtocolElectra* proto) {
-    // header
+
     proto->encoded_base_data = 0b111111111;
 
-    // data
     for(uint8_t i = 0; i < ELECTRA_DECODED_BASE_DATA_SIZE; i++) {
         em_write_nibble(false, proto->data[i], &proto->encoded_base_data);
         em_write_nibble(true, proto->data[i], &proto->encoded_base_data);
     }
 
-    // column parity and stop bit
     uint8_t parity_sum;
 
     for(uint8_t c = 0; c < EM_COLUMN_COUNT; c++) {
@@ -336,18 +318,15 @@ bool protocol_electra_encoder_start(ProtocolElectra* proto) {
         proto->encoded_base_data = (proto->encoded_base_data << 1) | ((parity_sum % 2) & 1);
     }
 
-    // stop bit
     proto->encoded_base_data = (proto->encoded_base_data << 1) | 0;
 
     proto->encoded_data_index = 0;
     proto->encoded_polarity = true;
 
-    // epilogue
     proto->encoded_epilogue = (proto->data[ELECTRA_DECODED_DATA_EPILOGUE_START_POS]);
     proto->encoded_epilogue <<= 8;
     proto->encoded_epilogue |= (proto->data[ELECTRA_DECODED_DATA_EPILOGUE_START_POS + 1]);
 
-    //fill bytes 2-7 by epilogue filler
     for(uint8_t i = 2; i < ELECTRA_ENCODED_EPILOGUE_SIZE; i++) {
         proto->encoded_epilogue <<= 8;
         proto->encoded_epilogue |= proto->data[ELECTRA_DECODED_DATA_EPILOGUE_START_POS + 2];
@@ -384,7 +363,6 @@ bool protocol_electra_write_data(ProtocolElectra* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_electra_encoder_start(protocol);
     electra_decode(
         (uint8_t*)&protocol->encoded_base_data,

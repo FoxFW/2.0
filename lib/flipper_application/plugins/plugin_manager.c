@@ -11,7 +11,7 @@
 
 #define TAG "PluginManager"
 
-ARRAY_DEF(FlipperApplicationList, FlipperApplication*, M_PTR_OPLIST) // NOLINT
+ARRAY_DEF(FlipperApplicationList, FlipperApplication*, M_PTR_OPLIST)
 #define M_OPL_FlipperApplicationList_t() ARRAY_OPLIST(FlipperApplicationList, M_PTR_OPLIST)
 
 struct PluginManager {
@@ -38,13 +38,16 @@ PluginManager* plugin_manager_alloc(
 void plugin_manager_free(PluginManager* manager) {
     furi_check(manager);
 
+    furi_record_close(RECORD_STORAGE);
+
+    furi_kernel_lock();
     for
         M_EACH(loaded_lib, manager->libs, FlipperApplicationList_t) {
             flipper_application_free(*loaded_lib);
         }
     FlipperApplicationList_clear(manager->libs);
-    furi_record_close(RECORD_STORAGE);
     free(manager);
+    furi_kernel_unlock();
 }
 
 PluginManagerError plugin_manager_load_single(PluginManager* manager, const char* path) {

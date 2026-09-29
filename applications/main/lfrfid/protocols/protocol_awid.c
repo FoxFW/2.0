@@ -56,30 +56,15 @@ void protocol_awid_decoder_start(ProtocolAwid* protocol) {
 static bool protocol_awid_can_be_decoded(uint8_t* data) {
     bool result = false;
 
-    // Index map
-    // 0            10            20            30              40            50              60
-    // |            |             |             |               |             |               |
-    // 01234567 890 1 234 5 678 9 012 3 456 7 890 1 234 5 678 9 012 3 456 7 890 1 234 5 678 9 012 3 - to 96
-    // -----------------------------------------------------------------------------
-    // 00000001 000 1 110 1 101 1 011 1 101 1 010 0 000 1 000 1 010 0 001 0 110 1 100 0 000 1 000 1
-    // preamble bbb o bbb o bbw o fff o fff o ffc o ccc o ccc o ccc o ccc o ccc o wxx o xxx o xxx o - to 96
-    //          |---26 bit---|    |-----117----||-------------142-------------|
-    // b = format bit len, o = odd parity of last 3 bits
-    // f = facility code, c = card number
-    // w = wiegand parity
-    // (26 bit format shown)
-
     do {
-        // check preamble and spacing
+
         if(data[0] != 0b00000001 || data[AWID_ENCODED_DATA_LAST] != 0b00000001) break;
 
-        // check odd parity for every 4 bits starting from the second byte
         bool parity_error = bit_lib_test_parity(data, 8, 88, BitLibParityOdd, 4);
         if(parity_error) break;
 
         bit_lib_remove_bit_every_nth(data, 8, 88, 4);
 
-        // Avoid detection for invalid formats
         uint8_t len = bit_lib_get_bits(data, 8, 8);
         if(len != 26 && len != 50 && len != 37 && len != 34 && len != 36) break;
 
@@ -117,7 +102,6 @@ bool protocol_awid_decoder_feed(ProtocolAwid* protocol, bool level, uint32_t dur
 static void protocol_awid_encode(const uint8_t* decoded_data, uint8_t* encoded_data) {
     memset(encoded_data, 0, AWID_ENCODED_DATA_SIZE);
 
-    // preamble
     bit_lib_set_bits(encoded_data, 0, 0b00000001, 8);
 
     for(size_t i = 0; i < 88 / 4; i++) {
@@ -148,18 +132,6 @@ LevelDuration protocol_awid_encoder_yield(ProtocolAwid* protocol) {
 }
 
 void protocol_awid_render_data(ProtocolAwid* protocol, FuriString* result) {
-    // Index map
-    // 0           10         20        30          40        50        60
-    // |           |          |         |           |         |         |
-    // 01234567 8 90123456 7890123456789012 3 456789012345678901234567890123456
-    // ------------------------------------------------------------------------
-    // 00011010 1 01110101 0000000010001110 1 000000000000000000000000000000000
-    // bbbbbbbb w ffffffff cccccccccccccccc w xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    // |26 bit|   |-117--| |-----142------|
-    // b = format bit len, o = odd parity of last 3 bits
-    // f = facility code, c = card number
-    // w = wiegand parity
-    // (26 bit format shown)
 
     uint8_t* decoded_data = protocol->data;
     uint8_t format_length = decoded_data[0];
@@ -180,7 +152,7 @@ void protocol_awid_render_data(ProtocolAwid* protocol, FuriString* result) {
             facility,
             card_id);
     } else {
-        // print 66 bits as hex
+
         furi_string_cat_printf(result, "Data: ");
         for(size_t i = 0; i < AWID_DECODED_DATA_SIZE; i++) {
             furi_string_cat_printf(result, "%02hhX", decoded_data[i]);
@@ -216,13 +188,11 @@ bool protocol_awid_write_data(ProtocolAwid* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Fix incorrect length byte
     if(protocol->data[0] != 26 && protocol->data[0] != 50 && protocol->data[0] != 37 &&
        protocol->data[0] != 34 && protocol->data[0] != 36) {
         protocol->data[0] = 26;
     }
 
-    // Correct protocol data by redecoding
     protocol_awid_encode(protocol->data, (uint8_t*)protocol->encoded_data);
     bit_lib_remove_bit_every_nth((uint8_t*)protocol->encoded_data, 8, 88, 4);
     protocol_awid_decode(protocol->encoded_data, protocol->data);

@@ -112,7 +112,6 @@ SubGhzProtocolStatus tpms_block_generic_serialize(
             break;
         }
 
-        //DATE AGE set
         DateTime curr_dt;
         furi_hal_rtc_get_datetime(&curr_dt);
         uint32_t curr_ts = datetime_datetime_to_timestamp(&curr_dt);

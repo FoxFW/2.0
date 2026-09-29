@@ -42,9 +42,6 @@ bool gpio_scene_usb_uart_cfg_on_event(void* context, SceneManagerEvent event) {
 }
 
 void line_ensure_flow_invariant(GpioApp* app) {
-    // GPIO pins PC0, PC1 (16,15) are unavailable for RTS/DTR when LPUART is
-    // selected. This function enforces that invariant by resetting flow_pins
-    // to None if it is configured to 16,15 when LPUART is selected.
 
     uint8_t available_flow_pins = app->usb_uart_cfg->uart_ch == FuriHalSerialIdLpuart ? 3 : 4;
     VariableItem* item = app->var_item_flow;

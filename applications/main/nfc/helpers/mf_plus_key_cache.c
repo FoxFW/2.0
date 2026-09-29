@@ -4,8 +4,6 @@
 #include <storage/storage.h>
 #include <flipper_format/flipper_format.h>
 
-// Shares MIFARE Classic's /ext/nfc/.cache folder but with a distinct extension: the same UID read
-// as SL1 (MIFARE Classic {UID}.keys) and as SL3 must not collide. The header is a second guard.
 #define MF_PLUS_KEY_CACHE_FOLDER    "/ext/nfc/.cache"
 #define MF_PLUS_KEY_CACHE_EXTENSION ".mfpkeys"
 
@@ -15,10 +13,10 @@ static const uint32_t mf_plus_key_cache_file_version = 1;
 struct MfPlusKeyCache {
     MfPlusKey key_a[MF_PLUS_MAX_SECTORS];
     MfPlusKey key_b[MF_PLUS_MAX_SECTORS];
-    uint64_t key_a_mask; // per-sector "key A cached" bitmap
+    uint64_t key_a_mask;
     uint64_t key_b_mask;
     MfPlusKey admin_key[MfPlusAdminKeyNum];
-    uint8_t admin_key_mask; // one bit per MfPlusAdminKeyType
+    uint8_t admin_key_mask;
 };
 
 static void mf_plus_key_cache_file_path(const uint8_t* uid, size_t uid_len, FuriString* path) {
@@ -42,7 +40,6 @@ void mf_plus_key_cache_free(MfPlusKeyCache* instance) {
 void mf_plus_key_cache_reset(MfPlusKeyCache* instance) {
     furi_assert(instance);
 
-    // Only the masks gate the getters, so clearing them is enough to invalidate stale key bytes.
     instance->key_a_mask = 0;
     instance->key_b_mask = 0;
     instance->admin_key_mask = 0;
@@ -51,7 +48,6 @@ void mf_plus_key_cache_reset(MfPlusKeyCache* instance) {
 bool mf_plus_key_cache_save(const MfPlusData* data) {
     furi_assert(data);
 
-    // Nothing recovered -> nothing worth caching (avoids leaving empty cache files behind).
     if((data->key_a_mask == 0) && (data->key_b_mask == 0) && (data->admin_key_mask == 0)) {
         return true;
     }
@@ -169,7 +165,6 @@ bool mf_plus_key_cache_load(MfPlusKeyCache* instance, const uint8_t* uid, size_t
         load_success = key_read_success;
     } while(false);
 
-    // A partially-parsed file must not surface half a keyset; drop everything on any error.
     if(!load_success) mf_plus_key_cache_reset(instance);
 
     flipper_format_buffered_file_close(ff);

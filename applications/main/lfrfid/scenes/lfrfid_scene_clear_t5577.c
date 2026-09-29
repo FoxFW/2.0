@@ -11,7 +11,7 @@ static void lfrfid_clear_t5577_password_and_config_to_EM(LfRfid* app) {
     const uint32_t* default_passwords = lfrfid_get_t5577_default_passwords(&default_passwords_len);
 
     popup_set_header(popup, "Removing\npassword", 90, 36, AlignCenter, AlignCenter);
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 3, &I_RFIDDolphinSend_97x61);
+
     popup_set_text(popup, curr_buf, 90, 56, AlignCenter, AlignCenter);
     notification_message(app->notifications, &sequence_blink_start_magenta);
 
@@ -21,7 +21,6 @@ static void lfrfid_clear_t5577_password_and_config_to_EM(LfRfid* app) {
         .mask = 0b10000001,
     };
 
-    // Clear custom password
     uint32_t custom_pass = bit_lib_bytes_to_num_be(app->password, 4);
     snprintf(curr_buf, sizeof(curr_buf), "Custom password");
     view_dispatcher_switch_to_view(app->view_dispatcher, LfRfidViewPopup);
@@ -30,7 +29,6 @@ static void lfrfid_clear_t5577_password_and_config_to_EM(LfRfid* app) {
 
     furi_delay_ms(8);
 
-    // Clear default passwords
     for(uint8_t i = 0; i < default_passwords_len; i++) {
         snprintf(curr_buf, sizeof(curr_buf), "Pass %d of %d", i, default_passwords_len);
         view_dispatcher_switch_to_view(app->view_dispatcher, LfRfidViewPopup);
@@ -51,7 +49,7 @@ void lfrfid_scene_clear_t5577_on_enter(void* context) {
 
     notification_message(app->notifications, &sequence_success);
     popup_set_header(popup, "Success!", 75, 10, AlignLeft, AlignTop);
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 9, &I_DolphinSuccess_91x55);
+
     popup_set_context(popup, app);
     popup_set_callback(popup, lfrfid_popup_timeout_callback);
     popup_set_timeout(popup, 1500);
@@ -66,7 +64,7 @@ bool lfrfid_scene_clear_t5577_on_event(void* context, SceneManagerEvent event) {
     bool consumed = false;
 
     if(event.type == SceneManagerEventTypeBack) {
-        consumed = true; // Ignore Back button presses
+        consumed = true;
     } else if(event.type == SceneManagerEventTypeCustom && event.event == LfRfidEventPopupClosed) {
         scene_manager_search_and_switch_to_previous_scene(
             app->scene_manager, LfRfidSceneExtraActions);

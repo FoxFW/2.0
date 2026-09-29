@@ -1,7 +1,6 @@
 #include "../subghz_garage_protocol_plugin.h"
 #include "../protocol_groups.h"
 
-/* Group 5 - Italian Brands 1: Beninca, CAME. */
 static const SubGhzProtocol* const subghz_garage_protocol_registry_g5_items[] = {
     &subghz_protocol_raw,
     &subghz_protocol_bin_raw,

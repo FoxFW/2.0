@@ -1,10 +1,6 @@
 #include "../subghz_garage_protocol_plugin.h"
 #include "../protocol_groups.h"
 
-/* Group 2 - General 2: the two protocols that aren't gate/garage remotes at
- * all (KeyFinder, X10), plus KeeLoq - it has no real encoder
- * (SubGhzProtocolFlag_Send isn't set - its manufacturer key is unknown so
- * it can't be re-transmitted), so it costs nothing extra to include here. */
 static const SubGhzProtocol* const subghz_garage_protocol_registry_g2_items[] = {
     &subghz_protocol_raw,
     &subghz_protocol_bin_raw,

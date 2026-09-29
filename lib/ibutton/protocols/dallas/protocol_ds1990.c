@@ -43,12 +43,12 @@ const iButtonProtocolDallasBase ibutton_protocol_ds1990 = {
 
     .read = dallas_ds1990_read,
     .write_id = dallas_ds1990_write_id,
-    .write_copy = NULL, /* No data to write a copy */
+    .write_copy = NULL,
     .emulate = dallas_ds1990_emulate,
     .save = dallas_ds1990_save,
     .load = dallas_ds1990_load,
     .render_uid = dallas_ds1990_render_uid,
-    .render_data = NULL, /* No data to render */
+    .render_data = NULL,
     .render_brief_data = dallas_ds1990_render_brief_data,
     .render_error = dallas_ds1990_render_error,
     .is_valid = dallas_ds1990_is_data_valid,
@@ -95,7 +95,6 @@ static bool dallas_ds1990_command_callback(uint8_t command, void* context) {
         break;
     }
 
-    // No support for multiple consecutive commands
     return false;
 }
 

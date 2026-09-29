@@ -16,9 +16,6 @@ static void tpms_scene_tpms_edit_byte_callback(void* context) {
     view_dispatcher_send_custom_event(app->view_dispatcher, TPMSCustomEventByteInputDone);
 }
 
-// Pull the current TPMS values from the selected history item into `generic`.
-// Caller must have set generic->protocol_name beforehand if it cares about
-// the re-serialized "Protocol" field.
 static bool tpms_scene_tpms_edit_load_generic(TPMSApp* app, TPMSBlockGeneric* generic) {
     FlipperFormat* fff = tpms_history_get_raw_data(app->txrx->history, app->txrx->idx_menu_chosen);
     if(!fff) {
@@ -40,9 +37,7 @@ void tpms_scene_tpms_edit_on_enter(void* context) {
 
     switch(app->tpms_edit_field) {
     case TPMSFieldPressure: {
-        // NumberInput operates on integers - we encode pressure as decibar
-        // (0.0..44.0 bar -> 0..440), which still beats the underlying raw
-        // resolution (~0.17 bar/step).
+
         int32_t init = (int32_t)(generic.pressure * 10.0f + 0.5f);
         number_input_set_header_text(app->number_input, "Pressure x10 (bar)");
         number_input_set_result_callback(
@@ -102,7 +97,7 @@ bool tpms_scene_tpms_edit_on_event(void* context, SceneManagerEvent event) {
 
     switch(app->tpms_edit_field) {
     case TPMSFieldPressure:
-        // decibar -> bar
+
         generic.pressure = (float)app->tpms_edit_number_value / 10.0f;
         tpms_pack(protocol_name, &generic);
         break;

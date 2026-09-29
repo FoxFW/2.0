@@ -1,26 +1,6 @@
-/**
- * auto_rke_protocols.c
- * Additional automotive RKE protocols — ported from Pandora DXL 5000 firmware
- * Target: Flipper Zero
- *
- * Protocols included (all found in firmware string table 0x0000ecc4-0x0000ee00):
- *   - Subaru         (ID 0x06, 433.92 MHz)
- *   - Hyundai/KiaRIO (ID 0x11, 433.92 MHz)
- *   - Mazda Siemens  (ID 0x15, 433.92 MHz)
- *   - VAG -2004      (ID 0x19, 433.92 MHz)  [VW/Audi/Seat/Skoda pre-2004]
- *   - SantaFe 13-16  (ID 0x1A, 433.92 MHz)  [Hyundai Santa Fe 2013-2016]
- *
- * All use OOK AM modulation. Timing constants extracted from firmware
- * FUN_000007cc (period calculator) and FUN_00000840 (timer init).
- */
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-
-/* =========================================================================
- * Common helpers
- * ========================================================================= */
 
 typedef struct {
     int32_t  pulses[512];
@@ -42,18 +22,6 @@ static bool in_range(int32_t m, uint32_t ref, uint32_t tol_pct)
     if (d < 0) d = -d;
     return (d * 100) <= (r * (int32_t)tol_pct);
 }
-
-/* =========================================================================
- * 1. SUBARU RKE  (firmware case 0x06, protocol type 6, iVar7=0x18)
- *
- * Subaru legacy fob (Impreza/Forester/Legacy ~2000-2010):
- *   Freq  : 433.92 MHz
- *   Bits  : 48 (LSB-first)
- *   Layout: [47:16] 32-bit fixed ID  [15:8] rolling counter  [7:0] button+cksum
- *   PWM   : period 800 µs; 1 = 600 µs HI + 200 µs LO; 0 = 200 µs HI + 600 µs LO
- *   Sync  : 8000 µs LOW preamble, then 600 µs HI start-bit
- *   Repeat: 3×
- * ========================================================================= */
 
 #define SUBARU_FREQ_HZ    433920000ul
 #define SUBARU_BITS            48u
@@ -79,7 +47,7 @@ typedef struct {
 
 static uint8_t subaru_cksum(uint32_t id, uint8_t ctr, uint8_t btn)
 {
-    /* Simple nibble-XOR checksum (derived from analysis of firmware data loop) */
+
     uint8_t c = 0;
     for (int i = 0; i < 4; i++) c ^= (id >> (i * 8)) & 0xFFu;
     c ^= ctr ^ (btn & 0xFu);
@@ -91,15 +59,14 @@ void subaru_encode(const SubaruFrame *f, RawBuf *buf)
     buf->count = 0;
     uint8_t ck = subaru_cksum(f->fixed_id, f->counter, f->button);
 
-    /* Pack 48 bits LSB-first: fixed_id[31:0] | counter[7:0] | (btn<<4)|ck */
     uint64_t word = (uint64_t)f->fixed_id |
                     ((uint64_t)f->counter  << 32) |
                     ((uint64_t)((f->button << 4) | ck) << 40);
 
     for (uint32_t rep = 0; rep < SUBARU_REPEAT; rep++) {
-        /* Sync gap then start burst */
+
         raw_push(buf, -(int32_t)SUBARU_SYNC_US);
-        raw_pair(buf, SUBARU_BIT1_HI_US, SUBARU_BIT1_LO_US); /* start bit=1 */
+        raw_pair(buf, SUBARU_BIT1_HI_US, SUBARU_BIT1_LO_US);
 
         for (uint32_t b = 0; b < SUBARU_BITS; b++) {
             bool bit = (word >> b) & 1u;
@@ -114,15 +81,15 @@ bool subaru_decode(const RawBuf *buf, SubaruFrame *frame)
 {
     memset(frame, 0, sizeof(*frame));
     for (uint32_t i = 0; i + 1 < buf->count; i++) {
-        /* Sync: long LOW */
+
         if (!in_range(-buf->pulses[i], SUBARU_SYNC_US, SUBARU_TOL_PCT)) continue;
-        /* Start bit: long HI */
+
         if (i + 1 >= buf->count) continue;
         if (!in_range(buf->pulses[i + 1], SUBARU_BIT1_HI_US, SUBARU_TOL_PCT)) continue;
 
-        uint32_t j = i + 2; /* skip LOW half of start bit */
+        uint32_t j = i + 2;
         if (j + 1 >= buf->count) continue;
-        j++; /* skip the LOW portion already in pair */
+        j++;
         if (j + SUBARU_BITS * 2 > buf->count) continue;
 
         uint64_t word = 0;
@@ -136,7 +103,7 @@ bool subaru_decode(const RawBuf *buf, SubaruFrame *frame)
                 word |= (uint64_t)1 << b;
             } else if (in_range(hi, SUBARU_BIT0_HI_US, SUBARU_TOL_PCT) &&
                        in_range(lo, SUBARU_BIT0_LO_US, SUBARU_TOL_PCT)) {
-                /* bit 0 */
+
             } else { ok = false; break; }
         }
         if (!ok) continue;
@@ -150,19 +117,6 @@ bool subaru_decode(const RawBuf *buf, SubaruFrame *frame)
     }
     return false;
 }
-
-/* =========================================================================
- * 2. HYUNDAI / KIA RIO  (firmware case 0x11, iVar7=1, 14-bit display)
- *
- * Early Hyundai/Kia fobs (Accent, Rio, Elantra ~2001-2008):
- *   Freq  : 433.92 MHz
- *   Bits  : 64 (MSB-first), plain fixed-code (no rolling — very old fobs)
- *   Layout: [63:32] 32-bit serial  [31:16] 16-bit button mask repeated
- *            [15:0] ~16-bit checksum (XOR block)
- *   PWM   : period 1040 µs; 1 = 728 µs HI + 312 µs LO; 0 = 312 µs HI + 728 µs LO
- *   Sync  : 312 µs HI + 10400 µs LO
- *   Repeat: 3×
- * ========================================================================= */
 
 #define HKR_BITS          64u
 #define HKR_REPEAT         3u
@@ -228,7 +182,7 @@ bool hkr_decode(const RawBuf *buf, HKRFrame *frame)
             int32_t lo = -buf->pulses[j + 1];
             j += 2;
             if      (in_range(hi, HKR_BIT1_HI_US, HKR_TOL_PCT) && in_range(lo, HKR_BIT1_LO_US, HKR_TOL_PCT)) word |= (uint64_t)1 << b;
-            else if (in_range(hi, HKR_BIT0_HI_US, HKR_TOL_PCT) && in_range(lo, HKR_BIT0_LO_US, HKR_TOL_PCT)) { /* 0 */ }
+            else if (in_range(hi, HKR_BIT0_HI_US, HKR_TOL_PCT) && in_range(lo, HKR_BIT0_LO_US, HKR_TOL_PCT)) {  }
             else { ok = false; break; }
         }
         if (!ok) continue;
@@ -240,21 +194,6 @@ bool hkr_decode(const RawBuf *buf, HKRFrame *frame)
     }
     return false;
 }
-
-/* =========================================================================
- * 3. MAZDA SIEMENS RKE  (firmware case 0x15, iVar7=5, 13-bit display)
- *
- * Mazda 3/6/CX-7 with Siemens VDO fob (~2003-2009):
- *   Freq  : 433.92 MHz
- *   Bits  : 72 (MSB-first), Siemens rolling code
- *   Layout: [71:40] 32-bit hop (Siemens proprietary cipher)
- *            [39:16] 24-bit serial
- *            [15:8]  8-bit counter (low byte)
- *            [7:4]   4-bit button  [3:0] 4-bit checksum
- *   PWM   : 1 = 450 µs HI + 1350 µs LO; 0 = 450 µs HI + 450 µs LO
- *   Sync  : 450 µs HI + 14400 µs LO
- *   Repeat: 2×
- * ========================================================================= */
 
 #define MAZ_BITS          72u
 #define MAZ_REPEAT         2u
@@ -272,8 +211,8 @@ bool hkr_decode(const RawBuf *buf, HKRFrame *frame)
 #define MAZ_BTN_TRUNK   0x4u
 
 typedef struct {
-    uint32_t hop;       /* Siemens encrypted hopping word — decrypt separately */
-    uint32_t serial;    /* 24-bit */
+    uint32_t hop;
+    uint32_t serial;
     uint8_t  counter;
     uint8_t  button;
     bool     valid;
@@ -292,7 +231,7 @@ void mazda_encode(const MazdaFrame *f, RawBuf *buf)
 {
     buf->count = 0;
     uint8_t ck = maz_cksum(f->hop, f->serial, f->counter, f->button);
-    /* Pack 72 bits into 9 bytes, MSB of hop is bit 71 */
+
     uint8_t pkt[9];
     pkt[0] = (f->hop >> 24) & 0xFFu;
     pkt[1] = (f->hop >> 16) & 0xFFu;
@@ -350,21 +289,6 @@ bool mazda_decode(const RawBuf *buf, MazdaFrame *frame)
     }
     return false;
 }
-
-/* =========================================================================
- * 4. VAG -2004  (firmware case 0x19, Princeton-style, ID 0x19)
- *
- * VW/Audi/Seat/Skoda fobs before 2004 (ID48 era, 3-button):
- *   Freq  : 433.92 MHz
- *   Bits  : 64 (MSB-first), simple rolling code (16-bit counter)
- *   Layout: [63:32] 32-bit fixed transponder ID
- *            [31:16] 16-bit counter
- *            [15:8]  8-bit button+flags
- *            [7:0]   8-bit checksum (sum of all prior bytes mod 256, inverted)
- *   PWM   : period 800 µs; 1 = 550 µs HI + 250 µs LO; 0 = 250 µs HI + 550 µs LO
- *   Sync  : 550 µs HI + 11000 µs LO
- *   Repeat: 3×
- * ========================================================================= */
 
 #define VAG_BITS          64u
 #define VAG_REPEAT         3u
@@ -452,22 +376,6 @@ bool vag_decode(const RawBuf *buf, VAGFrame *frame)
     return false;
 }
 
-/* =========================================================================
- * 5. HYUNDAI SANTA FE 2013-2016  (firmware case 0x1A, paired with HU Solaris)
- *
- * Hyundai Santa Fe / Solaris RKE (TRW fob variant):
- *   Freq  : 433.92 MHz
- *   Bits  : 80 (MSB-first)
- *   Layout: [79:48] 32-bit rolling code (Hitag2 derived)
- *            [47:24] 24-bit serial
- *            [23:16] 8-bit counter
- *            [15:8]  8-bit button flags
- *            [7:0]   8-bit CRC8 (poly 0x31, init 0xFF)
- *   PWM   : period 500 µs; 1 = 375 µs HI + 125 µs LO; 0 = 125 µs HI + 375 µs LO
- *   Sync  : 375 µs HI + 12000 µs LO
- *   Repeat: 3×
- * ========================================================================= */
-
 #define SFE_BITS           80u
 #define SFE_REPEAT          3u
 #define SFE_SYNC_HI_US    375u
@@ -485,8 +393,8 @@ bool vag_decode(const RawBuf *buf, VAGFrame *frame)
 #define SFE_BTN_PANIC     0x08u
 
 typedef struct {
-    uint32_t rolling;   /* Hitag2-derived ciphertext — decrypt separately */
-    uint32_t serial;    /* 24-bit */
+    uint32_t rolling;
+    uint32_t serial;
     uint8_t  counter;
     uint8_t  button;
     bool     valid;

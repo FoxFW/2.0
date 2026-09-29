@@ -125,7 +125,7 @@ bool lfrfid_raw_file_read_pair(
     size_t length = 0;
     if(file->buffer_counter >= file->buffer_size) {
         if(stream_eof(file->stream)) {
-            // rewind stream and pass header
+
             stream_seek(file->stream, sizeof(LFRFIDRawFileHeader), StreamOffsetFromStart);
             if(pass_end) *pass_end = true;
         }

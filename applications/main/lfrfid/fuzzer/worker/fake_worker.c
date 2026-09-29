@@ -146,13 +146,13 @@ static bool fuzzer_worker_load_key(FuzzerWorker* instance, bool next) {
         while(true) {
             furi_string_reset(data_str);
             if(!stream_read_line(instance->uids_stream, data_str)) {
-                // TODO Check empty file & close stream and storage
+
                 break;
             } else if(furi_string_get_char(data_str, 0) == '#') {
-                // Skip comment string
+
                 continue;
             } else if(furi_string_size(data_str) != str_len) {
-                // Ignore strin with bad length
+
                 FURI_LOG_W(TAG, "Bad string length");
                 continue;
             } else {
@@ -265,7 +265,7 @@ static void fuzzer_worker_on_tick_callback(void* context) {
         furi_timer_start(instance->timer, furi_ms_to_ticks(instance->timer_idle_time_ms));
     } else {
         if(!fuzzer_worker_load_key(instance, true)) {
-            fuzzer_worker_pause(instance); // XXX
+            fuzzer_worker_pause(instance);
             if(instance->end_callback) {
                 instance->end_callback(instance->end_context);
             }
@@ -398,7 +398,7 @@ FuzzerWorker* fuzzer_worker_alloc() {
     for(uint8_t i = 0; i < TOTAL_PROTOCOL_COUNT; i++) {
         if(!hardware_worker_set_protocol_id_by_name(
                instance->hw_worker, fuzzer_proto_items[i].name)) {
-            // Check protocol support
+
             FURI_LOG_E(TAG, "Not supported protocol name: %s", fuzzer_proto_items[i].name);
             furi_crash("Not supported protocol name");
         } else {
@@ -499,7 +499,6 @@ void fuzzer_worker_stop(FuzzerWorker* instance) {
         instance->attack_type = FuzzerWorkerAttackTypeMax;
     }
 
-    // TODO anything else
 }
 
 void fuzzer_worker_set_uid_chaged_callback(

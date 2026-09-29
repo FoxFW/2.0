@@ -1,25 +1,5 @@
-/**
- * @file subghz_scene_protocol_load_error.c
- * @brief Shown when the active protocol group's plugin (and receiver
- *        rebuild) failed to load twice in a row - see
- *        subghz_txrx_ensure_protocol_group() in helpers/subghz_txrx.c,
- *        which already waits and retries once on its own before giving up.
- *
- * Reached from subghz_scene_receiver.c's on_enter when
- * subghz_txrx_rx_start() reports failure, instead of silently sitting in
- * a no-protocols-loaded RX state.
- *
- * [Exit]                                                          [Retry]
- * Exit closes the app straight back to the Desktop (not the previous
- * scene, and not back through the Mode Picker even if that's how this app
- * was launched - a low-RAM condition is exactly the wrong time to chain
- * into another app). Retry fully closes and relaunches this app - a clean
- * process boundary gives the best chance of a clean heap.
- */
-
 #include "../subghz_i.h"
 #include "../helpers/subghz_custom_event.h"
-#include "subghz_scene_start.h"
 #include <storage/storage.h>
 
 #define SUBGHZ_GARAGE_SELF_FAP_PATH EXT_PATH("apps/Sub-GHz/subghz_garage.fap")
@@ -67,7 +47,7 @@ bool subghz_scene_protocol_load_error_on_event(void* context, SceneManagerEvent 
     SubGhz* subghz = context;
 
     if(event.type == SceneManagerEventTypeBack) {
-        /* Same as Exit - straight to Desktop, not the previous scene. */
+
         scene_manager_stop(subghz->scene_manager);
         view_dispatcher_stop(subghz->view_dispatcher);
         return true;
@@ -80,9 +60,7 @@ bool subghz_scene_protocol_load_error_on_event(void* context, SceneManagerEvent 
             return true;
         }
         if(event.event == SubGhzCustomEventProtocolLoadErrorRetry) {
-            /* Preserve the Mode Picker round-trip if that's how we got
-             * here, so a successful retry still Backs out to the Mode
-             * Picker rather than the Desktop afterward. */
+
             subghz_scene_start_launch_and_exit(
                 subghz,
                 SUBGHZ_GARAGE_SELF_FAP_PATH,

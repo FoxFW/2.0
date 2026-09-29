@@ -72,7 +72,7 @@ void rpc_debug_print_message(const PB_Main* message) {
         message->has_next ? "has_next" : "last");
     switch(message->which_content) {
     default:
-        /* not implemented yet */
+
         furi_string_cat_printf(str, "\tNOT_IMPLEMENTED (%d) {\r\n", message->which_content);
         break;
     case PB_Main_stop_session_tag:
@@ -111,7 +111,7 @@ void rpc_debug_print_message(const PB_Main* message) {
     case PB_Main_storage_md5sum_response_tag: {
         furi_string_cat_printf(str, "\tmd5sum_response {\r\n");
         const char* md5sum = message->content.storage_md5sum_response.md5sum;
-        if(md5sum) { //-V547
+        if(md5sum) {
             furi_string_cat_printf(str, "\t\tmd5sum: %s\r\n", md5sum);
         }
         break;

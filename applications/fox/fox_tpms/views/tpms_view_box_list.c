@@ -3,11 +3,6 @@
 #include <furi.h>
 #include <stdio.h>
 
-/* Full-width double-row boxes, 2 visible per page - same geometry as
- * SubGhz's Mode Picker (subghz_view_mode_picker.c): BOX_X=4/BOX_W=120
- * leaves the rightmost 4px for elements_scrollbar(), 28px-tall boxes, no
- * heading, Up/Down/OK is the entire input model. See that file's own
- * comment for why these particular numbers. */
 #define BOX_X 4
 #define BOX_W 120
 #define BOX_H 28
@@ -63,21 +58,6 @@ static void box_list_draw_cb(Canvas* canvas, void* _model) {
             canvas_draw_rframe(canvas, BOX_X, y, BOX_W, BOX_H, BOX_R);
         }
 
-        // Centered like the box-list style elsewhere (SubGhz's own Mode
-        // Picker, subghz_view_mode_picker.c) for anything that fits, with
-        // scrolling reserved for text that's actually too wide for the row
-        // (e.g. Renault's long "Clio, Captur, Zoe, Dacia Sandero" subtitle,
-        // which used to draw centered and simply overflow past the box's
-        // own edges on both sides). elements_scrollable_text_line_str()
-        // measures the string with canvas_string_width() first: when it
-        // fits within `text_w` it draws centered (AlignCenter/AlignBottom)
-        // at the x it's given, same as before; only when it's too wide does
-        // it fall back to left-aligned + scrolling, re-deriving the left
-        // edge itself from the center x (`x -= width / 2`) - so `text_x`
-        // must still be the box's horizontal *center*, not its left edge,
-        // for this to land in the same place either way. Only the cursor
-        // row scrolls (a static row scrolling unread text underneath it
-        // would just be noise).
         uint8_t text_x = BOX_X + BOX_W / 2;
         uint8_t text_w = BOX_W - (TEXT_PAD * 2);
         size_t scroll = at_cursor ? m->scroll_counter : 0;
@@ -110,7 +90,7 @@ static bool box_list_input_cb(InputEvent* event, void* context) {
         TPMSBoxListModel* m,
         {
             if(m->count == 0) {
-                // Nothing to navigate/select yet.
+
             } else if(event->key == InputKeyUp) {
                 m->cursor = (m->cursor == 0) ? (uint8_t)(m->count - 1) : m->cursor - 1;
                 m->scroll_counter = 0;
@@ -157,9 +137,6 @@ TPMSBoxList* tpms_box_list_alloc(void) {
         },
         false);
 
-    // Not started here - see tpms_box_list_resume_scroll()'s own comment
-    // in the header for why (same reasoning, same pattern, as Garage's
-    // Protocol Groups list).
     instance->scroll_timer =
         furi_timer_alloc(box_list_scroll_timer_cb, FuriTimerTypePeriodic, instance);
     instance->scroll_running = false;

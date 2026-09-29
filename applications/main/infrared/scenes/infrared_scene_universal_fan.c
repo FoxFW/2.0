@@ -9,7 +9,6 @@ void infrared_scene_universal_fan_on_enter(void* context) {
 
     infrared_brute_force_set_db_filename(brute_force, EXT_PATH("infrared/assets/fans.ir"));
 
-    //TODO Improve Fan universal remote
     button_panel_reserve(button_panel, 2, 3);
     uint32_t i = 0;
     button_panel_add_item(

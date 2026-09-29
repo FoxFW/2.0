@@ -11,7 +11,6 @@
 #define TAG     "DisneyInfinity"
 #define UID_LEN 7
 
-// Derived from https://nfc.toys/#new-interoperability-for-infinity
 static uint8_t seed[38] = {0x0A, 0x14, 0xFD, 0x05, 0x07, 0xFF, 0x4B, 0xCD, 0x02, 0x6B,
                            0xA8, 0x3F, 0x0A, 0x3B, 0x89, 0xA9, 0x00, 0x00, 0x00, 0x00,
                            0x00, 0x00, 0x00, 0x28, 0x63, 0x29, 0x20, 0x44, 0x69, 0x73,
@@ -81,14 +80,13 @@ static bool disney_infinity_parse(const NfcDevice* device, FuriString* parsed_da
     const uint8_t* uid_bytes = mf_classic_get_uid(data, uid_len);
 
     do {
-        // verify key
+
         MfClassicSectorTrailer* sec_tr =
             mf_classic_get_sector_trailer_by_sector(data, verify_sector);
 
         di_key(uid_bytes, &key);
         if(memcmp(key.data, sec_tr->key_a.data, 6) != 0) break;
 
-        // At some point I'd like to add name lookup like Skylanders
         furi_string_printf(parsed_data, "\e#Disney Infinity\n");
 
         parsed = true;
@@ -100,22 +98,19 @@ static bool disney_infinity_parse(const NfcDevice* device, FuriString* parsed_da
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin disney_infinity_plugin = {
     .protocol = NfcProtocolMfClassic,
-    .verify = NULL, // Need UID to verify key(s)
+    .verify = NULL,
     .read = disney_infinity_read,
     .parse = disney_infinity_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor disney_infinity_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &disney_infinity_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* disney_infinity_plugin_ep(void) {
     return &disney_infinity_plugin_descriptor;
 }

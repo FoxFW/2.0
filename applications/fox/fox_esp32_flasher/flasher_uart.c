@@ -1,4 +1,5 @@
 #include "fox_esp32_flasher.h"
+#include <core/kernel.h>
 
 #include <furi_hal_serial_control.h>
 #include <furi_hal_gpio.h>
@@ -121,11 +122,13 @@ void flasher_uart_close(FlasherApp* app) {
 
     furi_thread_flags_set(furi_thread_get_id(app->uart_rx_thread), UartEvtStop);
     furi_thread_join(app->uart_rx_thread);
+    furi_kernel_lock();
     furi_thread_free(app->uart_rx_thread);
     app->uart_rx_thread = NULL;
 
     furi_stream_buffer_free(app->uart_rx_stream);
     app->uart_rx_stream = NULL;
+    furi_kernel_unlock();
 
     expansion_enable(app->expansion);
     furi_record_close(RECORD_EXPANSION);

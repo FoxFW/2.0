@@ -5,22 +5,6 @@
 
 #define TAG "TPMSFord"
 
-// Port of rtl_433/src/devices/tpms_ford.c (Christian W. Zuckschwerdt 2017, GPL-2+)
-//
-// FSK, Manchester encoded, 8 byte payload.
-// Seen on Ford Fiesta/Focus/Kuga/Transit (Continental S180084730Z).
-// 315 MHz (US) / 433.92 MHz (EU).
-//
-// Wire format (after Manchester-decoding, before checksum):
-//   II II II II PP TT FF CC
-//   I = ID (32 bit)
-//   P = Pressure-LSB (combined with bit5 of F → 9-bit raw, * 0.25 PSI)
-//   T = Temperature: when high bit clear → (byte & 0x7F) - 56 °C; else invalid
-//   F = Flags (bit5 = 9th pressure bit, bit3 = learn, bit2 = moving)
-//   C = Checksum = SUM(byte[0..6]) & 0xFF
-//
-// Preamble (raw bits): 0x55 0x55 0x55 0x56  (we hunt for the trailing 16 bits 0x5556)
-
 #define FORD_PREAMBLE 0x5556U
 #define FORD_PREAMBLE_BITS 16
 #define FORD_DATA_BITS 64
@@ -134,15 +118,14 @@ static void tpms_protocol_ford_analyze(TPMSBlockGeneric* g) {
     }
     g->id = ((uint32_t)b[0] << 24) | ((uint32_t)b[1] << 16) | ((uint32_t)b[2] << 8) | b[3];
 
-    // 9-bit pressure: bit5 of flags (b[6]) is the MSB of pressure.
     uint16_t psi_bits = ((uint16_t)(b[6] & 0x20) << 3) | b[4];
     float psi = (float)psi_bits * 0.25f;
-    g->pressure = psi * 0.06895f; // PSI → bar
+    g->pressure = psi * 0.06895f;
 
     if((b[5] & 0x80) == 0) {
         g->temperature = (float)((int)(b[5] & 0x7F) - 56);
     } else {
-        // Sensor signals invalid temperature; rtl_433 simply omits it.
+
         g->temperature = -100.0f;
     }
     g->battery_low = TPMS_NO_BATT;
@@ -172,8 +155,8 @@ void tpms_protocol_decoder_ford_feed(void* context, bool level, uint32_t duratio
         instance->header_shift = 0;
         instance->manchester_saved_state = ManchesterStateStart1;
         instance->decoder.parser_step = FordDecoderStepFindPreamble;
-        // fall through to consume this bit as preamble candidate
-        /* fallthrough */
+        __attribute__((fallthrough));
+
     case FordDecoderStepFindPreamble:
         instance->header_shift = (uint16_t)((instance->header_shift << 1) | (bit ? 1 : 0));
         if(instance->header_shift == FORD_PREAMBLE) {
@@ -229,7 +212,6 @@ SubGhzProtocolStatus
 void tpms_protocol_ford_pack(TPMSBlockGeneric* generic) {
     furi_assert(generic);
 
-    // Inverse of analyze(): engineering units back to raw bytes.
     int32_t psi_bits = (int32_t)((generic->pressure / 0.06895f) / 0.25f + 0.5f);
     if(psi_bits < 0) psi_bits = 0;
     if(psi_bits > 0x1FF) psi_bits = 0x1FF;
@@ -245,10 +227,9 @@ void tpms_protocol_ford_pack(TPMSBlockGeneric* generic) {
     b[2] = (generic->id >> 8) & 0xFF;
     b[3] = (generic->id >> 0) & 0xFF;
     b[4] = (uint8_t)(psi_bits & 0xFF);
-    // High bit clear = valid temperature reading (we always produce one).
+
     b[5] = (uint8_t)(temperature_raw & 0x7F);
-    // bit5 = 9th pressure bit; learn (bit3) / moving (bit2) default to 0 —
-    // neither is exposed by the edit UI and neither is decoded into generic.
+
     b[6] = (uint8_t)(((psi_bits >> 8) & 0x1) << 5);
 
     uint16_t sum = 0;

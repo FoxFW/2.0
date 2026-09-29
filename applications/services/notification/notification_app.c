@@ -33,15 +33,10 @@ static uint8_t notification_settings_get_display_brightness(NotificationApp* app
 static uint8_t notification_settings_get_rgb_led_brightness(NotificationApp* app, uint8_t value);
 static uint32_t notification_settings_display_off_delay_ticks(NotificationApp* app);
 
-// status of lcd backlight
-// used to ignore backlight_on event if backlight active now
-// prevent from extra ticking when key pressed with rgb_mod_installed
 static bool lcd_backlight_is_on = false;
 
-// --- RGB BACKLIGHT ---
-// local variable for local use
 uint8_t rgb_backlight_installed_variable = 0;
-// 1 = RGB + White (default, matches pre-existing behavior); 0 = RGB only
+
 uint8_t rgb_backlight_white_mode_variable = 1;
 
 typedef struct {
@@ -51,7 +46,6 @@ typedef struct {
     uint8_t blue;
 } RGBBacklightColor;
 
-// use one type RGBBacklightColor for current_leds_settings and for static colors definition
 static RGBBacklightColor current_led[] = {
     {"LED0", 0, 0, 0},
     {"LED1", 0, 0, 0},
@@ -89,7 +83,6 @@ void rgb_backlight_get_color_rgb(uint8_t index, uint8_t* r, uint8_t* g, uint8_t*
     *b = colors[index].blue;
 }
 
-// function for changind local variable from outside;
 void set_rgb_backlight_installed_variable(uint8_t var) {
     rgb_backlight_installed_variable = var;
 }
@@ -98,14 +91,10 @@ void set_rgb_backlight_white_mode_variable(uint8_t var) {
     rgb_backlight_white_mode_variable = var;
 }
 
-// furi_hal_light.c calls this to decide whether to also ramp the stock
-// white LP5562 channel: yes if RGB isn't installed (nothing else would
-// light the screen), or if the user opted to keep both lights on.
 bool rgb_backlight_should_drive_white_led(void) {
     return (rgb_backlight_installed_variable == 0) || (rgb_backlight_white_mode_variable != 0);
 }
 
-// update led current colors by static
 void rgb_backlight_set_led_static_color(uint8_t led, uint8_t index) {
     if(led < SK6805_get_led_count()) {
         uint8_t r = colors[index].red;
@@ -120,18 +109,12 @@ void rgb_backlight_set_led_static_color(uint8_t led, uint8_t index) {
     }
 }
 
-// HSV to RGB based on
-// https://www.radiokot.ru/forum/viewtopic.php?p=3000181&ysclid=m88wvoz34w244644702
-// https://radiolaba.ru/microcotrollers/tsvetnaya-lampa.html#comment-1790
-// https://alexgyver.ru/lessons/arduino-rgb/?ysclid=m88voflppa24464916
-// led number (0-2), hue (0..255), sat (0..255), val (0...1)
 void rgb_backlight_set_led_custom_hsv_color(uint8_t led, uint16_t hue, uint8_t sat, float V) {
-    // init value
+
     float r = 1.0f;
     float g = 1.0f;
     float b = 1.0f;
 
-    // from (0..255) to (0..1)
     float H = hue / 255.0f;
     float S = sat / 255.0f;
 
@@ -162,13 +145,11 @@ void rgb_backlight_set_led_custom_hsv_color(uint8_t led, uint16_t hue, uint8_t s
         break;
     }
 
-    // from (0..1) to (0..255)
     current_led[led].red = r * 255;
     current_led[led].green = g * 255;
     current_led[led].blue = b * 255;
 }
 
-// set current_* colors to led and update backlight
 void rgb_backlight_update(float brightness) {
     if(rgb_backlight_installed_variable > 0) {
         for(uint8_t i = 0; i < SK6805_get_led_count(); i++) {
@@ -181,9 +162,6 @@ void rgb_backlight_update(float brightness) {
     }
 }
 
-// Force every RGB Mod LED to off right now, without touching the stored
-// current_led[] colors/settings - rgb_backlight_update() afterward repaints
-// exactly what was showing before. No-op if the mod isn't installed.
 void rgb_backlight_blank(void) {
     if(rgb_backlight_installed_variable > 0) {
         for(uint8_t i = 0; i < SK6805_get_led_count(); i++) {
@@ -193,7 +171,6 @@ void rgb_backlight_blank(void) {
     }
 }
 
-// start furi timer for rainbow
 void rainbow_timer_start(NotificationApp* app) {
     if(furi_timer_is_running(app->rainbow_timer)) {
         furi_timer_stop(app->rainbow_timer);
@@ -201,24 +178,18 @@ void rainbow_timer_start(NotificationApp* app) {
     furi_timer_start(app->rainbow_timer, furi_ms_to_ticks(app->settings.rgb.rainbow_speed_ms));
 }
 
-// stop furi timer for rainbow
 void rainbow_timer_stop(NotificationApp* app) {
     if(furi_timer_is_running(app->rainbow_timer)) {
         furi_timer_stop(app->rainbow_timer);
     }
 }
 
-// if rgb_backlight_installed then apply rainbow colors to backlight and start/restart/stop rainbow_timer
 void rainbow_timer_starter(NotificationApp* app) {
     if((app->settings.rgb.rainbow_mode > 0) && (app->settings.rgb.rgb_backlight_installed)) {
         rainbow_timer_start(app);
     }
 }
 
-// Brings the RGB Mod LEDs up to match the display backlight turning on:
-// Rainbow/Wave restart their timer (as before); static color (Rainbow Mode
-// = OFF) has no timer of its own, so it's repainted directly here instead -
-// otherwise it would stay blank forever after the first rgb_backlight_sync_off().
 static void rgb_backlight_sync_on(NotificationApp* app) {
     rainbow_timer_starter(app);
     if(app->settings.rgb.rgb_backlight_installed && app->settings.rgb.rainbow_mode == 0) {
@@ -226,11 +197,6 @@ static void rgb_backlight_sync_on(NotificationApp* app) {
     }
 }
 
-// Brings the RGB Mod LEDs down to match the display backlight turning off:
-// stops the Rainbow/Wave timer (which would otherwise just freeze at
-// whatever color it last rendered, not actually go dark) and blanks the
-// LEDs outright - covers static color too, which had no link to the
-// backlight at all before this.
 static void rgb_backlight_sync_off(NotificationApp* app) {
     if(furi_timer_is_running(app->rainbow_timer)) {
         rainbow_timer_stop(app);
@@ -253,7 +219,7 @@ static void rainbow_timer_callback(void* context) {
         uint8_t wide = app->settings.rgb.rainbow_wide;
 
         switch(app->settings.rgb.rainbow_mode) {
-        //rainbow mode
+
         case 1:
             for(uint8_t i = 0; i < SK6805_get_led_count(); i++) {
                 rgb_backlight_set_led_custom_hsv_color(
@@ -264,7 +230,6 @@ static void rainbow_timer_callback(void* context) {
             }
             break;
 
-        //wave mode
         case 2:
             uint16_t j = app->rainbow_hue + wide;
             uint16_t k = app->rainbow_hue + wide * 2;
@@ -295,20 +260,10 @@ static void rainbow_timer_callback(void* context) {
     }
 }
 
-// --- RGB BACKLIGHT END---
-
-// --- ALARM CLOCK ---
-// Drives the audible/tactile side of Fox Alarm Clock (Fox Settings). Desktop
-// owns *when* an alarm is due (it's the only thing always running regardless
-// of which app is in the foreground); this just makes noise/vibrate until
-// told to stop, same as any other notification.
-
 #define ALARM_BEEP_FREQ  800.0f
 #define ALARM_BEEP_VOLUME 1.0f
 #define ALARM_STEP_MS      150
 
-// 1 = on, 0 = off, one array slot per ALARM_STEP_MS tick. Three short beeps,
-// a longer pause, repeat - "beep beep beep..... beep beep beep....."
 static const uint8_t alarm_pattern[] = {1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0};
 #define ALARM_PATTERN_LEN (sizeof(alarm_pattern) / sizeof(alarm_pattern[0]))
 
@@ -317,8 +272,6 @@ static void notification_alarm_timer_callback(void* context) {
     bool on = alarm_pattern[app->alarm_pattern_step % ALARM_PATTERN_LEN] != 0;
     app->alarm_pattern_step++;
 
-    // force=true on both - an alarm is meant to wake you up even with
-    // Stealth Mode on, unlike ordinary notification sounds/vibration.
     if(app->alarm_beep_enabled) {
         if(on) {
             notification_sound_on(ALARM_BEEP_FREQ, ALARM_BEEP_VOLUME, true);
@@ -354,9 +307,6 @@ void notification_alarm_stop(NotificationApp* app) {
     notification_sound_off();
     notification_vibro_off();
 }
-// --- ALARM CLOCK END ---
-
-// --- NIGHT SHIFT ---
 
 void night_shift_timer_start(NotificationApp* app) {
     if(app->settings.night_shift != 1) {
@@ -373,17 +323,14 @@ void night_shift_timer_stop(NotificationApp* app) {
     }
 }
 
-// every callback time we check current time and current night_shift_settings value
 void night_shift_timer_callback(void* context) {
     furi_assert(context);
     NotificationApp* app = context;
     DateTime current_date_time;
 
-    // take system time and convert to minutes
     furi_hal_rtc_get_datetime(&current_date_time);
     uint32_t time = current_date_time.hour * 60 + current_date_time.minute;
 
-    // if current time not in night_shift range then current_night_shift = 1 else = settings value;
     float new_night_shift;
     if((time > app->settings.night_shift_end) && (time < app->settings.night_shift_start)) {
         new_night_shift = 1.0f;
@@ -393,26 +340,18 @@ void night_shift_timer_callback(void* context) {
 
     if(!float_is_equal(new_night_shift, app->current_night_shift)) {
         app->current_night_shift = new_night_shift;
-        // Push the new multiplier to static RGB brightness right away - but
-        // only if the backlight (and therefore the RGB Mod) is actually on
-        // right now. Without the lcd_backlight_is_on check, crossing a
-        // night-shift boundary while the device is in standby would repaint
-        // the LEDs and undo rgb_backlight_sync_off()'s blanking. Rainbow
-        // mode already re-applies current_night_shift on every tick on its
-        // own once it's running again, so it doesn't need this either.
+
         if(lcd_backlight_is_on && !furi_timer_is_running(app->rainbow_timer)) {
             rgb_backlight_update(app->settings.display_brightness * app->current_night_shift);
         }
     }
 }
 
-// force backlight ON when night_shift_demo_timer will be ended
 void night_shift_demo_timer_callback(void* context) {
     furi_assert(context);
     NotificationApp* app = context;
     notification_message(app, &sequence_display_backlight_force_on);
 }
-// --- NIGHT SHIFT END ---
 
 void notification_message_save_settings(NotificationApp* app) {
     NotificationAppMessage m = {
@@ -423,16 +362,13 @@ void notification_message_save_settings(NotificationApp* app) {
     furi_event_flag_free(m.back_event);
 }
 
-// internal layer
 static void
     notification_apply_internal_led_layer(NotificationLedLayer* layer, uint8_t layer_value) {
     furi_assert(layer);
     furi_assert(layer->index < LayerMAX);
 
-    // set value
     layer->value[LayerInternal] = layer_value;
 
-    // apply if current layer is internal
     if(layer->index == LayerInternal) {
         furi_hal_light_set(layer->light, layer->value[LayerInternal]);
     }
@@ -458,23 +394,18 @@ static bool notification_is_any_led_layer_internal_and_not_empty(NotificationApp
     return result;
 }
 
-// notification layer
 static void notification_apply_notification_led_layer(
     NotificationLedLayer* layer,
     const uint8_t layer_value) {
     furi_assert(layer);
     furi_assert(layer->index < LayerMAX);
 
-    // set value
     layer->index = LayerNotification;
-    // set layer
+
     layer->value[LayerNotification] = layer_value;
 
-    // if layer.light = LightBacklight and backlight active now then just exit.
-    // prevent from extra ticking when key pressed with rgb_mod_installed
     if((layer->light == LightBacklight) & lcd_backlight_is_on) return;
 
-    // apply
     furi_hal_light_set(layer->light, layer->value[LayerNotification]);
 }
 
@@ -482,12 +413,10 @@ static void notification_reset_notification_led_layer(NotificationLedLayer* laye
     furi_assert(layer);
     furi_assert(layer->index < LayerMAX);
 
-    // set value
     layer->value[LayerNotification] = 0;
-    // set layer
+
     layer->index = LayerInternal;
 
-    // apply
     furi_hal_light_set(layer->light, layer->value[LayerInternal]);
 }
 
@@ -533,7 +462,6 @@ static void notification_apply_notification_leds(NotificationApp* app, const uin
     }
 }
 
-// settings
 uint8_t notification_settings_get_display_brightness(NotificationApp* app, uint8_t value) {
     return value * app->settings.display_brightness;
 }
@@ -547,7 +475,6 @@ static uint32_t notification_settings_display_off_delay_ticks(NotificationApp* a
            (1000.0f / furi_kernel_get_tick_frequency());
 }
 
-// generics
 static void notification_vibro_on(bool force) {
     if(!furi_hal_rtc_is_flag_set(FuriHalRtcFlagStealthMode) || force) {
         furi_hal_vibro_on(true);
@@ -573,14 +500,12 @@ static void notification_sound_off(void) {
     }
 }
 
-// display timer
 static void notification_display_timer(void* ctx) {
     furi_assert(ctx);
     NotificationApp* app = ctx;
     notification_message(app, &sequence_display_backlight_off);
 }
 
-// message processing
 static void notification_process_notification_message(
     NotificationApp* app,
     NotificationAppMessage* message) {
@@ -602,16 +527,9 @@ static void notification_process_notification_message(
     while(notification_message != NULL) {
         switch(notification_message->type) {
         case NotificationMessageTypeLedDisplayBacklight:
-            // The RGB Mod (Rainbow/Wave effects, or a static custom color)
-            // follows the LCD backlight's on/off state, same as v2.0.4 for
-            // Rainbow/Wave: it comes on when the backlight comes on and
-            // goes fully dark when it times out or the device locks/goes to
-            // standby, so an unattended device doesn't keep the case
-            // lighting running (and drawing power) indefinitely. Static
-            // color mode is included here too - previously nothing ever
-            // turned it off at all.
+
             if(notification_message->data.led.value > 0x00) {
-                // Backlight ON
+
                 notification_apply_notification_led_layer(
                     &app->display,
                     notification_message->data.led.value * display_brightness_setting *
@@ -623,7 +541,7 @@ static void notification_process_notification_message(
                 rgb_backlight_sync_on(app);
 
             } else {
-                // Backlight OFF
+
                 reset_mask &= ~reset_display_mask;
                 notification_reset_notification_led_layer(&app->display);
                 lcd_backlight_is_on = false;
@@ -636,7 +554,7 @@ static void notification_process_notification_message(
             }
             break;
         case NotificationMessageTypeLedDisplayBacklightForceOn:
-            // Force Backlight ON even if its ON now
+
             lcd_backlight_is_on = false;
             notification_apply_notification_led_layer(
                 &app->display,
@@ -664,34 +582,34 @@ static void notification_process_notification_message(
                     &app->display,
                     notification_message->data.led.value * display_brightness_setting *
                         app->current_night_shift * 1.0f);
-                // --- NIGHT SHIFT END ---
+
             } else {
                 FURI_LOG_E(TAG, "Incorrect BacklightEnforceAuto usage");
             }
             break;
         case NotificationMessageTypeLedRed:
-            // store and send on delay or after seq
+
             led_active = true;
             led_values[0] = notification_message->data.led.value;
             app->led[0].value_last[LayerNotification] = led_values[0];
             reset_mask |= reset_red_mask;
             break;
         case NotificationMessageTypeLedGreen:
-            // store and send on delay or after seq
+
             led_active = true;
             led_values[1] = notification_message->data.led.value;
             app->led[1].value_last[LayerNotification] = led_values[1];
             reset_mask |= reset_green_mask;
             break;
         case NotificationMessageTypeLedBlue:
-            // store and send on delay or after seq
+
             led_active = true;
             led_values[2] = notification_message->data.led.value;
             app->led[2].value_last[LayerNotification] = led_values[2];
             reset_mask |= reset_blue_mask;
             break;
         case NotificationMessageTypeLedBlinkStart:
-            // store and send on delay or after seq
+
             led_active = true;
             furi_hal_light_blink_start(
                 notification_message->data.led_blink.color,
@@ -782,7 +700,6 @@ static void notification_process_notification_message(
         notification_message = (*message->sequence)[notification_message_index];
     };
 
-    // send and do minimal delay
     if(led_active) {
         bool need_minimal_delay = false;
         if(notification_is_any_led_layer_internal_and_not_empty(app)) {
@@ -889,7 +806,6 @@ static bool notification_load_settings(NotificationApp* app) {
     storage_file_free(file);
     furi_record_close(RECORD_STORAGE);
 
-    // "kostyl" for update old setting to new without change settings version
     if(app->settings.display_off_delay_ms < 2000) app->settings.display_off_delay_ms = 2000;
 
     return fs_result;
@@ -936,7 +852,6 @@ static void input_event_callback(const void* value, void* context) {
     notification_message(app, &sequence_display_backlight_on);
 }
 
-// App alloc
 static NotificationApp* notification_app_alloc(void) {
     NotificationApp* app = malloc(sizeof(NotificationApp));
     app->queue = furi_message_queue_alloc(8, sizeof(NotificationAppMessage));
@@ -970,12 +885,10 @@ static NotificationApp* notification_app_alloc(void) {
 
     app->settings.version = NOTIFICATION_SETTINGS_VERSION;
 
-    // display backlight control
     app->event_record = furi_record_open(RECORD_INPUT_EVENTS);
     furi_pubsub_subscribe(app->event_record, input_event_callback, app);
     notification_message(app, &sequence_display_backlight_on);
 
-    // --- NIGHT SHIFT ---
     app->current_night_shift = 1.0f;
     app->current_night_shift = 1.0f;
     app->settings.night_shift = 1.0f;
@@ -983,13 +896,10 @@ static NotificationApp* notification_app_alloc(void) {
     app->settings.night_shift_end = 300;
     app->night_shift_timer =
         furi_timer_alloc(night_shift_timer_callback, FuriTimerTypePeriodic, app);
-    // --- NIGHT SHIFT END ---
 
-    // init working variables
     app->rainbow_hue = 1;
     app->current_night_shift = 1.0f;
 
-    // init rgb.segings values
     app->settings.rgb.rgb_backlight_installed = 0;
     app->settings.rgb.white_backlight_mode = 1;
     app->settings.rgb.led_2_color_index = 0;
@@ -1000,7 +910,6 @@ static NotificationApp* notification_app_alloc(void) {
     app->settings.rgb.rainbow_saturation = 255;
     app->settings.rgb.rainbow_wide = 50;
 
-    // set inital value, later it will be rewriten by loading settings from file
     app->settings.lcd_inversion = false;
 
     return app;
@@ -1027,14 +936,10 @@ static void notification_apply_settings(NotificationApp* app) {
 
     notification_apply_lcd_contrast(app);
 
-    // --- NIGHT SHIFT ---
-    // if night_shift enabled then start timer for controlling current_night_shift multiplicator value depent from current time
     if(app->settings.night_shift != 1) {
         night_shift_timer_start(app);
     }
-    // --- NIGHT SHIFT END ---
 
-    // check RECORD_GUI is exist (insurance on boot time) then use it to setup lcd inversion mode from loaded settings;
     if(furi_record_exists(RECORD_GUI)) {
         Gui* gui = furi_record_open(RECORD_GUI);
         u8x8_d_st756x_set_inversion(&gui->canvas->fb.u8x8, app->settings.lcd_inversion);
@@ -1054,7 +959,6 @@ static void notification_init_settings(NotificationApp* app) {
     notification_apply_settings(app);
 }
 
-// App
 int32_t notification_srv(void* p) {
     UNUSED(p);
     NotificationApp* app = notification_app_alloc();
@@ -1070,27 +974,19 @@ int32_t notification_srv(void* p) {
 
     furi_record_create(RECORD_NOTIFICATION, app);
 
-    // --- RGB BACKLIGHT SECTION ---
-
-    //setup local variable
     set_rgb_backlight_installed_variable(app->settings.rgb.rgb_backlight_installed);
     set_rgb_backlight_white_mode_variable(app->settings.rgb.white_backlight_mode);
 
-    // define rainbow_timer and they callback
     app->rainbow_timer = furi_timer_alloc(rainbow_timer_callback, FuriTimerTypePeriodic, app);
 
-    // Fox Alarm Clock beep/vibrate driver
     app->alarm_timer = furi_timer_alloc(notification_alarm_timer_callback, FuriTimerTypePeriodic, app);
     app->alarm_pattern_step = 0;
     app->alarm_beep_enabled = false;
     app->alarm_vibrate_enabled = false;
 
-    // define night_shift_demo_timer and they callback.
-    // used for Setting menu to demonstrate night_shift_backlight when user change value
     app->night_shift_demo_timer =
         furi_timer_alloc(night_shift_demo_timer_callback, FuriTimerTypeOnce, app);
 
-    // if rgb_backlight_installed then start rainbow or set leds colors from saved settings (default index = 0)
     if(app->settings.rgb.rgb_backlight_installed) {
         if(app->settings.rgb.rainbow_mode > 0) {
             rainbow_timer_start(app);
@@ -1100,15 +996,13 @@ int32_t notification_srv(void* p) {
             rgb_backlight_set_led_static_color(0, app->settings.rgb.led_0_color_index);
             rgb_backlight_update(app->settings.display_brightness * app->current_night_shift);
         }
-        // if rgb_backlight not installed then set default static orange color(index=0) to all leds (0-2) and force light on
+
     } else {
         rgb_backlight_set_led_static_color(2, 0);
         rgb_backlight_set_led_static_color(1, 0);
         rgb_backlight_set_led_static_color(0, 0);
         SK6805_update();
     }
-
-    // --- RGB BACKLIGHT SECTION END ---
 
     NotificationAppMessage message;
     while(1) {

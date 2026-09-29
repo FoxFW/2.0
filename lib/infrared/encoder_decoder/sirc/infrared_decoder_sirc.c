@@ -32,7 +32,7 @@ bool infrared_decoder_sirc_interpret(InfraredCommonDecoder* decoder) {
     decoder->message.protocol = protocol;
     decoder->message.address = address;
     decoder->message.command = command;
-    /* SIRC doesn't specify repeat detection */
+
     decoder->message.repeat = false;
 
     return true;

@@ -11,7 +11,7 @@
 
 #define TAG "SubGhzProtocolDitecGOL4"
 
-#define DITEC_GOL4_UPLOAD_SIZE 128 /* 110 actual */
+#define DITEC_GOL4_UPLOAD_SIZE 128
 #define GOL4_RAW_BYTES 7
 
 static const SubGhzBlockConst subghz_protocol_ditec_gol4_const = {
@@ -74,11 +74,6 @@ const SubGhzProtocol subghz_protocol_ditec_gol4 = {
     .encoder = &subghz_protocol_ditec_gol4_encoder,
 };
 
-/**
- * Defines the button value for the current btn_id
- * Basic set | 0x1 | 0x2 | 0x4 | 0x8 | 0x0 PROG
- * @return Button code
- */
 static uint8_t subghz_protocol_ditec_gol4_get_btn_code(void);
 
 static uint8_t gol4_bit_reverse(uint8_t b) {
@@ -241,8 +236,6 @@ static uint32_t serial_to_display(const uint8_t* s) {
     return (uint32_t)((s[0] << 24) | (s[4] << 16) | (s[1] << 8) | s[3]);
 }
 
-/* ------------------------------- encoder -------------------------------- */
-
 void* subghz_protocol_encoder_ditec_gol4_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderDitecGOL4* instance = malloc(sizeof(SubGhzProtocolEncoderDitecGOL4));
@@ -265,31 +258,26 @@ void subghz_protocol_encoder_ditec_gol4_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderDitecGOL4 instance
- */
 static void
     subghz_protocol_encoder_ditec_gol4_get_upload(SubGhzProtocolEncoderDitecGOL4* instance) {
     furi_assert(instance);
     size_t index = 0;
 
-    // Send gap before data
     instance->encoder.upload[index++] =
         level_duration_make(false, (uint32_t)subghz_protocol_ditec_gol4_const.te_long * 22);
-    // Start bit
+
     instance->encoder.upload[index++] =
         level_duration_make(true, (uint32_t)subghz_protocol_ditec_gol4_const.te_short * 2);
 
     for(uint8_t i = instance->generic.data_count_bit; i > 0; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            // Send bit 1
+
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_ditec_gol4_const.te_short);
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_ditec_gol4_const.te_long);
         } else {
-            // Send bit 0
+
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_ditec_gol4_const.te_long);
             instance->encoder.upload[index++] =
@@ -300,10 +288,6 @@ static void
     instance->encoder.size_upload = index;
 }
 
-/**
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_ditec_gol4_decode_key(SubGhzBlockGeneric* instance) {
     uint8_t bits[subghz_protocol_ditec_gol4_const.min_count_bit_for_found];
     uint64_t data = instance->data;
@@ -320,7 +304,7 @@ static void subghz_protocol_ditec_gol4_decode_key(SubGhzBlockGeneric* instance) 
         instance->serial = serial_to_display(temp_serial);
         instance->btn = decrypted[2] & 0x0F;
         instance->cnt = (uint16_t)((decrypted[5] | (decrypted[6] << 8)) & 0xFFFF);
-        // Save original button for later use
+
         if(subghz_custom_btn_get_original() == 0) {
             subghz_custom_btn_set_original(instance->btn);
         }
@@ -331,23 +315,20 @@ static void subghz_protocol_ditec_gol4_decode_key(SubGhzBlockGeneric* instance) 
 static void subghz_protocol_ditec_gol4_encode_key(SubGhzBlockGeneric* instance) {
     uint8_t decrypted[GOL4_RAW_BYTES];
 
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
         subghz_custom_btn_set_original(instance->btn);
     }
 
     instance->btn = subghz_protocol_ditec_gol4_get_btn_code();
 
-    // override button if we change it with signal settings button editor
     if(subghz_block_generic_global_button_override_get(&instance->btn)) {
         FURI_LOG_D(TAG, "Button sucessfully changed to 0x%X", instance->btn);
     }
 
-    // Check for OFEX (overflow experimental) mode
     if(furi_hal_subghz_get_rolling_counter_mult() != -0x7FFFFFFF) {
-        // standart counter mode. PULL data from subghz_block_generic_global variables
+
         if(!subghz_block_generic_global_counter_override_get(&instance->cnt)) {
-            // if counter_override_get return FALSE then counter was not changed and we increase counter by standart mult value
+
             if((instance->cnt + furi_hal_subghz_get_rolling_counter_mult()) > 0xFFFF) {
                 instance->cnt = 0;
             } else {
@@ -394,7 +375,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional parameter
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -444,8 +425,6 @@ LevelDuration subghz_protocol_encoder_ditec_gol4_yield(void* context) {
 
     return ret;
 }
-
-/* ------------------------------- decoder -------------------------------- */
 
 void* subghz_protocol_decoder_ditec_gol4_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -525,7 +504,7 @@ void subghz_protocol_decoder_ditec_gol4_feed(void* context, bool level, uint32_t
                (subghz_protocol_ditec_gol4_const.te_long * 3)) {
                 if(instance->decoder.decode_count_bit ==
                    subghz_protocol_ditec_gol4_const.min_count_bit_for_found) {
-                    // 54 bits received, save and continue
+
                     instance->generic.data = instance->decoder.decode_data;
                     instance->generic.data_count_bit =
                         subghz_protocol_ditec_gol4_const.min_count_bit_for_found;
@@ -571,10 +550,6 @@ SubGhzProtocolStatus
         subghz_protocol_ditec_gol4_const.min_count_bit_for_found);
 }
 
-/**
- * Build a fresh key from explicit serial/button/counter values (e.g. a
- * manual "create new key" flow). Not part of the SubGhzProtocol vtable.
- */
 bool subghz_protocol_ditec_gol4_create_data(
     void* context,
     FlipperFormat* flipper_format,
@@ -600,9 +575,8 @@ static uint8_t subghz_protocol_ditec_gol4_get_btn_code(void) {
     uint8_t original_btn_code = subghz_custom_btn_get_original();
     uint8_t btn = original_btn_code;
 
-    // Set custom button
     if((custom_btn_id == SUBGHZ_CUSTOM_BTN_OK) && (original_btn_code != 0)) {
-        // Restore original button code
+
         btn = original_btn_code;
     } else if(custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) {
         switch(original_btn_code) {
@@ -699,7 +673,6 @@ void subghz_protocol_decoder_ditec_gol4_get_string(void* context, FuriString* ou
 
     subghz_protocol_ditec_gol4_decode_key(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.cnt_is_available = true;
     subghz_block_generic_global.cnt_length_bit = 16;
     subghz_block_generic_global.current_cnt = instance->generic.cnt;
@@ -707,7 +680,6 @@ void subghz_protocol_decoder_ditec_gol4_get_string(void* context, FuriString* ou
     subghz_block_generic_global.btn_is_available = true;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 4;
-    //
 
     furi_string_cat_printf(
         output,

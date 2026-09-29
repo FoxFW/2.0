@@ -2,20 +2,6 @@
 
 #include "../infrared_i.h"
 
-/***************************************************************************************************
-*   RCA protocol description
-*   https://www.sbprojects.net/knowledge/ir/rca.php
-****************************************************************************************************
-*     Preamble   Preamble      Pulse Distance/Width          Pause       Preamble   Preamble
-*       mark      space            Modulation             up to period    repeat     repeat
-*                                                                          mark       space
-*
-*        4000      4000               24 bit              ...8000          4000       4000
-*     __________          _ _ _ _  _  _  _ _ _  _  _ _ _                ___________           
-* ____          __________ _ _ _ __ __ __ _ _ __ __ _ _ ________________           ___________
-*
-***************************************************************************************************/
-
 void* infrared_decoder_rca_alloc(void);
 void infrared_decoder_rca_reset(void* decoder);
 void infrared_decoder_rca_free(void* decoder);

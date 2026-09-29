@@ -260,7 +260,6 @@ static bool kazan_parse(const NfcDevice* device, FuriString* parsed_data) {
         const uint8_t ticket_sector_number = 8;
         const uint8_t balance_sector_number = 9;
 
-        // Verify keys
         MfClassicKeyPair keys = {};
         const MfClassicSectorTrailer* sec_tr =
             mf_classic_get_sector_trailer_by_sector(data, ticket_sector_number);
@@ -274,7 +273,6 @@ static bool kazan_parse(const NfcDevice* device, FuriString* parsed_data) {
             break;
         }
 
-        // Parse data
         uint8_t start_block_num = mf_classic_get_first_block_num_of_sector(ticket_sector_number);
 
         const uint8_t* block_start_ptr = &data->block[start_block_num].data[6];
@@ -393,7 +391,6 @@ static bool kazan_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin kazan_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = kazan_verify,
@@ -401,14 +398,12 @@ static const NfcSupportedCardsPlugin kazan_plugin = {
     .parse = kazan_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor kazan_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &kazan_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* kazan_plugin_ep(void) {
     return &kazan_plugin_descriptor;
 }

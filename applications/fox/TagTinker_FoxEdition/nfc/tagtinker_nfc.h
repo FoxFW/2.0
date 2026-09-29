@@ -1,10 +1,3 @@
-/*
- * TagTinker — ESL NFC tag decoder
- *
- * Decodes NDEF URI from ESL Mifare Ultralight tags
- * into the 17-character barcode format used by TagTinker.
- */
-
 #pragma once
 
 #include <stdint.h>

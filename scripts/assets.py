@@ -86,22 +86,22 @@ class Main(App):
         )
         self.parser_copro.set_defaults(func=self.copro)
 
-        self.parser_dolphin = self.subparsers.add_parser(
-            "dolphin", help="Assemble dolphin resources"
+        self.parser_fox = self.subparsers.add_parser(
+            "fox", help="Assemble fox resources"
         )
-        self.parser_dolphin.add_argument(
+        self.parser_fox.add_argument(
             "-s",
             "--symbol-name",
-            help="Symbol and file name in dolphin output directory",
+            help="Symbol and file name in fox output directory",
             default=None,
         )
-        self.parser_dolphin.add_argument(
-            "input_directory", help="Dolphin source directory"
+        self.parser_fox.add_argument(
+            "input_directory", help="Fox source directory"
         )
-        self.parser_dolphin.add_argument(
-            "output_directory", help="Dolphin output directory"
+        self.parser_fox.add_argument(
+            "output_directory", help="Fox output directory"
         )
-        self.parser_dolphin.set_defaults(func=self.dolphin)
+        self.parser_fox.set_defaults(func=self.fox)
 
     def _icon2header(self, file):
         image = file2image(file)
@@ -282,15 +282,15 @@ class Main(App):
 
         return 0
 
-    def dolphin(self):
-        from flipper.assets.dolphin import Dolphin
+    def fox(self):
+        from flipper.assets.fox import Fox
 
-        self.logger.info("Processing Dolphin sources")
-        dolphin = Dolphin()
+        self.logger.info("Processing Fox sources")
+        fox = Fox()
         self.logger.info("Loading data")
-        dolphin.load(self.args.input_directory)
+        fox.load(self.args.input_directory)
         self.logger.info("Packing")
-        dolphin.pack(self.args.output_directory, self.args.symbol_name)
+        fox.pack(self.args.output_directory, self.args.symbol_name)
         self.logger.info("Complete")
 
         return 0

@@ -142,6 +142,7 @@ and 868 MHz bands commonly used in automotive applications.
 | Subaru | Subaru | 433 MHz | AM | ✓ | ✓ | — |
 | Suzuki | Suzuki | 433 MHz | FM | ✓ | ✓ | ✓ |
 | Mitsubishi | Mitsubishi V0 | 868 MHz | FM | ✓ | ✓ | — |
+| Mitsubishi | Mitsubishi V0-a | 433 MHz | FM | ✓ | ✓ | ✓ |
 | Honda | Honda Type A / B | 433 MHz | FM (custom) | ✓ | ✓ | — |
 | Honda | Honda Static | 433 MHz | AM | ✓ | ✓ | — |
 | Chrysler / Dodge / Jeep | FOBIK GQ43VT | 315 / 433 MHz | AM | ✓ | ✓ | — |

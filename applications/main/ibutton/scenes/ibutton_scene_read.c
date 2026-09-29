@@ -1,5 +1,4 @@
 #include "../ibutton_i.h"
-#include <dolphin/dolphin.h>
 
 static void ibutton_scene_read_callback(void* context) {
     iButton* ibutton = context;
@@ -38,7 +37,6 @@ bool ibutton_scene_read_on_event(void* context, SceneManagerEvent event) {
                 ibutton_notification_message(ibutton, iButtonNotificationMessageSuccess);
                 scene_manager_next_scene(scene_manager, iButtonSceneReadSuccess);
 
-                dolphin_deed(DolphinDeedIbuttonReadSuccess);
 
             } else {
                 scene_manager_next_scene(scene_manager, iButtonSceneReadError);

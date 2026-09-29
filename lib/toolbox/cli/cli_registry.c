@@ -45,12 +45,11 @@ void cli_registry_add_command_ex(
     furi_check(name);
     furi_check(callback);
 
-    // the shell always attaches the pipe to the stdio, thus both flags can't be used at once
     if(flags & CliCommandFlagUseShellThread) furi_check(!(flags & CliCommandFlagDontAttachStdio));
 
     FuriString* name_str;
     name_str = furi_string_alloc_set(name);
-    // command cannot contain spaces
+
     furi_check(furi_string_search_char(name_str, ' ') == FURI_STRING_FAILURE);
 
     CliRegistryCommand command = {
@@ -115,6 +114,42 @@ void cli_registry_remove_external_commands(CliRegistry* registry) {
     furi_check(furi_mutex_release(registry->mutex) == FuriStatusOk);
 }
 
+static bool cli_registry_external_commands_unchanged(
+    CliRegistry* registry,
+    const CliCommandExternalConfig* config,
+    Storage* storage,
+    size_t* current_out) {
+    size_t current = 0;
+    for
+        M_EACH(item, registry->commands, CliCommandDict_t) {
+            if(item->value.flags & CliCommandFlagExternal) current++;
+        }
+    *current_out = current;
+
+    size_t scanned = 0;
+    size_t matched = 0;
+    File* plugin_dir = storage_file_alloc(storage);
+    if(storage_dir_open(plugin_dir, config->search_directory)) {
+        char plugin_filename[64];
+        FuriString* plugin_name = furi_string_alloc();
+        while(storage_dir_read(plugin_dir, NULL, plugin_filename, sizeof(plugin_filename))) {
+            furi_string_set_str(plugin_name, plugin_filename);
+            if(!furi_string_end_with_str(plugin_name, ".fal")) continue;
+            furi_string_replace_all_str(plugin_name, ".fal", "");
+            if(!furi_string_start_with_str(plugin_name, config->fal_prefix)) continue;
+            furi_string_replace_at(plugin_name, 0, strlen(config->fal_prefix), "");
+            scanned++;
+            CliRegistryCommand* existing = CliCommandDict_get(registry->commands, plugin_name);
+            if(existing && (existing->flags & CliCommandFlagExternal)) matched++;
+        }
+        furi_string_free(plugin_name);
+    }
+    storage_dir_close(plugin_dir);
+    storage_file_free(plugin_dir);
+
+    return (scanned == current) && (matched == scanned);
+}
+
 void cli_registry_reload_external_commands(
     CliRegistry* registry,
     const CliCommandExternalConfig* config) {
@@ -122,10 +157,20 @@ void cli_registry_reload_external_commands(
     furi_check(furi_mutex_acquire(registry->mutex, FuriWaitForever) == FuriStatusOk);
     FURI_LOG_D(TAG, "Reloading ext commands");
 
-    cli_registry_remove_external_commands(registry);
-
-    // iterate over files in plugin directory
     Storage* storage = furi_record_open(RECORD_STORAGE);
+
+    size_t current = 0;
+    if(cli_registry_external_commands_unchanged(registry, config, storage, &current)) {
+        furi_record_close(RECORD_STORAGE);
+        FURI_LOG_D(TAG, "Ext commands unchanged");
+        furi_check(furi_mutex_release(registry->mutex) == FuriStatusOk);
+        return;
+    }
+
+    if(current > 0) {
+        cli_registry_remove_external_commands(registry);
+    }
+
     File* plugin_dir = storage_file_alloc(storage);
 
     if(storage_dir_open(plugin_dir, config->search_directory)) {

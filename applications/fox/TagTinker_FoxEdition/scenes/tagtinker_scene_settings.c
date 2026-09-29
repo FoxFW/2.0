@@ -1,7 +1,3 @@
-/*
- * Settings scene
- */
-
 #include "../tagtinker_app.h"
 
 enum {

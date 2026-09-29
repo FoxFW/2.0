@@ -1,7 +1,3 @@
-/**
- * @file log.h
- * Furi Logging system
- */
 #pragma once
 
 #include <stdio.h>
@@ -46,93 +42,30 @@ typedef struct {
     void* context;
 } FuriLogHandler;
 
-/** Initialize logging */
 void furi_log_init(void);
 
-/** Add log TX callback
- *
- * @param[in]  handler  The callback and its context
- *
- * @return     true on success, false otherwise
- */
 bool furi_log_add_handler(FuriLogHandler handler);
 
-/** Remove log TX callback
- *
- * @param[in]  handler  The callback and its context
- *
- * @return     true on success, false otherwise
- */
 bool furi_log_remove_handler(FuriLogHandler handler);
 
-/** Transmit data through log IO callbacks
- *
- * @param[in]  data  The data
- * @param[in]  size  The size
- */
 void furi_log_tx(const uint8_t* data, size_t size);
 
-/** Transmit data through log IO callbacks
- *
- * @param[in]  data  The data, null-terminated C-string
- */
 void furi_log_puts(const char* data);
 
-/** Print log record
- * 
- * @param level 
- * @param tag 
- * @param format 
- * @param ... 
- */
 void furi_log_print_format(FuriLogLevel level, const char* tag, const char* format, ...)
     _ATTRIBUTE((__format__(__printf__, 3, 4)));
 
-/** Print log record
- * 
- * @param level 
- * @param format 
- * @param ... 
- */
 void furi_log_print_raw_format(FuriLogLevel level, const char* format, ...)
     _ATTRIBUTE((__format__(__printf__, 2, 3)));
 
-/** Set log level
- *
- * @param[in]  level  The level
- */
 void furi_log_set_level(FuriLogLevel level);
 
-/** Get log level
- *
- * @return     The furi log level.
- */
 FuriLogLevel furi_log_get_level(void);
 
-/** Log level to string
- *
- * @param[in]  level  The level
- * @param[out] str    String representation of the level
- *
- * @return     True if success, False otherwise
- */
 bool furi_log_level_to_string(FuriLogLevel level, const char** str);
 
-/** Log level from string
- *
- * @param[in]  str    The string
- * @param[out] level  The level
- * 
- * @return     True if success, False otherwise
- */
 bool furi_log_level_from_string(const char* str, FuriLogLevel* level);
 
-/** Log methods
- *
- * @param      tag     The application tag
- * @param      format  The format
- * @param      ...     VA Args
- */
 #define FURI_LOG_E(tag, format, ...) \
     furi_log_print_format(FuriLogLevelError, tag, format, ##__VA_ARGS__)
 #define FURI_LOG_W(tag, format, ...) \
@@ -144,11 +77,6 @@ bool furi_log_level_from_string(const char* str, FuriLogLevel* level);
 #define FURI_LOG_T(tag, format, ...) \
     furi_log_print_format(FuriLogLevelTrace, tag, format, ##__VA_ARGS__)
 
-/** Log methods
- *
- * @param      format  The raw format 
- * @param      ...     VA Args
- */
 #define FURI_LOG_RAW_E(format, ...) \
     furi_log_print_raw_format(FuriLogLevelError, format, ##__VA_ARGS__)
 #define FURI_LOG_RAW_W(format, ...) \

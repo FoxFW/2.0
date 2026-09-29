@@ -196,7 +196,7 @@ LevelDuration subghz_protocol_encoder_hormann_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_hormann_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

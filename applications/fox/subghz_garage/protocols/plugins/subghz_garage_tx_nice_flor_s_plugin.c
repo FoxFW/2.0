@@ -1,6 +1,5 @@
 #include "../subghz_garage_protocol_plugin.h"
 
-/* Replay-only TX plugin - see subghz_garage_tx_nice_flo_plugin.c's comment. */
 static const SubGhzProtocol* const subghz_garage_tx_nice_flor_s_registry_items[] = {
     &subghz_protocol_nice_flor_s,
 };

@@ -42,10 +42,10 @@ static const SHCI_C2_CONFIG_Cmd_Param_t config_param = {
 };
 
 static const SHCI_C2_Ble_Init_Cmd_Packet_t ble_init_cmd_packet = {
-    .Header = {{0, 0, 0}}, // Header unused
+    .Header = {{0, 0, 0}},
     .Param = {
-        .pBleBufferAddress = 0, // pBleBufferAddress not used
-        .BleBufferSize = 0, // BleBufferSize not used
+        .pBleBufferAddress = 0,
+        .BleBufferSize = 0,
         .NumAttrRecord = CFG_BLE_NUM_GATT_ATTRIBUTES,
         .NumAttrServ = CFG_BLE_NUM_GATT_SERVICES,
         .AttrValueArrSize = CFG_BLE_ATT_VALUE_ARRAY_SIZE,
@@ -66,13 +66,13 @@ static const SHCI_C2_Ble_Init_Cmd_Packet_t ble_init_cmd_packet = {
         .min_tx_power = 0,
         .max_tx_power = 0,
         .rx_model_config = 1,
-        /* New stack (13.3->15.0) */
-        .max_adv_set_nbr = 1, // Only used if SHCI_C2_BLE_INIT_OPTIONS_EXT_ADV is set
-        .max_adv_data_len = 1650, // Only used if SHCI_C2_BLE_INIT_OPTIONS_EXT_ADV is set
-        .tx_path_compens = 0, // RF TX Path Compensation, * 0.1 dB
-        .rx_path_compens = 0, // RF RX Path Compensation, * 0.1 dB
+
+        .max_adv_set_nbr = 1,
+        .max_adv_data_len = 1650,
+        .tx_path_compens = 0,
+        .rx_path_compens = 0,
         .ble_core_version = SHCI_C2_BLE_INIT_BLE_CORE_5_4,
-        /*15.0->17.0*/
+
         .Options_extension = SHCI_C2_BLE_INIT_OPTIONS_ENHANCED_ATT_NOTSUPPORTED |
                              SHCI_C2_BLE_INIT_OPTIONS_APPEARANCE_READONLY,
     }};
@@ -80,21 +80,19 @@ static const SHCI_C2_Ble_Init_Cmd_Packet_t ble_init_cmd_packet = {
 bool ble_app_init(void) {
     SHCI_CmdStatus_t status;
     ble_app = malloc(sizeof(BleApp));
-    // Allocate semafore and mutex for ble command buffer access
+
     ble_app->hci_mtx = furi_mutex_alloc(FuriMutexTypeNormal);
     ble_app->hci_sem = furi_semaphore_alloc(1, 0);
 
-    // Initialize Ble Transport Layer
     hci_init(ble_app_hci_event_handler, (void*)&hci_tl_config);
 
     do {
-        // Configure NVM store for pairing data
+
         if((status = SHCI_C2_Config((SHCI_C2_CONFIG_Cmd_Param_t*)&config_param))) {
             FURI_LOG_E(TAG, "Failed to configure 2nd core: %d", status);
             break;
         }
 
-        // Start ble stack on 2nd core
         if((status = SHCI_C2_BLE_Init((SHCI_C2_Ble_Init_Cmd_Packet_t*)&ble_init_cmd_packet))) {
             FURI_LOG_E(TAG, "Failed to start ble stack: %d", status);
             break;
@@ -124,9 +122,6 @@ void ble_app_deinit(void) {
     memset(&ble_app_cmd_buffer, 0, sizeof(ble_app_cmd_buffer));
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// AN5289, 4.9
-
 void hci_cmd_resp_release(uint32_t flag) {
     UNUSED(flag);
     furi_check(ble_app);
@@ -137,8 +132,6 @@ void hci_cmd_resp_wait(uint32_t timeout) {
     furi_check(ble_app);
     furi_check(furi_semaphore_acquire(ble_app->hci_sem, timeout) == FuriStatusOk);
 }
-
-///////////////////////////////////////////////////////////////////////////////
 
 static void ble_app_hci_event_handler(void* pPayload) {
     furi_check(ble_app);

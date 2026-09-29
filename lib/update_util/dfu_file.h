@@ -32,9 +32,6 @@ typedef struct {
 
 bool dfu_file_validate_crc(File* dfuf, const DfuPageTaskProgressCb progress_cb, void* context);
 
-/* Returns number of valid targets from file header
- * If file is invalid, returns 0
- */
 uint8_t dfu_file_validate_headers(File* dfuf, const DfuValidationParams* reference_params);
 
 bool dfu_file_process_targets(const DfuUpdateTask* task, File* dfuf, const uint8_t n_targets);

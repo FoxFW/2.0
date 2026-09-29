@@ -1,7 +1,3 @@
-/**
- * @file application_manifest.h
- * Flipper application manifest
- */
 #pragma once
 
 #include <stdint.h>
@@ -16,7 +12,7 @@ extern "C" {
 #define FAP_MANIFEST_SUPPORTED_VERSION 1
 
 #define FAP_MANIFEST_MAX_APP_NAME_LENGTH 32
-#define FAP_MANIFEST_MAX_ICON_SIZE 32 // TODO FL-3524: reduce size?
+#define FAP_MANIFEST_MAX_ICON_SIZE 32
 
 #pragma pack(push, 1)
 
@@ -46,42 +42,16 @@ typedef FlipperApplicationManifestV1 FlipperApplicationManifest;
 
 #pragma pack(pop)
 
-/**
- * @brief Check if manifest is valid
- * 
- * @param manifest 
- * @return bool 
- */
 bool flipper_application_manifest_is_valid(const FlipperApplicationManifest* manifest);
 
-/** Check if API Version declared in manifest is older than firmware ELF API interface
- *
- * @param      manifest       The manifest
- * @param      api_interface  The api interface
- *
- * @return     bool
- */
 bool flipper_application_manifest_is_too_old(
     const FlipperApplicationManifest* manifest,
     const ElfApiInterface* api_interface);
 
-/** Check if API Version declared in manifest is newer than firmware ELF API interface
- *
- * @param      manifest       The manifest
- * @param      api_interface  The api interface
- *
- * @return     bool
- */
 bool flipper_application_manifest_is_too_new(
     const FlipperApplicationManifest* manifest,
     const ElfApiInterface* api_interface);
 
-/**
- * @brief Check if application is compatible with current hardware
- * 
- * @param manifest
- * @return bool 
- */
 bool flipper_application_manifest_is_target_compatible(const FlipperApplicationManifest* manifest);
 
 #ifdef __cplusplus

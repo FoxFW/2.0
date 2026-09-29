@@ -103,7 +103,7 @@ void* subghz_protocol_encoder_somfy_keytis_alloc(SubGhzEnvironment* environment)
 
     return instance;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_somfy_keytis_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -121,7 +121,7 @@ void subghz_protocol_encoder_somfy_keytis_free(void* context) {
     free(instance->encoder.upload);
     free(instance);
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void subghz_protocol_decoder_somfy_keytis_free(void* context) {
     furi_assert(context);
@@ -460,7 +460,7 @@ LevelDuration subghz_protocol_encoder_somfy_keytis_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static uint8_t subghz_protocol_somfy_keytis_crc(uint64_t data) {
     uint8_t crc = 0;

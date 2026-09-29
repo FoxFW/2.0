@@ -12,12 +12,6 @@ static void desktop_scene_clock_lock_exit_callback(void* context) {
     view_dispatcher_send_custom_event(desktop->view_dispatcher, DesktopSceneClockLockEventExit);
 }
 
-// Left = turn the backlight off right now, regardless of the "Keep
-// Backlight On" setting. Right = turn it back on: if the setting is off this
-// is just a normal on (it'll time out on its own like any button press); if
-// the setting is on, this restores the persistent stay-on behavior. Neither
-// key changes the saved setting itself - it's a momentary override for this
-// viewing of the clock, reset the next time the screen is entered.
 static void desktop_scene_clock_lock_backlight_callback(void* context, bool turn_on) {
     Desktop* desktop = context;
     if(turn_on) {
@@ -33,11 +27,6 @@ static void desktop_scene_clock_lock_backlight_callback(void* context, bool turn
     }
 }
 
-// Up/Down brightness quick-adjust, same momentary-override spirit as the
-// Left/Right backlight shortcut above, but this one changes the actual
-// saved LCD Backlight setting (same 21-step 0-100%/5% scale as Settings >
-// Notifications > LCD Backlight) so the level sticks after leaving the
-// clock screen.
 #define CLOCK_LOCK_BRIGHTNESS_STEP (0.05f)
 
 static void desktop_scene_clock_lock_brightness_callback(void* context, bool increase) {
@@ -57,11 +46,6 @@ static void desktop_scene_clock_lock_brightness_callback(void* context, bool inc
         desktop->clock_lock_view, (uint8_t)(brightness * 100.0f + 0.5f));
 }
 
-// Ticks once a second while this screen is showing - re-asserts the
-// backlight so the normal auto-off timer never gets a chance to fire when
-// "Keep Backlight On" is enabled. Skipped while the user has manually
-// turned the backlight off via the Left-arrow shortcut, so that override
-// actually sticks instead of being re-forced on a second later.
 static void desktop_scene_clock_lock_tick_callback(void* context) {
     Desktop* desktop = context;
     if(desktop->settings.alarm_keep_backlight_all_night &&
@@ -75,7 +59,6 @@ void desktop_scene_clock_lock_on_enter(void* context) {
     desktop->on_clock_lock_scene = true;
     desktop->clock_lock_backlight_manually_off = false;
 
-    // Listen for the exit trigger we wrote in the view
     desktop_clock_lock_set_callback(desktop->clock_lock_view, desktop_scene_clock_lock_exit_callback, desktop);
     desktop_clock_lock_set_backlight_callback(
         desktop->clock_lock_view, desktop_scene_clock_lock_backlight_callback, desktop);
@@ -88,7 +71,6 @@ void desktop_scene_clock_lock_on_enter(void* context) {
         notification_message(desktop->notification, &sequence_display_backlight_force_on);
     }
 
-    // Switch the screen to our clock (Fox Clock)
     view_dispatcher_switch_to_view(desktop->view_dispatcher, DesktopViewIdClockLock);
 }
 
@@ -98,12 +80,11 @@ bool desktop_scene_clock_lock_on_event(void* context, SceneManagerEvent event) {
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == DesktopSceneClockLockEventExit) {
-            // If an alarm was ringing, this same exit gesture (long-press
-            // Down/Back, or short OK while ringing) silences it first.
+
             if(desktop->alarm_ringing) {
                 desktop_alarm_dismiss(desktop);
             }
-            // Drops us back to the main desktop
+
             scene_manager_previous_scene(desktop->scene_manager);
             consumed = true;
         }

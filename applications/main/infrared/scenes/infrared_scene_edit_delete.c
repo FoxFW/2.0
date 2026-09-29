@@ -107,7 +107,7 @@ bool infrared_scene_edit_delete_on_event(void* context, SceneManagerEvent event)
         if(event.event == DialogExResultLeft) {
             scene_manager_previous_scene(scene_manager);
         } else if(event.event == DialogExResultRight) {
-            // Delete a button or a remote in a separate thread
+
             infrared_blocking_task_start(infrared, infrared_scene_edit_delete_task_callback);
 
         } else if(event.event == InfraredCustomEventTypeTaskFinished) {

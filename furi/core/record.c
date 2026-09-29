@@ -84,7 +84,6 @@ void furi_record_create(const char* name, void* data) {
 
     furi_record_lock();
 
-    // Get record data and fill it
     FuriRecordData* record_data = furi_record_data_get_or_create(name);
     furi_check(record_data->data == NULL);
     record_data->data = data;
@@ -124,7 +123,6 @@ void* furi_record_open(const char* name) {
 
     furi_record_unlock();
 
-    // Wait for record to become ready
     furi_check(
         furi_event_flag_wait(
             record_data->flags,

@@ -115,24 +115,23 @@ static void rpc_system_storage_info_process(const PB_Main* request, void* contex
 
     rpc_system_storage_reset_state(rpc_storage, session, true);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
 
     FS_Error error = storage_common_fs_info(
         rpc_storage->api,
         request->content.storage_info_request.path,
-        &response->content.storage_info_response.total_space,
-        &response->content.storage_info_response.free_space);
+        &response.content.storage_info_response.total_space,
+        &response.content.storage_info_response.free_space);
 
-    response->command_status = rpc_system_storage_get_error(error);
+    response.command_status = rpc_system_storage_get_error(error);
     if(error == FSE_OK) {
-        response->which_content = PB_Main_storage_info_response_tag;
+        response.which_content = PB_Main_storage_info_response_tag;
     } else {
-        response->which_content = PB_Main_empty_tag;
+        response.which_content = PB_Main_empty_tag;
     }
 
-    rpc_send_and_release(session, response);
-    free(response);
+    rpc_send_and_release(session, &response);
 }
 
 static void rpc_system_storage_timestamp_process(const PB_Main* request, void* context) {
@@ -148,23 +147,22 @@ static void rpc_system_storage_timestamp_process(const PB_Main* request, void* c
 
     rpc_system_storage_reset_state(rpc_storage, session, true);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
 
     const char* path = request->content.storage_timestamp_request.path;
     uint32_t timestamp = 0;
     FS_Error error = storage_common_timestamp(rpc_storage->api, path, &timestamp);
 
-    response->command_status = rpc_system_storage_get_error(error);
-    response->which_content = PB_Main_empty_tag;
+    response.command_status = rpc_system_storage_get_error(error);
+    response.which_content = PB_Main_empty_tag;
 
     if(error == FSE_OK) {
-        response->which_content = PB_Main_storage_timestamp_response_tag;
-        response->content.storage_timestamp_response.timestamp = timestamp;
+        response.which_content = PB_Main_storage_timestamp_response_tag;
+        response.content.storage_timestamp_response.timestamp = timestamp;
     }
 
-    rpc_send_and_release(session, response);
-    free(response);
+    rpc_send_and_release(session, &response);
 }
 
 static void rpc_system_storage_stat_process(const PB_Main* request, void* context) {
@@ -180,27 +178,26 @@ static void rpc_system_storage_stat_process(const PB_Main* request, void* contex
 
     rpc_system_storage_reset_state(rpc_storage, session, true);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
 
     const char* path = request->content.storage_stat_request.path;
     FileInfo fileinfo;
     FS_Error error = storage_common_stat(rpc_storage->api, path, &fileinfo);
 
-    response->command_status = rpc_system_storage_get_error(error);
-    response->which_content = PB_Main_empty_tag;
+    response.command_status = rpc_system_storage_get_error(error);
+    response.which_content = PB_Main_empty_tag;
 
     if(error == FSE_OK) {
-        response->which_content = PB_Main_storage_stat_response_tag;
-        response->content.storage_stat_response.has_file = true;
-        response->content.storage_stat_response.file.type = file_info_is_dir(&fileinfo) ?
+        response.which_content = PB_Main_storage_stat_response_tag;
+        response.content.storage_stat_response.has_file = true;
+        response.content.storage_stat_response.file.type = file_info_is_dir(&fileinfo) ?
                                                                 PB_Storage_File_FileType_DIR :
                                                                 PB_Storage_File_FileType_FILE;
-        response->content.storage_stat_response.file.size = fileinfo.size;
+        response.content.storage_stat_response.file.size = fileinfo.size;
     }
 
-    rpc_send_and_release(session, response);
-    free(response);
+    rpc_send_and_release(session, &response);
 }
 
 static void rpc_system_storage_list_root(const PB_Main* request, void* context) {
@@ -293,11 +290,11 @@ static void rpc_system_storage_list_process(const PB_Main* request, void* contex
         finish = true;
     }
 
-    while(!finish) { //-V1044
+    char name_buf[MAX_NAME_LENGTH + 1];
+    while(!finish) {
         FileInfo fileinfo;
-        char* name = malloc(MAX_NAME_LENGTH + 1);
-        if(storage_dir_read(dir, &fileinfo, name, MAX_NAME_LENGTH)) {
-            if(rpc_system_storage_list_filter(list_request, &fileinfo, name)) {
+        if(storage_dir_read(dir, &fileinfo, name_buf, MAX_NAME_LENGTH)) {
+            if(rpc_system_storage_list_filter(list_request, &fileinfo, name_buf)) {
                 if(i == COUNT_OF(list->file)) {
                     list->file_count = i;
                     response.has_next = true;
@@ -308,10 +305,10 @@ static void rpc_system_storage_list_process(const PB_Main* request, void* contex
                                                                    PB_Storage_File_FileType_FILE;
                 list->file[i].size = fileinfo.size;
                 list->file[i].data = NULL;
-                list->file[i].name = name;
+                list->file[i].name = strdup(name_buf);
 
                 if(include_md5 && !file_info_is_dir(&fileinfo)) {
-                    furi_string_printf(md5_path, "%s/%s", list_request->path, name); //-V576
+                    furi_string_printf(md5_path, "%s/%s", list_request->path, name_buf);
 
                     if(md5_string_calc_file(file, furi_string_get_cstr(md5_path), md5, NULL)) {
                         char* md5sum = list->file[i].md5sum;
@@ -321,13 +318,10 @@ static void rpc_system_storage_list_process(const PB_Main* request, void* contex
                 }
 
                 ++i;
-            } else {
-                free(name);
             }
         } else {
             list->file_count = i;
             finish = true;
-            free(name);
         }
     }
 
@@ -354,8 +348,7 @@ static void rpc_system_storage_read_process(const PB_Main* request, void* contex
 
     rpc_system_storage_reset_state(rpc_storage, session, true);
 
-    /* use same message memory to send response */
-    PB_Main* response = malloc(sizeof(PB_Main));
+    PB_Main response = PB_Main_init_default;
     const char* path = request->content.storage_read_request.path;
     File* file = storage_file_alloc(rpc_storage->api);
     bool fs_operation_success = storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING);
@@ -363,37 +356,37 @@ static void rpc_system_storage_read_process(const PB_Main* request, void* contex
     if(fs_operation_success) {
         size_t size_left = storage_file_size(file);
         do {
-            response->command_id = request->command_id;
-            response->which_content = PB_Main_storage_read_response_tag;
-            response->command_status = PB_CommandStatus_OK;
+            response.command_id = request->command_id;
+            response.which_content = PB_Main_storage_read_response_tag;
+            response.command_status = PB_CommandStatus_OK;
 
             size_t read_size = MIN(size_left, MAX_DATA_SIZE);
             if(read_size) {
-                response->content.storage_read_response.has_file = true;
-                response->content.storage_read_response.file.data =
+                response.content.storage_read_response.has_file = true;
+                response.content.storage_read_response.file.data =
                     malloc(PB_BYTES_ARRAY_T_ALLOCSIZE(read_size));
-                uint8_t* buffer = &response->content.storage_read_response.file.data->bytes[0];
-                uint16_t* read_size_msg = &response->content.storage_read_response.file.data->size;
+                uint8_t* buffer = &response.content.storage_read_response.file.data->bytes[0];
+                uint16_t* read_size_msg = &response.content.storage_read_response.file.data->size;
 
                 *read_size_msg = storage_file_read(file, buffer, read_size);
                 size_left -= *read_size_msg;
                 fs_operation_success = (*read_size_msg == read_size);
 
-                response->has_next = fs_operation_success && (size_left > 0);
+                response.has_next = fs_operation_success && (size_left > 0);
             } else {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
-                response->content.storage_read_response.file.data =
+                response.content.storage_read_response.file.data =
                     malloc(PB_BYTES_ARRAY_T_ALLOCSIZE(0));
-                response->content.storage_read_response.file.data->size = 0;
+                response.content.storage_read_response.file.data->size = 0;
 #pragma GCC diagnostic pop
-                response->content.storage_read_response.has_file = true;
-                response->has_next = false;
+                response.content.storage_read_response.has_file = true;
+                response.has_next = false;
                 fs_operation_success = true;
             }
 
             if(fs_operation_success) {
-                rpc_send_and_release(session, response);
+                rpc_send_and_release(session, &response);
             }
         } while((size_left != 0) && fs_operation_success);
     }
@@ -403,7 +396,6 @@ static void rpc_system_storage_read_process(const PB_Main* request, void* contex
             session, request->command_id, rpc_system_storage_get_file_error(file));
     }
 
-    free(response);
     storage_file_close(file);
     storage_file_free(file);
 }
@@ -464,7 +456,7 @@ static void rpc_system_storage_write_process(const PB_Main* request, void* conte
         send_response = true;
         command_status = rpc_system_storage_get_file_error(file);
         if(command_status == PB_CommandStatus_OK) {
-            // Report errors not handled by underlying APIs
+
             command_status = PB_CommandStatus_ERROR_STORAGE_INTERNAL;
         }
     }
@@ -485,14 +477,13 @@ static bool rpc_system_storage_is_dir_is_empty(Storage* storage, const char* pat
     if((error == FSE_OK) && file_info_is_dir(&fileinfo)) {
         File* dir = storage_file_alloc(storage);
         if(storage_dir_open(dir, path)) {
-            char* name = malloc(MAX_NAME_LENGTH);
+            char name[MAX_NAME_LENGTH];
             while(storage_dir_read(dir, &fileinfo, name, MAX_NAME_LENGTH)) {
                 if(path_contains_only_ascii(name)) {
                     is_dir_is_empty = false;
                     break;
                 }
             }
-            free(name);
         }
         storage_dir_close(dir);
         storage_file_free(dir);
@@ -520,8 +511,7 @@ static void rpc_system_storage_delete_process(const PB_Main* request, void* cont
         status = PB_CommandStatus_ERROR_INVALID_PARAMETERS;
     } else {
         FS_Error error_remove = storage_common_remove(rpc_storage->api, path);
-        // FSE_DENIED is for empty directory, but not only for this
-        // that's why we have to check it
+
         if((error_remove == FSE_DENIED) &&
            !rpc_system_storage_is_dir_is_empty(rpc_storage->api, path)) {
             if(request->content.storage_delete_request.recursive) {
@@ -789,6 +779,9 @@ void rpc_system_storage_free(void* context) {
     rpc_system_storage_reset_state(rpc_storage, session, false);
 
     furi_record_close(RECORD_STORAGE);
+
+    furi_kernel_lock();
     rpc_storage->api = NULL;
     free(rpc_storage);
+    furi_kernel_unlock();
 }

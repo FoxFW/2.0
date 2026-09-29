@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Based on FlipDeFlock by ReconGrunt (https://github.com/ReconGrunt/FlipDeFlock),
-// adapted for Fox ESP32 Firmware. See LICENSE and README.md.
+
 #pragma once
 
 #include <furi.h>
@@ -35,7 +34,7 @@ typedef struct {
     FlockDevClass dev_class;
     FoxDeFlockSource source;
     int8_t rssi;
-    uint8_t channel; // 0 = unknown (BLE hits)
+    uint8_t channel;
     uint32_t last_seen_tick;
     uint32_t first_seen_tick;
     uint16_t sightings;
@@ -66,22 +65,13 @@ typedef struct {
 
     EspAt* esp_at;
     FuriHalSerialId serial_id;
-    size_t pin_option_index; /**< 0 = Usart (13/14), 1 = Lpuart (15/16) */
+    size_t pin_option_index;
 
     FoxDeFlockAppState state;
     bool esp32_probe_ok;
     uint32_t esp32_check_start_tick;
     bool esp32_check_focus_settings;
-    /* Set once the boot/retry probe has already auto-flipped to the other
-     * UART channel and failed there too - one more timeout after that
-     * goes to Esp32NotFound instead of flipping again. Matches
-     * CSIght_FoxEdition's own AppStateEsp32Check two-channel sweep
-     * (csight_app.c), itself modeled on fox_esp32_terminal's
-     * action_check_esp32() - every Fox ESP32 app auto-tries both
-     * channels before ever asking the user. Reset to false at every
-     * *fresh* start of the check (boot, Esp32NotFound's Retry, Connect
-     * Settings' OK-retry); set true only by the in-flight auto-flip
-     * itself. */
+
     bool esp32_probe_tried_alt;
     FoxDeFlockScanMode scan_mode;
     uint32_t mode_started_tick;
@@ -94,7 +84,6 @@ typedef struct {
     uint32_t wifi_lines_seen;
     uint32_t ble_lines_seen;
 
-    // char[6200] - kept here, not as a local, or FuriTimer's small stack overflows.
     EspAtMsg rx_msg;
 } FoxDeFlockApp;
 

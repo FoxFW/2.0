@@ -1,8 +1,6 @@
 #include "../subghz_garage_protocol_plugin.h"
 #include "../protocol_groups.h"
 
-/* Group 8 - Spain, Russia: Alutech/AN-Motors, Ansonic, Clemsa (Mastercode is
- * Clemsa's MasterCode MV12 protocol). */
 static const SubGhzProtocol* const subghz_garage_protocol_registry_g8_items[] = {
     &subghz_protocol_raw,
     &subghz_protocol_bin_raw,

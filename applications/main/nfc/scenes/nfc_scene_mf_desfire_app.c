@@ -4,7 +4,7 @@
 
 enum SubmenuIndex {
     SubmenuIndexAppInfo,
-    SubmenuIndexDynamic, // dynamic indexes start here
+    SubmenuIndexDynamic,
 };
 
 static void nfc_scene_mf_desfire_app_submenu_callback(void* context, uint32_t index) {
@@ -102,7 +102,6 @@ bool nfc_scene_mf_desfire_app_on_event(void* context, SceneManagerEvent event) {
 void nfc_scene_mf_desfire_app_on_exit(void* context) {
     NfcApp* nfc = context;
 
-    // Clear views
     text_box_reset(nfc->text_box);
     furi_string_reset(nfc->text_box_store);
     submenu_reset(nfc->submenu);

@@ -68,9 +68,9 @@ uint64_t protocol_jablotron_card_id(uint8_t* bytes) {
 }
 
 static bool protocol_jablotron_can_be_decoded(ProtocolJablotron* protocol) {
-    // check 11 bits preamble
+
     if(bit_lib_get_bits_16(protocol->encoded_data, 0, 16) != 0b1111111111111111) return false;
-    // check next 11 bits preamble
+
     if(bit_lib_get_bits_16(protocol->encoded_data, 64, 16) != 0b1111111111111111) return false;
 
     uint8_t checksum = bit_lib_get_bits(protocol->encoded_data, 56, 8);
@@ -87,7 +87,6 @@ bool protocol_jablotron_decoder_feed(ProtocolJablotron* protocol, bool level, ui
     UNUSED(level);
     bool pushed = false;
 
-    // Bi-Phase Manchester decoding
     if(duration >= JABLOTRON_SHORT_TIME_LOW && duration <= JABLOTRON_SHORT_TIME_HIGH) {
         if(protocol->last_short == false) {
             protocol->last_short = true;
@@ -101,11 +100,11 @@ bool protocol_jablotron_decoder_feed(ProtocolJablotron* protocol, bool level, ui
             pushed = true;
             bit_lib_push_bit(protocol->encoded_data, JABLOTRON_ENCODED_BYTE_FULL_SIZE, true);
         } else {
-            // reset
+
             protocol->last_short = false;
         }
     } else {
-        // reset
+
         protocol->last_short = false;
     }
 
@@ -118,14 +117,12 @@ bool protocol_jablotron_decoder_feed(ProtocolJablotron* protocol, bool level, ui
 }
 
 bool protocol_jablotron_encoder_start(ProtocolJablotron* protocol) {
-    // preamble
+
     bit_lib_set_bits(protocol->encoded_data, 0, 0b11111111, 8);
     bit_lib_set_bits(protocol->encoded_data, 8, 0b11111111, 8);
 
-    // Full code
     bit_lib_copy_bits(protocol->encoded_data, 16, 40, protocol->data, 0);
 
-    // Checksum
     bit_lib_set_bits(
         protocol->encoded_data, 56, protocol_jablotron_checksum(protocol->encoded_data), 8);
 
@@ -141,13 +138,12 @@ LevelDuration protocol_jablotron_encoder_yield(ProtocolJablotron* protocol) {
 
     bool bit = bit_lib_get_bit(protocol->encoded_data, protocol->encoded_index);
 
-    // Bi-Phase Manchester encoder
     if(bit) {
-        // one long pulse for 1
+
         duration = JABLOTRON_LONG_TIME / 8;
         bit_lib_increment_index(protocol->encoded_index, JABLOTRON_ENCODED_BIT_SIZE);
     } else {
-        // two short pulses for 0
+
         duration = JABLOTRON_SHORT_TIME / 8;
         if(protocol->last_short) {
             bit_lib_increment_index(protocol->encoded_index, JABLOTRON_ENCODED_BIT_SIZE);
@@ -169,7 +165,6 @@ bool protocol_jablotron_write_data(ProtocolJablotron* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_jablotron_encoder_start(protocol);
     protocol_jablotron_decode(protocol);
 

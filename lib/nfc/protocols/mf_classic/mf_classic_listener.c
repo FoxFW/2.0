@@ -282,7 +282,6 @@ static MfClassicListenerCommand mf_classic_listener_write_block_second_part_hand
         if(mf_classic_is_sector_trailer(block_num)) {
             MfClassicSectorTrailer* sec_tr = (MfClassicSectorTrailer*)&block;
 
-            // Check if any writing is allowed
             if(!mf_classic_is_allowed_access(
                    instance->data, block_num, key_type, MfClassicActionKeyAWrite) &&
                !mf_classic_is_allowed_access(
@@ -490,7 +489,7 @@ static const MfClassicListenerCmd mf_classic_listener_cmd_handlers[] = {
         .handler = mf_classic_listener_halt_handlers,
     },
     {
-        // This crutch is necessary since some devices (like Pixel) send 15-bit "HALT" command ...
+
         .cmd_start_byte = MF_CLASSIC_CMD_HALT_MSB,
         .cmd_len_bits = 15,
         .command_num = COUNT_OF(mf_classic_listener_halt_handlers),
@@ -611,7 +610,7 @@ NfcCommand mf_classic_listener_run(NfcGenericEvent event, void* context) {
         if(mfc_command == MfClassicListenerCommandAck) {
             mf_classic_listener_send_short_frame(instance, MF_CLASSIC_CMD_ACK);
         } else if(mfc_command == MfClassicListenerCommandNack) {
-            // Calculate nack based on the transfer buffer validity
+
             uint8_t nack = MF_CLASSIC_CMD_NACK;
             if(!instance->transfer_valid) {
                 nack += MF_CLASSIC_CMD_NACK_TRANSFER_INVALID;

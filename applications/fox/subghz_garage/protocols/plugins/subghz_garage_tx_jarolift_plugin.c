@@ -1,8 +1,5 @@
 #include "../subghz_garage_protocol_plugin.h"
-/* Group 8 (Blinds/Shutters) loads Jarolift RX_ONLY - no encoder at all - so
- * this tiny single-protocol plugin is what gives subghz_txrx_tx_start() a
- * real encoder when sending a captured/saved Jarolift signal, on demand.
- * See subghz_garage_tx_protocol_for_name(). */
+
 #include "../jarolift.h"
 
 static const SubGhzProtocol* const subghz_garage_tx_jarolift_registry_items[] = {

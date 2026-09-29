@@ -1,21 +1,4 @@
 #pragma once
-/* furi_hal_crypto_aes128_ecb_encrypt/decrypt() (targets/furi_hal_include/
- * furi_hal_crypto.h) use the STM32 AES1 peripheral directly with a raw
- * 128-bit key in ECB mode - present on FoxFW2.0's own copy and ARF's, but
- * not on Stock/Unleashed/Momentum's copies of that same shared header.
- * The generic furi_hal_crypto_load_key()/decrypt() path IS available on
- * every fork, but it drives the AES peripheral in a different register
- * configuration (32-bit datatype, byte-swapped key, CBC/GCM chaining via
- * an IV) than the ECB-mode helper (8-bit datatype, raw key, no chaining) -
- * they are not interchangeable, so it can't be used as a drop-in
- * substitute. Beninca ARC needs single-block AES-128 ECB specifically, so
- * this provides a small self-contained software implementation (standard
- * FIPS-197 algorithm, no hardware dependency) as the fallback - used
- * unconditionally on every _COMPATIBLE cross-fork build (ARF included,
- * even though it has the real hardware function too, for the same reason
- * every other SUBGHZ_GARAGE_HAS_LIB_EXTENSIONS fallback in this compat
- * layer applies uniformly rather than per-fork) and skipped in favor of
- * the fast hardware path on FoxFW2.0's own native build. */
 
 #include <stdbool.h>
 #include <stdint.h>

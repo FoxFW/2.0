@@ -1,8 +1,6 @@
 #include "lfrfid_i.h"
 #include <lfrfid_icons.h>
-#include <dolphin/dolphin.h>
 
-//TODO: use .txt file in resources for passwords.
 const uint32_t default_passwords[] = {
     0x00000000, 0x00000001, 0x00000002, 0x0000000A, 0x0000000B, 0x00012323, 0x000D8787, 0x00434343,
     0x01010101, 0x01020304, 0x01234567, 0x02030405, 0x03040506, 0x04050607, 0x05060708, 0x05D73B9F,
@@ -44,7 +42,7 @@ static void rpc_command_callback(const RpcAppSystemEvent* event, void* context) 
 
     if(event->type == RpcAppEventTypeSessionClose) {
         view_dispatcher_send_custom_event(app->view_dispatcher, LfRfidEventRpcSessionClose);
-        // Detach RPC
+
         rpc_system_app_set_callback(app->rpc_ctx, NULL, NULL);
         app->rpc_ctx = NULL;
     } else if(event->type == RpcAppEventTypeAppExit) {
@@ -84,49 +82,40 @@ static LfRfid* lfrfid_alloc(void) {
     view_dispatcher_set_navigation_event_callback(
         lfrfid->view_dispatcher, lfrfid_debug_back_event_callback);
 
-    // Open GUI record
     lfrfid->gui = furi_record_open(RECORD_GUI);
 
-    // Open Notification record
     lfrfid->notifications = furi_record_open(RECORD_NOTIFICATION);
 
-    // Submenu
     lfrfid->submenu = submenu_alloc();
     view_dispatcher_add_view(
         lfrfid->view_dispatcher, LfRfidViewSubmenu, submenu_get_view(lfrfid->submenu));
 
-    // Dialog
     lfrfid->dialog_ex = dialog_ex_alloc();
     view_dispatcher_add_view(
         lfrfid->view_dispatcher, LfRfidViewDialogEx, dialog_ex_get_view(lfrfid->dialog_ex));
 
-    // Popup
     lfrfid->popup = popup_alloc();
     view_dispatcher_add_view(
         lfrfid->view_dispatcher, LfRfidViewPopup, popup_get_view(lfrfid->popup));
 
-    // Widget
     lfrfid->widget = widget_alloc();
     view_dispatcher_add_view(
         lfrfid->view_dispatcher, LfRfidViewWidget, widget_get_view(lfrfid->widget));
 
-    // Text Input
     lfrfid->text_input = text_input_alloc();
     view_dispatcher_add_view(
         lfrfid->view_dispatcher, LfRfidViewTextInput, text_input_get_view(lfrfid->text_input));
 
-    // Byte Input
     lfrfid->byte_input = byte_input_alloc();
     view_dispatcher_add_view(
         lfrfid->view_dispatcher, LfRfidViewByteInput, byte_input_get_view(lfrfid->byte_input));
 
-    // Read custom view
     lfrfid->read_view = lfrfid_view_read_alloc();
     view_dispatcher_add_view(
         lfrfid->view_dispatcher, LfRfidViewRead, lfrfid_view_read_get_view(lfrfid->read_view));
 
     return lfrfid;
-} //-V773
+}
 
 static void lfrfid_free(LfRfid* lfrfid) {
     furi_assert(lfrfid);
@@ -146,45 +135,34 @@ static void lfrfid_free(LfRfid* lfrfid) {
     free(lfrfid->new_key_data);
     free(lfrfid->old_key_data);
 
-    // Submenu
     view_dispatcher_remove_view(lfrfid->view_dispatcher, LfRfidViewSubmenu);
     submenu_free(lfrfid->submenu);
 
-    // DialogEx
     view_dispatcher_remove_view(lfrfid->view_dispatcher, LfRfidViewDialogEx);
     dialog_ex_free(lfrfid->dialog_ex);
 
-    // Popup
     view_dispatcher_remove_view(lfrfid->view_dispatcher, LfRfidViewPopup);
     popup_free(lfrfid->popup);
 
-    // Widget
     view_dispatcher_remove_view(lfrfid->view_dispatcher, LfRfidViewWidget);
     widget_free(lfrfid->widget);
 
-    // TextInput
     view_dispatcher_remove_view(lfrfid->view_dispatcher, LfRfidViewTextInput);
     text_input_free(lfrfid->text_input);
 
-    // ByteInput
     view_dispatcher_remove_view(lfrfid->view_dispatcher, LfRfidViewByteInput);
     byte_input_free(lfrfid->byte_input);
 
-    // Read custom view
     view_dispatcher_remove_view(lfrfid->view_dispatcher, LfRfidViewRead);
     lfrfid_view_read_free(lfrfid->read_view);
 
-    // View Dispatcher
     view_dispatcher_free(lfrfid->view_dispatcher);
 
-    // Scene Manager
     scene_manager_free(lfrfid->scene_manager);
 
-    // GUI
     furi_record_close(RECORD_GUI);
     lfrfid->gui = NULL;
 
-    // Notifications
     furi_record_close(RECORD_NOTIFICATION);
     lfrfid->notifications = NULL;
 
@@ -209,14 +187,12 @@ int32_t lfrfid_app(void* p) {
             view_dispatcher_attach_to_gui(
                 app->view_dispatcher, app->gui, ViewDispatcherTypeDesktop);
             scene_manager_next_scene(app->scene_manager, LfRfidSceneRpc);
-            dolphin_deed(DolphinDeedRfidEmulate);
         } else {
             furi_string_set(app->file_path, args);
             if(lfrfid_load_key_data(app, app->file_path, true)) {
                 view_dispatcher_attach_to_gui(
                     app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
                 scene_manager_next_scene(app->scene_manager, LfRfidSceneEmulate);
-                dolphin_deed(DolphinDeedRfidEmulate);
             } else {
                 view_dispatcher_stop(app->view_dispatcher);
             }
@@ -264,7 +240,6 @@ bool lfrfid_load_key_from_file_select(LfRfid* app) {
         &browser_options, LFRFID_APP_FILENAME_EXTENSION, &I_125_10px);
     browser_options.base_path = LFRFID_APP_FOLDER;
 
-    // Input events and views are managed by file_browser
     bool result =
         dialog_file_browser_show(app->dialogs, app->file_path, app->file_path, &browser_options);
 
@@ -282,14 +257,13 @@ bool lfrfid_load_raw_key_from_file_select(LfRfid* app) {
     dialog_file_browser_set_basic_options(&browser_options, ".raw", &I_125_10px);
     browser_options.base_path = LFRFID_APP_FOLDER;
 
-    // Input events and views are managed by file_browser
     bool result =
         dialog_file_browser_show(app->dialogs, app->file_path, app->file_path, &browser_options);
 
     if(result) {
-        // Extract .raw
+
         path_extract_filename(app->file_path, app->file_name, true);
-        //path_extract_filename(app->file_name, app->file_name, true);
+
     }
 
     return result;

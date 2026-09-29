@@ -54,7 +54,7 @@ bool lfrfid_scene_write_and_set_pass_on_event(void* context, SceneManagerEvent e
             scene_manager_next_scene(app->scene_manager, LfRfidSceneWriteSuccess);
             consumed = true;
         } else if(event.event == LfRfidEventWriteProtocolCannotBeWritten) {
-            // [NO_DOLPHIN] popup_set_icon(popup, 83, 22, &I_WarningDolphinFlip_45x42);
+
             popup_set_header(popup, "Error", 64, 3, AlignCenter, AlignTop);
             popup_set_text(popup, "This protocol\ncannot be written", 3, 17, AlignLeft, AlignTop);
             notification_message(app->notifications, &sequence_blink_start_red);
@@ -62,7 +62,7 @@ bool lfrfid_scene_write_and_set_pass_on_event(void* context, SceneManagerEvent e
         } else if(
             (event.event == LfRfidEventWriteFobCannotBeWritten) ||
             (event.event == LfRfidEventWriteTooLongToWrite)) {
-            // [NO_DOLPHIN] popup_set_icon(popup, 83, 22, &I_WarningDolphinFlip_45x42);
+
             popup_set_header(popup, "Still trying to write...", 64, 3, AlignCenter, AlignTop);
             popup_set_text(
                 popup,

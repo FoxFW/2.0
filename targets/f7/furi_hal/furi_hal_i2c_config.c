@@ -5,16 +5,8 @@
 
 #include <stm32wbxx_ll_rcc.h>
 
-/** Timing register value is computed with the STM32CubeMX Tool,
-  * Standard Mode @100kHz with I2CCLK = 64 MHz,
-  * rise time = 0ns, fall time = 0ns
-  */
 #define FURI_HAL_I2C_CONFIG_POWER_I2C_TIMINGS_100 0x10707DBC
 
-/** Timing register value is computed with the STM32CubeMX Tool,
-  * Fast Mode @400kHz with I2CCLK = 64 MHz,
-  * rise time = 0ns, fall time = 0ns
-  */
 #define FURI_HAL_I2C_CONFIG_POWER_I2C_TIMINGS_400 0x00602173
 
 FuriMutex* furi_hal_i2c_bus_power_mutex = NULL;
@@ -103,7 +95,7 @@ void furi_hal_i2c_bus_handle_power_event(
             I2C_InitStruct.Timing = FURI_HAL_I2C_CONFIG_POWER_I2C_TIMINGS_100;
         }
         LL_I2C_Init(handle->bus->i2c, &I2C_InitStruct);
-        // I2C is enabled at this point
+
         LL_I2C_EnableAutoEndMode(handle->bus->i2c);
         LL_I2C_SetOwnAddress2(handle->bus->i2c, 0, LL_I2C_OWNADDRESS2_NOMASK);
         LL_I2C_DisableOwnAddress2(handle->bus->i2c);
@@ -143,7 +135,7 @@ void furi_hal_i2c_bus_handle_external_event(
         I2C_InitStruct.OwnAddrSize = LL_I2C_OWNADDRESS1_7BIT;
         I2C_InitStruct.Timing = FURI_HAL_I2C_CONFIG_POWER_I2C_TIMINGS_100;
         LL_I2C_Init(handle->bus->i2c, &I2C_InitStruct);
-        // I2C is enabled at this point
+
         LL_I2C_EnableAutoEndMode(handle->bus->i2c);
         LL_I2C_SetOwnAddress2(handle->bus->i2c, 0, LL_I2C_OWNADDRESS2_NOMASK);
         LL_I2C_DisableOwnAddress2(handle->bus->i2c);

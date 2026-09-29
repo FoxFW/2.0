@@ -15,8 +15,6 @@ typedef FRESULT SDError;
 
 #define TAG "StorageExt"
 
-/********************* Definitions ********************/
-
 typedef struct {
     FATFS* fs;
     const char* path;
@@ -24,8 +22,6 @@ typedef struct {
 } SDData;
 
 static FS_Error storage_ext_parse_error(SDError error);
-
-/******************* Core Functions *******************/
 
 static bool sd_mount_card_internal(StorageData* storage, bool notify) {
     bool result = false;
@@ -41,14 +37,14 @@ static bool sd_mount_card_internal(StorageData* storage, bool notify) {
         }
 
         if((counter % 2) == 0) {
-            // power reset sd card
+
             bsp_result = furi_hal_sd_init(true);
         } else {
             bsp_result = furi_hal_sd_init(false);
         }
 
         if(bsp_result) {
-            // bsp error
+
             storage->status = StorageStatusErrorInternal;
         } else {
             SDError status = f_mount(sd_data->fs, sd_data->path, 1);
@@ -161,7 +157,6 @@ FS_Error sd_unmount_card(StorageData* storage) {
     storage->status = StorageStatusNotReady;
     error = FR_DISK_ERR;
 
-    // TODO FL-3522: do i need to close the files?
     f_mount(0, sd_data->path, 0);
 
     return storage_ext_parse_error(error);
@@ -221,7 +216,7 @@ FS_Error sd_format_card(StorageData* storage) {
         storage->status = StorageStatusNotAccessible;
         if(error != FR_OK) break;
         storage->status = StorageStatusNoFS;
-        error = f_setlabel("Flipper SD");
+        error = f_setlabel("FOX");
         if(error != FR_OK) break;
         storage->status = StorageStatusNotMounted;
         error = f_mount(sd_data->fs, sd_data->path, 1);
@@ -241,10 +236,8 @@ FS_Error sd_card_info(StorageData* storage, SDInfo* sd_info) {
     SDData* sd_data = storage->data;
     SDError error;
 
-    // clean data
     memset(sd_info, 0, sizeof(SDInfo));
 
-    // get fs info
     error = f_getlabel(sd_data->path, sd_info->label, NULL);
     if(error == FR_OK) {
 #ifndef FURI_RAM_EXEC
@@ -253,7 +246,7 @@ FS_Error sd_card_info(StorageData* storage, SDInfo* sd_info) {
     }
 
     if(error == FR_OK) {
-        // calculate size
+
 #ifndef FURI_RAM_EXEC
         total_sectors = (fs->n_fatent - 2) * fs->csize;
         free_sectors = free_clusters * fs->csize;
@@ -348,8 +341,6 @@ static void storage_ext_tick(StorageData* storage) {
     storage_ext_tick_internal(storage, true);
 }
 
-/****************** Common Functions ******************/
-
 static FS_Error storage_ext_parse_error(SDError error) {
     FS_Error result;
     switch(error) {
@@ -384,8 +375,6 @@ static FS_Error storage_ext_parse_error(SDError error) {
 
     return result;
 }
-
-/******************* File Functions *******************/
 
 static bool storage_ext_file_open(
     void* ctx,
@@ -527,8 +516,6 @@ static bool storage_ext_file_eof(void* ctx, File* file) {
     return eof;
 }
 
-/******************* Dir Functions *******************/
-
 static bool storage_ext_dir_open(void* ctx, File* file, const char* path) {
     StorageData* storage = ctx;
 
@@ -588,7 +575,6 @@ static bool storage_ext_dir_rewind(void* ctx, File* file) {
     file->error_id = storage_ext_parse_error(file->internal_error_id);
     return file->error_id == FSE_OK;
 }
-/******************* Common FS Functions *******************/
 
 static FS_Error storage_ext_common_stat(void* ctx, const char* path, FileInfo* fileinfo) {
     UNUSED(ctx);
@@ -678,7 +664,6 @@ static bool storage_ext_common_equivalent_path(const char* path1, const char* pa
 #endif
 }
 
-/******************* Init Storage *******************/
 static const FS_Api fs_api = {
     .file =
         {
@@ -724,10 +709,9 @@ void storage_ext_init(StorageData* storage) {
 
     furi_hal_sd_presence_init();
 
-    // do not notify on first launch, notifications app is waiting for our thread to read settings
     storage_ext_tick_internal(storage, false);
 #ifndef FURI_RAM_EXEC
-    // always reset the flag to prevent accidental wipe on SD card insertion
+
     furi_hal_rtc_reset_flag(FuriHalRtcFlagStorageFormatInternal);
 #endif
 }

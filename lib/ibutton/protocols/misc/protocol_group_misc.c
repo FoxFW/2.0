@@ -93,7 +93,7 @@ static bool ibutton_protocol_group_misc_read(
     protocol_dict_decoders_start(group->dict);
 
     furi_hal_rfid_pins_reset();
-    // pulldown pull pin, we sense the signal through the analog part of the RFID schematic
+
     furi_hal_rfid_pin_pull_pulldown();
 
     iButtonReadContext read_context = {

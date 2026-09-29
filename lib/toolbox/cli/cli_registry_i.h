@@ -1,8 +1,3 @@
-/**
- * @file cli_registry_i.h
- * Internal API for getting commands registered with the CLI
- */
-
 #pragma once
 
 #include <furi.h>
@@ -16,8 +11,8 @@ extern "C" {
 #define CLI_BUILTIN_COMMAND_STACK_SIZE (4 * 1024U)
 
 typedef struct {
-    void* context; //<! Context passed to callbacks
-    CliCommandExecuteCallback execute_callback; //<! Callback for command execution
+    void* context;
+    CliCommandExecuteCallback execute_callback;
     CliCommandFlag flags;
     size_t stack_depth;
 } CliRegistryCommand;
@@ -35,9 +30,6 @@ void cli_registry_lock(CliRegistry* registry);
 
 void cli_registry_unlock(CliRegistry* registry);
 
-/**
- * @warning Surround calls to this function with `cli_registry_[un]lock`
- */
 CliCommandDict_t* cli_registry_get_commands(CliRegistry* registry);
 
 #ifdef __cplusplus

@@ -34,3 +34,8 @@ SubGhzProtocolStatus
     subghz_protocol_encoder_fiat_v2_deserialize(void* context, FlipperFormat* flipper_format);
 void subghz_protocol_encoder_fiat_v2_stop(void* context);
 LevelDuration subghz_protocol_encoder_fiat_v2_yield(void* context);
+
+#define FIAT_V2_IV_COMBO_COUNT 4U
+
+uint8_t subghz_protocol_fiat_v2_iv_button_for_combo(const uint8_t* raw, uint8_t combo);
+uint16_t subghz_protocol_fiat_v2_iv_control_for_combo(const uint8_t* raw, uint8_t combo);

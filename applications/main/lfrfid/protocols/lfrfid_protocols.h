@@ -5,8 +5,8 @@
 #include "../tools/hitagmicro.h"
 
 typedef enum {
-    LFRFIDFeatureASK = 1 << 0, /** ASK Demodulation */
-    LFRFIDFeaturePSK = 1 << 1, /** PSK Demodulation */
+    LFRFIDFeatureASK = 1 << 0,
+    LFRFIDFeaturePSK = 1 << 1,
 } LFRFIDFeature;
 
 typedef enum {
@@ -43,7 +43,7 @@ extern const ProtocolBase* const lfrfid_protocols[];
 typedef enum {
     LFRFIDWriteTypeT5577,
     LFRFIDWriteTypeEM4305,
-    LFRFIDWriteTypeHitagMicro, // ID82xx / Hitag micro magic chips (EM4100 emulation)
+    LFRFIDWriteTypeHitagMicro,
 
     LFRFIDWriteTypeMax,
 } LFRFIDWriteType;

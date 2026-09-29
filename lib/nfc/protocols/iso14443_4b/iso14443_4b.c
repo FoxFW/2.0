@@ -1,4 +1,4 @@
-#include "iso14443_4b_i.h" // IWYU pragma: keep
+#include "iso14443_4b_i.h"
 
 #include <furi.h>
 #include <nfc/protocols/nfc_device_base_i.h>
@@ -53,7 +53,6 @@ bool iso14443_4b_verify(Iso14443_4bData* data, const FuriString* device_type) {
     UNUSED(data);
     UNUSED(device_type);
 
-    // Empty, unified file format only
     return false;
 }
 

@@ -386,11 +386,6 @@ void updater_handle_status_back(UpdaterApp* app) {
     view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewMenu);
 }
 
-static void fox_splash_done_cb(void* context) {
-    UpdaterApp* app = context;
-    view_dispatcher_send_custom_event(app->view_dispatcher, UpdaterEventSplashDone);
-}
-
 static bool navigation_callback(void* context) {
     UpdaterApp* app = context;
     switch(app->current_view) {
@@ -562,9 +557,6 @@ static bool custom_event_callback(void* context, uint32_t event) {
     UpdaterApp* app = context;
 
     switch((UpdaterEvent)event) {
-    case UpdaterEventSplashDone:
-        run_detection(app);
-        return true;
     case UpdaterEventMenuFw:
         app->flow = UpdaterFlowFirmware;
         begin_check_for_flow(app, UpdaterFlowFirmware);
@@ -620,7 +612,7 @@ static bool custom_event_callback(void* context, uint32_t event) {
     }
 }
 
-static UpdaterApp* app_alloc(bool skip_splash) {
+static UpdaterApp* app_alloc(void) {
     UpdaterApp* app = malloc(sizeof(UpdaterApp));
     memset(app, 0, sizeof(UpdaterApp));
 
@@ -652,7 +644,6 @@ static UpdaterApp* app_alloc(bool skip_splash) {
         app->pin_option_index = gpio_remap.esp32_uart_channel;
     }
 
-    app->splash = fox_splash_alloc(&I_fox_64x64, 2000, 666, fox_splash_done_cb, app);
     app->message_view = view_message_alloc(app);
     app->connect_settings_view = connect_settings_view_alloc(app);
     app->download_settings_view = download_settings_view_alloc(app);
@@ -662,8 +653,6 @@ static UpdaterApp* app_alloc(bool skip_splash) {
     app->progress_view = view_progress_alloc(app);
     app->check_progress_view = view_check_progress_alloc(app);
 
-    view_dispatcher_add_view(
-        app->view_dispatcher, UpdaterViewSplash, fox_splash_get_view(app->splash));
     view_dispatcher_add_view(app->view_dispatcher, UpdaterViewMessage, app->message_view);
     view_dispatcher_add_view(
         app->view_dispatcher, UpdaterViewConnectSettings, app->connect_settings_view);
@@ -678,13 +667,7 @@ static UpdaterApp* app_alloc(bool skip_splash) {
 
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    if(skip_splash) {
-        run_detection(app);
-    } else {
-        app->current_view = UpdaterViewSplash;
-        view_dispatcher_switch_to_view(app->view_dispatcher, UpdaterViewSplash);
-        fox_splash_start(app->splash);
-    }
+    run_detection(app);
 
     return app;
 }
@@ -696,7 +679,6 @@ static void app_free(UpdaterApp* app) {
     }
     if(app->esp_at) esp_at_free(app->esp_at);
 
-    view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewSplash);
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewMessage);
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewConnectSettings);
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewDownloadSettings);
@@ -706,7 +688,6 @@ static void app_free(UpdaterApp* app) {
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewProgress);
     view_dispatcher_remove_view(app->view_dispatcher, UpdaterViewCheckProgress);
 
-    fox_splash_free(app->splash);
     view_message_free(app->message_view);
     connect_settings_view_free(app->connect_settings_view);
     download_settings_view_free(app->download_settings_view);
@@ -728,8 +709,8 @@ static void app_free(UpdaterApp* app) {
 }
 
 int32_t fox_update_downloader_main(void* p) {
-    bool skip_splash = (p != NULL && strcmp((const char*)p, "SKIPSPLASH") == 0);
-    UpdaterApp* app = app_alloc(skip_splash);
+    UNUSED(p);
+    UpdaterApp* app = app_alloc();
     view_dispatcher_run(app->view_dispatcher);
     app_free(app);
     return 0;

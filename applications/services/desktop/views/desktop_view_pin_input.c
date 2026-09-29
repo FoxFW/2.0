@@ -17,7 +17,6 @@
 #define KEY_ROWS 3
 #define KEY_COLS 4
 
-// Pixel-perfect layout constants to fit inside the 128x55 safe area
 #define KEY_WIDTH 25
 #define KEY_HEIGHT 11
 #define GRID_START_X 5
@@ -48,10 +47,10 @@ typedef struct {
     bool locked_input;
     uint8_t pin_x;
     uint8_t pin_y;
-    
+
     uint8_t selected_row;
     uint8_t selected_col;
-    
+
     uint8_t current_fail_count;
     uint8_t max_allowed_attempts;
 
@@ -67,8 +66,7 @@ typedef struct {
 } DesktopViewPinInputModel;
 
 static void desktop_view_pin_input_rebuild_pin(DesktopViewPinInputModel* model) {
-    // 2-key encoding: 4 direction keys (Up=0,Down=1,Left=2,Right=3) across 2 positions
-    // gives 16 unique combinations — more than enough for 10 digits with zero collisions.
+
     static const uint8_t k1[10] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2};
     static const uint8_t k2[10] = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1};
     model->pin.length = 0;
@@ -158,7 +156,6 @@ static bool desktop_view_pin_input_input(InputEvent* event, void* context) {
         }
     }
 
-    // CRITICAL: Commit model before execution transitions to prevent double-lock deadlocks
     view_commit_model(pin_input->view, true);
 
     if(call_done_callback && pin_input->done_callback) {
@@ -189,9 +186,9 @@ static void desktop_view_pin_input_draw(Canvas* canvas, void* context) {
     DesktopViewPinInputModel* model = context;
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
-    
+
     canvas_set_font(canvas, FontPrimary);
-    
+
     if(model->locked_input) {
         canvas_draw_icon(canvas, 2, 14, &I_fox_32x32);
         canvas_set_font(canvas, FontPrimary);
@@ -203,7 +200,6 @@ static void desktop_view_pin_input_draw(Canvas* canvas, void* context) {
         return;
     }
 
-    // Wrong-PIN feedback overlay — auto-dismisses via timer
     if(model->wrong_pin_visible) {
         canvas_set_font(canvas, FontPrimary);
         canvas_draw_str_aligned(
@@ -214,7 +210,6 @@ static void desktop_view_pin_input_draw(Canvas* canvas, void* context) {
         return;
     }
 
-    // Primary label — replaced by attempt counter once failures start
     if(model->current_fail_count > 0 && model->max_allowed_attempts > 0) {
         char attempt_str[22];
         if((model->current_fail_count + 1) >= model->max_allowed_attempts) {
@@ -224,8 +219,7 @@ static void desktop_view_pin_input_draw(Canvas* canvas, void* context) {
                      model->current_fail_count + 1, model->max_allowed_attempts);
         }
         canvas_set_font(canvas, FontSecondary);
-        // Left-align just inside the screen edge so dots have maximum room on the right.
-        // y=22 puts the text baseline below the 10px status bar with comfortable clearance.
+
         canvas_draw_str(canvas, 5, 22, attempt_str);
     } else {
         canvas_set_font(canvas, FontPrimary);
@@ -236,15 +230,13 @@ static void desktop_view_pin_input_draw(Canvas* canvas, void* context) {
         }
     }
 
-    // Dots — use tighter spacing when many digits are entered so they don't
-    // overlap the attempt counter text on the left.
     uint8_t total_dots = model->typed_digits_len;
     if(total_dots > 0) {
-        uint8_t dot_gap    = (total_dots > 6) ? 5 : 7; // tighter spacing for 7-10 digits
+        uint8_t dot_gap    = (total_dots > 6) ? 5 : 7;
         int16_t dot_width  = (int16_t)((total_dots * dot_gap) - 1);
-        int16_t dot_center = 59 + (65 / 2); // center of the right-hand area
+        int16_t dot_center = 59 + (65 / 2);
         int16_t dot_start  = dot_center - (dot_width / 2);
-        if(dot_start < 60) dot_start = 60; // never drift into the text area
+        if(dot_start < 60) dot_start = 60;
 
         for(uint8_t i = 0; i < total_dots; i++) {
             canvas_draw_disc(canvas, dot_start + (i * dot_gap), 16, 2);
@@ -273,11 +265,11 @@ static void desktop_view_pin_input_draw(Canvas* canvas, void* context) {
                 uint8_t idx = (row * 3) + col;
                 canvas_set_font(canvas, FontPrimary);
                 canvas_draw_str_aligned(
-                    canvas, 
-                    box_x + (KEY_WIDTH / 2), 
-                    box_y + (KEY_HEIGHT / 2) + 1, 
-                    AlignCenter, 
-                    AlignCenter, 
+                    canvas,
+                    box_x + (KEY_WIDTH / 2),
+                    box_y + (KEY_HEIGHT / 2) + 1,
+                    AlignCenter,
+                    AlignCenter,
                     main_text_map[idx]
                 );
             } else {
@@ -297,7 +289,7 @@ static void desktop_view_pin_input_draw(Canvas* canvas, void* context) {
                     canvas_draw_line(canvas, x + 6, y + 2, x + 10, y + 6);
                     canvas_draw_line(canvas, x + 10, y + 2, x + 6, y + 6);
                 } else if(row == 1) {
-                    canvas_set_font(canvas, FontPrimary); 
+                    canvas_set_font(canvas, FontPrimary);
                     canvas_draw_str_aligned(canvas, text_x, text_y, AlignCenter, AlignCenter, "0");
                 } else if(row == 2) {
                     canvas_set_font(canvas, FontKeyboard);
@@ -416,14 +408,13 @@ void desktop_view_pin_input_set_label_button(DesktopViewPinInput* pin_input, con
 void desktop_view_pin_input_set_label_primary(DesktopViewPinInput* pin_input, uint8_t x, uint8_t y, const char* label) {
     furi_assert(pin_input);
     DesktopViewPinInputModel* model = view_get_model(pin_input->view);
-    
-    // Intercept "Alphanumeric PIN" text from Desktop Service and rewrite it cleanly
+
     if(label && strcmp(label, "Alphanumeric PIN") == 0) {
         model->primary_str = "Enter PIN:";
     } else {
         model->primary_str = label;
     }
-    
+
     model->primary_str_x = x;
     model->primary_str_y = y;
     view_commit_model(pin_input->view, true);

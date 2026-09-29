@@ -21,11 +21,9 @@ static void power_settings_tick_event_callback(void* context) {
 PowerSettingsApp* power_settings_app_alloc(uint32_t first_scene) {
     PowerSettingsApp* app = malloc(sizeof(PowerSettingsApp));
 
-    // Records
     app->gui = furi_record_open(RECORD_GUI);
     app->power = furi_record_open(RECORD_POWER);
 
-    // View dispatcher
     app->view_dispatcher = view_dispatcher_alloc();
     app->scene_manager = scene_manager_alloc(&power_settings_scene_handlers, app);
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
@@ -37,7 +35,6 @@ PowerSettingsApp* power_settings_app_alloc(uint32_t first_scene) {
         app->view_dispatcher, power_settings_tick_event_callback, 2000);
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    // Views
     app->battery_info = battery_info_alloc();
     view_dispatcher_add_view(
         app->view_dispatcher,
@@ -55,10 +52,8 @@ PowerSettingsApp* power_settings_app_alloc(uint32_t first_scene) {
     view_dispatcher_add_view(
         app->view_dispatcher, PowerSettingsAppViewDialog, dialog_ex_get_view(app->dialog));
 
-    // get settings from service to app
     power_api_get_settings(app->power, &app->settings);
 
-    // Set first scene
     scene_manager_next_scene(app->scene_manager, first_scene);
     return app;
 }
@@ -66,9 +61,8 @@ PowerSettingsApp* power_settings_app_alloc(uint32_t first_scene) {
 void power_settings_app_free(PowerSettingsApp* app) {
     furi_assert(app);
 
-    // set settings from app to service
     power_api_set_settings(app->power, &app->settings);
-    // Views
+
     view_dispatcher_remove_view(app->view_dispatcher, PowerSettingsAppViewBatteryInfo);
     battery_info_free(app->battery_info);
     view_dispatcher_remove_view(app->view_dispatcher, PowerSettingsAppViewSubmenu);
@@ -78,11 +72,9 @@ void power_settings_app_free(PowerSettingsApp* app) {
     view_dispatcher_remove_view(app->view_dispatcher, PowerSettingsAppViewDialog);
     dialog_ex_free(app->dialog);
 
-    // View dispatcher
     view_dispatcher_free(app->view_dispatcher);
     scene_manager_free(app->scene_manager);
 
-    // Records
     furi_record_close(RECORD_POWER);
     furi_record_close(RECORD_GUI);
     free(app);

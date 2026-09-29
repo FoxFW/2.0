@@ -2,7 +2,7 @@
  * Parser for WashCity MarkItaly Card (Europe).
  *
  * Copyright 2023 Filipe Polido (YaBaPT) <polido@gmail.com>
- * 
+ *
  * Based on MetroMoney by Leptoptilos <leptoptilos@icloud.com>
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -33,22 +33,22 @@ typedef struct {
 } MfClassicKeyPair;
 
 static const MfClassicKeyPair washcity_1k_keys[] = {
-    {.a = 0xA0A1A2A3A4A5, .b = 0x010155010100}, // Sector 00
-    {.a = 0xC78A3D0E1BCD, .b = 0xFFFFFFFFFFFF}, // Sector 01
-    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF}, // Sector 02
-    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF}, // Sector 03
-    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF}, // Sector 04
-    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF}, // Sector 05
-    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF}, // Sector 06
-    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF}, // Sector 07
-    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF}, // Sector 08
-    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF}, // Sector 09
-    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF}, // Sector 10
-    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF}, // Sector 11
-    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF}, // Sector 12
-    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF}, // Sector 13
-    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF}, // Sector 14
-    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF}, // Sector 15
+    {.a = 0xA0A1A2A3A4A5, .b = 0x010155010100},
+    {.a = 0xC78A3D0E1BCD, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF},
+    {.a = 0xC78A3D0E0000, .b = 0xFFFFFFFFFFFF},
+    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF},
+    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF},
+    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF},
+    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF},
+    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF},
+    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF},
+    {.a = 0x010155010100, .b = 0xFFFFFFFFFFFF},
 };
 
 static bool washcity_verify(Nfc* nfc) {
@@ -132,7 +132,7 @@ static bool washcity_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // Verify key
+
         const uint8_t ticket_sector_number = 1;
         const uint8_t ticket_block_number = 0;
 
@@ -143,7 +143,6 @@ static bool washcity_parse(const NfcDevice* device, FuriString* parsed_data) {
             bit_lib_bytes_to_num_be(sec_tr->key_a.data, COUNT_OF(sec_tr->key_a.data));
         if(key != washcity_1k_keys[ticket_sector_number].a) break;
 
-        // Parse data
         const uint8_t start_block_num =
             mf_classic_get_first_block_num_of_sector(ticket_sector_number);
 
@@ -158,7 +157,6 @@ static bool washcity_parse(const NfcDevice* device, FuriString* parsed_data) {
         size_t uid_len = 0;
         const uint8_t* uid = mf_classic_get_uid(data, &uid_len);
 
-        // Card Number is printed in HEX (equal to UID)
         uint64_t card_number = bit_lib_bytes_to_num_be(uid, uid_len);
 
         furi_string_printf(
@@ -174,7 +172,6 @@ static bool washcity_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin washcity_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = washcity_verify,
@@ -182,14 +179,12 @@ static const NfcSupportedCardsPlugin washcity_plugin = {
     .parse = washcity_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor washcity_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &washcity_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* washcity_plugin_ep(void) {
     return &washcity_plugin_descriptor;
 }

@@ -1,6 +1,5 @@
 #include "../ibutton_i.h"
 #include "ibutton/scenes/ibutton_scene.h"
-#include <dolphin/dolphin.h>
 
 enum SubmenuIndex {
     SubmenuIndexRead,
@@ -35,7 +34,6 @@ bool ibutton_scene_start_on_event(void* context, SceneManagerEvent event) {
         consumed = true;
         if(event.event == SubmenuIndexRead) {
             scene_manager_next_scene(ibutton->scene_manager, iButtonSceneRead);
-            dolphin_deed(DolphinDeedIbuttonRead);
         } else if(event.event == SubmenuIndexSaved) {
             scene_manager_next_scene(ibutton->scene_manager, iButtonSceneSelectKey);
         } else if(event.event == SubmenuIndexAdd) {

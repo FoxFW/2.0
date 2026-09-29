@@ -48,9 +48,9 @@ static const char* opal_usages[14] = {
     "Tap on: new journey",
     "Tap on: transfer from same mode",
     "Tap on: transfer from other mode",
-    NULL, // Manly Ferry: new journey
-    NULL, // Manly Ferry: transfer from ferry
-    NULL, // Manly Ferry: transfer from other
+    NULL,
+    NULL,
+    NULL,
     "Tap off: distance fare",
     "Tap off: flat fare",
     "Automated tap off: failed to tap off",
@@ -60,7 +60,6 @@ static const char* opal_usages[14] = {
     "Unknown usage",
 };
 
-// Opal file 0x7 structure. Assumes a little-endian CPU.
 typedef struct FURI_PACKED {
     uint32_t serial         : 32;
     uint8_t check_digit     : 4;
@@ -78,20 +77,15 @@ typedef struct FURI_PACKED {
 
 static_assert(sizeof(OpalFile) == 16, "OpalFile");
 
-// Converts an Opal timestamp to DateTime.
-//
-// Opal measures days since 1980-01-01 and minutes since midnight, and presumes
-// all days are 1440 minutes.
 static void opal_days_minutes_to_datetime(uint16_t days, uint16_t minutes, DateTime* out) {
     out->year = 1980;
     out->month = 1;
-    // 1980-01-01 is a Tuesday
+
     out->weekday = ((days + 1) % 7) + 1;
     out->hour = minutes / 60;
     out->minute = minutes % 60;
     out->second = 0;
 
-    // What year is it?
     for(;;) {
         const uint16_t num_days_in_year = datetime_get_days_per_year(out->year);
         if(days < num_days_in_year) break;
@@ -99,11 +93,10 @@ static void opal_days_minutes_to_datetime(uint16_t days, uint16_t minutes, DateT
         out->year++;
     }
 
-    // 1-index the day of the year
     days++;
 
     for(;;) {
-        // What month is it?
+
         const bool is_leap = datetime_is_leap_year(out->year);
         const uint8_t num_days_in_month = datetime_get_days_per_month(is_leap, out->month);
         if(days <= num_days_in_month) break;
@@ -143,13 +136,9 @@ static bool opal_parse(const NfcDevice* device, FuriString* parsed_data) {
 
         if(opal_file->check_digit > 9) break;
 
-        // Negative balance. Make this a positive value again and record the
-        // sign separately, because then we can handle balances of -99..-1
-        // cents, as the "dollars" division below would result in a positive
-        // zero value.
         const bool is_negative_balance = (opal_file->balance < 0);
         const char* sign = is_negative_balance ? "-" : "";
-        const int32_t balance = is_negative_balance ? labs(opal_file->balance) : //-V1081
+        const int32_t balance = is_negative_balance ? labs(opal_file->balance) :
                                                       opal_file->balance;
         const uint8_t balance_cents = balance % 100;
         const int32_t balance_dollars = balance / 100;
@@ -157,11 +146,8 @@ static bool opal_parse(const NfcDevice* device, FuriString* parsed_data) {
         DateTime timestamp;
         opal_days_minutes_to_datetime(opal_file->days, opal_file->minutes, &timestamp);
 
-        // Usages 4..6 associated with the Manly Ferry, which correspond to
-        // usages 1..3 for other modes.
         const bool is_manly_ferry = (opal_file->usage >= 4) && (opal_file->usage <= 6);
 
-        // 3..7 are "reserved", but we use 4 to indicate the Manly Ferry.
         const uint8_t mode = is_manly_ferry ? 4 : opal_file->mode;
         const uint8_t usage = is_manly_ferry ? opal_file->usage - 3 : opal_file->usage;
 
@@ -212,7 +198,6 @@ static bool opal_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin opal_plugin = {
     .protocol = NfcProtocolMfDesfire,
     .verify = NULL,
@@ -220,14 +205,12 @@ static const NfcSupportedCardsPlugin opal_plugin = {
     .parse = opal_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor opal_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &opal_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* opal_plugin_ep(void) {
     return &opal_plugin_descriptor;
 }

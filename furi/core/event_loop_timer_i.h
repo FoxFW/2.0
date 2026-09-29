@@ -21,10 +21,8 @@ struct FuriEventLoopTimer {
     uint32_t start_time;
     uint32_t next_interval;
 
-    // Interface for the active timer list
     ILIST_INTERFACE(TimerList, FuriEventLoopTimer);
 
-    // Interface for the timer request queue
     ILIST_INTERFACE(TimerQueue, FuriEventLoopTimer);
 
     FuriEventLoopTimerRequest request;

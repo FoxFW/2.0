@@ -61,12 +61,12 @@ FelicaError felica_poller_polling(
 
     do {
         bit_buffer_set_size_bytes(instance->tx_buffer, 2);
-        // Set frame len
+
         bit_buffer_set_byte(
             instance->tx_buffer, 0, sizeof(FelicaPollerPollingCommand) + FELICA_CRC_SIZE);
-        // Set command code
+
         bit_buffer_set_byte(instance->tx_buffer, 1, FELICA_POLLER_CMD_POLLING_REQ_CODE);
-        // Set other data
+
         bit_buffer_append_bytes(
             instance->tx_buffer, (uint8_t*)cmd, sizeof(FelicaPollerPollingCommand));
 
@@ -93,7 +93,6 @@ FelicaError felica_poller_polling(
     return error;
 }
 
-// This is in fact a buffer preparer for a specified service. It should be have the _ex suffix. The prepare_tx_buffer_raw should have this name.
 static void felica_poller_prepare_tx_buffer(
     const FelicaPoller* instance,
     const uint8_t command,
@@ -200,7 +199,6 @@ FelicaError felica_poller_activate(FelicaPoller* instance, FelicaData* data) {
         bit_buffer_reset(instance->tx_buffer);
         bit_buffer_reset(instance->rx_buffer);
 
-        // Send Polling command
         const FelicaPollerPollingCommand polling_cmd = {
             .system_code = FELICA_SYSTEM_CODE_CODE,
             .request_code = 0,
@@ -262,7 +260,6 @@ FelicaError felica_poller_list_service_by_cursor(
     size_t rx_len = bit_buffer_get_size_bytes(instance->rx_buffer);
     if(rx_len < sizeof(FelicaCommandHeaderRaw) + 2) return FelicaErrorProtocol;
 
-    // error is known to be FelicaErrorNone here
     *response_ptr = (FelicaListServiceCommandResponse*)bit_buffer_get_data(instance->rx_buffer);
     return error;
 }
@@ -288,9 +285,7 @@ FelicaError felica_poller_list_system_code(
 
     size_t rx_len = bit_buffer_get_size_bytes(instance->rx_buffer);
     if(rx_len < sizeof(FelicaCommandHeaderRaw) + 3) return FelicaErrorProtocol;
-    // at least 1 system code + the count being 0x01
 
-    // error is known to be FelicaErrorNone here
     *response_ptr = (FelicaListSystemCodeCommandResponse*)bit_buffer_get_data(instance->rx_buffer);
     return error;
 }

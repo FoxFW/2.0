@@ -4,35 +4,6 @@
 
 #define TAG "TPMSPmv107j"
 
-// Port of rtl_433/src/devices/tpms_pmv107j.c (Christian W. Zuckschwerdt 2017,
-// based on work by Werner Johansson, GPL-2+).
-//
-// FSK 315 MHz, 8-byte Differential Manchester encoded TPMS data with CRC-8.
-// Pacific PMV-107J sensors used by Toyota.
-//
-// Wire format (66 bits effective, realigned with 6 bits of 0-padding to 9
-// bytes including CRC):
-//
-//   II II II I F* PP NN TT CC
-//
-//   I  = 28-bit ID
-//   F* = 6 bit flags (battery_low, repeat_counter[2], unknown, rapid_change, failed)
-//   P  = pressure raw
-//   N  = inverted pressure (b[6] == ~b[5]) — used as integrity check
-//   T  = temperature, °C + 40
-//   C  = CRC-8 (poly 0x13, init 0x00) over bytes 0..7
-//
-// Preamble (decoded): 6-bit `0b111110` = 0xF8.
-//
-// We implement Differential Manchester decoding directly from level/duration
-// pulses (the Flipper port has no helper for it). State machine:
-//   - duration ≈ te_long  → bit had no mid-bit transition → emit "1"
-//   - duration ≈ te_short → half-bit traversal. First half: just set "saw
-//     start transition"; second half: emit "0".
-//
-// State starts UNCLOCKED; the first te_long pulse establishes synchronisation
-// (the preamble starts with five "1" bits = five te_long durations).
-
 #define PMV107J_PREAMBLE 0xF8U
 #define PMV107J_PREAMBLE_BITS 6
 #define PMV107J_DATA_BITS 66
@@ -45,9 +16,9 @@ static const SubGhzBlockConst tpms_protocol_pmv107j_const = {
 };
 
 typedef enum {
-    Pmv107jDmUnclocked = 0, // not yet seen any te_long → no sync
-    Pmv107jDmAtBoundary, // about to start a new bit
-    Pmv107jDmAtMid, // saw mid-bit transition, waiting for the next-bit boundary
+    Pmv107jDmUnclocked = 0,
+    Pmv107jDmAtBoundary,
+    Pmv107jDmAtMid,
 } Pmv107jDmState;
 
 typedef enum {
@@ -121,7 +92,6 @@ void tpms_protocol_decoder_pmv107j_reset(void* context) {
     pmv107j_reset_state(context);
 }
 
-// Returns -1 = no bit yet, 0 or 1 = decoded bit, -2 = sync lost / reset.
 static int pmv107j_dm_advance(TPMSProtocolDecoderPmv107j* instance, uint32_t duration) {
     bool is_short = DURATION_DIFF(duration, tpms_protocol_pmv107j_const.te_short) <
                     tpms_protocol_pmv107j_const.te_delta;
@@ -134,30 +104,27 @@ static int pmv107j_dm_advance(TPMSProtocolDecoderPmv107j* instance, uint32_t dur
     }
 
     if(is_long) {
-        // Full bit period without a mid transition → "1".
+
         instance->dm_state = Pmv107jDmAtBoundary;
         return 1;
     }
 
-    // is_short
     if(instance->dm_state == Pmv107jDmUnclocked) {
-        // Can't tell whether this is start- or mid-half until we've seen a
-        // te_long anchor; drop until we sync.
+
         return -1;
     }
     if(instance->dm_state == Pmv107jDmAtBoundary) {
-        // First half of a bit with mid-transition.
+
         instance->dm_state = Pmv107jDmAtMid;
         return -1;
     }
-    // At mid → second half done, full bit consumed with mid-transition → "0".
+
     instance->dm_state = Pmv107jDmAtBoundary;
     return 0;
 }
 
 static void pmv107j_get_bytes(TPMSProtocolDecoderPmv107j* instance, uint8_t b[9]) {
-    // 66 bits collected: head lower 2 = stream bits 0..1 → b[0] lower 2 bits;
-    // decode_data 64 bits = stream bits 2..65 → b[1..8].
+
     b[0] = (uint8_t)(instance->head_64_bit & 0x03);
     for(int i = 0; i < 8; i++) {
         b[i + 1] = (instance->decoder.decode_data >> (8 * (7 - i))) & 0xFF;
@@ -168,7 +135,7 @@ static bool pmv107j_check(TPMSProtocolDecoderPmv107j* instance) {
     uint8_t b[9];
     pmv107j_get_bytes(instance, b);
     if(subghz_protocol_blocks_crc8(b, 8, 0x13, 0x00) != b[8]) return false;
-    // Pressure plausibility: b[6] should be inverted b[5].
+
     if((b[5] ^ 0xFF) != b[6]) return false;
     return true;
 }
@@ -176,12 +143,12 @@ static bool pmv107j_check(TPMSProtocolDecoderPmv107j* instance) {
 static void pmv107j_analyze(TPMSProtocolDecoderPmv107j* instance) {
     uint8_t b[9];
     pmv107j_get_bytes(instance, b);
-    // 28-bit ID = b[0]<<26 | b[1]<<18 | b[2]<<10 | b[3]<<2 | b[4]>>6
+
     uint32_t id = ((uint32_t)b[0] << 26) | ((uint32_t)b[1] << 18) | ((uint32_t)b[2] << 10) |
                   ((uint32_t)b[3] << 2) | (b[4] >> 6);
     instance->generic.id = id;
     instance->generic.battery_low = (b[4] & 0x20) >> 5;
-    // pressure_kpa = (pressure_raw - 40) * 2.48
+
     float kpa = ((float)b[5] - 40.0f) * 2.48f;
     instance->generic.pressure = kpa * 0.01f;
     instance->generic.temperature = (float)((int)b[7] - 40);
@@ -203,7 +170,8 @@ void tpms_protocol_decoder_pmv107j_feed(void* context, bool level, uint32_t dura
     case Pmv107jStepReset:
         instance->preamble_shift = 0;
         instance->decoder.parser_step = Pmv107jStepFindPreamble;
-        /* fallthrough */
+        __attribute__((fallthrough));
+
     case Pmv107jStepFindPreamble:
         instance->preamble_shift =
             (uint8_t)(((instance->preamble_shift << 1) | (bit & 0x1)) & 0x3F);
@@ -260,7 +228,6 @@ SubGhzProtocolStatus
 void tpms_protocol_pmv107j_pack(TPMSBlockGeneric* generic) {
     furi_assert(generic);
 
-    // Inverse of pmv107j_analyze(): engineering units back to raw bytes.
     int32_t pressure_raw = (int32_t)((generic->pressure * 100.0f) / 2.48f + 40.0f + 0.5f);
     if(pressure_raw < 0) pressure_raw = 0;
     if(pressure_raw > 0xFF) pressure_raw = 0xFF;
@@ -270,18 +237,16 @@ void tpms_protocol_pmv107j_pack(TPMSBlockGeneric* generic) {
     if(temperature_raw < 0) temperature_raw = 0;
     if(temperature_raw > 0xFF) temperature_raw = 0xFF;
 
-    // b[0] (top 2 ID bits) is outside data's 64 bits, but recoverable from
-    // id, so it's recomputed here just for the CRC.
     uint8_t b[9] = {0};
     b[0] = (uint8_t)((generic->id >> 26) & 0x3);
     b[1] = (uint8_t)((generic->id >> 18) & 0xFF);
     b[2] = (uint8_t)((generic->id >> 10) & 0xFF);
     b[3] = (uint8_t)((generic->id >> 2) & 0xFF);
-    // Repeat-counter/unknown/rapid-change/failed bits: not in any generic field.
+
     b[4] = (uint8_t)(((generic->id & 0x3) << 6) |
                       ((generic->battery_low == 1 ? 1 : 0) << 5));
     b[5] = (uint8_t)pressure_raw;
-    b[6] = (uint8_t)(~b[5]); // inverted-pressure integrity byte
+    b[6] = (uint8_t)(~b[5]);
     b[7] = (uint8_t)temperature_raw;
     b[8] = subghz_protocol_blocks_crc8(b, 8, 0x13, 0x00);
 

@@ -113,12 +113,7 @@ bool tagtinker_find_latest_synced_image(
     bool found = false;
 
     if(storage_file_open(file, APP_DATA_PATH("synced_images.txt"), FSAM_READ, FSOM_OPEN_EXISTING)) {
-        /*
-         * Index file can grow well beyond 512 bytes with many synced images.
-         * Previously the 512-byte buffer truncated file paths mid-name
-         * (e.g. "D72B7A.bm" instead of "D72B7A.bmp"), causing bmp_open
-         * to fail and the entire IR transmission to abort in ~1ms.
-         */
+
         uint64_t file_size = storage_file_size(file);
         if(file_size > 16384U) file_size = 16384U;
         size_t alloc_size = (size_t)file_size + 1U;
@@ -572,8 +567,7 @@ void tagtinker_recents_load(TagTinkerApp* app) {
             if(nl) *nl = '\0';
 
             unsigned w, h, pg, inv, clr, pad, sig;
-            /* Parse current format: w|h|pg|inv|clr|pad|sig|text.
-               Older saved entries omitted sig and are kept on the current mode. */
+
             int parsed =
                 sscanf(line, "%u|%u|%u|%u|%u|%u|%u|", &w, &h, &pg, &inv, &clr, &pad, &sig);
             if(parsed >= 6) {
@@ -646,7 +640,6 @@ bool tagtinker_recents_save(const TagTinkerApp* app) {
 void tagtinker_recents_add(TagTinkerApp* app, const char* text) {
     if(!app || !text || !*text) return;
 
-    /* Check if already in recents (move to top if so) */
     int8_t existing_idx = -1;
     for(uint8_t i = 0; i < app->recent_count; i++) {
         if(strcmp(app->recents[i].text, text) == 0 && app->recents[i].width == app->esl_width &&
@@ -657,7 +650,7 @@ void tagtinker_recents_add(TagTinkerApp* app, const char* text) {
     }
 
     if(existing_idx >= 0) {
-        /* Move to front */
+
         if(existing_idx > 0) {
             uint16_t width = app->recents[existing_idx].width;
             uint16_t height = app->recents[existing_idx].height;
@@ -680,7 +673,7 @@ void tagtinker_recents_add(TagTinkerApp* app, const char* text) {
             strncpy(app->recents[0].text, text_copy, TAGTINKER_PRESET_TEXT_LEN);
         }
     } else {
-        /* New entry, shift others */
+
         if(app->recent_count < TAGTINKER_MAX_PRESETS) {
             app->recent_count++;
         }
@@ -704,7 +697,6 @@ static void app_free(TagTinkerApp* app) {
 
     tagtinker_free_frame_sequence(app);
 
-    /* Tear down WiFi link if it was lazily allocated. */
     if(app->wifi) {
         extern void tagtinker_wifi_free(void* w);
         tagtinker_wifi_free(app->wifi);
@@ -713,7 +705,6 @@ static void app_free(TagTinkerApp* app) {
     free(app->wifi_plugins);
     app->wifi_plugins = NULL;
 
-    /* Views */
     view_dispatcher_remove_view(app->view_dispatcher, TagTinkerViewSubmenu);
     submenu_free(app->submenu);
 
@@ -749,7 +740,6 @@ static void app_free(TagTinkerApp* app) {
 
     furi_thread_free(app->tx_thread);
 
-    /* NFC cleanup */
     if(app->nfc) {
         app->nfc_scanning = false;
         furi_thread_join(app->nfc_thread);
@@ -825,7 +815,6 @@ static TagTinkerApp* app_alloc(void) {
     TagTinkerApp* app = malloc(sizeof(TagTinkerApp));
     memset(app, 0, sizeof(TagTinkerApp));
 
-    /* Defaults */
     app->page = 0;
     app->duration = 15;
     app->repeats = 200;
@@ -840,8 +829,6 @@ static TagTinkerApp* app_alloc(void) {
     strcpy(app->text_input_buf, "TagTinker");
     app->selected_target = -1;
 
-    /* Ensure the dropped-image folder exists so the user can pre-stage BMPs
-     * prepared with the web image preparer (web-image-prep/index.html). */
     {
         Storage* storage = furi_record_open(RECORD_STORAGE);
         storage_common_mkdir(storage, APP_DATA_PATH(""));
@@ -858,7 +845,6 @@ static TagTinkerApp* app_alloc(void) {
     app->dialogs = furi_record_open(RECORD_DIALOGS);
     app->bt = furi_record_open(RECORD_BT);
 
-    /* Momentum safety: Ensure radio is idle on startup */
     bt_disconnect(app->bt);
     bt_profile_restore_default(app->bt);
 
@@ -872,7 +858,6 @@ static TagTinkerApp* app_alloc(void) {
 
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    /* Views */
     app->submenu = submenu_alloc();
     view_dispatcher_add_view(app->view_dispatcher, TagTinkerViewSubmenu, submenu_get_view(app->submenu));
 
@@ -903,14 +888,12 @@ static TagTinkerApp* app_alloc(void) {
     app->about_view = view_alloc();
     view_dispatcher_add_view(app->view_dispatcher, TagTinkerViewAbout, app->about_view);
 
-    /* TX Thread */
     app->tx_thread = furi_thread_alloc();
     furi_thread_set_name(app->tx_thread, "TagTinkerTx");
     furi_thread_set_stack_size(app->tx_thread, 4096);
     furi_thread_set_priority(app->tx_thread, FuriThreadPriorityHighest);
     furi_thread_set_context(app->tx_thread, app);
 
-    /* NFC scan thread */
     app->nfc_thread = furi_thread_alloc();
     furi_thread_set_name(app->nfc_thread, "TagTinkerNfc");
     furi_thread_set_stack_size(app->nfc_thread, 2048);

@@ -8,7 +8,6 @@
 
 #include "event_loop_link_i.h"
 
-// Internal FreeRTOS member names
 #define uxMessagesWaiting uxDummy4[0]
 #define uxLength          uxDummy4[1]
 #define uxItemSize        uxDummy4[2]
@@ -19,9 +18,8 @@ struct FuriMessageQueue {
     uint8_t buffer[];
 };
 
-// IMPORTANT: container MUST be the FIRST struct member
 static_assert(offsetof(FuriMessageQueue, container) == 0);
-// IMPORTANT: buffer MUST be the LAST struct member
+
 static_assert(offsetof(FuriMessageQueue, buffer) == sizeof(FuriMessageQueue));
 
 FuriMessageQueue* furi_message_queue_alloc(uint32_t msg_count, uint32_t msg_size) {
@@ -29,19 +27,9 @@ FuriMessageQueue* furi_message_queue_alloc(uint32_t msg_count, uint32_t msg_size
 
     FuriMessageQueue* instance = malloc(sizeof(FuriMessageQueue) + msg_count * msg_size);
 
-    /* xQueueCreateStatic only zeroes sizeof(StaticQueue_t) bytes.
-     * FuriEventLoopLink follows the container and is NOT covered; zero it
-     * explicitly so furi_message_queue_put/get notify calls are safe on
-     * recycled heap allocations. */
     instance->event_loop_link.item_in  = NULL;
     instance->event_loop_link.item_out = NULL;
 
-    // 3 things happens here:
-    // - create queue
-    // - check results
-    // - ensure that queue container is first in the FuriMessageQueue structure
-    //
-    // As a bonus it guarantees that FuriMessageQueue* can be casted into StaticQueue_t* or QueueHandle_t.
     furi_check(
         xQueueCreateStatic(msg_count, msg_size, instance->buffer, &instance->container) ==
         (void*)instance);
@@ -53,7 +41,6 @@ void furi_message_queue_free(FuriMessageQueue* instance) {
     furi_check(furi_kernel_is_irq_or_masked() == 0U);
     furi_check(instance);
 
-    // Event Loop must be disconnected
     furi_check(!instance->event_loop_link.item_in);
     furi_check(!instance->event_loop_link.item_out);
 
@@ -101,7 +88,6 @@ FuriStatus
         furi_event_loop_link_notify(&instance->event_loop_link, FuriEventLoopEventIn);
     }
 
-    /* Return execution status */
     return stat;
 }
 
@@ -210,7 +196,6 @@ FuriStatus furi_message_queue_reset(FuriMessageQueue* instance) {
         furi_event_loop_link_notify(&instance->event_loop_link, FuriEventLoopEventOut);
     }
 
-    /* Return execution status */
     return stat;
 }
 

@@ -12,7 +12,6 @@ void nfc_scene_set_sak_on_enter(void* context) {
 
     instance->byte_input_store[0] = iso14443_3a_get_sak(instance->iso14443_3a_edit_data);
 
-    // Setup view
     ByteInput* byte_input = instance->byte_input;
     byte_input_set_header_text(byte_input, "Enter SAK in hex");
     byte_input_set_result_callback(
@@ -42,7 +41,6 @@ bool nfc_scene_set_sak_on_event(void* context, SceneManagerEvent event) {
 void nfc_scene_set_sak_on_exit(void* context) {
     NfcApp* instance = context;
 
-    // Clear view
     byte_input_set_result_callback(instance->byte_input, NULL, NULL, NULL, NULL, 0);
     byte_input_set_header_text(instance->byte_input, "");
 }

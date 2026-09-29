@@ -14,7 +14,7 @@ void subghz_scene_saved_on_enter(void* context) {
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSavedMenu);
         }
     } else {
-        scene_manager_search_and_switch_to_previous_scene(subghz->scene_manager, SubGhzSceneStart);
+        subghz_return_to_launcher(subghz);
     }
 }
 

@@ -1,9 +1,3 @@
-/* gallagher_util.h - Utilities for parsing Gallagher cards (New Zealand).
- * Author: Nick Mooney (nick@mooney.nz)
- * 
- * Reference: https://github.com/megabug/gallagher-research
-*/
-
 #pragma once
 
 #include <lib/nfc/protocols/mf_classic/mf_classic.h>

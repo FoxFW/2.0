@@ -79,7 +79,7 @@ static NfcCommand iso15693_3_poller_run(NfcGenericEvent event, void* context) {
                 instance->iso15693_3_event.type = Iso15693_3PollerEventTypeError;
                 instance->iso15693_3_event_data.error = error;
                 command = instance->callback(instance->general_event, instance->context);
-                // Add delay to switch context
+
                 furi_delay_ms(100);
             }
         } else {

@@ -58,8 +58,6 @@ const iButtonWorkerModeType ibutton_worker_modes[] = {
     },
 };
 
-/*********************** IDLE ***********************/
-
 void ibutton_worker_mode_idle_start(iButtonWorker* worker) {
     UNUSED(worker);
 }
@@ -71,8 +69,6 @@ void ibutton_worker_mode_idle_tick(iButtonWorker* worker) {
 void ibutton_worker_mode_idle_stop(iButtonWorker* worker) {
     UNUSED(worker);
 }
-
-/*********************** READ ***********************/
 
 void ibutton_worker_mode_read_start(iButtonWorker* worker) {
     UNUSED(worker);
@@ -98,8 +94,6 @@ void ibutton_worker_mode_read_stop(iButtonWorker* worker) {
     furi_record_close(RECORD_POWER);
 }
 
-/*********************** EMULATE ***********************/
-
 void ibutton_worker_mode_emulate_start(iButtonWorker* worker) {
     furi_assert(worker->key);
 
@@ -121,9 +115,7 @@ void ibutton_worker_mode_emulate_stop(iButtonWorker* worker) {
     furi_hal_rfid_pins_reset();
 }
 
-/*********************** WRITE ***********************/
-
-void ibutton_worker_mode_write_common_start(iButtonWorker* worker) { //-V524
+void ibutton_worker_mode_write_common_start(iButtonWorker* worker) {
     UNUSED(worker);
     Power* power = furi_record_open(RECORD_POWER);
     power_enable_otg(power, true);
@@ -134,7 +126,7 @@ void ibutton_worker_mode_write_id_tick(iButtonWorker* worker) {
     furi_assert(worker->key);
 
     const bool success = ibutton_protocols_write_id(worker->protocols, worker->key);
-    // TODO FL-3527: pass a proper result to the callback
+
     const iButtonWorkerWriteResult result = success ? iButtonWorkerWriteOK :
                                                       iButtonWorkerWriteNoDetect;
     if(worker->write_cb != NULL) {
@@ -146,7 +138,7 @@ void ibutton_worker_mode_write_copy_tick(iButtonWorker* worker) {
     furi_assert(worker->key);
 
     const bool success = ibutton_protocols_write_copy(worker->protocols, worker->key);
-    // TODO FL-3527: pass a proper result to the callback
+
     const iButtonWorkerWriteResult result = success ? iButtonWorkerWriteOK :
                                                       iButtonWorkerWriteNoDetect;
     if(worker->write_cb != NULL) {
@@ -154,7 +146,7 @@ void ibutton_worker_mode_write_copy_tick(iButtonWorker* worker) {
     }
 }
 
-void ibutton_worker_mode_write_common_stop(iButtonWorker* worker) { //-V524
+void ibutton_worker_mode_write_common_stop(iButtonWorker* worker) {
     UNUSED(worker);
     Power* power = furi_record_open(RECORD_POWER);
     power_enable_otg(power, false);

@@ -45,7 +45,6 @@ struct CdcConfigDescriptorDual {
 
 static const struct usb_string_descriptor dev_manuf_desc = USB_STRING_DESC("Flipper Devices Inc.");
 
-/* Device descriptor */
 static const struct usb_device_descriptor cdc_device_desc = {
     .bLength = sizeof(struct usb_device_descriptor),
     .bDescriptorType = USB_DTYPE_DEVICE,
@@ -63,7 +62,6 @@ static const struct usb_device_descriptor cdc_device_desc = {
     .bNumConfigurations = 1,
 };
 
-/* Device configuration descriptor - single mode*/
 static const struct CdcConfigDescriptorSingle cdc_cfg_desc_single = {
     .config =
         {
@@ -174,7 +172,6 @@ static const struct CdcConfigDescriptorSingle cdc_cfg_desc_single = {
         },
 };
 
-/* Device configuration descriptor - dual mode*/
 static const struct CdcConfigDescriptorDual
     cdc_cfg_desc_dual =
         {
@@ -589,12 +586,11 @@ static void cdc_txrx_ep_callback(usbd_device* dev, uint8_t event, uint8_t ep) {
     }
 }
 
-/* Configure endpoints */
 static usbd_respond cdc_ep_config(usbd_device* dev, uint8_t cfg) {
     uint8_t if_cnt = ((struct usb_config_descriptor*)(cdc_if_cur->cfg_descr))->bNumInterfaces;
     switch(cfg) {
     case 0:
-        /* deconfiguring device */
+
         if(if_cnt == 4) {
             usbd_ep_deconfig(dev, CDC1_NTF_EP);
             usbd_ep_deconfig(dev, CDC1_TXD_EP);
@@ -609,16 +605,16 @@ static usbd_respond cdc_ep_config(usbd_device* dev, uint8_t cfg) {
         usbd_reg_endpoint(dev, CDC0_TXD_EP, 0);
         return usbd_ack;
     case 1:
-        /* configuring device */
+
         if((CDC0_TXD_EP & 0x7F) != (CDC0_RXD_EP & 0x7F)) {
-            // 2x unidirectional endpoint mode with dualbuf
+
             usbd_ep_config(dev, CDC0_RXD_EP, USB_EPTYPE_BULK | USB_EPTYPE_DBLBUF, CDC_DATA_SZ);
             usbd_ep_config(dev, CDC0_TXD_EP, USB_EPTYPE_BULK | USB_EPTYPE_DBLBUF, CDC_DATA_SZ);
             usbd_ep_config(dev, CDC0_NTF_EP, USB_EPTYPE_INTERRUPT, CDC_NTF_SZ);
             usbd_reg_endpoint(dev, CDC0_RXD_EP, cdc_rx_ep_callback);
             usbd_reg_endpoint(dev, CDC0_TXD_EP, cdc_tx_ep_callback);
         } else {
-            // 1x bidirectional endpoint mode
+
             usbd_ep_config(dev, CDC0_RXD_EP, USB_EPTYPE_BULK, CDC_DATA_SZ);
             usbd_ep_config(dev, CDC0_TXD_EP, USB_EPTYPE_BULK, CDC_DATA_SZ);
             usbd_ep_config(dev, CDC0_NTF_EP, USB_EPTYPE_INTERRUPT, CDC_NTF_SZ);
@@ -649,10 +645,9 @@ static usbd_respond cdc_ep_config(usbd_device* dev, uint8_t cfg) {
     }
 }
 
-/* Control requests handler */
 static usbd_respond cdc_control(usbd_device* dev, usbd_ctlreq* req, usbd_rqc_callback* callback) {
     UNUSED(callback);
-    /* CDC control requests */
+
     uint8_t if_num = 0;
     if(((USB_REQ_RECIPIENT | USB_REQ_TYPE) & req->bmRequestType) ==
            (USB_REQ_INTERFACE | USB_REQ_CLASS) &&

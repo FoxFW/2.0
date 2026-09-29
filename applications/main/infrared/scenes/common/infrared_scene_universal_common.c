@@ -1,7 +1,6 @@
 #include "../../infrared_app_i.h"
 #include "infrared_scene_universal_common.h"
 
-#include <dolphin/dolphin.h>
 
 #pragma pack(push, 1)
 typedef union {
@@ -64,7 +63,6 @@ void infrared_scene_universal_common_on_enter(void* context) {
     view_set_orientation(view_stack_get_view(infrared->view_stack), ViewOrientationVertical);
     view_stack_add_view(infrared->view_stack, button_panel_get_view(infrared->button_panel));
 
-    // Load universal remote data in background
     infrared_blocking_task_start(infrared, infrared_scene_universal_common_task_callback);
 }
 
@@ -88,7 +86,7 @@ static void infrared_scene_universal_common_handle_popup_input(
             .packed_value = scene_manager_get_scene_state(scene_manager, scene_id)};
         scene_state.is_paused = true;
         if(scene_state.signal_index)
-            scene_state.signal_index--; // when running, the state stores the next index
+            scene_state.signal_index--;
         scene_manager_set_scene_state(scene_manager, scene_id, scene_state.packed_value);
         break;
     }
@@ -136,8 +134,7 @@ static void infrared_scene_universal_common_handle_popup_input(
     case InfraredProgressViewInputSave: {
         InfraredSceneState scene_state = {
             .packed_value = scene_manager_get_scene_state(scene_manager, scene_id)};
-        // Copy the signal and its name out before leaving: the brute force owns the open
-        // database file, and it is torn down on the way to the save menu.
+
         if(infrared_brute_force_load_signal(
                brute_force, scene_state.signal_index, infrared->current_signal)) {
             infrared_text_store_set(
@@ -205,7 +202,6 @@ bool infrared_scene_universal_common_on_event(void* context, SceneManagerEvent e
                 uint32_t record_count;
                 if(infrared_brute_force_start(brute_force, event_value, &record_count)) {
                     scene_manager_set_scene_state(infrared->scene_manager, scene_id, 0);
-                    dolphin_deed(DolphinDeedIrSend);
                     infrared_scene_universal_common_show_popup(infrared, record_count);
                 } else {
                     scene_manager_next_scene(scene_manager, InfraredSceneErrorDatabases);

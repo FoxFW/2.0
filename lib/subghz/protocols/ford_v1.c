@@ -831,8 +831,6 @@ SubGhzProtocolStatus
             instance->generic.btn = (uint8_t)btn;
             instance->generic.cnt = cnt;
 
-            // Ford V1 mapping (4-bit btn): Up=0x2 (Unlock), OK=0x4 (Trunk),
-            // Down=0x8 (Panic), Left=0x1 (Lock). Right not supported (4-bit only).
             if(subghz_custom_btn_get_original() == 0) {
                 subghz_custom_btn_set_original(instance->generic.btn);
             }
@@ -1210,8 +1208,6 @@ SubGhzProtocolStatus
                 cnt = UINT32_MAX;
             if(serial == UINT32_MAX || btn == UINT32_MAX || cnt == UINT32_MAX) break;
 
-            // Ford V1 mapping (4-bit): Up=0x2 (Unlock), OK=0x4 (Trunk),
-            // Down=0x8 (Panic), Left=0x1 (Lock). Right unsupported.
             {
                 const uint8_t original_btn = (uint8_t)(btn & 0x0FU);
                 if(subghz_custom_btn_get_original() == 0) {
@@ -1221,9 +1217,10 @@ SubGhzProtocolStatus
                 uint8_t custom_btn_id = subghz_custom_btn_get();
                 switch(custom_btn_id) {
                 case SUBGHZ_CUSTOM_BTN_UP:    btn = 0x02U; break;
-                case SUBGHZ_CUSTOM_BTN_OK:    btn = 0x04U; break;
+                case SUBGHZ_CUSTOM_BTN_RIGHT: btn = 0x04U; break;
                 case SUBGHZ_CUSTOM_BTN_DOWN:  btn = 0x08U; break;
                 case SUBGHZ_CUSTOM_BTN_LEFT:  btn = 0x01U; break;
+                case SUBGHZ_CUSTOM_BTN_OK:    btn = original_btn; break;
                 default:                      btn = original_btn; break;
                 }
             }
@@ -1277,5 +1274,3 @@ SubGhzProtocolStatus
 
     return ret;
 }
-
-

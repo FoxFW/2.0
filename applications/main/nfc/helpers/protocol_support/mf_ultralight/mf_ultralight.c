@@ -15,8 +15,8 @@ enum {
     SubmenuIndexUnlockByReader,
     SubmenuIndexUnlockByPassword,
     SubmenuIndexDictAttack,
-    SubmenuIndexWriteKeepKey, // ULC: write data pages, keep target card's existing key
-    SubmenuIndexWriteCopyKey, // ULC: write all pages including key from source card
+    SubmenuIndexWriteKeepKey,
+    SubmenuIndexWriteCopyKey,
 };
 
 enum {
@@ -154,7 +154,7 @@ static NfcCommand
             mf_ultralight_event->data->auth_context.password = instance->mf_ul_auth->password;
 
             if(data->type == MfUltralightTypeMfulC) {
-                // Only set tdes_key for Manual/Reader auth types, not for dictionary attacks
+
                 if(instance->mf_ul_auth->type == MfUltralightAuthTypeManual ||
                    instance->mf_ul_auth->type == MfUltralightAuthTypeReader) {
                     mf_ultralight_event->data->key_request_data.key =
@@ -182,14 +182,13 @@ bool nfc_scene_read_on_event_mf_ultralight(NfcApp* instance, SceneManagerEvent e
         if(event.event == NfcCustomEventPollerSuccess) {
             notification_message(instance->notifications, &sequence_success);
             scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
-            dolphin_deed(DolphinDeedNfcReadSuccess);
             return true;
         } else if(event.event == NfcCustomEventPollerIncomplete) {
             const MfUltralightData* data =
                 nfc_device_get_data(instance->nfc_device, NfcProtocolMfUltralight);
             if(data->type == MfUltralightTypeMfulC &&
                instance->mf_ul_auth->type == MfUltralightAuthTypeNone) {
-                // Start dict attack for MFUL C cards only if no specific auth was attempted
+
                 scene_manager_next_scene(instance->scene_manager, NfcSceneMfUltralightCDictAttack);
             } else {
                 if(data->pages_read == data->pages_total) {
@@ -198,7 +197,6 @@ bool nfc_scene_read_on_event_mf_ultralight(NfcApp* instance, SceneManagerEvent e
                     notification_message(instance->notifications, &sequence_semi_success);
                 }
                 scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
-                dolphin_deed(DolphinDeedNfcReadSuccess);
             }
             return true;
         }
@@ -220,9 +218,7 @@ static void nfc_scene_read_and_saved_menu_on_enter_mf_ultralight(NfcApp* instanc
         data->type != MfUltralightTypeMfulC)) {
         submenu_remove_item(submenu, SubmenuIndexCommonWrite);
     } else if(data->type == MfUltralightTypeMfulC) {
-        // Replace the generic Write item with two ULC-specific options so the user
-        // can choose whether to keep or overwrite the target card's 3DES key.
-        // This avoids any mid-write dialog/view-switching complexity entirely.
+
         submenu_remove_item(submenu, SubmenuIndexCommonWrite);
         submenu_add_item(
             submenu,
@@ -342,11 +338,10 @@ static NfcCommand
         instance->mf_ultralight_c_write_context.dict_state = NfcMfUltralightCWriteDictIdle;
         view_dispatcher_send_custom_event(instance->view_dispatcher, NfcCustomEventCardDetected);
     } else if(mf_ultralight_event->type == MfUltralightPollerEventTypeAuthRequest) {
-        // Skip auth during the read phase of write - we'll authenticate
-        // against the target card in RequestWriteData using source key or dict attack
+
         mf_ultralight_event->data->auth_context.skip_auth = true;
     } else if(mf_ultralight_event->type == MfUltralightPollerEventTypeRequestKey) {
-        // Dict attack key provider - user dict first, then system dict
+
         if(!instance->mf_ultralight_c_dict_context.dict &&
            instance->mf_ultralight_c_write_context.dict_state == NfcMfUltralightCWriteDictIdle) {
             if(keys_dict_check_presence(NFC_APP_MF_ULTRALIGHT_C_DICT_USER_PATH)) {
@@ -375,7 +370,7 @@ static NfcCommand
         }
         if(!got_key &&
            instance->mf_ultralight_c_write_context.dict_state == NfcMfUltralightCWriteDictUser) {
-            // Exhausted user dict, switch to system dict
+
             if(instance->mf_ultralight_c_dict_context.dict) {
                 keys_dict_free(instance->mf_ultralight_c_dict_context.dict);
             }
@@ -427,15 +422,14 @@ static NfcCommand
     } else if(mf_ultralight_event->type == MfUltralightPollerEventTypeRequestWriteData) {
         mf_ultralight_event->data->write_data =
             nfc_device_get_data(instance->nfc_device, NfcProtocolMfUltralight);
-        // Reset dict context so RequestKey starts fresh for the write-phase auth
+
         if(instance->mf_ultralight_c_dict_context.dict) {
             keys_dict_free(instance->mf_ultralight_c_dict_context.dict);
             instance->mf_ultralight_c_dict_context.dict = NULL;
         }
         instance->mf_ultralight_c_write_context.dict_state = NfcMfUltralightCWriteDictIdle;
     } else if(mf_ultralight_event->type == MfUltralightPollerEventTypeWriteKeyRequest) {
-        // Apply the user's key choice - read from static, not scene state (scene manager
-        // resets state to 0 on scene entry, wiping any value set before next_scene).
+
         bool keep_key = !instance->mf_ultralight_c_write_context.copy_key;
         mf_ultralight_event->data->write_key_skip = keep_key;
 
@@ -490,9 +484,7 @@ static NfcCommand
 }
 
 static void nfc_scene_write_on_enter_mf_ultralight(NfcApp* instance) {
-    // Free any dict the write callback opened (dict_state != Idle means we own it).
-    // After a DictAttack scene, on_exit now NULLs the pointer so a simple NULL check
-    // is safe here too — but the state enum is the authoritative ownership record.
+
     if(instance->mf_ultralight_c_write_context.dict_state != NfcMfUltralightCWriteDictIdle &&
        instance->mf_ultralight_c_dict_context.dict) {
         keys_dict_free(instance->mf_ultralight_c_dict_context.dict);

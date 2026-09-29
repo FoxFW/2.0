@@ -11,10 +11,10 @@
     (ISO14443_3A_SIGNAL_MAX_EDGES / (ISO14443_3A_SIGNAL_BIT_MAX_EDGES - 2))
 
 #define ISO14443_3A_SIGNAL_F_SIG       (13560000.0)
-#define ISO14443_3A_SIGNAL_T_SIG       7374 //73.746ns*100
-#define ISO14443_3A_SIGNAL_T_SIG_X8    58992 //T_SIG*8
-#define ISO14443_3A_SIGNAL_T_SIG_X8_X8 471936 //T_SIG*8*8
-#define ISO14443_3A_SIGNAL_T_SIG_X8_X9 530928 //T_SIG*8*9
+#define ISO14443_3A_SIGNAL_T_SIG       7374
+#define ISO14443_3A_SIGNAL_T_SIG_X8    58992
+#define ISO14443_3A_SIGNAL_T_SIG_X8_X8 471936
+#define ISO14443_3A_SIGNAL_T_SIG_X8_X9 530928
 
 typedef enum {
     Iso14443_3aSignalIndexZero,
@@ -48,7 +48,6 @@ static void iso14443_3a_signal_encode(
     furi_assert(tx_data);
     furi_assert(tx_parity);
 
-    // Start of frame
     digital_sequence_add_signal(instance->tx_sequence, Iso14443_3aSignalIndexOne);
 
     if(tx_bits < BITS_IN_BYTE) {

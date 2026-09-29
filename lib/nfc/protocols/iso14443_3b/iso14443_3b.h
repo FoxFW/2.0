@@ -38,8 +38,6 @@ typedef enum {
 
 typedef struct Iso14443_3bData Iso14443_3bData;
 
-// Virtual methods
-
 Iso14443_3bData* iso14443_3b_alloc(void);
 
 void iso14443_3b_free(Iso14443_3bData* data);
@@ -63,8 +61,6 @@ const uint8_t* iso14443_3b_get_uid(const Iso14443_3bData* data, size_t* uid_len)
 bool iso14443_3b_set_uid(Iso14443_3bData* data, const uint8_t* uid, size_t uid_len);
 
 Iso14443_3bData* iso14443_3b_get_base_data(const Iso14443_3bData* data);
-
-// Getters and tests
 
 bool iso14443_3b_supports_iso14443_4(const Iso14443_3bData* data);
 

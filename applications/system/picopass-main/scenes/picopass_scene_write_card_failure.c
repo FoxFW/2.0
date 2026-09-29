@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 
 void picopass_scene_write_card_failure_widget_callback(
     GuiButtonType result,

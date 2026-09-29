@@ -184,7 +184,7 @@ Iso14443_4aError iso14443_4a_poller_send_block_pwt_ext(
                 instance->iso14443_4_layer, rx_buffer, instance->rx_buffer);
             if(error == Iso14443_4aErrorSendExtra) {
                 if(--attempts_left == 0) break;
-                // Send response for Control message
+
                 if(bit_buffer_get_size_bytes(rx_buffer))
                     bit_buffer_copy(instance->tx_buffer, rx_buffer);
                 continue;

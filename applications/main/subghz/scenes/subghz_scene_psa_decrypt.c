@@ -5,8 +5,8 @@
 #include <bt/bt_service/bt.h>
 
 #define PSA_DECRYPT_EVENT_DONE  (0xD1)
-#define PSA_TOTAL_KEYS          0x2000000UL // 32M
-#define PSA_BLE_PHASE_KEYS      0x1000000UL // 16M per BF phase
+#define PSA_TOTAL_KEYS          0x2000000UL
+#define PSA_BLE_PHASE_KEYS      0x1000000UL
 #define PSA_BF_PARAMS_PATH      EXT_PATH("subghz/psa_bf_params.txt")
 
 #define PSA_MSG_BF_REQUEST  0x01
@@ -109,8 +109,6 @@ static void psa_decrypt_save_bf_params(PsaDecryptCtx* ctx) {
     furi_record_close(RECORD_STORAGE);
 }
 
-/* --- BLE offload callbacks --- */
-
 static void psa_ble_data_received(uint8_t* data, uint16_t size, void* context) {
     PsaDecryptCtx* ctx = context;
     if(size < 1 || ctx->cancel) return;
@@ -166,20 +164,17 @@ static bool psa_ble_start_offload(PsaDecryptCtx* ctx) {
         return false;
     }
 
-    // Extract BF params
     psa_decrypt_save_bf_params(ctx);
     if(!ctx->needs_bf) {
         furi_record_close(RECORD_BT);
         return false;
     }
 
-    // Register callback for incoming data
     bt_set_custom_data_callback(bt, psa_ble_data_received, ctx);
 
-    // Send BF request: [0x01][bf_type=0][w0:4][w1:4]
     uint8_t req[10];
     req[0] = PSA_MSG_BF_REQUEST;
-    req[1] = 0; // type 0 = try both BF1 and BF2
+    req[1] = 0;
     memcpy(req + 2, &ctx->w0, 4);
     memcpy(req + 6, &ctx->w1, 4);
     bt_custom_data_tx(bt, req, sizeof(req));
@@ -191,8 +186,6 @@ static bool psa_ble_start_offload(PsaDecryptCtx* ctx) {
         ctx->subghz->subghz_psa_decrypt, "[BT] Offloading...");
     return true;
 }
-
-/* --- Local BF thread --- */
 
 static int32_t psa_decrypt_thread(void* context) {
     PsaDecryptCtx* ctx = context;
@@ -265,7 +258,6 @@ void subghz_scene_psa_decrypt_on_enter(void* context) {
 
     ctx->start_tick = furi_get_tick();
 
-    // Try BLE offload first, fall back to local BF
     if(!psa_ble_start_offload(ctx)) {
         ctx->thread = furi_thread_alloc_ex("PsaDecrypt", 4096, psa_decrypt_thread, ctx);
         furi_thread_start(ctx->thread);
@@ -280,7 +272,7 @@ bool subghz_scene_psa_decrypt_on_event(void* context, SceneManagerEvent event) {
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == PSA_DECRYPT_EVENT_DONE) {
-            // Clean up BLE or thread
+
             psa_ble_cleanup(ctx);
             if(ctx->thread) {
                 furi_thread_join(ctx->thread);
@@ -319,7 +311,7 @@ bool subghz_scene_psa_decrypt_on_event(void* context, SceneManagerEvent event) {
 
         } else if(event.event == SubGhzCustomEventViewTransmitterBack) {
             if(ctx->ble_offload) {
-                // Send cancel to Android
+
                 Bt* bt = furi_record_open(RECORD_BT);
                 uint8_t cancel_msg = PSA_MSG_BF_CANCEL;
                 bt_custom_data_tx(bt, &cancel_msg, 1);

@@ -20,9 +20,6 @@
 
 #define RAW_SIGNAL_MAX_SIZE 4096
 
-// ============================================================
-// Frequencies
-// ============================================================
 typedef enum {
     FreqIndex_300_00 = 0,
     FreqIndex_303_87,
@@ -41,9 +38,6 @@ typedef enum {
 extern const uint32_t freq_values[];
 extern const char* freq_names[];
 
-// ============================================================
-// Modulations
-// ============================================================
 typedef enum {
     ModIndex_AM650 = 0,
     ModIndex_AM270,
@@ -54,9 +48,6 @@ typedef enum {
 
 extern const char* mod_names[];
 
-// ============================================================
-// Jam offsets
-// ============================================================
 typedef enum {
     JamOffIndex_300k = 0,
     JamOffIndex_500k,
@@ -68,9 +59,6 @@ typedef enum {
 extern const uint32_t jam_offset_values[];
 extern const char* jam_offset_names[];
 
-// ============================================================
-// Hardware type
-// ============================================================
 typedef enum {
     HwIndex_CC1101 = 0,
     HwIndex_FluxCapacitor,
@@ -79,9 +67,6 @@ typedef enum {
 
 extern const char* hw_names[];
 
-// ============================================================
-// Scenes
-// ============================================================
 typedef enum {
     RollJamSceneMenu,
     RollJamSceneAttackPhase1,
@@ -91,9 +76,6 @@ typedef enum {
     RollJamSceneCount,
 } RollJamScene;
 
-// ============================================================
-// Views
-// ============================================================
 typedef enum {
     RollJamViewVarItemList,
     RollJamViewWidget,
@@ -101,9 +83,6 @@ typedef enum {
     RollJamViewPopup,
 } RollJamView;
 
-// ============================================================
-// Custom events
-// ============================================================
 typedef enum {
     RollJamEventStartAttack = 100,
     RollJamEventSignalCaptured,
@@ -113,18 +92,12 @@ typedef enum {
     RollJamEventBack,
 } RollJamEvent;
 
-// ============================================================
-// Raw signal container
-// ============================================================
 typedef struct {
     int16_t data[RAW_SIGNAL_MAX_SIZE];
     size_t size;
     bool valid;
 } RawSignal;
 
-// ============================================================
-// Main app struct
-// ============================================================
 typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
@@ -153,6 +126,5 @@ typedef struct {
     volatile bool jam_thread_running;
 
     volatile bool raw_capture_active;
-
 
 } RollJamApp;

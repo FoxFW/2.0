@@ -6,8 +6,6 @@
 
 #define TAG "FuriHalSpiConfig"
 
-/* SPI Presets */
-
 const LL_SPI_InitTypeDef furi_hal_spi_preset_2edge_low_8m = {
     .Mode = LL_SPI_MODE_MASTER,
     .TransferDirection = LL_SPI_FULL_DUPLEX,
@@ -72,8 +70,6 @@ const LL_SPI_InitTypeDef furi_hal_spi_preset_1edge_low_2m = {
     .CRCCalculation = LL_SPI_CRCCALCULATION_DISABLE,
     .CRCPoly = 7,
 };
-
-/* SPI Buses */
 
 FuriMutex* furi_hal_spi_bus_r_mutex = NULL;
 
@@ -143,8 +139,6 @@ FuriHalSpiBus furi_hal_spi_bus_d = {
     .spi = SPI2,
     .callback = furi_hal_spi_bus_d_event_callback,
 };
-
-/* SPI Bus Handles */
 
 inline static void furi_hal_spi_bus_r_handle_event_callback(
     const FuriHalSpiBusHandle* handle,
@@ -243,7 +237,7 @@ inline static void furi_hal_spi_bus_nfc_handle_event_callback(
     FuriHalSpiBusHandleEvent event,
     const LL_SPI_InitTypeDef* preset) {
     if(event == FuriHalSpiBusHandleEventInit) {
-        // Configure GPIOs in normal SPI mode
+
         furi_hal_gpio_init_ex(
             handle->miso,
             GpioModeAltFunctionPushPull,
@@ -265,7 +259,7 @@ inline static void furi_hal_spi_bus_nfc_handle_event_callback(
         furi_hal_gpio_write(handle->cs, true);
         furi_hal_gpio_init(handle->cs, GpioModeOutputPushPull, GpioPullNo, GpioSpeedVeryHigh);
     } else if(event == FuriHalSpiBusHandleEventDeinit) {
-        // Configure GPIOs for st25r3916 Transparent mode
+
         furi_hal_gpio_init(handle->sck, GpioModeInput, GpioPullUp, GpioSpeedLow);
         furi_hal_gpio_init(handle->miso, GpioModeInput, GpioPullUp, GpioSpeedLow);
         furi_hal_gpio_init(handle->cs, GpioModeInput, GpioPullUp, GpioSpeedLow);

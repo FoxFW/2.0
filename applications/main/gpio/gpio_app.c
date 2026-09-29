@@ -47,7 +47,6 @@ GpioApp* gpio_app_alloc(void) {
 
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
 
-    // Dialog view
     app->dialog = dialog_ex_alloc();
     view_dispatcher_add_view(
         app->view_dispatcher, GpioAppViewExitConfirm, dialog_ex_get_view(app->dialog));
@@ -82,7 +81,6 @@ GpioApp* gpio_app_alloc(void) {
 void gpio_app_free(GpioApp* app) {
     furi_assert(app);
 
-    // Views
     view_dispatcher_remove_view(app->view_dispatcher, GpioAppViewVarItemList);
     view_dispatcher_remove_view(app->view_dispatcher, GpioAppViewGpioTest);
     view_dispatcher_remove_view(app->view_dispatcher, GpioAppViewUsbUart);
@@ -95,11 +93,9 @@ void gpio_app_free(GpioApp* app) {
     gpio_usb_uart_free(app->gpio_usb_uart);
     dialog_ex_free(app->dialog);
 
-    // View dispatcher
     view_dispatcher_free(app->view_dispatcher);
     scene_manager_free(app->scene_manager);
 
-    // Close records
     furi_record_close(RECORD_GUI);
     furi_record_close(RECORD_NOTIFICATION);
     furi_record_close(RECORD_POWER);

@@ -469,6 +469,12 @@ void subghz_protocol_decoder_subaru_get_string(void* context, FuriString* output
     
     uint32_t key_hi = (uint32_t)(instance->key >> 32);
     uint32_t key_lo = (uint32_t)(instance->key & 0xFFFFFFFF);
+
+    subghz_custom_btn_set_max(5);
+    uint8_t selected_custom_btn = (subghz_custom_btn_get() == SUBGHZ_CUSTOM_BTN_OK) ?
+                                       subghz_custom_btn_get_original() :
+                                       subghz_custom_btn_get();
+    uint8_t display_btn = subaru_get_button_code(selected_custom_btn);
     
     furi_string_cat_printf(
         output,
@@ -482,8 +488,8 @@ void subghz_protocol_decoder_subaru_get_string(void* context, FuriString* output
         key_lo,
         instance->serial,
         instance->count,
-        instance->button,
-        subaru_get_button_name(instance->button));
+        display_btn,
+        subaru_get_button_name(display_btn));
 }
 
 void* subghz_protocol_encoder_subaru_alloc(SubGhzEnvironment* environment) {

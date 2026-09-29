@@ -344,9 +344,3 @@ const NfcCliActionDescriptor raw_action = {
 const NfcCliActionDescriptor* raw_actions_collection[] = {&raw_action};
 
 ADD_NFC_CLI_COMMAND(raw, "", raw_actions_collection);
-
-//Command usage: raw <protocol> [keys] <data>
-//Command examples:
-//raw iso14a -sc 3000
-//raw iso14a 3000
-//raw iso14a 3000 -sc

@@ -27,7 +27,6 @@
 #define FURI_HAL_OS_EXTI_LINE_0_31    0
 #define FURI_HAL_OS_EXTI_LINE_32_63   1
 
-// Arbitrary (but small) number for better tick consistency
 #define FURI_HAL_OS_EXTRA_CNT 3
 
 #ifndef FURI_HAL_OS_DEBUG_AWAKE_GPIO
@@ -83,24 +82,23 @@ void furi_hal_os_tick(void) {
 }
 
 #ifdef FURI_HAL_OS_DEBUG
-// Find out the IRQ number while debugging
+
 static void furi_hal_os_nvic_dbg_trap(void) {
     for(int32_t i = WWDG_IRQn; i <= DMAMUX1_OVR_IRQn; i++) {
         if(NVIC_GetPendingIRQ(i)) {
             (void)i;
-            // Break here
+
             __NOP();
         }
     }
 }
 
-// Find out the EXTI line number while debugging
 static void furi_hal_os_exti_dbg_trap(uint32_t exti, uint32_t val) {
     for(uint32_t i = 0; val; val >>= 1U, ++i) {
         if(val & 1U) {
             (void)exti;
             (void)i;
-            // Break here
+
             __NOP();
         }
     }
@@ -132,24 +130,21 @@ static inline bool furi_hal_os_is_pending_irq(void) {
 }
 
 static inline uint32_t furi_hal_os_sleep(TickType_t expected_idle_ticks) {
-    // Stop ticks
+
     furi_hal_clock_suspend_tick();
 
-    // Start wakeup timer
     furi_hal_idle_timer_start(FURI_HAL_OS_TICKS_TO_IDLE_CNT(expected_idle_ticks));
 
 #ifdef FURI_HAL_OS_DEBUG
     furi_hal_gpio_write(FURI_HAL_OS_DEBUG_AWAKE_GPIO, 0);
 #endif
 
-    // Go to sleep mode
     furi_hal_power_sleep();
 
 #ifdef FURI_HAL_OS_DEBUG
     furi_hal_gpio_write(FURI_HAL_OS_DEBUG_AWAKE_GPIO, 1);
 #endif
 
-    // Calculate how much time we spent in the sleep
     uint32_t after_cnt = furi_hal_idle_timer_get_cnt() + furi_hal_os_skew + FURI_HAL_OS_EXTRA_CNT;
     uint32_t after_tick = FURI_HAL_OS_IDLE_CNT_TO_TICKS(after_cnt);
     furi_hal_os_skew = after_cnt - FURI_HAL_OS_TICKS_TO_IDLE_CNT(after_tick);
@@ -158,10 +153,8 @@ static inline uint32_t furi_hal_os_sleep(TickType_t expected_idle_ticks) {
     bool arrm = LL_LPTIM_IsActiveFlag_ARRM(FURI_HAL_IDLE_TIMER);
     if(cmpm && arrm) after_tick += expected_idle_ticks;
 
-    // Prepare tick timer for new round
     furi_hal_idle_timer_reset();
 
-    // Resume ticks
     furi_hal_clock_resume_tick();
     return after_tick;
 }
@@ -172,25 +165,21 @@ void vPortSuppressTicksAndSleep(TickType_t expected_idle_ticks) {
         return;
     }
 
-    // Core2 shenanigans takes extra time, so we want to compensate tick skew by reducing sleep duration by 1 tick
     TickType_t unexpected_idle_ticks = expected_idle_ticks - 1;
 
-    // Limit amount of ticks to maximum that timer can count
     if(unexpected_idle_ticks > FURI_HAL_OS_MAX_SLEEP) {
         unexpected_idle_ticks = FURI_HAL_OS_MAX_SLEEP;
     }
 
-    // Stop IRQ handling, no one should disturb us till we finish
     __disable_irq();
     do {
-        // Confirm OS that sleep is still possible
+
         if(eTaskConfirmSleepModeStatus() == eAbortSleep || furi_hal_os_is_pending_irq()) {
             break;
         }
 
-        // Sleep and track how much ticks we spent sleeping
         uint32_t completed_ticks = furi_hal_os_sleep(unexpected_idle_ticks);
-        // Notify system about time spent in sleep
+
         if(completed_ticks > 0) {
             if(completed_ticks > expected_idle_ticks) {
 #ifdef FURI_HAL_OS_DEBUG
@@ -202,7 +191,7 @@ void vPortSuppressTicksAndSleep(TickType_t expected_idle_ticks) {
             vTaskStepTick(completed_ticks);
         }
     } while(0);
-    // Reenable IRQ
+
     __enable_irq();
 }
 

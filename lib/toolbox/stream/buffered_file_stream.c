@@ -117,7 +117,7 @@ static bool buffered_file_stream_eof(BufferedFileStream* stream) {
 }
 
 static void buffered_file_stream_clean(BufferedFileStream* stream) {
-    // Not syncing because data will be deleted anyway
+
     stream->sync_pending = false;
     stream_cache_drop(stream->cache);
     stream_clean(stream->file_stream);
@@ -222,7 +222,6 @@ static bool buffered_file_stream_delete_and_insert(
     return success;
 }
 
-// Write the cache into the underlying stream and adjust seek position
 static bool buffered_file_stream_flush(BufferedFileStream* stream) {
     bool success = false;
     do {
@@ -237,7 +236,6 @@ static bool buffered_file_stream_flush(BufferedFileStream* stream) {
     return success;
 }
 
-// Drop read cache and adjust the underlying stream seek position
 static bool buffered_file_stream_unread(BufferedFileStream* stream) {
     bool success = true;
     const size_t cache_size = stream_cache_size(stream->cache);

@@ -26,7 +26,7 @@ typedef enum {
 } MetakomBitState;
 
 typedef struct {
-    // high + low period time
+
     uint32_t period_time;
     uint32_t low_time_storage;
     uint8_t period_sample_index;
@@ -202,7 +202,7 @@ static bool protocol_metakom_decoder_feed(ProtocolMetakom* proto, bool level, ui
                     metakom->tmp_counter = 0;
 
                     if(metakom->key_data_index == 4) {
-                        // check for stop bit
+
                         if(high_time > metakom->period_time) {
                             metakom->state = METAKOM_READ_STOP_WORD;
                         } else {
@@ -247,16 +247,16 @@ static LevelDuration protocol_metakom_encoder_yield(ProtocolMetakom* proto) {
     LevelDuration result;
 
     if(proto->encoder.index == 0) {
-        // sync bit
+
         result = level_duration_make(false, METAKOM_PERIOD);
     } else if(proto->encoder.index <= 6) {
-        // start word (0b010)
+
         switch(proto->encoder.index) {
         case 1:
-            result = level_duration_make(true, METAKOM_0_LOW); //-V1037
+            result = level_duration_make(true, METAKOM_0_LOW);
             break;
         case 2:
-            result = level_duration_make(false, METAKOM_0_HI); //-V1037
+            result = level_duration_make(false, METAKOM_0_HI);
             break;
         case 3:
             result = level_duration_make(true, METAKOM_1_LOW);
@@ -272,7 +272,7 @@ static LevelDuration protocol_metakom_encoder_yield(ProtocolMetakom* proto) {
             break;
         }
     } else {
-        // data
+
         uint8_t data_start_index = proto->encoder.index - 7;
         bool clock_polarity = (data_start_index) % 2;
         uint8_t bit_index = (data_start_index) / 2;

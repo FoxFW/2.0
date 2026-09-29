@@ -1,7 +1,3 @@
-// Parser for Philips Sonicare toothbrush heads.
-// Made by @Sil333033
-// Thanks to Cyrill Künzi for this research! https://kuenzi.dev/toothbrush/
-
 #include "nfc_supported_card_plugin.h"
 
 #include <flipper_application/flipper_application.h>
@@ -16,12 +12,6 @@ typedef enum {
 } SonicareHead;
 
 static SonicareHead sonicare_get_head_type(const MfUltralightData* data) {
-    // data.page[34].data got 4 bytes
-    // 31:32:31:34 for black (not sure)
-    // 31:31:31:31 for white (not sure)
-    // the data should be in here based on the research, but i cant find it.
-    // page 34 byte 0 is always 0x30 for the white brushes i have, so i guess thats white
-    // TODO: Get a black brush and test this
 
     if(data->page[34].data[0] == 0x30) {
         return SonicareHeadWhite;
@@ -48,9 +38,9 @@ static bool sonicare_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // Check for NDEF link match
+
         const char* test = "philips.com/nfcbrushheadtap";
-        // Data is a array of arrays, cast to char array and compare
+
         if(strncmp(test, (const char*)&data->page[5].data[3], strlen(test)) != 0) {
             FURI_LOG_D(TAG, "Not a Philips Sonicare head");
             break;
@@ -90,7 +80,6 @@ static bool sonicare_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin sonicare_plugin = {
     .protocol = NfcProtocolMfUltralight,
     .verify = NULL,
@@ -98,14 +87,12 @@ static const NfcSupportedCardsPlugin sonicare_plugin = {
     .parse = sonicare_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor sonicare_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &sonicare_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* sonicare_plugin_ep(void) {
     return &sonicare_plugin_descriptor;
 }

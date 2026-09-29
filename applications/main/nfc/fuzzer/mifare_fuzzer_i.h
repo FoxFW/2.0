@@ -19,8 +19,7 @@
 #include <input/input.h>
 
 #include <toolbox/stream/stream.h>
-//#include <toolbox/stream/string_stream.h>
-//#include <toolbox/stream/file_stream.h>
+
 #include <toolbox/stream/buffered_file_stream.h>
 
 #include "mifare_fuzzer.h"
@@ -65,7 +64,6 @@ struct MifareFuzzerApp {
 
     Storage* storage;
 
-    // Common Views
     Submenu* submenu_card;
     Submenu* submenu_attack;
 

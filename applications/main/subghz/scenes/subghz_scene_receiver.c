@@ -1,6 +1,6 @@
 #include "../subghz_i.h"
-#include <dolphin/dolphin.h>
 #include <lib/subghz/protocols/bin_raw.h>
+#include <toolbox/name_generator.h>
 
 #define TAG "SubGhzSceneReceiver"
 
@@ -97,6 +97,52 @@ void subghz_scene_receiver_callback(SubGhzCustomEvent event, void* context) {
     view_dispatcher_send_custom_event(subghz->view_dispatcher, event);
 }
 
+static void subghz_scene_receiver_process_auto_save(SubGhz* subghz) {
+    uint16_t idx = 0;
+    while(subghz_history_find_auto_save_pending(subghz->history, &idx)) {
+        FlipperFormat* ff = subghz_history_get_raw_data(subghz->history, idx);
+        bool success = false;
+        if(ff) {
+            FuriString* protocol_name = furi_string_alloc();
+            flipper_format_rewind(ff);
+            if(!flipper_format_read_string(ff, "Protocol", protocol_name)) {
+                furi_string_set(protocol_name, "Unknown");
+            }
+
+            char file_name_buf[SUBGHZ_MAX_LEN_NAME] = {0};
+            name_generator_make_auto_datetime(
+                file_name_buf, SUBGHZ_MAX_LEN_NAME, furi_string_get_cstr(protocol_name), NULL);
+            furi_string_free(protocol_name);
+
+            if(subghz->last_settings->file_prefix[0] != '\0') {
+
+                char tmp[SUBGHZ_MAX_LEN_NAME + sizeof(subghz->last_settings->file_prefix)];
+                snprintf(
+                    tmp, sizeof(tmp), "%s%s", subghz->last_settings->file_prefix, file_name_buf);
+                strncpy(file_name_buf, tmp, SUBGHZ_MAX_LEN_NAME - 1);
+                file_name_buf[SUBGHZ_MAX_LEN_NAME - 1] = '\0';
+            }
+
+            FuriString* file_path = furi_string_alloc();
+            furi_string_set(file_path, SUBGHZ_APP_FOLDER);
+            furi_string_cat_printf(
+                file_path, "/%s%s", file_name_buf, SUBGHZ_APP_FILENAME_EXTENSION);
+
+            success = subghz_save_protocol_to_file(subghz, ff, furi_string_get_cstr(file_path));
+            furi_string_free(file_path);
+        }
+
+        if(success) {
+            FURI_LOG_I(TAG, "Auto-saved history item %u", idx);
+            notification_message(subghz->notifications, &sequence_double_vibro);
+        } else {
+            FURI_LOG_E(TAG, "Auto-save failed for history item %u", idx);
+            notification_message(subghz->notifications, &sequence_error);
+        }
+        subghz_history_set_auto_save_pending(subghz->history, idx, false);
+    }
+}
+
 static void subghz_scene_add_to_history_callback(
     SubGhzReceiver* receiver,
     SubGhzProtocolDecoderBase* decoder_base,
@@ -104,7 +150,6 @@ static void subghz_scene_add_to_history_callback(
     furi_assert(context);
     SubGhz* subghz = context;
 
-    // The check can be moved to /lib/subghz/receiver.c, but may result in false positives
     if((decoder_base->protocol->flag & subghz->ignore_filter) == 0) {
         SubGhzHistory* history = subghz->history;
         FuriString* item_name = furi_string_alloc();
@@ -147,6 +192,10 @@ static void subghz_scene_add_to_history_callback(
                 notification_message(subghz->notifications, &sequence_error);
             }
             subghz_rx_key_state_set(subghz, SubGhzRxKeyStateAddKey);
+            if(subghz->last_settings->auto_save) {
+
+                subghz_history_set_auto_save_pending(history, idx, true);
+            }
         }
         subghz_receiver_reset(receiver);
         furi_string_free(item_name);
@@ -182,7 +231,6 @@ void subghz_scene_receiver_on_enter(void* context) {
 
     subghz_view_receiver_set_mode(subghz->subghz_receiver, SubGhzViewReceiverModeLive);
 
-    // Load history to receiver
     subghz_view_receiver_exit(subghz->subghz_receiver);
     for(uint16_t i = 0; i < subghz_history_get_item(history); i++) {
         furi_string_reset(item_name);
@@ -207,7 +255,6 @@ void subghz_scene_receiver_on_enter(void* context) {
         subghz->state_notifications = SubGhzNotificationStateRx;
     }
 
-    // Check if hopping was enabled
     if(subghz->last_settings->enable_hopping) {
         subghz_txrx_hopper_set_state(subghz->txrx, SubGhzHopperStateRunning);
     } else {
@@ -223,7 +270,6 @@ void subghz_scene_receiver_on_enter(void* context) {
     subghz_txrx_rx_start(subghz->txrx);
     subghz_view_receiver_set_idx_menu(subghz->subghz_receiver, subghz->idx_menu_chosen);
 
-    //to use a universal decoder, we are looking for a link to it
     furi_check(
         subghz_txrx_load_decoder_by_name_protocol(subghz->txrx, SUBGHZ_PROTOCOL_BIN_RAW_NAME));
 
@@ -238,12 +284,12 @@ bool subghz_scene_receiver_on_event(void* context, SceneManagerEvent event) {
     SubGhz* subghz = context;
     bool consumed = false;
     if(event.type == SceneManagerEventTypeCustom) {
-        // Save cursor position before going to any other dialog
+
         subghz->idx_menu_chosen = subghz_view_receiver_get_idx_menu(subghz->subghz_receiver);
 
         switch(event.event) {
         case SubGhzCustomEventViewReceiverBack:
-            // Stop CC1101 Rx
+
             subghz->state_notifications = SubGhzNotificationStateIDLE;
             subghz_txrx_stop(subghz->txrx);
             subghz_txrx_hopper_set_state(subghz->txrx, SubGhzHopperStateOFF);
@@ -262,9 +308,8 @@ bool subghz_scene_receiver_on_event(void* context, SceneManagerEvent event) {
             consumed = true;
             break;
         case SubGhzCustomEventViewReceiverOK:
-            // Show file info, scene: receiver_info
+
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneReceiverInfo);
-            dolphin_deed(DolphinDeedSubGhzReceiverInfo);
             consumed = true;
             break;
         case SubGhzCustomEventViewReceiverDeleteItem:
@@ -286,7 +331,7 @@ bool subghz_scene_receiver_on_event(void* context, SceneManagerEvent event) {
             consumed = true;
             break;
         case SubGhzCustomEventViewReceiverConfig:
-            // Actually signals are received but SubGhzNotificationStateRx is not working inside Config Scene
+
             scene_manager_set_scene_state(
                 subghz->scene_manager, SubGhzViewIdReceiver, SubGhzCustomEventManagerSet);
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneReceiverConfig);
@@ -304,6 +349,9 @@ bool subghz_scene_receiver_on_event(void* context, SceneManagerEvent event) {
             break;
         }
     } else if(event.type == SceneManagerEventTypeTick) {
+        if(subghz->last_settings->auto_save) {
+            subghz_scene_receiver_process_auto_save(subghz);
+        }
         if(subghz_txrx_hopper_get_state(subghz->txrx) != SubGhzHopperStateOFF) {
             subghz_txrx_hopper_update(subghz->txrx, subghz->last_settings->hopping_threshold);
             subghz_scene_receiver_update_statusbar(subghz);

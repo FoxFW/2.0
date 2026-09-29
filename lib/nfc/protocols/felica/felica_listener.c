@@ -185,11 +185,11 @@ static uint16_t felica_listener_get_response_system_code(
     uint16_t resp_system_code = FELICA_SYSTEM_CODE_CODE;
     if(felica_listener_check_system_code(generic_request, FELICA_LISTENER_SYSTEM_CODE_NDEF) &&
        instance->data->data.fs.mc.data[FELICA_MC_SYS_OP] == 1) {
-        // NDEF
+
         resp_system_code = FELICA_LISTENER_SYSTEM_CODE_NDEF;
     } else if(felica_listener_check_system_code(
                   generic_request, FELICA_LISTENER_SYSTEM_CODE_LITES)) {
-        // Lite-S
+
         resp_system_code = FELICA_LISTENER_SYSTEM_CODE_LITES;
     }
     return resp_system_code;
@@ -263,7 +263,7 @@ NfcCommand felica_listener_run(NfcGenericEvent event, void* context) {
             }
 
             if(request->header.code == FELICA_LISTENER_CMD_POLLING) {
-                // Will always respond at Time Slot 0 for now.
+
                 nfc_felica_listener_timer_anticol_start(instance->nfc, 0);
                 if(request->polling.system_code != FELICA_SYSTEM_CODE_CODE) {
                     FelicaError error = felica_listener_process_system_code(instance, request);

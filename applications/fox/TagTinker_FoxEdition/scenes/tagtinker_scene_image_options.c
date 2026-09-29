@@ -45,10 +45,6 @@ void tagtinker_scene_image_options_on_enter(void* ctx) {
         variable_item_set_current_value_text(item, buf);
     }
 
-    /* Position, compression and frame-repeat are intentionally fixed here:
-     * pages are the only knob that meaningfully changes per-image, the rest
-     * are best left at their defaults (top-left, auto RLE, x2 frame repeat).
-     * Power users can still tune them in Settings. */
     job->pos_x = 0;
     job->pos_y = 0;
     app->draw_x = 0;

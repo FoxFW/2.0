@@ -37,7 +37,6 @@
         "assets",
         "one_wire",
         "ibutton",
-        "music_worker",
         "mbedtls",
         "flipper_application",
         "u8g2",

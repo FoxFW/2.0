@@ -44,7 +44,6 @@ void nfc_render_emv_pan(const uint8_t* data, const uint8_t len, FuriString* str)
         furi_string_cat_printf(card_number, "%02X", data[i]);
     }
 
-    // Cut padding 'F' from card number
     furi_string_trim(card_number, "F");
     furi_string_cat(str, card_number);
     furi_string_free(card_number);
@@ -104,12 +103,11 @@ void nfc_render_emv_transactions(const EmvApplication* apl, FuriString* str) {
 
     furi_string_cat_printf(str, "Transactions:\n");
     for(int i = 0; i < len; i++) {
-        // If no date and amount - skip
+
         if((!apl->trans[i].date) && (!apl->trans[i].amount)) continue;
-        // transaction counter
+
         furi_string_cat_printf(str, "\e#%d: ", apl->trans[i].atc);
 
-        // Print transaction amount
         if(!apl->trans[i].amount) {
             furi_string_cat_printf(str, "???");
         } else {
@@ -152,7 +150,6 @@ void nfc_render_emv_transactions(const EmvApplication* apl, FuriString* str) {
                 (apl->trans[i].time >> 8) & 0xff,
                 apl->trans[i].time >> 16);
 
-        // Line break
         furi_string_cat_printf(str, "\n");
     }
 

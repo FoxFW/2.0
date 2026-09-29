@@ -1,6 +1,6 @@
 App(
     appid="subghz_garage",
-    name="Sub-GHz: Garage/Gate/Other",
+    name="Garage/Gate/Other (Direct)",
     apptype=FlipperAppType.EXTERNAL,
     # 14x14 home-screen Apps-menu icon; only the main app gets this (the
     # ~50 PLUGIN entries below are protocol/CC1101 plugins, never listed
@@ -93,43 +93,47 @@ App(
         "*.c*",
         "!subghz_cli.c",
         "!subghz_dangerous_freq.c",
-        "!helpers/subghz_chat.c",
+        "!subghz_chat.c",
+        "!subghz_scene_start.c",
+        "!subghz_view_start_grid.c",
+        "!subghz_scene_protocol_list.c",
+        "!subghz_view_protocol_groups.c",
         "!protocols",
         "protocols/protocol_groups.c",
         # Automotive-only KeeLoq manufacturer-key bruteforce/decrypt toolchain
         # and PSA Decrypt - not needed for garage/gate use. Source still on
         # disk (not deletable from here) but excluded from compilation; a
         # copy is staged in D:\_to_delete for reference.
-        "!scenes/subghz_scene_psa_decrypt.c",
-        "!scenes/subghz_scene_keeloq_bf2.c",
-        "!scenes/subghz_scene_keeloq_decrypt.c",
-        "!scenes/subghz_scene_kl_bf_cleanup.c",
-        "!scenes/subghz_scene_keeloq_keys.c",
-        "!scenes/subghz_scene_keeloq_key_edit.c",
-        "!helpers/subghz_keeloq_keys.c",
-        "!views/subghz_psa_decrypt.c",
-        "!views/subghz_keeloq_decrypt.c",
+        "!subghz_scene_psa_decrypt.c",
+        "!subghz_scene_keeloq_bf2.c",
+        "!subghz_scene_keeloq_decrypt.c",
+        "!subghz_scene_kl_bf_cleanup.c",
+        "!subghz_scene_keeloq_keys.c",
+        "!subghz_scene_keeloq_key_edit.c",
+        "!subghz_keeloq_keys.c",
+        "!subghz_psa_decrypt.c",
+        "!subghz_keeloq_decrypt.c",
         # "Add Manually" removed entirely - manual key/serial/counter/seed
         # entry across ~50 protocol variants wasn't worth its own code size
         # in a stripped-down garage/gate tool. Source still on disk (not
         # deletable from here) but excluded from compilation, same as the
         # Automotive-only files above.
-        "!scenes/subghz_scene_set_type.c",
-        "!scenes/subghz_scene_set_key.c",
-        "!scenes/subghz_scene_set_serial.c",
-        "!scenes/subghz_scene_set_seed.c",
-        "!scenes/subghz_scene_set_counter.c",
-        "!scenes/subghz_scene_set_button.c",
+        "!subghz_scene_set_type.c",
+        "!subghz_scene_set_key.c",
+        "!subghz_scene_set_serial.c",
+        "!subghz_scene_set_seed.c",
+        "!subghz_scene_set_counter.c",
+        "!subghz_scene_set_button.c",
         # Also dead: nothing ever navigated to this scene even before Add
         # Manually was removed (no scene_manager_next_scene call anywhere
         # targeted it).
-        "!scenes/subghz_scene_custom_freq.c",
-        "!helpers/subghz_gen_info.c",
-        "!helpers/subghz_txrx_create_protocol_key.c",
+        "!subghz_scene_custom_freq.c",
+        "!subghz_gen_info.c",
+        "!subghz_txrx_create_protocol_key.c",
         # Radio Settings scene removal (shared with Automotive via the Mode
         # Picker) left this empty stray file behind - can't be deleted from
         # here, excluded so it's never compiled either way.
-        "!scenes/subghz_scene_radio_settings.c.bak",
+        "!subghz_scene_radio_settings.c.bak",
         # "Modulations" screen removed from the Start page - manual per-
         # preset enable/disable was redundant with Protocol Group selection
         # once decoders were confirmed not to be modulation-gated. Its
@@ -143,12 +147,12 @@ App(
         # comment in helpers/subghz_txrx.c's subghz_txrx_alloc() - so this
         # one was never actually shipped in a release, just leftover from
         # mid-session) - next time you're in here.
-        "!scenes/subghz_scene_modulation_list.c",
+        "!subghz_scene_modulation_list.c",
     ],
     fap_libs=["assets", "hwdrivers"],
     fap_icon="icon.png",
     fap_category="Sub-GHz",
-    fap_description="Sub-GHz - garage, gate, and other non-automotive protocols",
+    fap_description="Sub-GHz - garage, gate, and other non-automotive protocols. Launched directly, this skips the automatic external-CC1101 check that the \"Sub-GHz: Garage/Gate/Other\" Apps-menu entry runs first - use that one instead unless you specifically want to skip the check.",
     fap_version="1.0",
 )
 
@@ -162,7 +166,7 @@ App(
 # each one. Only one group is ever loaded at a time - see
 # subghz_txrx_ensure_protocol_group in helpers/subghz_txrx.c.
 App(
-    appid="subghz_garage_protocols_g1",
+    appid="grp_g1",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g1_ep",
     requires=["subghz_garage"],
@@ -181,7 +185,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_protocols_g2",
+    appid="grp_g2",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g2_ep",
     requires=["subghz_garage"],
@@ -199,7 +203,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_protocols_g3",
+    appid="grp_g3",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g3_ep",
     requires=["subghz_garage"],
@@ -217,7 +221,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_protocols_g4",
+    appid="grp_g4",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g4_ep",
     requires=["subghz_garage"],
@@ -235,7 +239,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_protocols_g5",
+    appid="grp_g5",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g5_ep",
     requires=["subghz_garage"],
@@ -254,7 +258,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_protocols_g6",
+    appid="grp_g6",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g6_ep",
     requires=["subghz_garage"],
@@ -273,7 +277,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_protocols_g7",
+    appid="grp_g7",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g7_ep",
     requires=["subghz_garage"],
@@ -292,7 +296,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_protocols_g8",
+    appid="grp_g8",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g8_ep",
     requires=["subghz_garage"],
@@ -311,7 +315,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_protocols_g9",
+    appid="grp_g9",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g9_ep",
     requires=["subghz_garage"],
@@ -330,7 +334,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_protocols_g10",
+    appid="grp_g10",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g10_ep",
     requires=["subghz_garage"],
@@ -349,7 +353,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_protocols_g11",
+    appid="grp_g11",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_protocol_plugin_g11_ep",
     requires=["subghz_garage"],
@@ -376,7 +380,7 @@ App(
 # subghz_txrx_ensure_tx_protocol_plugin() / subghz_garage_tx_protocol_for_name()
 # in helpers/subghz_txrx.c and protocols/protocol_groups.c.
 App(
-    appid="subghz_garage_tx_alutech_at_4n",
+    appid="tx_alutech_at_4n",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_alutech_at_4n_plugin_ep",
     requires=["subghz_garage"],
@@ -390,7 +394,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_somfy_telis",
+    appid="tx_somfy_telis",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_somfy_telis_plugin_ep",
     requires=["subghz_garage"],
@@ -404,7 +408,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_jarolift",
+    appid="tx_jarolift",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_jarolift_plugin_ep",
     requires=["subghz_garage"],
@@ -422,7 +426,7 @@ App(
 # above, so a captured/saved signal still needs somewhere to find a real
 # one to be replayed with "Send" - see subghz_garage_tx_protocol_for_name().
 App(
-    appid="subghz_garage_tx_nice_flo",
+    appid="tx_nice_flo",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_nice_flo_plugin_ep",
     requires=["subghz_garage"],
@@ -436,7 +440,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_came_twee",
+    appid="tx_came_twee",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_came_twee_plugin_ep",
     requires=["subghz_garage"],
@@ -450,7 +454,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_secplus_v1",
+    appid="tx_secplus_v1",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_secplus_v1_plugin_ep",
     requires=["subghz_garage"],
@@ -464,7 +468,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_smc5326",
+    appid="tx_smc5326",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_smc5326_plugin_ep",
     requires=["subghz_garage"],
@@ -478,7 +482,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_dickert_mahs",
+    appid="tx_dickert_mahs",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_dickert_mahs_plugin_ep",
     requires=["subghz_garage"],
@@ -492,7 +496,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_roger",
+    appid="tx_roger",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_roger_plugin_ep",
     requires=["subghz_garage"],
@@ -506,7 +510,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_keyfinder",
+    appid="tx_keyfinder",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_keyfinder_plugin_ep",
     requires=["subghz_garage"],
@@ -520,7 +524,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_secplus_v2",
+    appid="tx_secplus_v2",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_secplus_v2_plugin_ep",
     requires=["subghz_garage"],
@@ -534,7 +538,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_princeton",
+    appid="tx_princeton",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_princeton_plugin_ep",
     requires=["subghz_garage"],
@@ -548,7 +552,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_gangqi",
+    appid="tx_gangqi",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_gangqi_plugin_ep",
     requires=["subghz_garage"],
@@ -562,7 +566,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_hay21",
+    appid="tx_hay21",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_hay21_plugin_ep",
     requires=["subghz_garage"],
@@ -576,7 +580,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_dooya",
+    appid="tx_dooya",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_dooya_plugin_ep",
     requires=["subghz_garage"],
@@ -590,7 +594,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_holtek",
+    appid="tx_holtek",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_holtek_plugin_ep",
     requires=["subghz_garage"],
@@ -604,7 +608,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_came",
+    appid="tx_came",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_came_plugin_ep",
     requires=["subghz_garage"],
@@ -618,7 +622,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_nice_flor_s",
+    appid="tx_nice_flor_s",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_nice_flor_s_plugin_ep",
     requires=["subghz_garage"],
@@ -632,7 +636,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_beninca_arc",
+    appid="tx_beninca_arc",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_beninca_arc_plugin_ep",
     requires=["subghz_garage"],
@@ -646,7 +650,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_marantec",
+    appid="tx_marantec",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_marantec_plugin_ep",
     requires=["subghz_garage"],
@@ -660,7 +664,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_holtek_ht12x",
+    appid="tx_holtek_ht12x",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_holtek_ht12x_plugin_ep",
     requires=["subghz_garage"],
@@ -674,7 +678,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_revers_rb2",
+    appid="tx_revers_rb2",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_revers_rb2_plugin_ep",
     requires=["subghz_garage"],
@@ -688,7 +692,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_megacode",
+    appid="tx_megacode",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_megacode_plugin_ep",
     requires=["subghz_garage"],
@@ -702,7 +706,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_marantec24",
+    appid="tx_marantec24",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_marantec24_plugin_ep",
     requires=["subghz_garage"],
@@ -716,7 +720,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_faac_slh",
+    appid="tx_faac_slh",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_faac_slh_plugin_ep",
     requires=["subghz_garage"],
@@ -730,7 +734,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_came_atomo",
+    appid="tx_came_atomo",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_came_atomo_plugin_ep",
     requires=["subghz_garage"],
@@ -744,7 +748,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_chamb_code",
+    appid="tx_chamb_code",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_chamb_code_plugin_ep",
     requires=["subghz_garage"],
@@ -758,7 +762,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_mastercode",
+    appid="tx_mastercode",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_mastercode_plugin_ep",
     requires=["subghz_garage"],
@@ -772,7 +776,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_linear",
+    appid="tx_linear",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_linear_plugin_ep",
     requires=["subghz_garage"],
@@ -786,7 +790,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_linear_delta3",
+    appid="tx_linear_delta3",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_linear_delta3_plugin_ep",
     requires=["subghz_garage"],
@@ -800,7 +804,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_gate_tx",
+    appid="tx_gate_tx",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_gate_tx_plugin_ep",
     requires=["subghz_garage"],
@@ -814,7 +818,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_kinggates_stylo_4k",
+    appid="tx_kinggates_stylo_4k",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_kinggates_stylo_4k_plugin_ep",
     requires=["subghz_garage"],
@@ -828,7 +832,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_somfy_keytis",
+    appid="tx_somfy_keytis",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_somfy_keytis_plugin_ep",
     requires=["subghz_garage"],
@@ -842,7 +846,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_phoenix_v2",
+    appid="tx_phoenix_v2",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_phoenix_v2_plugin_ep",
     requires=["subghz_garage"],
@@ -856,7 +860,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_clemsa",
+    appid="tx_clemsa",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_clemsa_plugin_ep",
     requires=["subghz_garage"],
@@ -870,7 +874,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_ansonic",
+    appid="tx_ansonic",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_ansonic_plugin_ep",
     requires=["subghz_garage"],
@@ -884,7 +888,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_doitrand",
+    appid="tx_doitrand",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_doitrand_plugin_ep",
     requires=["subghz_garage"],
@@ -898,7 +902,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_hormann",
+    appid="tx_hormann",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_hormann_plugin_ep",
     requires=["subghz_garage"],
@@ -912,7 +916,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_x10",
+    appid="tx_x10",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_x10_plugin_ep",
     requires=["subghz_garage"],
@@ -926,7 +930,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_telcoma_edge",
+    appid="tx_telcoma_edge",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_telcoma_edge_plugin_ep",
     requires=["subghz_garage"],
@@ -942,7 +946,7 @@ App(
 # RAW and BinRAW are compiled into every group (g1-g5), not just group 1, so
 # stripping their encoders out the same way saves space across all 5.
 App(
-    appid="subghz_garage_tx_raw",
+    appid="tx_raw",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_raw_plugin_ep",
     requires=["subghz_garage"],
@@ -956,7 +960,7 @@ App(
 )
 
 App(
-    appid="subghz_garage_tx_bin_raw",
+    appid="tx_bin_raw",
     apptype=FlipperAppType.PLUGIN,
     entry_point="subghz_garage_tx_bin_raw_plugin_ep",
     requires=["subghz_garage"],

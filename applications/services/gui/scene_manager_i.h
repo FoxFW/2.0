@@ -1,14 +1,9 @@
-/**
- * @file scene_manager_i.h
- * GUI: internal SceneManager API
- */
-
 #pragma once
 
 #include "scene_manager.h"
 #include <m-array.h>
 
-ARRAY_DEF(SceneManagerIdStack, uint32_t, M_DEFAULT_OPLIST); //-V658
+ARRAY_DEF(SceneManagerIdStack, uint32_t, M_DEFAULT_OPLIST);
 
 typedef struct {
     uint32_t state;

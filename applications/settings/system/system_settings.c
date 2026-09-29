@@ -211,8 +211,6 @@ static void filename_scheme_changed(VariableItem* item) {
     }
 }
 
-// ---- Device Name --------------------------------------------------------
-
 #define DEVICE_NAME_ITEM_INDEX 11
 
 static bool system_settings_device_name_validator(
@@ -233,12 +231,11 @@ static bool system_settings_device_name_validator(
 static void system_settings_device_name_callback(void* context) {
     SystemSettings* app = context;
 
-    // Save name to SD card (same path as namechanger service)
     FlipperFormat* file = flipper_format_file_alloc(app->storage);
     bool saved = false;
     do {
         if(app->device_name[0] == '\0') {
-            // Empty name -> remove file to restore real name
+
             storage_simply_remove(app->storage, NAMECHANGER_PATH);
             saved = true;
             break;
@@ -251,11 +248,11 @@ static void system_settings_device_name_callback(void* context) {
     flipper_format_free(file);
 
     if(saved) {
-        // Reboot to apply
+
         Power* power = furi_record_open(RECORD_POWER);
         power_reboot(power, PowerBootModeNormal);
     } else {
-        // Go back silently on failure
+
         view_dispatcher_switch_to_view(app->view_dispatcher, SystemSettingsViewVarItemList);
     }
 }
@@ -284,8 +281,6 @@ static uint32_t system_settings_text_input_back(void* context) {
     return SystemSettingsViewVarItemList;
 }
 
-// -------------------------------------------------------------------------
-
 static uint32_t system_settings_exit(void* context) {
     UNUSED(context);
     return VIEW_NONE;
@@ -294,7 +289,6 @@ static uint32_t system_settings_exit(void* context) {
 SystemSettings* system_settings_alloc(void) {
     SystemSettings* app = malloc(sizeof(SystemSettings));
 
-    // Load settings
     app->gui = furi_record_open(RECORD_GUI);
     app->storage = furi_record_open(RECORD_STORAGE);
 
@@ -393,7 +387,6 @@ SystemSettings* system_settings_alloc(void) {
     variable_item_set_current_value_index(item, value_index);
     variable_item_set_current_value_text(item, filename_scheme[value_index]);
 
-    // Device Name (index = DEVICE_NAME_ITEM_INDEX = 11)
     const char* current_name = furi_hal_version_get_name_ptr();
     strlcpy(
         app->device_name,
@@ -413,7 +406,6 @@ SystemSettings* system_settings_alloc(void) {
         SystemSettingsViewVarItemList,
         variable_item_list_get_view(app->var_item_list));
 
-    // TextInput for device name
     app->text_input = text_input_alloc();
     view_set_previous_callback(
         text_input_get_view(app->text_input), system_settings_text_input_back);
@@ -429,15 +421,15 @@ SystemSettings* system_settings_alloc(void) {
 
 void system_settings_free(SystemSettings* app) {
     furi_assert(app);
-    // TextInput
+
     view_dispatcher_remove_view(app->view_dispatcher, SystemSettingsViewTextInput);
     text_input_free(app->text_input);
-    // Variable item list
+
     view_dispatcher_remove_view(app->view_dispatcher, SystemSettingsViewVarItemList);
     variable_item_list_free(app->var_item_list);
-    // View dispatcher
+
     view_dispatcher_free(app->view_dispatcher);
-    // Records
+
     furi_record_close(RECORD_STORAGE);
     furi_record_close(RECORD_GUI);
     free(app);

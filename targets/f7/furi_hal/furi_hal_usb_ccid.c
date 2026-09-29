@@ -19,7 +19,7 @@
 #define CCID_SLOT_INDEX  (0)
 
 #define CCID_DATABLOCK_SIZE \
-    (4 + 1 + CCID_SHORT_APDU_SIZE + 1) //APDU Header + Lc + Short APDU size + Le
+    (4 + 1 + CCID_SHORT_APDU_SIZE + 1)
 
 #define ENDPOINT_DIR_IN  (0x80)
 #define ENDPOINT_DIR_OUT (0x00)
@@ -28,10 +28,8 @@
 
 #define CCID_IN_EPADDR (ENDPOINT_DIR_IN | 2)
 
-/** Endpoint address of the CCID data OUT endpoint, for host-to-device data transfers. */
 #define CCID_OUT_EPADDR (ENDPOINT_DIR_OUT | 1)
 
-/** Endpoint size in bytes of the CCID data being sent between IN and OUT endpoints. */
 #define CCID_EPSIZE 64
 
 struct CcidIntfDescriptor {
@@ -76,7 +74,6 @@ typedef struct ccid_bulk_message_header {
     uint8_t bSeq;
 } FURI_PACKED ccid_bulk_message_header_t;
 
-/* Device descriptor */
 static struct usb_device_descriptor ccid_device_desc = {
     .bLength = sizeof(struct usb_device_descriptor),
     .bDescriptorType = USB_DTYPE_DEVICE,
@@ -94,7 +91,6 @@ static struct usb_device_descriptor ccid_device_desc = {
     .bNumConfigurations = 1,
 };
 
-/* Device configuration descriptor*/
 static const struct CcidConfigDescriptor ccid_cfg_desc = {
     .config =
         {
@@ -131,9 +127,9 @@ static const struct CcidConfigDescriptor ccid_cfg_desc = {
                  .bcdCCID = CCID_CURRENT_SPEC_RELEASE_NUMBER,
                  .bMaxSlotIndex = 0x00,
                  .bVoltageSupport = CCID_VOLTAGESUPPORT_5V,
-                 .dwProtocols = 0x01, //T0
-                 .dwDefaultClock = 16000, //16MHz
-                 .dwMaximumClock = 16000, //16MHz
+                 .dwProtocols = 0x01,
+                 .dwDefaultClock = 16000,
+                 .dwMaximumClock = 16000,
                  .bNumClockSupported = 0,
                  .dwDataRate = 307200,
                  .dwMaxDataRate = 307200,
@@ -274,10 +270,11 @@ static void ccid_deinit(usbd_device* dev) {
     usbd_reg_config(dev, NULL);
     usbd_reg_control(dev, NULL);
 
+    furi_kernel_lock();
     free(usb_ccid.str_prod_descr);
     free(usb_ccid.str_serial_descr);
-
     free(furi_hal_usb_ccid);
+    furi_kernel_unlock();
 
     furi_hal_usb_ccid = NULL;
 }
@@ -336,7 +333,7 @@ void CALLBACK_CCID_SetParametersT0(
 
     furi_check(furi_hal_usb_ccid);
 
-    furi_check(requestSetParametersT0->bProtocolNum == 0x00); //T0
+    furi_check(requestSetParametersT0->bProtocolNum == 0x00);
 
     responseSetParametersT0->bMessageType = RDR_TO_PC_PARAMETERS;
     responseSetParametersT0->bSlot = requestSetParametersT0->bSlot;
@@ -519,16 +516,15 @@ static int32_t ccid_worker(void* context) {
             WorkerEvtStop | WorkerEvtRequest, FuriFlagWaitAny, FuriWaitForever);
 
         if(flags & WorkerEvtRequest) {
-            //read initial CCID message header
 
             ccid_bulk_message_header_t* message =
-                (ccid_bulk_message_header_t*)&furi_hal_usb_ccid->receive_buffer; //-V641
+                (ccid_bulk_message_header_t*)&furi_hal_usb_ccid->receive_buffer;
 
             furi_check(message);
 
             if(message->bMessageType == PC_TO_RDR_ICCPOWERON) {
                 struct pc_to_rdr_icc_power_on* requestDataBlock =
-                    (struct pc_to_rdr_icc_power_on*)message; //-V641
+                    (struct pc_to_rdr_icc_power_on*)message;
                 struct rdr_to_pc_data_block* responseDataBlock =
                     (struct rdr_to_pc_data_block*)&furi_hal_usb_ccid->send_buffer;
 
@@ -544,9 +540,9 @@ static int32_t ccid_worker(void* context) {
 
             } else if(message->bMessageType == PC_TO_RDR_ICCPOWEROFF) {
                 struct pc_to_rdr_icc_power_off* requestIccPowerOff =
-                    (struct pc_to_rdr_icc_power_off*)message; //-V641
+                    (struct pc_to_rdr_icc_power_off*)message;
                 struct rdr_to_pc_slot_status* responseSlotStatus =
-                    (struct rdr_to_pc_slot_status*)&furi_hal_usb_ccid->send_buffer; //-V641
+                    (struct rdr_to_pc_slot_status*)&furi_hal_usb_ccid->send_buffer;
 
                 CALLBACK_CCID_GetSlotStatus(
                     requestIccPowerOff->bSlot, requestIccPowerOff->bSeq, responseSlotStatus);
@@ -558,9 +554,9 @@ static int32_t ccid_worker(void* context) {
 
             } else if(message->bMessageType == PC_TO_RDR_GETSLOTSTATUS) {
                 struct pc_to_rdr_get_slot_status* requestSlotStatus =
-                    (struct pc_to_rdr_get_slot_status*)message; //-V641
+                    (struct pc_to_rdr_get_slot_status*)message;
                 struct rdr_to_pc_slot_status* responseSlotStatus =
-                    (struct rdr_to_pc_slot_status*)&furi_hal_usb_ccid->send_buffer; //-V641
+                    (struct rdr_to_pc_slot_status*)&furi_hal_usb_ccid->send_buffer;
 
                 CALLBACK_CCID_GetSlotStatus(
                     requestSlotStatus->bSlot, requestSlotStatus->bSeq, responseSlotStatus);
@@ -590,9 +586,9 @@ static int32_t ccid_worker(void* context) {
 
             } else if(message->bMessageType == PC_TO_RDR_SETPARAMETERS) {
                 struct pc_to_rdr_set_parameters_t0* requestSetParametersT0 =
-                    (struct pc_to_rdr_set_parameters_t0*)message; //-V641
+                    (struct pc_to_rdr_set_parameters_t0*)message;
                 struct rdr_to_pc_parameters_t0* responseSetParametersT0 =
-                    (struct rdr_to_pc_parameters_t0*)&furi_hal_usb_ccid->send_buffer; //-V641
+                    (struct rdr_to_pc_parameters_t0*)&furi_hal_usb_ccid->send_buffer;
 
                 CALLBACK_CCID_SetParametersT0(requestSetParametersT0, responseSetParametersT0);
 
@@ -608,18 +604,17 @@ static int32_t ccid_worker(void* context) {
     return 0;
 }
 
-/* Configure endpoints */
 static usbd_respond ccid_ep_config(usbd_device* dev, uint8_t cfg) {
     switch(cfg) {
     case 0:
-        /* deconfiguring device */
+
         usbd_ep_deconfig(dev, CCID_IN_EPADDR);
         usbd_ep_deconfig(dev, CCID_OUT_EPADDR);
         usbd_reg_endpoint(dev, CCID_IN_EPADDR, 0);
         usbd_reg_endpoint(dev, CCID_OUT_EPADDR, 0);
         return usbd_ack;
     case 1:
-        /* configuring device */
+
         usbd_ep_config(dev, CCID_IN_EPADDR, USB_EPTYPE_BULK, CCID_EPSIZE);
         usbd_ep_config(dev, CCID_OUT_EPADDR, USB_EPTYPE_BULK, CCID_EPSIZE);
         usbd_reg_endpoint(dev, CCID_IN_EPADDR, ccid_rx_ep_callback);
@@ -630,10 +625,9 @@ static usbd_respond ccid_ep_config(usbd_device* dev, uint8_t cfg) {
     }
 }
 
-/* Control requests handler */
 static usbd_respond ccid_control(usbd_device* dev, usbd_ctlreq* req, usbd_rqc_callback* callback) {
     UNUSED(callback);
-    /* CDC control requests */
+
     if(((USB_REQ_RECIPIENT | USB_REQ_TYPE) & req->bmRequestType) ==
            (USB_REQ_INTERFACE | USB_REQ_CLASS) &&
        (req->wIndex == 0 || req->wIndex == 2)) {

@@ -27,7 +27,9 @@ SubGhzTransmitter*
 
 void subghz_transmitter_free(SubGhzTransmitter* instance) {
     furi_check(instance);
-    instance->protocol->encoder->free(instance->protocol_instance);
+    if(instance->protocol && instance->protocol->encoder && instance->protocol->encoder->free) {
+        instance->protocol->encoder->free(instance->protocol_instance);
+    }
     free(instance);
 }
 
@@ -60,5 +62,10 @@ SubGhzProtocolStatus
 
 LevelDuration subghz_transmitter_yield(void* context) {
     SubGhzTransmitter* instance = context;
+
+    if(!instance || !instance->protocol || !instance->protocol->encoder ||
+       !instance->protocol->encoder->yield) {
+        return level_duration_reset();
+    }
     return instance->protocol->encoder->yield(instance->protocol_instance);
 }

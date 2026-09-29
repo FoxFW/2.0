@@ -8,7 +8,7 @@
 
 #ifndef CMSIS_device_header
 #define CMSIS_device_header "stm32wbxx.h"
-#endif /* CMSIS_device_header */
+#endif
 
 #include CMSIS_device_header
 #include <stm32wb55_linker.h>
@@ -32,7 +32,6 @@
 #define configMINIMAL_STACK_SIZE         ((uint16_t)128)
 #define configUSE_POSIX_ERRNO            1
 
-/* Heap size determined automatically by linker */
 #define configTOTAL_HEAP_SIZE   ((uint32_t) & __heap_end__ - (uint32_t) & __heap_start__)
 #define configMAX_TASK_NAME_LEN (32)
 
@@ -52,16 +51,12 @@
 #define configRECORD_STACK_HIGH_ADDRESS         1
 #define configUSE_NEWLIB_REENTRANT              0
 
-/* Defaults to size_t for backward compatibility, but can be changed
-   if lengths will always be less than the number of bytes in a size_t. */
 #define configMESSAGE_BUFFER_LENGTH_TYPE        size_t
 #define configNUM_THREAD_LOCAL_STORAGE_POINTERS 1
 #define configEXPECTED_IDLE_TIME_BEFORE_SLEEP   4
 
-/* Co-routine definitions. */
 #define configUSE_CO_ROUTINES 0
 
-/* Software timer definitions. */
 #define configUSE_TIMERS              1
 #define configTIMER_TASK_PRIORITY     (2)
 #define configTIMER_QUEUE_LENGTH      32
@@ -71,8 +66,6 @@
 #define configIDLE_TASK_NAME        "(-_-)"
 #define configIDLE_TASK_STACK_DEPTH 128
 
-/* Set the following definitions to 1 to include the API function, or zero
-to exclude the API function. */
 #define INCLUDE_xTaskGetHandle              1
 #define INCLUDE_eTaskGetState               1
 #define INCLUDE_uxTaskGetStackHighWaterMark 1
@@ -89,52 +82,30 @@ to exclude the API function. */
 #define INCLUDE_xTimerPendFunctionCall      1
 #define INCLUDE_xTaskGetIdleTaskHandle      1
 
-/* Workaround for various notification issues:
- * - First one used by system primitives
- * - Second one by thread event notification
- * - Third one by FuriEventLoop
- */
 #define configTASK_NOTIFICATION_ARRAY_ENTRIES 3
 
 extern __attribute__((__noreturn__)) void furi_thread_catch(void);
 #define configTASK_RETURN_ADDRESS (furi_thread_catch + 2)
 
-/*
- * The CMSIS-RTOS V2 FreeRTOS wrapper is dependent on the heap implementation used
- * by the application thus the correct define need to be enabled below
- */
 #define USE_FreeRTOS_HEAP_4
 
-/* Cortex-M specific definitions. */
 #ifdef __NVIC_PRIO_BITS
-/* __BVIC_PRIO_BITS will be specified when CMSIS is being used. */
+
 #define configPRIO_BITS __NVIC_PRIO_BITS
 #else
 #define configPRIO_BITS 4
 #endif
 
-/* The lowest interrupt priority that can be used in a call to a "set priority"
-function. */
 #define configLIBRARY_LOWEST_INTERRUPT_PRIORITY 15
 
-/* The highest interrupt priority that can be used by any interrupt service
-routine that makes calls to interrupt safe FreeRTOS API functions.  DO NOT CALL
-INTERRUPT SAFE FREERTOS API FUNCTIONS FROM ANY INTERRUPT THAT HAS A HIGHER
-PRIORITY THAN THIS! (higher priorities are lower numeric values. */
 #define configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY 5
 
-/* Interrupt priorities used by the kernel port layer itself.  These are generic
-to all Cortex-M ports, and do not rely on any particular library functions. */
 #define configKERNEL_INTERRUPT_PRIORITY \
     (configLIBRARY_LOWEST_INTERRUPT_PRIORITY << (8 - configPRIO_BITS))
 
-/* !!!! configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to zero !!!!
-See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY \
     (configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS))
 
-/* Definitions that map the FreeRTOS port interrupt handlers to their CMSIS
-standard names. */
 #define vPortSVCHandler    SVC_Handler
 #define xPortPendSVHandler PendSV_Handler
 
@@ -142,13 +113,9 @@ standard names. */
     extern void furi_hal_mpu_set_stack_protection(uint32_t* stack);      \
     furi_hal_mpu_set_stack_protection((uint32_t*)pxCurrentTCB->pxStack); \
     errno = pxCurrentTCB->iTaskErrno
-//  ^^^^^   acquire errno directly from TCB because FreeRTOS assigns its `FreeRTOS_errno' _after_ our hook is called
 
-// referencing `FreeRTOS_errno' here   vvvvv    because FreeRTOS calls our hook _before_ copying the value into the TCB, hence a manual write to the TCB would get overwritten
 #define traceTASK_SWITCHED_OUT() FreeRTOS_errno = errno
 
-/* Normal assert() semantics without relying on the provision of an assert.h
-header file. */
 #ifdef FURI_DEBUG
 #define configASSERT(x)                \
     if((x) == 0) {                     \
@@ -156,5 +123,4 @@ header file. */
     }
 #endif
 
-// Must be last line of config because of recursion
 #include <core/check.h>

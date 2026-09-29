@@ -84,7 +84,7 @@ typedef struct {
 typedef struct {
     uint32_t bytes_free;
     bool is_present;
-} MfDesfireFreeMemory; // EV1+ only
+} MfDesfireFreeMemory;
 
 typedef struct {
     bool is_master_key_changeable;
@@ -182,8 +182,6 @@ typedef struct {
 
 extern const NfcDeviceBase nfc_device_mf_desfire;
 
-// Virtual methods
-
 MfDesfireData* mf_desfire_alloc(void);
 
 void mf_desfire_free(MfDesfireData* data);
@@ -207,8 +205,6 @@ const uint8_t* mf_desfire_get_uid(const MfDesfireData* data, size_t* uid_len);
 bool mf_desfire_set_uid(MfDesfireData* data, const uint8_t* uid, size_t uid_len);
 
 Iso14443_4aData* mf_desfire_get_base_data(const MfDesfireData* data);
-
-// Getters and tests
 
 const MfDesfireApplication*
     mf_desfire_get_application(const MfDesfireData* data, const MfDesfireApplicationId* app_id);

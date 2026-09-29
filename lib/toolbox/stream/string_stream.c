@@ -106,7 +106,7 @@ static size_t string_stream_size(StringStream* stream) {
 }
 
 static size_t string_stream_write(StringStream* stream, const char* data, size_t size) {
-    // TODO FL-3544: can be optimized for edge cases
+
     size_t i;
     for(i = 0; i < size; i++) {
         string_stream_write_char(stream, data[i]);
@@ -161,12 +161,6 @@ static bool string_stream_delete_and_insert(
     return result;
 }
 
-/**
- * Write to string stream helper
- * @param stream 
- * @param c 
- * @return size_t 
- */
 static size_t string_stream_write_char(StringStream* stream, char c) {
     if(string_stream_eof(stream)) {
         furi_string_push_back(stream->string, c);

@@ -206,14 +206,13 @@ static void subghz_protocol_encoder_hay21_get_upload(SubGhzProtocolEncoderHay21*
     return;
 }
 
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static void subghz_protocol_hay21_remote_controller(SubGhzBlockGeneric* instance) {
     instance->btn = (instance->data >> 13) & 0xFF;
     instance->serial = (instance->data >> 5) & 0xFF;
     instance->cnt = (instance->data >> 1) & 0xF;
 
-    // Save original button for later use
     if(subghz_custom_btn_get_original() == 0) {
         subghz_custom_btn_set_original(instance->btn);
     }
@@ -282,7 +281,7 @@ LevelDuration subghz_protocol_encoder_hay21_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_hay21_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

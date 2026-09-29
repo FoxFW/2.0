@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 #include <picopass_keys.h>
 
 #define TAG "PicopassSceneReadCardSuccess"
@@ -25,7 +24,6 @@ void picopass_scene_read_card_success_on_enter(void* context) {
     FuriString* info_str = furi_string_alloc();
     FuriString* key_str = furi_string_alloc();
 
-    dolphin_deed(DolphinDeedNfcReadSuccess);
 
     // Send notification
     notification_message(picopass->notifications, &sequence_success);

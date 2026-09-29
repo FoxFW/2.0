@@ -28,12 +28,12 @@ typedef struct {
 } StorageFile;
 
 typedef enum {
-    StorageStatusOK, /**< storage ok */
-    StorageStatusNotReady, /**< storage not ready (not initialized or waiting for data storage to appear) */
-    StorageStatusNotMounted, /**< datastore appeared, but we cannot mount it */
-    StorageStatusNoFS, /**< datastore appeared and mounted, but does not have a file system */
-    StorageStatusNotAccessible, /**< datastore appeared and mounted, but not available */
-    StorageStatusErrorInternal, /**< any other internal error */
+    StorageStatusOK,
+    StorageStatusNotReady,
+    StorageStatusNotMounted,
+    StorageStatusNoFS,
+    StorageStatusNotAccessible,
+    StorageStatusErrorInternal,
 } StorageStatus;
 
 void storage_file_init(StorageFile* obj);

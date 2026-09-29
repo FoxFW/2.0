@@ -6,8 +6,8 @@
 
 #define TAG "PowerSettings"
 
-#define POWER_SETTINGS_VER_1 (1) // Previous version number
-#define POWER_SETTINGS_VER   (2) // New version number
+#define POWER_SETTINGS_VER_1 (1)
+#define POWER_SETTINGS_VER   (2)
 
 #define POWER_SETTINGS_PATH     INT_PATH(POWER_SETTINGS_FILE_NAME)
 #define POWER_SETTINGS_MAGIC_V1 (0x19)
@@ -26,7 +26,6 @@ void power_settings_load(PowerSettings* settings) {
         uint8_t version;
         if(!saved_struct_get_metadata(POWER_SETTINGS_PATH, NULL, &version, NULL)) break;
 
-        // if config actual version - load it directly
         if(version == POWER_SETTINGS_VER) {
             success = saved_struct_load(
                 POWER_SETTINGS_PATH,
@@ -35,7 +34,6 @@ void power_settings_load(PowerSettings* settings) {
                 POWER_SETTINGS_MAGIC,
                 POWER_SETTINGS_VER);
 
-            // if config previous version - load it and manual set new settings to inital value
         } else if(version == POWER_SETTINGS_VER_1) {
             PowerSettingsPrevious* settings_previous = malloc(sizeof(PowerSettingsPrevious));
 
@@ -45,7 +43,7 @@ void power_settings_load(PowerSettings* settings) {
                 sizeof(PowerSettingsPrevious),
                 POWER_SETTINGS_MAGIC_V1,
                 POWER_SETTINGS_VER_1);
-            // new settings initialization
+
             if(success) {
                 settings->auto_poweroff_delay_ms = settings_previous->auto_poweroff_delay_ms;
                 settings->charge_supress_percent = 0;

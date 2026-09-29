@@ -561,10 +561,10 @@ static void candidate_draw_cb(Canvas* canvas, void* model) {
         bool selected = (i == app->candidate_selected);
 
         if(selected) {
-            canvas_draw_rbox(canvas, 2, by, 124, bh, 3);
+            canvas_draw_rbox(canvas, 8, by, 112, bh, 3);
             canvas_set_color(canvas, ColorWhite);
         } else {
-            canvas_draw_rframe(canvas, 2, by, 124, bh, 3);
+            canvas_draw_rframe(canvas, 8, by, 112, bh, 3);
         }
 
         char line1[40];
@@ -581,8 +581,7 @@ static void candidate_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(app->candidate_count > CANDIDATE_ROW_VIS) {
-        // Dotted track + solid position block, matching FOX_CHILL's
-        // scrollbar style instead of a plain solid bar with no track.
+
         int available_h = 64 - CANDIDATE_ROW_HEADER_H;
         elements_scrollbar_pos(
             canvas,
@@ -772,19 +771,7 @@ static void terminal_draw_cb(Canvas* canvas, void* model) {
     }
 
     {
-        // Centered filled pill with the real I_ButtonCenter_7x7 icon,
-        // matching fox_lab/message_view.c's message_draw_one_button()
-        // reference exactly (icon_gap/pad_x included) - this app now carries
-        // its own images/ButtonCenter_7x7.png (fap_icon_assets="images" in
-        // application.fam), the same per-app-local-copy convention
-        // fox_lab/fox_esp32_terminal/etc. already use, rather than the
-        // hand-drawn back-arrow glyph this screen used as a stand-in before.
-        // Per the user's 2026-09-13 direction ("a single button should be
-        // centered with the ButtonCenter_7x7"). This screen used to draw a
-        // right-aligned white box with a black outline and no icon at all,
-        // and had no InputKeyOk handling - flagged as "Pattern C-incorrect"
-        // by the 2026-09-13 footer-button audit (FOOTER_BUTTON_AUDIT.md
-        // project doc). See terminal_input_cb() below.
+
         canvas_set_font(canvas, FontSecondary);
         const char* label = "Hide";
         const Icon* icon = &I_ButtonCenter_7x7;
@@ -832,22 +819,14 @@ static bool terminal_input_cb(InputEvent* event, void* context) {
         with_view_model(app->terminal_view, uint8_t * _m, { UNUSED(_m); }, true);
         return true;
     case InputKeyOk:
-        // "Hide" is this screen's only button - OK activates it now (it had
-        // no InputKeyOk handling at all before). It isn't labeled "Back",
-        // but does the exact same thing Back already does here, so this
-        // just invokes that same handler directly instead of duplicating
-        // its esp32_detected branching - see the 2026-09-13 footer-button
-        // audit (FOOTER_BUTTON_AUDIT.md project doc).
+
         if(event->type == InputTypeShort) {
             navigation_callback(app);
         }
         return true;
     case InputKeyLeft:
     case InputKeyRight:
-        // Previously both silently duplicated Back's exit (Right fell
-        // through to the same `default: return false` as Back). Neither is
-        // "Back" or "OK", so per the audit's key-binding cleanup they're
-        // now harmless no-ops instead of secretly re-triggering exit.
+
         return true;
     case InputKeyBack:
         return false;

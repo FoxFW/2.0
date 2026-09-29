@@ -20,8 +20,8 @@ bool flipper_application_manifest_is_too_old(
     furi_check(manifest);
     furi_check(api_interface);
 
-    if(manifest->base.api_version.major < api_interface->api_version_major /* ||
-       manifest->base.api_version.minor > app->api_interface->api_version_minor */) {
+    if(manifest->base.api_version.major < api_interface->api_version_major
+) {
         return false;
     }
 
@@ -34,8 +34,8 @@ bool flipper_application_manifest_is_too_new(
     furi_check(manifest);
     furi_check(api_interface);
 
-    if(manifest->base.api_version.major > api_interface->api_version_major /* ||
-       manifest->base.api_version.minor > app->api_interface->api_version_minor */) {
+    if(manifest->base.api_version.major > api_interface->api_version_major
+) {
         return false;
     }
 

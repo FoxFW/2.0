@@ -3,39 +3,31 @@
 #include "notification_messages_notes.h"
 #include <stddef.h>
 
-/*********************************** Messages **********************************/
-
-/** Display: backlight wakeup */
 const NotificationMessage message_display_backlight_on = {
     .type = NotificationMessageTypeLedDisplayBacklight,
     .data.led.value = 0xFF,
 };
 
-/** Display: backlight force off */
 const NotificationMessage message_display_backlight_off = {
     .type = NotificationMessageTypeLedDisplayBacklight,
     .data.led.value = 0x00,
 };
 
-/** Display: backlight wakeup even if its ON now */
 const NotificationMessage message_display_backlight_force_on = {
     .type = NotificationMessageTypeLedDisplayBacklightForceOn,
     .data.led.value = 0xFF,
 };
 
-/** Display: backlight always on */
 const NotificationMessage message_display_backlight_enforce_on = {
     .type = NotificationMessageTypeLedDisplayBacklightEnforceOn,
     .data.led.value = 0xFF,
 };
 
-/** Display: automatic backlight management, with configured timeout */
 const NotificationMessage message_display_backlight_enforce_auto = {
     .type = NotificationMessageTypeLedDisplayBacklightEnforceAuto,
     .data.led.value = 0x00,
 };
 
-// Led ON
 const NotificationMessage message_red_255 = {
     .type = NotificationMessageTypeLedRed,
     .data.led.value = 0xFF,
@@ -51,7 +43,6 @@ const NotificationMessage message_blue_255 = {
     .data.led.value = 0xFF,
 };
 
-// Led OFF
 const NotificationMessage message_red_0 = {
     .type = NotificationMessageTypeLedRed,
     .data.led.value = 0x00,
@@ -120,7 +111,6 @@ const NotificationMessage message_blink_set_color_white = {
     .data.led_blink.color = LightRed | LightGreen | LightBlue,
 };
 
-// Delay
 const NotificationMessage message_delay_1 = {
     .type = NotificationMessageTypeDelay,
     .data.delay.length = 1,
@@ -161,12 +151,10 @@ const NotificationMessage message_delay_1000 = {
     .data.delay.length = 1000,
 };
 
-// Sound
 const NotificationMessage message_sound_off = {
     .type = NotificationMessageTypeSoundOff,
 };
 
-// Vibro
 const NotificationMessage message_vibro_on = {
     .type = NotificationMessageTypeVibro,
     .data.vibro.on = true,
@@ -177,12 +165,10 @@ const NotificationMessage message_vibro_off = {
     .data.vibro.on = false,
 };
 
-// Reset
 const NotificationMessage message_do_not_reset = {
     .type = NotificationMessageTypeDoNotReset,
 };
 
-// Override user settings
 const NotificationMessage message_force_speaker_volume_setting_1f = {
     .type = NotificationMessageTypeForceSpeakerVolumeSetting,
     .data.forced_settings.speaker_volume = 1.0f,
@@ -207,9 +193,6 @@ const NotificationMessage message_lcd_contrast_update = {
     .type = NotificationMessageTypeLcdContrastUpdate,
 };
 
-/****************************** Message sequences ******************************/
-
-// Reset
 const NotificationSequence sequence_reset_red = {
     &message_red_0,
     NULL,
@@ -247,14 +230,12 @@ const NotificationSequence sequence_reset_vibro = {
     NULL,
 };
 
-// Vibro
 const NotificationSequence sequence_set_vibro_on = {
     &message_vibro_on,
     &message_do_not_reset,
     NULL,
 };
 
-// Display
 const NotificationSequence sequence_display_backlight_on = {
     &message_display_backlight_on,
     NULL,
@@ -265,19 +246,16 @@ const NotificationSequence sequence_display_backlight_off = {
     NULL,
 };
 
-/** Display: backlight wakeup even if its ON now */
 const NotificationSequence sequence_display_backlight_force_on = {
     &message_display_backlight_force_on,
     NULL,
 };
 
-/** Display: backlight always on lock */
 const NotificationSequence sequence_display_backlight_enforce_on = {
     &message_display_backlight_enforce_on,
     NULL,
 };
 
-/** Display: backlight always on unlock */
 const NotificationSequence sequence_display_backlight_enforce_auto = {
     &message_display_backlight_enforce_auto,
     NULL,
@@ -289,7 +267,6 @@ const NotificationSequence sequence_display_backlight_off_delay_1000 = {
     NULL,
 };
 
-// Charging
 const NotificationSequence sequence_charging = {
     &message_red_255,
     &message_green_0,
@@ -308,7 +285,6 @@ const NotificationSequence sequence_not_charging = {
     NULL,
 };
 
-// Light up
 const NotificationSequence sequence_set_only_red_255 = {
     &message_red_255,
     &message_green_0,
@@ -351,7 +327,6 @@ const NotificationSequence sequence_set_blue_255 = {
     NULL,
 };
 
-// Solid colors
 const NotificationSequence sequence_solid_yellow = {
     &message_red_255,
     &message_green_255,
@@ -360,7 +335,6 @@ const NotificationSequence sequence_solid_yellow = {
     NULL,
 };
 
-// Blink
 const NotificationSequence sequence_blink_blue_10 = {
     &message_blue_255,
     &message_delay_10,
@@ -447,7 +421,6 @@ const NotificationSequence sequence_blink_white_100 = {
     NULL,
 };
 
-// Hardware blink
 const NotificationSequence sequence_blink_start_blue = {
     &message_blink_start_10,
     &message_blink_set_color_blue,
@@ -495,7 +468,6 @@ const NotificationSequence sequence_blink_stop = {
     NULL,
 };
 
-//General
 const NotificationSequence sequence_single_vibro = {
     &message_vibro_on,
     &message_delay_100,

@@ -6,7 +6,7 @@
 #include <m-array.h>
 #include <m-dict.h>
 
-ARRAY_DEF(FuriThreadListItemArray, FuriThreadListItem*, M_PTR_OPLIST) // NOLINT
+ARRAY_DEF(FuriThreadListItemArray, FuriThreadListItem*, M_PTR_OPLIST)
 
 #define M_OPL_FuriThreadListItemArray_t() ARRAY_OPLIST(FuriThreadListItemArray, M_PTR_OPLIST)
 
@@ -15,7 +15,7 @@ DICT_DEF2(
     uint32_t,
     M_DEFAULT_OPLIST,
     FuriThreadListItem*,
-    M_PTR_OPLIST) // NOLINT
+    M_PTR_OPLIST)
 
 #define M_OPL_FuriThreadListItemDict_t() \
     DICT_OPLIST(FuriThreadListItemDict, M_DEFAULT_OPLIST, M_PTR_OPLIST)

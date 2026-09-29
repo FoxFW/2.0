@@ -1,8 +1,6 @@
 #include <toolbox/version.h>
 #include <furi.h>
 #include <furi_hal.h>
-#include <dolphin/helpers/dolphin_state.h>
-#include <dolphin/dolphin.h>
 
 #include "../desktop_i.h"
 #include "desktop_view_debug.h"
@@ -38,7 +36,6 @@ void desktop_debug_render(Canvas* canvas, void* model) {
 
     canvas_set_font(canvas, FontSecondary);
 
-    // Hardware version
     const char* my_name = furi_hal_version_get_name_ptr();
     snprintf(
         buffer,
@@ -57,7 +54,7 @@ void desktop_debug_render(Canvas* canvas, void* model) {
 #ifdef SRV_BT
     c2_ver = ble_glue_get_c2_info();
 #endif
-    if(!ver) { //-V1051
+    if(!ver) {
         canvas_draw_str(canvas, 0, 30 + STATUS_BAR_Y_SHIFT, "No info");
         return;
     }

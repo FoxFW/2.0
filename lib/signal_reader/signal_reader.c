@@ -191,14 +191,12 @@ void signal_reader_start(SignalReader* instance, SignalReaderCallback callback, 
     instance->callback = callback;
     instance->context = context;
 
-    // EXTI delay compensation
     instance->tim_cnt_compensation = 9;
     instance->cnt_en = SIGNAL_READER_CAPTURE_TIM->CR1;
     instance->cnt_en |= TIM_CR1_CEN;
 
     furi_hal_bus_enable(FuriHalBusTIM16);
 
-    // Capture timer config
     LL_TIM_SetPrescaler(SIGNAL_READER_CAPTURE_TIM, 0);
     LL_TIM_SetCounterMode(SIGNAL_READER_CAPTURE_TIM, LL_TIM_COUNTERMODE_UP);
     LL_TIM_SetAutoReload(SIGNAL_READER_CAPTURE_TIM, instance->tim_arr);
@@ -207,7 +205,6 @@ void signal_reader_start(SignalReader* instance, SignalReaderCallback callback, 
     LL_TIM_DisableARRPreload(SIGNAL_READER_CAPTURE_TIM);
     LL_TIM_SetClockSource(SIGNAL_READER_CAPTURE_TIM, LL_TIM_CLOCKSOURCE_INTERNAL);
 
-    // Configure TIM channel CC1
     LL_TIM_OC_InitTypeDef TIM_OC_InitStruct = {};
     TIM_OC_InitStruct.OCMode = LL_TIM_OCMODE_FROZEN;
     TIM_OC_InitStruct.OCState = LL_TIM_OCSTATE_DISABLE;
@@ -221,23 +218,19 @@ void signal_reader_start(SignalReader* instance, SignalReaderCallback callback, 
     LL_TIM_SetTriggerOutput(SIGNAL_READER_CAPTURE_TIM, LL_TIM_TRGO_RESET);
     LL_TIM_DisableMasterSlaveMode(SIGNAL_READER_CAPTURE_TIM);
 
-    // Start
     LL_TIM_GenerateEvent_UPDATE(SIGNAL_READER_CAPTURE_TIM);
 
-    /* We need the EXTI to be configured as interrupt generating line, but no ISR registered */
     furi_hal_gpio_init(
         instance->pin, GpioModeInterruptRiseFall, instance->pull, GpioSpeedVeryHigh);
     furi_hal_gpio_enable_int_callback(instance->pin);
 
-    /* Set DMAMUX request generation signal ID on specified DMAMUX channel */
     LL_DMAMUX_SetRequestSignalID(
         DMAMUX1, LL_DMAMUX_REQ_GEN_0, GET_DMAMUX_EXTI_LINE(instance->pin->pin));
-    /* Set the polarity of the signal on which the DMA request is generated */
+
     LL_DMAMUX_SetRequestGenPolarity(DMAMUX1, LL_DMAMUX_REQ_GEN_0, LL_DMAMUX_REQ_GEN_POL_RISING);
-    /* Set the number of DMA requests that will be authorized after a generation event */
+
     LL_DMAMUX_SetGenRequestNb(DMAMUX1, LL_DMAMUX_REQ_GEN_0, 1);
 
-    // Configure DMA Sync
     LL_DMA_SetMemoryAddress(
         SIGNAL_READER_DMA_CNT_SYNC_DEF, (uint32_t)&instance->tim_cnt_compensation);
     LL_DMA_SetPeriphAddress(
@@ -250,7 +243,6 @@ void signal_reader_start(SignalReader* instance, SignalReaderCallback callback, 
     LL_DMA_SetDataLength(SIGNAL_READER_DMA_CNT_SYNC_DEF, 1);
     LL_DMA_SetPeriphRequest(SIGNAL_READER_DMA_CNT_SYNC_DEF, LL_DMAMUX_REQ_GENERATOR0);
 
-    // Configure DMA Sync
     LL_DMA_SetMemoryAddress(SIGNAL_READER_DMA_TRIGGER_DEF, (uint32_t)&instance->cnt_en);
     LL_DMA_SetPeriphAddress(
         SIGNAL_READER_DMA_TRIGGER_DEF, (uint32_t) & (SIGNAL_READER_CAPTURE_TIM->CR1));
@@ -261,7 +253,6 @@ void signal_reader_start(SignalReader* instance, SignalReaderCallback callback, 
     LL_DMA_SetDataLength(SIGNAL_READER_DMA_TRIGGER_DEF, 1);
     LL_DMA_SetPeriphRequest(SIGNAL_READER_DMA_TRIGGER_DEF, LL_DMAMUX_REQ_GENERATOR0);
 
-    // Configure DMA Rx pin
     LL_DMA_SetMemoryAddress(SIGNAL_READER_DMA_GPIO_DEF, (uint32_t)instance->gpio_buffer);
     LL_DMA_SetPeriphAddress(SIGNAL_READER_DMA_GPIO_DEF, (uint32_t) & (instance->pin->port->IDR));
     LL_DMA_ConfigTransfer(
@@ -272,23 +263,19 @@ void signal_reader_start(SignalReader* instance, SignalReaderCallback callback, 
     LL_DMA_SetDataLength(SIGNAL_READER_DMA_GPIO_DEF, instance->buffer_size * 8);
     LL_DMA_SetPeriphRequest(SIGNAL_READER_DMA_GPIO_DEF, LL_DMAMUX_REQ_TIM16_CH1);
 
-    // Configure DMA Channel CC1
     LL_TIM_EnableDMAReq_CC1(SIGNAL_READER_CAPTURE_TIM);
     LL_TIM_CC_EnableChannel(SIGNAL_READER_CAPTURE_TIM, SIGNAL_READER_CAPTURE_TIM_CHANNEL);
 
-    // Start DMA irq, higher priority than normal
     furi_hal_interrupt_set_isr_ex(
         SIGNAL_READER_DMA_GPIO_IRQ,
         FuriHalInterruptPriorityHighest,
         furi_hal_sw_digital_pin_dma_rx_isr,
         instance);
 
-    // Start DMA Sync timer
     LL_DMA_EnableChannel(SIGNAL_READER_DMA_CNT_SYNC_DEF);
 
-    // Start DMA Rx pin
     LL_DMA_EnableChannel(SIGNAL_READER_DMA_GPIO_DEF);
-    // Strat timer
+
     LL_TIM_SetCounter(SIGNAL_READER_CAPTURE_TIM, 0);
     if(instance->trigger == SignalReaderTriggerNone) {
         LL_TIM_EnableCounter(SIGNAL_READER_CAPTURE_TIM);
@@ -297,7 +284,7 @@ void signal_reader_start(SignalReader* instance, SignalReaderCallback callback, 
     }
 
     LL_DMAMUX_EnableRequestGen(DMAMUX1, LL_DMAMUX_REQ_GEN_0);
-    // Need to clear flags before enabling DMA !!!!
+
     if(LL_DMA_IsActiveFlag_TC2(SIGNAL_READER_DMA)) LL_DMA_ClearFlag_TC1(SIGNAL_READER_DMA);
     if(LL_DMA_IsActiveFlag_TE2(SIGNAL_READER_DMA)) LL_DMA_ClearFlag_TE1(SIGNAL_READER_DMA);
     LL_DMA_EnableIT_TC(SIGNAL_READER_DMA_GPIO_DEF);
@@ -311,11 +298,10 @@ void signal_reader_stop(SignalReader* instance) {
 
     furi_hal_gpio_disable_int_callback(instance->pin);
 
-    // Deinit DMA Rx pin
     LL_DMA_DeInit(SIGNAL_READER_DMA_GPIO_DEF);
-    // Deinit DMA Sync timer
+
     LL_DMA_DeInit(SIGNAL_READER_DMA_CNT_SYNC_DEF);
-    // Deinit DMA Trigger timer
+
     LL_DMA_DeInit(SIGNAL_READER_DMA_TRIGGER_DEF);
 
     furi_hal_bus_disable(FuriHalBusTIM16);

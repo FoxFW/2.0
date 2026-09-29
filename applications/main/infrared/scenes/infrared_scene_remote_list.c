@@ -14,7 +14,6 @@ static void infrared_scene_remote_list_select_and_load(InfraredApp* infrared) {
     dialog_file_browser_set_basic_options(&browser_options, INFRARED_APP_EXTENSION, &I_ir_10px);
     browser_options.base_path = INFRARED_APP_FOLDER;
 
-    // Until a remote has been opened the path is empty, which the browser reads as /ext.
     if(furi_string_empty(infrared->file_path)) {
         furi_string_set(infrared->file_path, INFRARED_APP_FOLDER);
     }
@@ -23,7 +22,7 @@ static void infrared_scene_remote_list_select_and_load(InfraredApp* infrared) {
         infrared->dialogs, infrared->file_path, infrared->file_path, &browser_options);
 
     if(file_selected) {
-        // Load the remote in a separate thread
+
         infrared_blocking_task_start(infrared, infrared_scene_remote_list_task_callback);
 
     } else {

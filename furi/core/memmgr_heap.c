@@ -26,15 +26,6 @@
  *
  */
 
-/*
- * A sample implementation of pvPortMalloc() and vPortFree() that combines
- * (coalescences) adjacent memory blocks as they are freed, and in so doing
- * limits memory fragmentation.
- *
- * See heap_1.c, heap_2.c and heap_3.c for alternative implementations, and the
- * memory management pages of https://www.FreeRTOS.org for more information.
- */
-
 #include "memmgr_heap.h"
 #include "check.h"
 #include <stdlib.h>
@@ -44,13 +35,8 @@
 #include <stm32wb55_linker.h>
 #include <core/log.h>
 #include <core/common_defines.h>
+#include <core/kernel.h>
 
-// -V::562
-// -V::650
-
-/* Defining MPU_WRAPPERS_INCLUDED_FROM_API_FILE prevents task.h from redefining
- * all the API functions to use the MPU wrappers.  That should only be done when
- * task.h is included from an application file. */
 #define MPU_WRAPPERS_INCLUDED_FROM_API_FILE
 
 #include <FreeRTOS.h>
@@ -66,28 +52,18 @@
 #define configHEAP_CLEAR_MEMORY_ON_FREE 0
 #endif
 
-/* Block sizes must not get too small. */
 #define heapMINIMUM_BLOCK_SIZE ((size_t)(xHeapStructSize << 1))
 
-/* Assumes 8bit bytes! */
 #define heapBITS_PER_BYTE ((size_t)8)
 
-/* Max value that fits in a size_t type. */
 #define heapSIZE_MAX (~((size_t)0))
 
-/* Check if multiplying a and b will result in overflow. */
 #define heapMULTIPLY_WILL_OVERFLOW(a, b) (((a) > 0) && ((b) > (heapSIZE_MAX / (a))))
 
-/* Check if adding a and b will result in overflow. */
 #define heapADD_WILL_OVERFLOW(a, b) ((a) > (heapSIZE_MAX - (b)))
 
-/* Check if the subtraction operation ( a - b ) will result in underflow. */
 #define heapSUBTRACT_WILL_UNDERFLOW(a, b) ((a) < (b))
 
-/* MSB of the xBlockSize member of an BlockLink_t structure is used to track
- * the allocation status of a block.  When MSB of the xBlockSize member of
- * an BlockLink_t structure is set then the block belongs to the application.
- * When the bit is free the block is still part of the free heap space. */
 #define heapBLOCK_ALLOCATED_BITMASK         (((size_t)1) << ((sizeof(size_t) * heapBITS_PER_BYTE) - 1))
 #define heapBLOCK_SIZE_IS_VALID(xBlockSize) (((xBlockSize) & heapBLOCK_ALLOCATED_BITMASK) == 0)
 #define heapBLOCK_IS_ALLOCATED(pxBlock) \
@@ -95,104 +71,61 @@
 #define heapALLOCATE_BLOCK(pxBlock) ((pxBlock->xBlockSize) |= heapBLOCK_ALLOCATED_BITMASK)
 #define heapFREE_BLOCK(pxBlock)     ((pxBlock->xBlockSize) &= ~heapBLOCK_ALLOCATED_BITMASK)
 
-/*-----------------------------------------------------------*/
-
-/* Heap start end symbols provided by linker */
 uint8_t* ucHeap = (uint8_t*)&__heap_start__;
 
-/* Define the linked list structure.  This is used to link free blocks in order
- * of their memory address. */
 typedef struct A_BLOCK_LINK {
-    struct A_BLOCK_LINK* pxNextFreeBlock; /**< The next free block in the list. */
-    size_t xBlockSize; /**< The size of the free block. */
+    struct A_BLOCK_LINK* pxNextFreeBlock;
+    size_t xBlockSize;
 } BlockLink_t;
 
-/* Setting configENABLE_HEAP_PROTECTOR to 1 enables heap block pointers
- * protection using an application supplied canary value to catch heap
- * corruption should a heap buffer overflow occur.
- */
 #if(configENABLE_HEAP_PROTECTOR == 1)
 
-/**
- * @brief Application provided function to get a random value to be used as canary.
- *
- * @param pxHeapCanary [out] Output parameter to return the canary value.
- */
 extern void vApplicationGetRandomHeapCanary(portPOINTER_SIZE_TYPE* pxHeapCanary);
 
-/* Canary value for protecting internal heap pointers. */
 PRIVILEGED_DATA static portPOINTER_SIZE_TYPE xHeapCanary;
 
-/* Macro to load/store BlockLink_t pointers to memory. By XORing the
- * pointers with a random canary value, heap overflows will result
- * in randomly unpredictable pointer values which will be caught by
- * heapVALIDATE_BLOCK_POINTER assert. */
 #define heapPROTECT_BLOCK_POINTER(pxBlock) \
     ((BlockLink_t*)(((portPOINTER_SIZE_TYPE)(pxBlock)) ^ xHeapCanary))
 #else
 
 #define heapPROTECT_BLOCK_POINTER(pxBlock) (pxBlock)
 
-#endif /* configENABLE_HEAP_PROTECTOR */
+#endif
 
-/* Assert that a heap block pointer is within the heap bounds. */
 #define heapVALIDATE_BLOCK_POINTER(pxBlock)      \
     configASSERT(                                \
         ((uint8_t*)(pxBlock) >= &(ucHeap[0])) && \
         ((uint8_t*)(pxBlock) <= &(ucHeap[configTOTAL_HEAP_SIZE - 1])))
 
-/*-----------------------------------------------------------*/
-
-/*
- * Inserts a block of memory that is being freed into the correct position in
- * the list of free memory blocks.  The block being freed will be merged with
- * the block in front it and/or the block behind it if the memory blocks are
- * adjacent to each other.
- */
 static void prvInsertBlockIntoFreeList(BlockLink_t* pxBlockToInsert) PRIVILEGED_FUNCTION;
 
-/*
- * Called automatically to setup the required heap structures the first time
- * pvPortMalloc() is called.
- */
 static void prvHeapInit(void) PRIVILEGED_FUNCTION;
 
-/*-----------------------------------------------------------*/
-
-/* The size of the structure placed at the beginning of each allocated memory
- * block must by correctly byte aligned. */
 static const size_t xHeapStructSize = (sizeof(BlockLink_t) + ((size_t)(portBYTE_ALIGNMENT - 1))) &
                                       ~((size_t)portBYTE_ALIGNMENT_MASK);
 
-/* Create a couple of list links to mark the start and end of the list. */
 PRIVILEGED_DATA static BlockLink_t xStart;
 PRIVILEGED_DATA static BlockLink_t* pxEnd = NULL;
 
-/* Keeps track of the number of calls to allocate and free memory as well as the
- * number of free bytes remaining, but says nothing about fragmentation. */
 PRIVILEGED_DATA static size_t xFreeBytesRemaining = (size_t)0U;
 PRIVILEGED_DATA static size_t xMinimumEverFreeBytesRemaining = (size_t)0U;
 PRIVILEGED_DATA static size_t xNumberOfSuccessfulAllocations = (size_t)0U;
 PRIVILEGED_DATA static size_t xNumberOfSuccessfulFrees = (size_t)0U;
 
-/* Furi heap extension */
 #include <m-dict.h>
 
-/* Allocation tracking types */
-DICT_DEF2(MemmgrHeapAllocDict, uint32_t, uint32_t) //-V1048
+DICT_DEF2(MemmgrHeapAllocDict, uint32_t, uint32_t)
 
-DICT_DEF2( //-V1048
+DICT_DEF2(
     MemmgrHeapThreadDict,
     uint32_t,
     M_DEFAULT_OPLIST,
     MemmgrHeapAllocDict_t,
     DICT_OPLIST(MemmgrHeapAllocDict))
 
-/* Thread allocation tracing storage */
 static MemmgrHeapThreadDict_t memmgr_heap_thread_dict = {0};
 static volatile uint32_t memmgr_heap_thread_trace_depth = 0;
 
-/* Initialize tracing storage on start */
 void memmgr_heap_init(void) {
     MemmgrHeapThreadDict_init(memmgr_heap_thread_dict);
 }
@@ -276,7 +209,7 @@ static inline void traceFREE(void* pointer, size_t size) {
         MemmgrHeapAllocDict_t* alloc_dict =
             MemmgrHeapThreadDict_get(memmgr_heap_thread_dict, (uint32_t)thread_id);
         if(alloc_dict) {
-            // In some cases thread may want to release memory that was not allocated by it
+
             const bool res = MemmgrHeapAllocDict_erase(*alloc_dict, (uint32_t)pointer);
             UNUSED(res);
         }
@@ -292,21 +225,396 @@ size_t memmgr_heap_get_max_free_block(void) {
 
 void memmgr_heap_printf_free_blocks(void) {
     BlockLink_t* pxBlock;
-    //can be enabled once we can do printf with a locked scheduler
-    //vTaskSuspendAll();
 
     pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
-    heapVALIDATE_BLOCK_POINTER(pxBlock);
-    while(pxBlock->pxNextFreeBlock != heapPROTECT_BLOCK_POINTER(NULL)) {
+    while(pxBlock != NULL) {
+        heapVALIDATE_BLOCK_POINTER(pxBlock);
         printf("A %p S %lu\r\n", (void*)pxBlock, (uint32_t)pxBlock->xBlockSize);
         pxBlock = heapPROTECT_BLOCK_POINTER(pxBlock->pxNextFreeBlock);
-        heapVALIDATE_BLOCK_POINTER(pxBlock);
     }
-
-    //xTaskResumeAll();
 }
 
-/*-----------------------------------------------------------*/
+#define MEMMGR_HEAP_MAP_BUCKET_COUNT    128
+#define MEMMGR_HEAP_MAP_BUCKETS_PER_ROW 32
+#define MEMMGR_HEAP_MAP_LINE_SIZE       160
+
+/* Clamp-and-emit a formatted line built with snprintf(). `written` is
+ * snprintf()'s return value (the length it WOULD have written, which can
+ * exceed the buffer if the line got truncated); mirrors the clamp used by
+ * the loader/VCP/RAM-monitor debug-log helpers elsewhere in this codebase. */
+static void memmgr_heap_map_emit(
+    MemmgrHeapMapWriteCallback write_callback,
+    void* write_context,
+    const char* line,
+    int written) {
+    if(write_callback == NULL || written <= 0) {
+        return;
+    }
+    size_t write_len = (size_t)written;
+    if(write_len > (size_t)(MEMMGR_HEAP_MAP_LINE_SIZE - 1)) {
+        write_len = (size_t)(MEMMGR_HEAP_MAP_LINE_SIZE - 1);
+    }
+    write_callback(write_context, line, write_len);
+}
+
+/* Size of the gap between `prev_end` and `block_addr`, or 0 if there is none.
+ * Shared by the stats pass and the used-region-emitting pass so both agree
+ * on exactly what counts as a non-empty used region. */
+static size_t memmgr_heap_map_gap_size(const uint8_t* prev_end, const uint8_t* block_addr) {
+    if(block_addr > prev_end) {
+        return (size_t)(block_addr - prev_end);
+    }
+    return 0;
+}
+
+/* One density character per bucket, by how much of the bucket is used. */
+static char memmgr_heap_map_density_char(size_t used, size_t width) {
+    if(width == 0 || used == 0) {
+        return ' ';
+    }
+    if(used >= width) {
+        return '#';
+    }
+    if(used * 4 <= width) {
+        return '.';
+    }
+    if(used * 4 <= width * 2) {
+        return ':';
+    }
+    if(used * 4 <= width * 3) {
+        return '+';
+    }
+    return '*';
+}
+
+void memmgr_heap_write_fragmentation_map(
+    MemmgrHeapMapWriteCallback write_callback,
+    void* write_context,
+    const char* label) {
+    char line[MEMMGR_HEAP_MAP_LINE_SIZE];
+    int written;
+
+    const uint8_t* heap_base = ucHeap;
+    const size_t heap_total = (size_t)configTOTAL_HEAP_SIZE;
+    const uint8_t* heap_limit = heap_base + heap_total;
+
+    /* ---- Pass 1: walk the free list once to compute every summary number
+     * before writing anything -- the header (written first) needs them. */
+    size_t free_block_count = 0;
+    size_t largest_free_block = 0;
+    size_t sum_free_from_walk = 0;
+    size_t used_region_count = 0;
+    size_t largest_used_region = 0;
+    size_t sum_used_from_gaps = 0;
+
+    {
+        BlockLink_t* pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
+        const uint8_t* prev_end = heap_base;
+
+        while(pxBlock != NULL && pxBlock != pxEnd) {
+            heapVALIDATE_BLOCK_POINTER(pxBlock);
+            const uint8_t* block_addr = (const uint8_t*)pxBlock;
+            size_t block_size = pxBlock->xBlockSize;
+
+            size_t gap = memmgr_heap_map_gap_size(prev_end, block_addr);
+            if(gap > 0) {
+                used_region_count++;
+                sum_used_from_gaps += gap;
+                if(gap > largest_used_region) {
+                    largest_used_region = gap;
+                }
+            }
+
+            free_block_count++;
+            sum_free_from_walk += block_size;
+            if(block_size > largest_free_block) {
+                largest_free_block = block_size;
+            }
+
+            prev_end = block_addr + block_size;
+            pxBlock = heapPROTECT_BLOCK_POINTER(pxBlock->pxNextFreeBlock);
+        }
+
+        size_t tail_gap = memmgr_heap_map_gap_size(prev_end, heap_limit);
+        if(tail_gap > 0) {
+            used_region_count++;
+            sum_used_from_gaps += tail_gap;
+            if(tail_gap > largest_used_region) {
+                largest_used_region = tail_gap;
+            }
+        }
+    }
+
+    size_t total_free = xPortGetFreeHeapSize();
+    size_t total_used = (heap_total > total_free) ? (heap_total - total_free) : 0;
+    size_t accounted_total = sum_free_from_walk + sum_used_from_gaps;
+
+    uint32_t tick = furi_get_tick();
+    uint32_t freq = furi_kernel_get_tick_frequency();
+    uint32_t uptime_s = (freq > 0) ? (tick / freq) : 0;
+
+    /* ---- Header + summary ---- */
+    written = snprintf(line, sizeof(line), "==== FoxFW Heap Fragmentation Map ====\n");
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(
+        line,
+        sizeof(line),
+        "Tick: %lu (uptime %luh%lum%lus)\n",
+        (unsigned long)tick,
+        (unsigned long)(uptime_s / 3600),
+        (unsigned long)((uptime_s / 60) % 60),
+        (unsigned long)(uptime_s % 60));
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    if(label != NULL && label[0] != '\0') {
+        written = snprintf(line, sizeof(line), "Label: %s\n", label);
+        memmgr_heap_map_emit(write_callback, write_context, line, written);
+    }
+
+    written = snprintf(
+        line,
+        sizeof(line),
+        "Heap base: 0x%08lx  Heap end: 0x%08lx  Heap size: %zu bytes\n",
+        (unsigned long)(size_t)heap_base,
+        (unsigned long)(size_t)heap_limit,
+        heap_total);
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(line, sizeof(line), "\n--- Summary ---\n");
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(
+        line, sizeof(line), "Total free bytes (xPortGetFreeHeapSize): %zu\n", total_free);
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(
+        line,
+        sizeof(line),
+        "Total free bytes (sum of free list, cross-check): %zu %s\n",
+        sum_free_from_walk,
+        (sum_free_from_walk == total_free) ? "[OK]" : "[MISMATCH - heap changed mid-scan?]");
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(
+        line, sizeof(line), "Total used bytes (heap size - total free): %zu\n", total_used);
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(line, sizeof(line), "Free blocks: %zu\n", free_block_count);
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(line, sizeof(line), "Used regions: %zu\n", used_region_count);
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(line, sizeof(line), "Largest free block: %zu bytes\n", largest_free_block);
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written =
+        snprintf(line, sizeof(line), "Largest used region: %zu bytes\n", largest_used_region);
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    if(largest_free_block > 0) {
+        double frag_ratio = (double)total_free / (double)largest_free_block;
+        written = snprintf(
+            line,
+            sizeof(line),
+            "Fragmentation ratio (total free / largest free block): %.2f\n",
+            frag_ratio);
+    } else {
+        written = snprintf(
+            line,
+            sizeof(line),
+            "Fragmentation ratio (total free / largest free block): N/A (no free blocks)\n");
+    }
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(
+        line,
+        sizeof(line),
+        "Self-check: free-list sum %zu + used-region sum %zu = %zu\n",
+        sum_free_from_walk,
+        sum_used_from_gaps,
+        accounted_total);
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(
+        line,
+        sizeof(line),
+        "Self-check: heap size is %zu %s\n",
+        heap_total,
+        (accounted_total == heap_total) ? "[OK]" : "[MISMATCH - bug or corruption]");
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    written = snprintf(
+        line,
+        sizeof(line),
+        "\nNOTE: a \"used region\" is only an address range not covered by any free\n");
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+    written = snprintf(
+        line,
+        sizeof(line),
+        "block. The heap does not tag allocations with a caller, so this file\n");
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+    written = snprintf(
+        line,
+        sizeof(line),
+        "cannot say WHAT is using a region, only WHERE it is and HOW BIG. Several\n");
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+    written = snprintf(
+        line, sizeof(line), "adjacent allocations with no free gap show up as one region.\n");
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    /* ---- Pass 2: free block list. prvInsertBlockIntoFreeList() keeps this
+     * list in ascending-address order, so walking it forward is already
+     * sorted -- nothing to sort. ---- */
+    written = snprintf(line, sizeof(line), "\n--- Free blocks (sorted by address) ---\n");
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    {
+        BlockLink_t* pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
+        while(pxBlock != NULL && pxBlock != pxEnd) {
+            heapVALIDATE_BLOCK_POINTER(pxBlock);
+            written = snprintf(
+                line,
+                sizeof(line),
+                "0x%08lx  %8zu bytes\n",
+                (unsigned long)(size_t)pxBlock,
+                (size_t)pxBlock->xBlockSize);
+            memmgr_heap_map_emit(write_callback, write_context, line, written);
+            pxBlock = heapPROTECT_BLOCK_POINTER(pxBlock->pxNextFreeBlock);
+        }
+    }
+
+    /* ---- Pass 3: used-region list, same gap logic as pass 1 (via
+     * memmgr_heap_map_gap_size()) so the two can never disagree, this time
+     * emitting a line instead of just measuring. ---- */
+    written = snprintf(line, sizeof(line), "\n--- Used regions (sorted by address) ---\n");
+    memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+    {
+        BlockLink_t* pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
+        const uint8_t* prev_end = heap_base;
+
+        while(pxBlock != NULL && pxBlock != pxEnd) {
+            heapVALIDATE_BLOCK_POINTER(pxBlock);
+            const uint8_t* block_addr = (const uint8_t*)pxBlock;
+            size_t gap = memmgr_heap_map_gap_size(prev_end, block_addr);
+            if(gap > 0) {
+                written = snprintf(
+                    line,
+                    sizeof(line),
+                    "0x%08lx - 0x%08lx (%8zu bytes)\n",
+                    (unsigned long)(size_t)prev_end,
+                    (unsigned long)(size_t)block_addr,
+                    gap);
+                memmgr_heap_map_emit(write_callback, write_context, line, written);
+            }
+            prev_end = block_addr + pxBlock->xBlockSize;
+            pxBlock = heapPROTECT_BLOCK_POINTER(pxBlock->pxNextFreeBlock);
+        }
+
+        size_t tail_gap = memmgr_heap_map_gap_size(prev_end, heap_limit);
+        if(tail_gap > 0) {
+            written = snprintf(
+                line,
+                sizeof(line),
+                "0x%08lx - 0x%08lx (%8zu bytes)\n",
+                (unsigned long)(size_t)prev_end,
+                (unsigned long)(size_t)heap_limit,
+                tail_gap);
+            memmgr_heap_map_emit(write_callback, write_context, line, written);
+        }
+    }
+
+    /* ---- Pass 4: compact visual map. Divide the heap into a fixed number
+     * of address buckets (the last one absorbs whatever remainder doesn't
+     * divide evenly) and, for each bucket, walk the free list again (still
+     * cheap -- the same short list as above) summing how much of that
+     * bucket's byte range is covered by a free block. This is
+     * O(buckets * free_blocks), trivial for the sizes involved here, and
+     * much easier to check by inspection than merging two sorted sequences
+     * would be. ---- */
+    {
+        size_t bucket_count = MEMMGR_HEAP_MAP_BUCKET_COUNT;
+        if(bucket_count > heap_total) {
+            bucket_count = (heap_total > 0) ? heap_total : 1;
+        }
+        size_t bucket_size = heap_total / bucket_count;
+        if(bucket_size == 0) {
+            bucket_size = 1;
+        }
+
+        written = snprintf(
+            line,
+            sizeof(line),
+            "\n--- Visual map (%zu buckets, ~%zu bytes each) ---\n",
+            bucket_count,
+            bucket_size);
+        memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+        written = snprintf(
+            line,
+            sizeof(line),
+            "Legend: ' '=free  .=<=25%% used  :=<=50%%  +=<=75%%  *=<100%%  #=100%% used\n");
+        memmgr_heap_map_emit(write_callback, write_context, line, written);
+
+        size_t buckets_per_row = MEMMGR_HEAP_MAP_BUCKETS_PER_ROW;
+        if(buckets_per_row > bucket_count) {
+            buckets_per_row = bucket_count;
+        }
+
+        size_t bucket_index = 0;
+        while(bucket_index < bucket_count) {
+            const uint8_t* row_addr = heap_base + bucket_index * bucket_size;
+            int prefix_len =
+                snprintf(line, sizeof(line), "0x%08lx |", (unsigned long)(size_t)row_addr);
+            size_t pos = (prefix_len > 0) ? (size_t)prefix_len : 0;
+            if(pos > sizeof(line) - 1) {
+                pos = sizeof(line) - 1;
+            }
+
+            size_t col = 0;
+            /* Leave room for the trailing '\n' plus a spare byte: stop
+             * accepting more bucket characters once `pos` gets within 4
+             * bytes of the end of `line`. */
+            while(col < buckets_per_row && bucket_index < bucket_count &&
+                  pos < sizeof(line) - 4) {
+                const uint8_t* bucket_begin = heap_base + bucket_index * bucket_size;
+                const uint8_t* bucket_end = (bucket_index + 1 == bucket_count) ?
+                                                 heap_limit :
+                                                 heap_base + (bucket_index + 1) * bucket_size;
+                size_t width = (size_t)(bucket_end - bucket_begin);
+                size_t free_in_bucket = 0;
+
+                BlockLink_t* pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
+                while(pxBlock != NULL && pxBlock != pxEnd) {
+                    heapVALIDATE_BLOCK_POINTER(pxBlock);
+                    const uint8_t* block_addr = (const uint8_t*)pxBlock;
+                    const uint8_t* block_end = block_addr + pxBlock->xBlockSize;
+                    const uint8_t* overlap_start =
+                        (block_addr > bucket_begin) ? block_addr : bucket_begin;
+                    const uint8_t* overlap_end =
+                        (block_end < bucket_end) ? block_end : bucket_end;
+                    if(overlap_end > overlap_start) {
+                        free_in_bucket += (size_t)(overlap_end - overlap_start);
+                    }
+                    pxBlock = heapPROTECT_BLOCK_POINTER(pxBlock->pxNextFreeBlock);
+                }
+
+                size_t used_in_bucket = (free_in_bucket < width) ? (width - free_in_bucket) : 0;
+                line[pos] = memmgr_heap_map_density_char(used_in_bucket, width);
+                pos++;
+
+                bucket_index++;
+                col++;
+            }
+
+            line[pos] = '\n';
+            pos++;
+            memmgr_heap_map_emit(write_callback, write_context, line, (int)pos);
+        }
+    }
+}
 
 void* pvPortMalloc(size_t xWantedSize) {
     BlockLink_t* pxBlock;
@@ -322,15 +630,12 @@ void* pvPortMalloc(size_t xWantedSize) {
     }
 
     if(xWantedSize > 0) {
-        /* The wanted size must be increased so it can contain a BlockLink_t
-         * structure in addition to the requested amount of bytes. */
+
         if(heapADD_WILL_OVERFLOW(xWantedSize, xHeapStructSize) == 0) {
             xWantedSize += xHeapStructSize;
 
-            /* Ensure that blocks are always aligned to the required number
-             * of bytes. */
             if((xWantedSize & portBYTE_ALIGNMENT_MASK) != 0x00) {
-                /* Byte alignment required. */
+
                 xAdditionalRequiredSize =
                     portBYTE_ALIGNMENT - (xWantedSize & portBYTE_ALIGNMENT_MASK);
 
@@ -351,8 +656,7 @@ void* pvPortMalloc(size_t xWantedSize) {
 
     vTaskSuspendAll();
     {
-        /* If this is the first call to malloc then the heap will require
-         * initialisation to setup the list of free blocks. */
+
         if(pxEnd == NULL) {
             prvHeapInit();
             memmgr_heap_init();
@@ -360,14 +664,9 @@ void* pvPortMalloc(size_t xWantedSize) {
             mtCOVERAGE_TEST_MARKER();
         }
 
-        /* Check the block size we are trying to allocate is not so large that the
-         * top bit is set.  The top bit of the block size member of the BlockLink_t
-         * structure is used to determine who owns the block - the application or
-         * the kernel, so it must be free. */
         if(heapBLOCK_SIZE_IS_VALID(xWantedSize) != 0) {
             if((xWantedSize > 0) && (xWantedSize <= xFreeBytesRemaining)) {
-                /* Traverse the list from the start (lowest address) block until
-                 * one of adequate size is found. */
+
                 pxPreviousBlock = &xStart;
                 pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
                 heapVALIDATE_BLOCK_POINTER(pxBlock);
@@ -379,39 +678,26 @@ void* pvPortMalloc(size_t xWantedSize) {
                     heapVALIDATE_BLOCK_POINTER(pxBlock);
                 }
 
-                /* If the end marker was reached then a block of adequate size
-                 * was not found. */
                 if(pxBlock != pxEnd) {
-                    /* Return the memory space pointed to - jumping over the
-                     * BlockLink_t structure at its start. */
+
                     pvReturn = (void*)(((uint8_t*)heapPROTECT_BLOCK_POINTER(
                                            pxPreviousBlock->pxNextFreeBlock)) +
                                        xHeapStructSize);
                     heapVALIDATE_BLOCK_POINTER(pvReturn);
 
-                    /* This block is being returned for use so must be taken out
-                     * of the list of free blocks. */
                     pxPreviousBlock->pxNextFreeBlock = pxBlock->pxNextFreeBlock;
 
-                    /* If the block is larger than required it can be split into
-                     * two. */
                     configASSERT(
                         heapSUBTRACT_WILL_UNDERFLOW(pxBlock->xBlockSize, xWantedSize) == 0);
 
                     if((pxBlock->xBlockSize - xWantedSize) > heapMINIMUM_BLOCK_SIZE) {
-                        /* This block is to be split into two.  Create a new
-                         * block following the number of bytes requested. The void
-                         * cast is used to prevent byte alignment warnings from the
-                         * compiler. */
+
                         pxNewBlockLink = (void*)(((uint8_t*)pxBlock) + xWantedSize);
                         configASSERT((((size_t)pxNewBlockLink) & portBYTE_ALIGNMENT_MASK) == 0);
 
-                        /* Calculate the sizes of two blocks split from the
-                         * single block. */
                         pxNewBlockLink->xBlockSize = pxBlock->xBlockSize - xWantedSize;
                         pxBlock->xBlockSize = xWantedSize;
 
-                        /* Insert the new block into the list of free blocks. */
                         pxNewBlockLink->pxNextFreeBlock = pxPreviousBlock->pxNextFreeBlock;
                         pxPreviousBlock->pxNextFreeBlock =
                             heapPROTECT_BLOCK_POINTER(pxNewBlockLink);
@@ -429,8 +715,6 @@ void* pvPortMalloc(size_t xWantedSize) {
 
                     xAllocatedBlockSize = pxBlock->xBlockSize;
 
-                    /* The block is being returned - it is allocated and owned
-                     * by the application and has no "next" block. */
                     heapALLOCATE_BLOCK(pxBlock);
                     pxBlock->pxNextFreeBlock = heapPROTECT_BLOCK_POINTER(NULL);
                     xNumberOfSuccessfulAllocations++;
@@ -446,7 +730,6 @@ void* pvPortMalloc(size_t xWantedSize) {
 
         traceMALLOC(pvReturn, xAllocatedBlockSize);
 
-        /* Prevent compiler warnings when trace macros are not used. */
         (void)xAllocatedBlockSize;
     }
     (void)xTaskResumeAll();
@@ -459,7 +742,7 @@ void* pvPortMalloc(size_t xWantedSize) {
             mtCOVERAGE_TEST_MARKER();
         }
     }
-#endif /* if ( configUSE_MALLOC_FAILED_HOOK == 1 ) */
+#endif
 
     configASSERT((((size_t)pvReturn) & (size_t)portBYTE_ALIGNMENT_MASK) == 0);
 
@@ -467,7 +750,6 @@ void* pvPortMalloc(size_t xWantedSize) {
     pvReturn = memset(pvReturn, 0, xToWipe);
     return pvReturn;
 }
-/*-----------------------------------------------------------*/
 
 void vPortFree(void* pv) {
     uint8_t* puc = (uint8_t*)pv;
@@ -478,11 +760,9 @@ void vPortFree(void* pv) {
     }
 
     if(pv != NULL) {
-        /* The memory being freed will have an BlockLink_t structure immediately
-         * before it. */
+
         puc -= xHeapStructSize;
 
-        /* This casting is to keep the compiler from issuing warnings. */
         pxLink = (void*)puc;
 
         heapVALIDATE_BLOCK_POINTER(pxLink);
@@ -491,13 +771,11 @@ void vPortFree(void* pv) {
 
         if(heapBLOCK_IS_ALLOCATED(pxLink) != 0) {
             if(pxLink->pxNextFreeBlock == heapPROTECT_BLOCK_POINTER(NULL)) {
-                /* The block is being returned to the heap - it is no longer
-                 * allocated. */
+
                 heapFREE_BLOCK(pxLink);
 #if(configHEAP_CLEAR_MEMORY_ON_FREE == 1)
                 {
-                    /* Check for underflow as this can occur if xBlockSize is
-                     * overwritten in a heap block. */
+
                     if(heapSUBTRACT_WILL_UNDERFLOW(pxLink->xBlockSize, xHeapStructSize) == 0) {
                         (void)memset(
                             puc + xHeapStructSize, 0, pxLink->xBlockSize - xHeapStructSize);
@@ -512,7 +790,6 @@ void vPortFree(void* pv) {
                     furi_assert(pxLink->xBlockSize >= xHeapStructSize);
                     furi_assert((pxLink->xBlockSize - xHeapStructSize) < 1024 * 256);
 
-                    /* Add this block to the list of free blocks. */
                     xFreeBytesRemaining += pxLink->xBlockSize;
                     traceFREE(pv, pxLink->xBlockSize);
                     prvInsertBlockIntoFreeList(((BlockLink_t*)pxLink));
@@ -527,27 +804,22 @@ void vPortFree(void* pv) {
         }
     }
 }
-/*-----------------------------------------------------------*/
 
 size_t xPortGetFreeHeapSize(void) {
     return xFreeBytesRemaining;
 }
-/*-----------------------------------------------------------*/
 
 size_t xPortGetMinimumEverFreeHeapSize(void) {
     return xMinimumEverFreeBytesRemaining;
 }
-/*-----------------------------------------------------------*/
 
 void xPortResetHeapMinimumEverFreeHeapSize(void) {
     xMinimumEverFreeBytesRemaining = xFreeBytesRemaining;
 }
-/*-----------------------------------------------------------*/
 
 void vPortInitialiseBlocks(void) {
-    /* This just exists to keep the linker quiet. */
+
 }
-/*-----------------------------------------------------------*/
 
 void* pvPortCalloc(size_t xNum, size_t xSize) {
     void* pv = NULL;
@@ -562,15 +834,13 @@ void* pvPortCalloc(size_t xNum, size_t xSize) {
 
     return pv;
 }
-/*-----------------------------------------------------------*/
 
-static void prvHeapInit(void) /* PRIVILEGED_FUNCTION */
+static void prvHeapInit(void)
 {
     BlockLink_t* pxFirstFreeBlock;
     portPOINTER_SIZE_TYPE uxStartAddress, uxEndAddress;
     size_t xTotalHeapSize = configTOTAL_HEAP_SIZE;
 
-    /* Ensure the heap starts on a correctly aligned boundary. */
     uxStartAddress = (portPOINTER_SIZE_TYPE)ucHeap;
 
     if((uxStartAddress & portBYTE_ALIGNMENT_MASK) != 0) {
@@ -583,13 +853,9 @@ static void prvHeapInit(void) /* PRIVILEGED_FUNCTION */
     { vApplicationGetRandomHeapCanary(&(xHeapCanary)); }
 #endif
 
-    /* xStart is used to hold a pointer to the first item in the list of free
-     * blocks.  The void cast is used to prevent compiler warnings. */
     xStart.pxNextFreeBlock = (void*)heapPROTECT_BLOCK_POINTER(uxStartAddress);
     xStart.xBlockSize = (size_t)0;
 
-    /* pxEnd is used to mark the end of the list of free blocks and is inserted
-     * at the end of the heap space. */
     uxEndAddress = uxStartAddress + (portPOINTER_SIZE_TYPE)xTotalHeapSize;
     uxEndAddress -= (portPOINTER_SIZE_TYPE)xHeapStructSize;
     uxEndAddress &= ~((portPOINTER_SIZE_TYPE)portBYTE_ALIGNMENT_MASK);
@@ -597,38 +863,30 @@ static void prvHeapInit(void) /* PRIVILEGED_FUNCTION */
     pxEnd->xBlockSize = 0;
     pxEnd->pxNextFreeBlock = heapPROTECT_BLOCK_POINTER(NULL);
 
-    /* To start with there is a single free block that is sized to take up the
-     * entire heap space, minus the space taken by pxEnd. */
     pxFirstFreeBlock = (BlockLink_t*)uxStartAddress;
     pxFirstFreeBlock->xBlockSize =
         (size_t)(uxEndAddress - (portPOINTER_SIZE_TYPE)pxFirstFreeBlock);
     pxFirstFreeBlock->pxNextFreeBlock = heapPROTECT_BLOCK_POINTER(pxEnd);
 
-    /* Only one block exists - and it covers the entire usable heap space. */
     xMinimumEverFreeBytesRemaining = pxFirstFreeBlock->xBlockSize;
     xFreeBytesRemaining = pxFirstFreeBlock->xBlockSize;
 }
-/*-----------------------------------------------------------*/
 
-static void prvInsertBlockIntoFreeList(BlockLink_t* pxBlockToInsert) /* PRIVILEGED_FUNCTION */
+static void prvInsertBlockIntoFreeList(BlockLink_t* pxBlockToInsert)
 {
     BlockLink_t* pxIterator;
     uint8_t* puc;
 
-    /* Iterate through the list until a block is found that has a higher address
-     * than the block being inserted. */
     for(pxIterator = &xStart;
         heapPROTECT_BLOCK_POINTER(pxIterator->pxNextFreeBlock) < pxBlockToInsert;
         pxIterator = heapPROTECT_BLOCK_POINTER(pxIterator->pxNextFreeBlock)) {
-        /* Nothing to do here, just iterate to the right position. */
+
     }
 
     if(pxIterator != &xStart) {
         heapVALIDATE_BLOCK_POINTER(pxIterator);
     }
 
-    /* Do the block being inserted, and the block it is being inserted after
-     * make a contiguous block of memory? */
     puc = (uint8_t*)pxIterator;
 
     if((puc + pxIterator->xBlockSize) == (uint8_t*)pxBlockToInsert) {
@@ -638,14 +896,12 @@ static void prvInsertBlockIntoFreeList(BlockLink_t* pxBlockToInsert) /* PRIVILEG
         mtCOVERAGE_TEST_MARKER();
     }
 
-    /* Do the block being inserted, and the block it is being inserted before
-     * make a contiguous block of memory? */
     puc = (uint8_t*)pxBlockToInsert;
 
     if((puc + pxBlockToInsert->xBlockSize) ==
        (uint8_t*)heapPROTECT_BLOCK_POINTER(pxIterator->pxNextFreeBlock)) {
         if(heapPROTECT_BLOCK_POINTER(pxIterator->pxNextFreeBlock) != pxEnd) {
-            /* Form one big block from the two blocks. */
+
             pxBlockToInsert->xBlockSize +=
                 heapPROTECT_BLOCK_POINTER(pxIterator->pxNextFreeBlock)->xBlockSize;
             pxBlockToInsert->pxNextFreeBlock =
@@ -657,17 +913,12 @@ static void prvInsertBlockIntoFreeList(BlockLink_t* pxBlockToInsert) /* PRIVILEG
         pxBlockToInsert->pxNextFreeBlock = pxIterator->pxNextFreeBlock;
     }
 
-    /* If the block being inserted plugged a gap, so was merged with the block
-     * before and the block after, then it's pxNextFreeBlock pointer will have
-     * already been set, and should not be set here as that would make it point
-     * to itself. */
     if(pxIterator != pxBlockToInsert) {
         pxIterator->pxNextFreeBlock = heapPROTECT_BLOCK_POINTER(pxBlockToInsert);
     } else {
         mtCOVERAGE_TEST_MARKER();
     }
 }
-/*-----------------------------------------------------------*/
 
 void vPortGetHeapStats(HeapStats_t* pxHeapStats) {
     BlockLink_t* pxBlock;
@@ -675,18 +926,15 @@ void vPortGetHeapStats(HeapStats_t* pxHeapStats) {
         xBlocks = 0,
         xMaxSize = 0,
         xMinSize =
-            portMAX_DELAY; /* portMAX_DELAY used as a portable way of getting the maximum value. */
+            portMAX_DELAY;
 
     vTaskSuspendAll();
     {
         pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
 
-        /* pxBlock will be NULL if the heap has not been initialised.  The heap
-         * is initialised automatically when the first allocation is made. */
         if(pxBlock != NULL) {
             while(pxBlock != pxEnd) {
-                /* Increment the number of blocks and record the largest block seen
-                 * so far. */
+
                 xBlocks++;
 
                 if(pxBlock->xBlockSize > xMaxSize) {
@@ -697,8 +945,6 @@ void vPortGetHeapStats(HeapStats_t* pxHeapStats) {
                     xMinSize = pxBlock->xBlockSize;
                 }
 
-                /* Move to the next block in the chain until the last block is
-                 * reached. */
                 pxBlock = heapPROTECT_BLOCK_POINTER(pxBlock->pxNextFreeBlock);
             }
         }
@@ -718,13 +964,7 @@ void vPortGetHeapStats(HeapStats_t* pxHeapStats) {
     }
     taskEXIT_CRITICAL();
 }
-/*-----------------------------------------------------------*/
 
-/*
- * Reset the state in this file. This state is normally initialized at start up.
- * This function must be called by the application before restarting the
- * scheduler.
- */
 void vPortHeapResetState(void) {
     pxEnd = NULL;
 
@@ -733,4 +973,3 @@ void vPortHeapResetState(void) {
     xNumberOfSuccessfulAllocations = (size_t)0U;
     xNumberOfSuccessfulFrees = (size_t)0U;
 }
-/*-----------------------------------------------------------*/

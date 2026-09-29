@@ -10,10 +10,8 @@
 #include <notification/notification.h>
 
 #include "esp_at.h"
-#include "fox_splash.h"
 
 typedef enum {
-    FoxCommanderViewSplash,
     FoxCommanderViewMenu,
     FoxCommanderViewMessage,
     FoxCommanderViewTerminal,
@@ -48,8 +46,6 @@ typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
     NotificationApp* notifications;
-
-    FoxSplash* splash;
 
     Submenu* submenu;
     TextInput* text_input;

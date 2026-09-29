@@ -188,7 +188,7 @@ static void subghz_protocol_encoder_came_twee_get_upload(SubGhzProtocolEncoderCa
     }
     instance->encoder.size_upload = index;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static void subghz_protocol_came_twee_remote_controller(SubGhzBlockGeneric* instance) {
     uint8_t cnt_parcel = (uint8_t)(instance->data & 0xF);
@@ -253,7 +253,7 @@ LevelDuration subghz_protocol_encoder_came_twee_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_came_twee_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

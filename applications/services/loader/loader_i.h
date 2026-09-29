@@ -28,6 +28,7 @@ struct Loader {
     FuriPubSub* pubsub;
     FuriMessageQueue* queue;
     LoaderMenu* loader_menu;
+    bool menu_shown;
     LoaderApplications* loader_applications;
     LoaderAppData app;
 
@@ -36,36 +37,15 @@ struct Loader {
     Gui* gui;
     ViewHolder* view_holder;
     Loading* loading;
-    EmptyScreen* empty_screen; /* blank white cover for inbound FAP transitions */
+    EmptyScreen* empty_screen;
 
-    /* Failsafe watchdog: if the loading spinner stays on screen longer than
-     * LOADER_LOAD_WATCHDOG_TIMEOUT_MS, something has gone wrong with the
-     * *visibility* of the launch (e.g. the new app's viewport never took
-     * over) or the load is genuinely stuck in a blocking storage call.
-     * Runs on the FreeRTOS timer service thread, so it still fires even
-     * while loader_srv itself is blocked inside a slow storage call.
-     * It cannot cancel that blocked call - see loader.c for why - instead
-     * it switches to still_loading_view, which offers a fast, controlled
-     * long-press-Back reset in place of the plain spinner (which has no
-     * Back handling at all) and in place of waiting on the Flipper's
-     * uncontrolled hardware reset-on-long-hold fallback. */
     FuriTimer* load_watchdog;
     uint32_t load_watchdog_started_tick;
     char load_watchdog_app_name[40];
     View* still_loading_view;
 
-    /* still_loading_view's input callback runs synchronously on the GUI
-     * thread (ViewHolder has no per-app input queue/thread hop the way
-     * ViewDispatcher does), and it fires on a long-press Back while that
-     * key is still physically held. Calling view_holder_set_view()
-     * directly from there deadlocks: it blocks until the key's Release
-     * is delivered, but that Release can only be delivered by this same
-     * GUI thread pumping its own input queue - which it can't do while
-     * stuck in that wait. still_loading_exit_timer defers the actual
-     * view_holder_set_view() call onto the FreeRTOS timer service thread
-     * instead, so the GUI thread returns immediately, processes the
-     * pending Release normally, and the deferred call proceeds unblocked. */
-    FuriTimer* still_loading_exit_timer;
+    FuriTimer* still_loading_wait_timer;
+    FuriTimer* still_loading_spin_timer;
 };
 
 typedef enum {
@@ -73,6 +53,8 @@ typedef enum {
     LoaderMessageTypeAppClosed,
     LoaderMessageTypeShowMenu,
     LoaderMessageTypeMenuClosed,
+    LoaderMessageTypeEnsureMenuBuilt,
+    LoaderMessageTypeReleaseHiddenMenu,
     LoaderMessageTypeApplicationsClosed,
     LoaderMessageTypeLock,
     LoaderMessageTypeUnlock,

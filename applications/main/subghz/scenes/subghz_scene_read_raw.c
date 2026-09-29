@@ -1,6 +1,5 @@
 #include "../subghz_i.h"
 #include "../views/subghz_read_raw.h"
-#include <dolphin/dolphin.h>
 #include <lib/subghz/protocols/raw.h>
 #include <toolbox/path.h>
 #include <stdlib.h>
@@ -9,28 +8,16 @@
 #define RAW_FILE_NAME "RAW_"
 #define TAG           "SubGhzSceneReadRAW"
 
-/* Idle Start screen auto-start countdown: shows "REC (3)"->"REC (2)"->
- * "REC (1)" then starts recording on its own, same as Garage's Read/Read
- * RAW countdown. OK still skips it immediately (Start->REC is handled
- * directly by the view's own input handler, never touches these statics).
- * Reset in subghz_scene_read_raw_on_enter()'s default case and in the
- * Erase ("New") custom event handler - the only two places that ever
- * (re)set status to Start. s_start_countdown_fired guards against sending
- * the synthetic REC event (see the Tick handler below) more than once,
- * since model->status is set synchronously right before that event is
- * queued, but the flag is kept as a belt-and-braces second guard. */
 #define SUBGHZ_AUTO_START_COUNTDOWN_SEC 3
 static uint8_t s_start_countdown_sec = 0;
 static uint8_t s_start_subtick = 0;
 static bool s_start_countdown_fired = false;
-/* Set true when Back cancels an in-progress countdown, so the Tick handler
- * stops running it entirely - reset alongside the countdown itself at the
- * same two re-arm points as above. */
+
 static bool s_start_cancelled = false;
 
 bool subghz_scene_read_raw_update_filename(SubGhz* subghz) {
     bool ret = false;
-    //set the path to read the file
+
     FuriString* temp_str = furi_string_alloc();
     do {
         FlipperFormat* fff_data = subghz_txrx_get_fff_data(subghz->txrx);
@@ -90,9 +77,6 @@ void subghz_scene_read_raw_callback_end_tx(void* context) {
         subghz->view_dispatcher, SubGhzCustomEventViewReadRAWSendStop);
 }
 
-
-/* RAW .sub files use repeated "RAW_Data:" text lines (not a FlipperFormat array).
- * Reads as plain text; produces a 100-byte HIGH/LOW preview for TX timeline display. */
 #define ENVELOPE_PREVIEW_SAMPLES 2048u
 
 typedef struct {
@@ -128,14 +112,6 @@ static bool subghz_raw_lr_read_line(SubghzRawLineReader* lr, FuriString* out) {
     return any;
 }
 
-/* zoom_level: 0 = full file (no windowing). center_pct: 0-100, the
- * playback position to center the zoom window on (only used if
- * zoom_level > 0). Reads the file once; total_us (the FULL file's real
- * duration) is always computed and reported back via *out_total_us so the
- * caller can pass it to subghz_read_raw_set_envelope() — TX cursor speed
- * must always reflect the whole file's real duration, never the zoomed
- * display window, since actual transmission timing doesn't change when
- * you zoom the display. */
 static const uint8_t ENVELOPE_ZOOM_WINDOW_PCT[5] = {100, 60, 36, 22, 13};
 
 static void subghz_scene_read_raw_load_envelope_ex(
@@ -159,11 +135,6 @@ static void subghz_scene_read_raw_load_envelope_ex(
         SubghzRawLineReader lr = {.file = file, .len = 0, .pos = 0, .eof = false};
         FuriString* line = furi_string_alloc();
 
-        /* Read ALL entries for accurate total_us.
-         * Noise entries from blank recordings fill the preview buffer before
-         * our silence padding is reached — previously this caused total_us to
-         * be far too small.  Now we count abs(v) for every entry regardless of
-         * whether it fits in buf[], then use buf[] only for the visual preview. */
         while(subghz_raw_lr_read_line(&lr, line)) {
             const char* s = furi_string_get_cstr(line);
             if(strncmp(s, "RAW_Data:", 9) == 0) {
@@ -177,9 +148,9 @@ static void subghz_scene_read_raw_load_envelope_ex(
                         continue;
                     }
                     p = end;
-                    /* Always accumulate duration from every entry */
+
                     total_us += (uint64_t)(v < 0 ? -(int64_t)v : (int64_t)v);
-                    /* Only store in preview buffer if space remains */
+
                     if(total_samples < ENVELOPE_PREVIEW_SAMPLES)
                         buf[total_samples++] = (int32_t)v;
                 }
@@ -190,14 +161,11 @@ static void subghz_scene_read_raw_load_envelope_ex(
         storage_file_close(file);
 
         if(total_samples > 0) {
-            /* total_us already accumulated inline above (all entries, not
-             * just the preview-buffer subset) — nothing more to sum here. */
+
             if(out_total_us) *out_total_us = total_us;
 
             if(total_us > 0) {
-                /* Display window: full file when zoom_level==0, otherwise a
-                 * narrower span centered on center_pct (same 2/3-ish ratio
-                 * the RAW editor itself uses for zoom steps). */
+
                 uint64_t disp_start = 0;
                 uint64_t disp_end   = total_us;
                 if(zoom_level > 0 && zoom_level < 5) {
@@ -215,13 +183,6 @@ static void subghz_scene_read_raw_load_envelope_ex(
                 }
                 uint64_t disp_span = (disp_end > disp_start) ? (disp_end - disp_start) : 1;
 
-                /* Duty-cycle intensity per 1% time-bucket WITHIN the display
-                 * window: accumulate how much "on" (HIGH/carrier) time falls
-                 * inside each bucket, as a fraction of that bucket's span.
-                 * This is far more informative than a flat HIGH/LOW flag —
-                 * dense pulse bursts show as tall bars, sparse/gappy regions
-                 * show as short ones, and OOK/ASK pulse structure is
-                 * actually visible at a glance. */
                 uint32_t bucket_on_us[100] = {0};
                 uint64_t current_us = 0;
 
@@ -235,10 +196,9 @@ static void subghz_scene_read_raw_load_envelope_ex(
 
                     if(!hi || dur == 0) continue;
 
-                    /* Clip this pulse segment to the display window. */
                     uint64_t cs = seg_start > disp_start ? seg_start : disp_start;
                     uint64_t ce = seg_end   < disp_end   ? seg_end   : disp_end;
-                    if(ce <= cs) continue; /* entirely outside the window */
+                    if(ce <= cs) continue;
 
                     uint8_t b0 = (uint8_t)(((cs - disp_start) * 100) / disp_span);
                     uint8_t b1 = (uint8_t)(((ce - disp_start) * 100) / disp_span);
@@ -270,24 +230,16 @@ static void subghz_scene_read_raw_load_envelope_ex(
     if(file) storage_file_free(file);
     furi_record_close(RECORD_STORAGE);
 
-    /* THE FIX: pass the FULL file's real duration (microseconds), not
-     * pulse count — pulse count has no fixed relationship to playback
-     * time, which made the position cursor crawl at an unrelated speed. */
     subghz_read_raw_set_envelope(
         subghz->subghz_read_raw,
         ok ? preview : NULL,
         (uint32_t)total_us);
 }
 
-/* Convenience wrapper: full-file load (no zoom window), used on initial
- * file load and whenever zoom resets to level 0. */
 static void subghz_scene_read_raw_load_envelope(SubGhz* subghz) {
     subghz_scene_read_raw_load_envelope_ex(subghz, 0, 0, NULL);
 }
 
-/* Re-derive a zoomed envelope centered on the given playback position,
- * preserving the FULL file's real duration for TX cursor timing (which
- * never changes with zoom — only the displayed window does). */
 static void subghz_scene_read_raw_load_envelope_zoomed(
     SubGhz* subghz, uint8_t zoom_level, uint8_t center_pct) {
     subghz_scene_read_raw_load_envelope_ex(subghz, zoom_level, center_pct, NULL);
@@ -311,13 +263,9 @@ void subghz_scene_read_raw_on_enter(void* context) {
             SubGhzReadRAWStatusLoadKeyTX,
             furi_string_get_cstr(file_name),
             threshold_rssi);
-        /* Loading an EXISTING file (from Saved Menu, or returning from
-         * the More menu) — there's no in-progress recording session to
-         * discard, so don't offer "New" here. */
+
         subghz_read_raw_set_allow_new(subghz->subghz_read_raw, false);
 
-        /* Apply the persisted zoom level (remembered across files/sessions
-         * per the user's request), centered at the start of the file. */
         {
             uint8_t zoom = (uint8_t)subghz->last_settings->raw_playback_zoom_level;
             subghz_read_raw_set_zoom_level(subghz->subghz_read_raw, zoom);
@@ -335,9 +283,7 @@ void subghz_scene_read_raw_on_enter(void* context) {
             SubGhzReadRAWStatusSaveKey,
             furi_string_get_cstr(file_name),
             threshold_rssi);
-        /* Just finished recording and saving in THIS session — offer
-         * "New" so the user can immediately start another recording
-         * without backing all the way out and back in. */
+
         subghz_read_raw_set_allow_new(subghz->subghz_read_raw, true);
         break;
     default:
@@ -365,19 +311,14 @@ void subghz_scene_read_raw_on_enter(void* context) {
     }
     subghz_scene_read_raw_update_statusbar(subghz);
 
-    //set callback view raw
     subghz_read_raw_set_callback(subghz->subghz_read_raw, subghz_scene_read_raw_callback, subghz);
 
-    //apply the global Bar/Line display preference
-    //(same setting used by the Signal Visualizer — one consistent
-    // visual language across the whole app, no "Classic" mode exists)
     subghz_read_raw_set_viz_mode(
         subghz->subghz_read_raw,
         (SubGhzReadRawVizMode)subghz->last_settings->visualizer_display_mode);
 
     furi_check(subghz_txrx_load_decoder_by_name_protocol(subghz->txrx, SUBGHZ_PROTOCOL_RAW_NAME));
 
-    //set filter RAW feed
     subghz_txrx_receiver_set_filter(subghz->txrx, SubGhzProtocolFlag_RAW);
     furi_string_free(file_name);
 
@@ -395,8 +336,7 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
 
             if(subghz_read_raw_get_status(subghz->subghz_read_raw) == SubGhzReadRAWStatusStart &&
                s_start_countdown_sec > 0) {
-                /* Countdown running on the Start screen - Back cancels it
-                 * and stays put, rather than exiting Read RAW. */
+
                 s_start_countdown_sec = 0;
                 s_start_cancelled = true;
                 subghz_read_raw_set_start_countdown(subghz->subghz_read_raw, 0);
@@ -405,10 +345,10 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
             }
 
             subghz_txrx_stop(subghz->txrx);
-            //Stop save file
+
             subghz_protocol_raw_save_to_file_stop(decoder_raw);
             subghz->state_notifications = SubGhzNotificationStateIDLE;
-            //needed save?
+
             if((subghz_rx_key_state_get(subghz) == SubGhzRxKeyStateAddKey) ||
                (subghz_rx_key_state_get(subghz) == SubGhzRxKeyStateBack)) {
                 subghz_rx_key_state_set(subghz, SubGhzRxKeyStateExit);
@@ -419,7 +359,7 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
                 }
                 scene_manager_next_scene(subghz->scene_manager, SubGhzSceneNeedSaving);
             } else {
-                //Restore default setting
+
                 if(subghz->raw_send_only) {
                     subghz_txrx_set_default_preset(subghz->txrx, 0);
                 } else {
@@ -438,7 +378,7 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
             break;
 
         case SubGhzCustomEventViewReadRAWTXPause:
-            /* User pressed OK during file TX — stop the TX worker and park. */
+
             subghz_txrx_stop(subghz->txrx);
             subghz->state_notifications = SubGhzNotificationStateIDLE;
             notification_message(subghz->notifications, &sequence_reset_rgb);
@@ -446,9 +386,7 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
             break;
 
         case SubGhzCustomEventViewReadRAWTXResume: {
-            /* User pressed OK while paused — restart TX from the beginning.
-             * (Precise seek from an arbitrary position is not yet supported
-             *  by the SubGHz TX worker; we restart from the file start.) */
+
             FlipperFormat* fff = subghz_txrx_get_fff_data(subghz->txrx);
             if(fff) {
                 flipper_format_rewind(fff);
@@ -462,10 +400,7 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
 
         case SubGhzCustomEventViewReadRAWZoomIn:
         case SubGhzCustomEventViewReadRAWZoomOut: {
-            /* The view already updated its own zoom_level on Up/Down; read
-             * it back, re-derive the envelope for the new window centered
-             * on the current seek position, and persist the new level so
-             * it carries over to the next file (per the user's request). */
+
             uint8_t zoom = subghz_read_raw_get_zoom_level(subghz->subghz_read_raw);
             uint8_t center = subghz_read_raw_get_seek_pct(subghz->subghz_read_raw);
             if(zoom > 0) {
@@ -502,9 +437,7 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
             }
             subghz_rx_key_state_set(subghz, SubGhzRxKeyStateIDLE);
             notification_message(subghz->notifications, &sequence_reset_rgb);
-            /* "New" - view just moved status back to Start (see the Left-
-             * arrow handler in views/subghz_read_raw.c), so the auto-start
-             * countdown re-arms fresh here too. */
+
             s_start_countdown_sec = SUBGHZ_AUTO_START_COUNTDOWN_SEC;
             s_start_subtick = 0;
             s_start_countdown_fired = false;
@@ -538,7 +471,7 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
         case SubGhzCustomEventViewReadRAWSendStart:
 
             if(subghz_file_available(subghz) && subghz_scene_read_raw_update_filename(subghz)) {
-                //start send
+
                 subghz->state_notifications = SubGhzNotificationStateIDLE;
                 if(!subghz_tx_start(subghz, subghz_txrx_get_fff_data(subghz->txrx))) {
                     subghz_rx_key_state_set(subghz, SubGhzRxKeyStateBack);
@@ -548,11 +481,6 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
                         "",
                         subghz_threshold_rssi_get(subghz->threshold_rssi));
                 } else {
-                    if(scene_manager_has_previous_scene(subghz->scene_manager, SubGhzSceneSaved) ||
-                       !scene_manager_has_previous_scene(subghz->scene_manager, SubGhzSceneStart)) {
-                        dolphin_deed(DolphinDeedSubGhzSend);
-                    }
-                    // set callback end tx
                     subghz_txrx_set_raw_file_encoder_worker_callback_end(
                         subghz->txrx, subghz_scene_read_raw_callback_end_tx, subghz);
                     subghz->state_notifications = SubGhzNotificationStateTx;
@@ -588,21 +516,8 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
                 RAW_FILE_NAME,
                 SUBGHZ_APP_FILENAME_EXTENSION);
 
-            /* ── Silence padding ──────────────────────────────────────────
-             * save_to_file_stop only writes RAW_Data when ind_write > 0.
-             * A blank recording (no CC1101 transitions) has NO RAW_Data
-             * line.  We must write a complete "RAW_Data: -N..." line in
-             * that case rather than trying to extend a non-existent one.
-             *
-             * For recordings with some data, we extend the existing line
-             * by seeking to the byte before the final \n and appending.
-             *
-             * Either way the total silence appended = recording_ticks *
-             * 100 000 µs, so a 20-second blank plays for 20 seconds. */
             {
-                /* Use recording_ticks — proven correct (powers the on-screen timer).
-                 * Each tick is ~100ms. Minimum 1 tick so sub-100ms recordings
-                 * still get some silence rather than zero padding. */
+
                 uint32_t rec_ticks  = subghz_read_raw_get_recording_ticks(subghz->subghz_read_raw);
                 uint32_t expected_us = (rec_ticks > 0 ? rec_ticks : 1u) * 100000u;
 
@@ -618,20 +533,17 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
 
                         uint64_t fsz = storage_file_size(pad_file);
 
-                        /* Check whether a RAW_Data line already exists by
-                         * scanning the file for the key.  We do a simple
-                         * linear scan since files are small (<64 KB). */
                         bool has_raw_data = false;
                         if(fsz >= 10u) {
                             uint8_t  scan_buf[256];
                             storage_file_seek(pad_file, 0, true);
                             uint16_t n_read = storage_file_read(pad_file, scan_buf, sizeof(scan_buf) - 1);
                             scan_buf[n_read] = '\0';
-                            /* Check entire file for RAW_Data key */
+
                             uint64_t remaining = fsz;
                             has_raw_data = (strstr((char*)scan_buf, "RAW_Data") != NULL);
                             if(!has_raw_data && remaining > (uint64_t)n_read) {
-                                /* Scan rest of file in chunks */
+
                                 while(remaining > (uint64_t)n_read && !has_raw_data) {
                                     n_read = storage_file_read(pad_file, scan_buf, sizeof(scan_buf) - 1);
                                     if(n_read == 0) break;
@@ -641,32 +553,14 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
                             }
                         }
 
-                        /* Helper lambda to write silence chunks */
                         uint32_t rem = expected_us;
 
-                        /* Write silence as:  1 -(total-1) 1
-                         * • Bookend 1µs positive pulses keep the raw TX
-                         *   engine running for the full duration — pure
-                         *   silence (all-negative) can cause some encoder
-                         *   implementations to stop early.
-                         * • ONE large negative entry avoids the encoder's
-                         *   preload-buffer limit that truncates many small
-                         *   -32000 entries to only ~2 seconds of playback.
-                         * • The 1µs spikes are too short to affect signal
-                         *   decoding if there is real content in the file. */
-                        /* Write silence as chunks of at most 999 999 µs each.
-                         * The TX file-encoder worker (subghz_file_encoder_worker.c)
-                         * silently CLAMPS any value outside ±1 000 000 µs to ±100 µs.
-                         * One large -4 999 998 entry therefore became 0.1 ms instead
-                         * of 5 seconds.  Multiple ≤999 999 µs chunks bypass the clamp
-                         * entirely and each plays at its true duration. */
                         const uint32_t SILENCE_CHUNK = 999999u;
                         char  buf[32];
                         int   wn;
                         bool  first_chunk = true;
-                        uint32_t rem2 = rem; /* rem is expected_us */
+                        uint32_t rem2 = rem;
 
-                        /* Seek position depends on whether a RAW_Data line exists */
                         if(has_raw_data) {
                             storage_file_seek(pad_file, (uint32_t)(fsz - 1u), true);
                         } else {
@@ -692,7 +586,7 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
                             if(wn > 0) storage_file_write(pad_file, buf, (size_t)wn);
                             rem2 -= chunk;
                         }
-                        /* Trailing carrier pulse + newline */
+
                         storage_file_write(pad_file, " 1\n", 3u);
                     }
 
@@ -705,16 +599,10 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
                 subghz_txrx_get_fff_data(subghz->txrx),
                 furi_string_get_cstr(temp_str),
                 subghz_txrx_radio_device_get_name(subghz->txrx));
-            /* Set file_path so subghz_file_available() returns true.
-             * Without this the path only lives in fff_data and Send/Save
-             * always fail with "File not available". */
+
             furi_string_set(subghz->file_path, temp_str);
             furi_string_free(temp_str);
 
-            /* Load envelope now so tx_total_ticks is set correctly for the
-             * send-without-saving path (Send from Erase/Send/Save screen).
-             * Without this the progress bar jumps to 100% instantly because
-             * tx_total_ticks stays at its default of 1. */
             subghz_scene_read_raw_load_envelope(subghz);
 
             if(spl_count > 0) {
@@ -735,10 +623,9 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
             } else {
                 SubGhzRadioPreset preset = subghz_txrx_get_preset(subghz->txrx);
                 if(subghz_protocol_raw_save_to_file_init(decoder_raw, RAW_FILE_NAME, &preset)) {
-                    dolphin_deed(DolphinDeedSubGhzRawRec);
                     subghz_txrx_rx_start(subghz->txrx);
                     subghz->state_notifications = SubGhzNotificationStateRx;
-                    /* recording_ticks reset in view input handler */
+
                     subghz_rx_key_state_set(subghz, SubGhzRxKeyStateAddKey);
                 } else {
                     furi_string_set(subghz->error_str, "Function requires\nan SD card.");
@@ -779,31 +666,20 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
             SubGhzThresholdRssiData ret_rssi = subghz_threshold_get_rssi_data(
                 subghz->threshold_rssi, subghz_txrx_radio_device_get_rssi(subghz->txrx));
             subghz_read_raw_add_data_rssi(
-                subghz->subghz_read_raw, ret_rssi.rssi, true /* always advance marker */);
-            /* Do NOT pause recording during silence — we want the full
-             * duration saved so playback takes as long as the recording. */
+                subghz->subghz_read_raw, ret_rssi.rssi, true );
+
             break;
         case SubGhzNotificationStateTx:
             notification_message(subghz->notifications, &sequence_blink_magenta_10);
             subghz_read_raw_tick_tx(subghz->subghz_read_raw);
 
-            /* Defensive backup: the TX worker is supposed to fire a
-             * natural "end of file" callback (registered in SendStart,
-             * see subghz_scene_read_raw_callback_end_tx) that stops
-             * playback automatically. If that hasn't happened ~300ms past
-             * when the file should have finished, force the same proven
-             * stop sequence ourselves rather than leaving the cursor
-             * stuck at 100% until the user manually presses OK. */
             if(subghz_read_raw_is_playback_overdue(subghz->subghz_read_raw)) {
                 view_dispatcher_send_custom_event(
                     subghz->view_dispatcher, SubGhzCustomEventViewReadRAWSendStop);
             }
             break;
         default:
-            /* state_notifications==IDLE covers the Start screen as well as
-             * post-record IDLE and LoadKeyIDLE - only actually run the
-             * countdown while genuinely sitting on Start, hence the status
-             * getter rather than trusting state_notifications alone. */
+
             if(!s_start_countdown_fired && !s_start_cancelled &&
                subghz_read_raw_get_status(subghz->subghz_read_raw) ==
                    SubGhzReadRAWStatusStart) {
@@ -817,13 +693,7 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
                     }
                     if(s_start_countdown_sec == 0) {
                         s_start_countdown_fired = true;
-                        /* Set REC status synchronously here, same as the
-                         * view's own OK-press handler does - the REC event
-                         * handler below only runs the recording start-up
-                         * chain (SD file/RX), it never touches
-                         * model->status itself. Without this the view would
-                         * keep showing the Start screen for one more frame
-                         * after the countdown already fired. */
+
                         subghz_read_raw_set_status(
                             subghz->subghz_read_raw,
                             SubGhzReadRAWStatusREC,
@@ -843,11 +713,9 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
 void subghz_scene_read_raw_on_exit(void* context) {
     SubGhz* subghz = context;
 
-    //Stop CC1101
     subghz_txrx_stop(subghz->txrx);
     subghz->state_notifications = SubGhzNotificationStateIDLE;
     notification_message(subghz->notifications, &sequence_reset_rgb);
 
-    //filter restoration
     subghz_txrx_receiver_set_filter(subghz->txrx, subghz->filter);
 }

@@ -422,15 +422,7 @@ static void draw_cb(Canvas* canvas, void* ctx) {
                             subghz_setting_get_preset_name(app->setting, app->preset_idx));
 
     if(app->screen == FAScreenConfig) {
-        /* Approved "Popup window" pattern (documented 2026-09-13,
-         * FOOTER_BUTTON_AUDIT.md project doc): a full-canvas modal that
-         * blanks whatever screen is underneath, framed with a plain
-         * canvas_draw_frame() border, normal black-on-background colors
-         * throughout - same foreground/background convention every other
-         * screen in the suite uses, not the inverted white-on-black "dark
-         * mode" look this overlay had before (canvas_draw_box() filled the
-         * whole canvas ColorBlack, then everything else drew in ColorWhite
-         * on top of it). Fixed per the user's 2026-09-13 direction. */
+
         canvas_set_color(canvas, ColorWhite);
         canvas_draw_box(canvas, 0, 0, 128, 64);
 
@@ -448,21 +440,7 @@ static void draw_cb(Canvas* canvas, void* ctx) {
         canvas_draw_str(canvas, 116, 34, ">");
 
         {
-            // Filled black pill with the real I_ButtonCenter_7x7 icon,
-            // matching fox_lab/message_view.c's message_draw_one_button()
-            // reference exactly (icon_gap=3/pad_x=10 included) - this app
-            // now carries its own images/ButtonCenter_7x7.png
-            // (fap_icon_assets="images" in application.fam), the same
-            // per-app-local-copy convention fox_lab/fox_chameleon/etc.
-            // already use, rather than the hand-drawn checkmark glyph this
-            // screen used as a stand-in before. Previously an outlined box
-            // that was never filled, with the literal "[OK] Apply" text
-            // instead of an icon - flagged as "Pattern C-incorrect" by the
-            // 2026-09-13 footer-button audit. Also moved up from y=49 to
-            // y=42 so its bottom edge (42+11=53) clears the popup frame's
-            // bottom edge (6+52=58) by 5px instead of overrunning it by 2px.
-            // Input handling here was already correct (OK applies,
-            // Left/Right cycle the preset) - only the visual needed fixing.
+
             const char* label = "Apply";
             const Icon* icon = &I_ButtonCenter_7x7;
             int32_t icon_w = icon_get_width(icon);
@@ -509,15 +487,6 @@ static FreqAnalyzerApp* app_alloc(void) {
     app->view_port   = view_port_alloc();
     app->input_queue = furi_message_queue_alloc(8, sizeof(InputEvent));
 
-    /* Do all the SD-card reads (settings, mod filter, last-settings) before
-     * registering the input callback / adding the view port to the GUI.
-     * Registering first meant a button pressed during this loading window
-     * queued into input_queue same as any real press, then got silently
-     * discarded a few lines later by the post-alloc drain in the app's
-     * main entry point - so a press right after launch could appear to do
-     * nothing. Nothing can queue into input_queue before it's wired up to
-     * the GUI, so ordering it last removes that window entirely instead of
-     * trying to filter it out afterward. */
     app->setting    = subghz_setting_alloc();
     subghz_setting_load(app->setting, SETTING_FILE_PATH);
     app->freq_count = subghz_setting_get_frequency_count(app->setting);
@@ -550,19 +519,21 @@ static void app_free(FreqAnalyzerApp* app) {
     furi_message_queue_free(app->input_queue);
     furi_record_close(RECORD_NOTIFICATION);
     furi_record_close(RECORD_GUI);
+    furi_kernel_lock();
     subghz_setting_free(app->setting);
     furi_mutex_free(app->mutex);
     free(app);
+    furi_kernel_unlock();
 }
 
 int32_t subghz_frequency_analyzer_app(void* p) {
     char return_marker[24] = {0};
-    bool return_to_garage = false;
+    bool launched_from_garage_menu = false;
     if(p && ((const char*)p)[0]) {
         const char* arg = (const char*)p;
-        if(strncmp(arg, "garage:", 7) == 0) {
-            return_to_garage = true;
-            arg += 7;
+        if(strncmp(arg, "gmenu:", 6) == 0) {
+            launched_from_garage_menu = true;
+            arg += 6;
         } else if(strncmp(arg, "core:", 5) == 0) {
             arg += 5;
         }
@@ -667,11 +638,13 @@ int32_t subghz_frequency_analyzer_app(void* p) {
                     write_freq_to_settings(cand);
 
                     if(return_marker[0]) {
+                        const char* ok_marker =
+                            launched_from_garage_menu ? "gmenu:readraw" : "readraw";
                         Storage* ws = furi_record_open(RECORD_STORAGE);
                         File* wf = storage_file_alloc(ws);
                         if(storage_file_open(wf, "/ext/subghz/.focus_menu",
                                               FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
-                            storage_file_write(wf, "readraw", 7);
+                            storage_file_write(wf, ok_marker, strlen(ok_marker));
                         }
                         storage_file_close(wf);
                         storage_file_free(wf);
@@ -692,8 +665,15 @@ int32_t subghz_frequency_analyzer_app(void* p) {
         File* f = storage_file_alloc(s);
         bool ok = false;
         if(!app->ok_result_selected) {
+            char marker_buf[32] = {0};
+            if(launched_from_garage_menu) {
+                strcpy(marker_buf, "gmenu:");
+                strlcat(marker_buf, return_marker, sizeof(marker_buf));
+            } else {
+                strncpy(marker_buf, return_marker, sizeof(marker_buf) - 1);
+            }
             ok = storage_file_open(f, "/ext/subghz/.focus_menu", FSAM_WRITE, FSOM_CREATE_ALWAYS);
-            if(ok) storage_file_write(f, return_marker, strlen(return_marker));
+            if(ok) storage_file_write(f, marker_buf, strlen(marker_buf));
         } else {
             ok = true;
         }
@@ -702,7 +682,7 @@ int32_t subghz_frequency_analyzer_app(void* p) {
         Loader* loader = furi_record_open(RECORD_LOADER);
         loader_enqueue_launch(
             loader,
-            return_to_garage ? EXT_PATH("apps/Sub-GHz/subghz_garage.fap") : "subghz",
+            "subghz",
             NULL,
             LoaderDeferredLaunchFlagNone);
         furi_record_close(RECORD_LOADER);

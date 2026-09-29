@@ -92,10 +92,7 @@ void chat_message_submitted(App* app) {
     if(device_name == NULL || device_name[0] == '\0') device_name = "Flipper";
 
     progress_view_show(app, ProgressStageSending);
-    /* esp_at_send() below is just a UART write and returns almost
-     * instantly - without this delay the "Sending Message..." stage
-     * never gets a chance to actually render before we flip to
-     * "Receiving Reply...". */
+
     furi_delay_ms(400);
 
     char cmd[FOX_TEXT_INPUT_BUFFER_MAX + 16];

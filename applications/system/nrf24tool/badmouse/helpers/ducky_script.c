@@ -6,7 +6,6 @@
 #include <storage/storage.h>
 #include "ducky_script.h"
 #include "ducky_script_i.h"
-#include <dolphin/dolphin.h>
 #include "badmouse/badmouse.h"
 #include "badmouse_hid.h"
 #include <errno.h>

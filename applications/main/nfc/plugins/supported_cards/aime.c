@@ -82,24 +82,19 @@ static bool aime_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // verify key
+
         MfClassicSectorTrailer* sec_tr = mf_classic_get_sector_trailer_by_sector(data, 0);
         uint64_t key = bit_lib_bytes_to_num_be(sec_tr->key_a.data, 6);
         if(key != aime_key) break;
 
-        // Aime Magic is stored at block 1, starts from byte 0, len 4 bytes
         const uint8_t* aime_magic = &data->block[1].data[0];
 
-        // verify aime magic
         if(aime_magic[0] != 'S' || aime_magic[1] != 'B' || aime_magic[2] != 'S' ||
            aime_magic[3] != 'D')
             break;
 
-        // Aime checksum is stored at block 1, starts from byte 13, len 3 bytes
-        // seems like only old games checks this? e.g., old versions of Chunithm
         const uint8_t* aime_checksum = &data->block[1].data[13];
 
-        // Aime access code is stored as decimal hex representation in block 2, starts from byte 6, len 10 bytes
         const uint8_t* aime_accesscode = &data->block[2].data[6];
 
         char aime_accesscode_str[24 + 1];
@@ -118,7 +113,6 @@ static bool aime_parse(const NfcDevice* device, FuriString* parsed_data) {
             aime_accesscode[8],
             aime_accesscode[9]);
 
-        // validate decimal hex representation
         bool code_is_hex = true;
         for(int i = 0; i < 24; i++) {
             if(aime_accesscode_str[i] == ' ') continue;
@@ -128,9 +122,6 @@ static bool aime_parse(const NfcDevice* device, FuriString* parsed_data) {
             }
         }
         if(!code_is_hex) break;
-
-        // Note: Aime access code has some other self-check algorithms that are not public.
-        // This parser does not try to verify the number.
 
         furi_string_printf(
             parsed_data,
@@ -147,7 +138,6 @@ static bool aime_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin aime_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = aime_verify,
@@ -155,14 +145,12 @@ static const NfcSupportedCardsPlugin aime_plugin = {
     .parse = aime_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor aime_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &aime_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* aime_plugin_ep(void) {
     return &aime_plugin_descriptor;
 }

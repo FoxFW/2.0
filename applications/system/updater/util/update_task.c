@@ -354,10 +354,19 @@ void update_task_set_progress(UpdateTask* update_task, UpdateTaskStage stage, ui
     }
     update_task->state.overall_progress = adapted_progress;
 
+    /* Every UI consumer shows each stage's own raw percentage (0-100 within
+       whatever stage is currently active) rather than the overall weighted
+       progress computed above - every update_task_set_progress() call site
+       in this app already reports genuine stage-local progress (manifest
+       parsing substeps, radio-busy-wait substeps, resource-extraction
+       bytes, etc.), so `progress` itself is always the right number to
+       show. state.overall_progress is still tracked above for internal
+       bookkeeping (e.g. what to keep showing once a stage error freezes
+       further updates), it's just no longer what gets sent to the UI. */
     if(update_task->status_change_cb) {
         (update_task->status_change_cb)(
             furi_string_get_cstr(update_task->state.status),
-            adapted_progress,
+            progress,
             update_stage_is_error(update_task->state.stage),
             update_task->status_change_cb_state);
     }

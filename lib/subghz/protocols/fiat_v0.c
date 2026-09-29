@@ -99,10 +99,6 @@ const SubGhzProtocol fiat_protocol_v0 = {
     .encoder = &subghz_protocol_fiat_v0_encoder,
 };
 
-// ============================================================================
-// ENCODER IMPLEMENTATION
-// ============================================================================
-
 void* subghz_protocol_encoder_fiat_v0_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderFiatV0* instance = calloc(1, sizeof(SubGhzProtocolEncoderFiatV0));
@@ -291,9 +287,6 @@ LevelDuration subghz_protocol_encoder_fiat_v0_yield(void* context) {
 
     return ret;
 }
-// ============================================================================
-// DECODER IMPLEMENTATION
-// ============================================================================
 
 void* subghz_protocol_decoder_fiat_v0_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

@@ -3,7 +3,6 @@
 #include <furi.h>
 #include <furi_hal.h>
 
-/** SubGhzNotification state */
 typedef enum {
     SubGhzNotificationStateStarting,
     SubGhzNotificationStateIDLE,
@@ -13,7 +12,6 @@ typedef enum {
     SubGhzNotificationStateTxWait,
 } SubGhzNotificationState;
 
-/** SubGhzTxRx state */
 typedef enum {
     SubGhzTxRxStateIDLE,
     SubGhzTxRxStateRx,
@@ -21,7 +19,6 @@ typedef enum {
     SubGhzTxRxStateSleep,
 } SubGhzTxRxState;
 
-/** SubGhzHopperState state */
 typedef enum {
     SubGhzHopperStateOFF,
     SubGhzHopperStateRunning,
@@ -29,21 +26,18 @@ typedef enum {
     SubGhzHopperStateRSSITimeOut,
 } SubGhzHopperState;
 
-/** SubGhzSpeakerState state */
 typedef enum {
     SubGhzSpeakerStateDisable,
     SubGhzSpeakerStateShutdown,
     SubGhzSpeakerStateEnable,
 } SubGhzSpeakerState;
 
-/** SubGhzRadioDeviceType */
 typedef enum {
     SubGhzRadioDeviceTypeAuto,
     SubGhzRadioDeviceTypeInternal,
     SubGhzRadioDeviceTypeExternalCC1101,
 } SubGhzRadioDeviceType;
 
-/** SubGhzRxKeyState state */
 typedef enum {
     SubGhzRxKeyStateIDLE,
     SubGhzRxKeyStateNoSave,
@@ -57,7 +51,6 @@ typedef enum {
     SubGhzRxKeyStateRAWSave,
 } SubGhzRxKeyState;
 
-/** SubGhzLoadKeyState state */
 typedef enum {
     SubGhzLoadKeyStateUnknown,
     SubGhzLoadKeyStateOK,
@@ -78,12 +71,8 @@ typedef enum {
     SubGhzViewIdVariableItemList,
     SubGhzViewIdReadRAW,
     SubGhzViewIdSignalVisualizer,
-    SubGhzViewIdStartGrid,
-    SubGhzViewIdProtocolGroups,
-
 } SubGhzViewId;
 
-/** SubGhz load type file */
 typedef enum {
     SubGhzLoadTypeFileNoLoad,
     SubGhzLoadTypeFileKey,

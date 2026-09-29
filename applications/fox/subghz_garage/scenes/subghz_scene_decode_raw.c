@@ -105,7 +105,7 @@ bool subghz_scene_decode_raw_start(SubGhz* subghz) {
                subghz->decode_raw_file_worker_encoder,
                furi_string_get_cstr(file_name),
                subghz_txrx_radio_device_get_name(subghz->txrx))) {
-            //the worker needs a file in order to open and read part of the file
+
             furi_delay_ms(100);
         } else {
             success = false;
@@ -144,12 +144,7 @@ bool subghz_scene_decode_raw_next(SubGhz* subghz) {
             subghz->state_notifications = SubGhzNotificationStateIDLE;
 
             if(subghz_history_get_item(subghz->history) == 0) {
-                /* Nothing decoded — show the dedicated failure screen
-                 * instead of the old generic "Done!"/empty-list display.
-                 * Worker cleanup is deferred to that screen's exit, same
-                 * as the existing convention (this scene's own on_exit is
-                 * already a no-op; cleanup always happens later, on
-                 * whichever path the user actually takes out). */
+
                 extern void subghz_scene_decode_raw_failed_set_context(bool all_protocols_enabled);
                 size_t total = subghz_protocol_registry_count(
                     subghz_txrx_get_protocol_registry(subghz->txrx));
@@ -159,11 +154,10 @@ bool subghz_scene_decode_raw_next(SubGhz* subghz) {
             } else {
                 subghz_view_receiver_add_data_progress(subghz->subghz_receiver, "Done!");
             }
-            return false; // No more samples available
+            return false;
         }
     }
 
-    // Update progress info
     FuriString* progress_str = furi_string_alloc();
     subghz_garage_encoder_get_text_progress(
         subghz->decode_raw_file_worker_encoder, progress_str);
@@ -173,15 +167,12 @@ bool subghz_scene_decode_raw_next(SubGhz* subghz) {
 
     furi_string_free(progress_str);
 
-    return true; // More samples available
+    return true;
 }
 
 void subghz_scene_decode_raw_on_enter(void* context) {
     SubGhz* subghz = context;
 
-    /* Suppress qFlipper's screen-stream for the whole time we're in Decode
-     * RAW, same reasoning as Read/Read RAW - see rpc_gui_screen_
-     * suppress.h. */
     rpc_gui_screen_stream_set_suppressed(true);
 
     bool decoding_new_file = scene_manager_get_scene_state(
@@ -189,16 +180,7 @@ void subghz_scene_decode_raw_on_enter(void* context) {
                               SubGhzDecodeRawStateStart;
 
     if(decoding_new_file) {
-        /* Only this path allocates the file-encoder worker and runs the
-         * decode loop below - reloading an already-decoded history list
-         * into the receiver view (the else branch further down) is
-         * lightweight and doesn't need this check. No separate "Start"
-         * button exists for this scene - decoding a new file begins the
-         * instant this scene is entered - so this on_enter check IS the
-         * choke point, same role start_listening()'s check plays for
-         * Read. subghz_low_ram_mitigate() unconditionally disconnects
-         * CLI/RPC first before conceding - see its own comment in
-         * subghz_i.h. */
+
         if(subghz_low_ram_mitigate(subghz, SUBGHZ_LOW_RAM_FREE_HEAP_READ)) {
             FURI_LOG_W(
                 TAG,
@@ -207,6 +189,8 @@ void subghz_scene_decode_raw_on_enter(void* context) {
             subghz_debug_log_write(
                 "on_enter: free heap %zu still low after mitigation, bailing to warning",
                 memmgr_get_free_heap());
+
+            subghz_txrx_release_protocol_group(subghz->txrx);
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneLowRamWarning);
             return;
         }
@@ -229,7 +213,7 @@ void subghz_scene_decode_raw_on_enter(void* context) {
 
     if(scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneDecodeRAW) ==
        SubGhzDecodeRawStateStart) {
-        //Decode RAW to history
+
         subghz_history_reset(subghz->history);
         if(subghz_scene_decode_raw_start(subghz)) {
             scene_manager_set_scene_state(
@@ -237,7 +221,7 @@ void subghz_scene_decode_raw_on_enter(void* context) {
             subghz->state_notifications = SubGhzNotificationStateRx;
         }
     } else {
-        //Load history to receiver
+
         subghz_view_receiver_exit(subghz->subghz_receiver);
         for(uint16_t i = 0; i < subghz_history_get_item(subghz->history); i++) {
             furi_string_reset(item_name);

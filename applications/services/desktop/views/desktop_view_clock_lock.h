@@ -9,39 +9,22 @@ void desktop_clock_lock_free(DesktopClockLockView* clock_lock);
 View* desktop_clock_lock_get_view(DesktopClockLockView* clock_lock);
 void desktop_clock_lock_set_callback(DesktopClockLockView* clock_lock, DesktopClockLockViewCallback callback, void* context);
 
-// Fox Alarm Clock ringing state - shows an "ALARM" banner and accepts a
-// short OK press as an extra dismiss shortcut on top of the usual long-press
-// Down/Back exit gesture.
 void desktop_clock_lock_set_ringing(DesktopClockLockView* clock_lock, bool ringing);
 
-// Left = turn the backlight off right now. Right = turn it back on - if
-// "Keep Backlight On" (Fox Settings > Alarm Clock) is off this just turns it
-// on for the normal timeout, if it's on this restores the persistent
-// stay-on behavior. Doesn't change the saved setting, just overrides the
-// backlight for as long as this screen stays open.
 typedef void (*DesktopClockLockBacklightCallback)(void* context, bool turn_on);
 void desktop_clock_lock_set_backlight_callback(
     DesktopClockLockView* clock_lock,
     DesktopClockLockBacklightCallback callback,
     void* context);
 
-// Up = raise display brightness one step, Down = lower it. Same restriction
-// as the Left/Right backlight shortcut - only active outside the ringing
-// state. The scene applies the change and reports the resulting percentage
-// back via desktop_clock_lock_show_brightness() for the on-screen overlay.
 typedef void (*DesktopClockLockBrightnessCallback)(void* context, bool increase);
 void desktop_clock_lock_set_brightness_callback(
     DesktopClockLockView* clock_lock,
     DesktopClockLockBrightnessCallback callback,
     void* context);
 
-// Briefly shows "Brightness: NN%" over the clock, same box/timer used for
-// the exit hint.
 void desktop_clock_lock_show_brightness(DesktopClockLockView* clock_lock, uint8_t percent);
 
-// Fires once a second while this screen is showing (reuses the view's own
-// digit-refresh timer) - used to keep re-asserting "Keep Backlight On"
-// without needing a second always-running timer elsewhere.
 typedef void (*DesktopClockLockTickCallback)(void* context);
 void desktop_clock_lock_set_tick_callback(
     DesktopClockLockView* clock_lock,

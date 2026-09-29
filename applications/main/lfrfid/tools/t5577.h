@@ -10,7 +10,6 @@ extern "C" {
 #define T5577_BLOCKS_IN_PAGE_0   8
 #define T5577_BLOCKS_IN_PAGE_1   4
 
-// T5577 block 0 definitions, thanks proxmark3!
 #define LFRFID_T5577_POR_DELAY             0x00000001
 #define LFRFID_T5577_ST_TERMINATOR         0x00000008
 #define LFRFID_T5577_PWD                   0x00000010
@@ -47,11 +46,6 @@ typedef struct {
     uint8_t mask;
 } LFRFIDT5577;
 
-/**
- * @brief Write T5577 tag data to tag
- * 
- * @param data 
- */
 void t5577_write(LFRFIDT5577* data);
 
 void t5577_write_with_pass(LFRFIDT5577* data, uint32_t password);

@@ -6,11 +6,8 @@
 extern "C" {
 #endif
 
-DICT_DEF2(AddressCache, int, M_DEFAULT_OPLIST, Elf32_Addr, M_DEFAULT_OPLIST) //-V1048
+DICT_DEF2(AddressCache, int, M_DEFAULT_OPLIST, Elf32_Addr, M_DEFAULT_OPLIST)
 
-/**
- * Callable elf entry type
- */
 typedef int32_t(entry_t)(void*);
 
 typedef struct ELFSection ELFSection;

@@ -11,7 +11,7 @@
 #define PAC_STANLEY_PREAMBLE_BYTE_SIZE (1)
 #define PAC_STANLEY_ENCODED_BYTE_FULL_SIZE \
     (PAC_STANLEY_ENCODED_BYTE_SIZE + PAC_STANLEY_PREAMBLE_BYTE_SIZE)
-#define PAC_STANLEY_BYTE_LENGTH      (10) // start bit, 7 data bits, parity bit, stop bit
+#define PAC_STANLEY_BYTE_LENGTH      (10)
 #define PAC_STANLEY_DATA_START_INDEX (8 + (3 * PAC_STANLEY_BYTE_LENGTH) + 1)
 
 #define PAC_STANLEY_DECODED_DATA_SIZE (4)
@@ -50,24 +50,22 @@ static void protocol_pac_stanley_decode(ProtocolPACStanley* protocol) {
             protocol->encoded_data,
             PAC_STANLEY_DATA_START_INDEX + (PAC_STANLEY_BYTE_LENGTH * idx),
             8));
-        asciiCardId[idx] = byte & 0x7F; // discard the parity bit
+        asciiCardId[idx] = byte & 0x7F;
     }
 
     hex_chars_to_uint8((char*)asciiCardId, protocol->data);
 }
 
 static bool protocol_pac_stanley_can_be_decoded(ProtocolPACStanley* protocol) {
-    // Check preamble
+
     if(bit_lib_get_bits(protocol->encoded_data, 0, 8) != 0b11111111) return false;
     if(bit_lib_get_bit(protocol->encoded_data, 8) != 0) return false;
     if(bit_lib_get_bit(protocol->encoded_data, 9) != 0) return false;
     if(bit_lib_get_bit(protocol->encoded_data, 10) != 1) return false;
     if(bit_lib_get_bits(protocol->encoded_data, 11, 8) != 0b00000010) return false;
 
-    // Check next preamble
     if(bit_lib_get_bits(protocol->encoded_data, 128, 8) != 0b11111111) return false;
 
-    // Checksum
     uint8_t checksum = 0;
     uint8_t stripped_byte;
     for(size_t idx = 0; idx < 9; idx++) {
@@ -75,7 +73,7 @@ static bool protocol_pac_stanley_can_be_decoded(ProtocolPACStanley* protocol) {
             protocol->encoded_data,
             PAC_STANLEY_DATA_START_INDEX + (PAC_STANLEY_BYTE_LENGTH * idx),
             8));
-        stripped_byte = byte & 0x7F; // discard the parity bit
+        stripped_byte = byte & 0x7F;
         if(bit_lib_test_parity_32(stripped_byte, BitLibParityOdd) != (byte & 0x80) >> 7) {
             return false;
         }
@@ -98,7 +96,6 @@ bool protocol_pac_stanley_decoder_feed(ProtocolPACStanley* protocol, bool level,
 
     uint8_t pulses = (uint8_t)roundf((float)duration / PAC_STANLEY_CYCLE_LENGTH);
 
-    // Handle last stopbit & preamble (1 sb, 8 bit preamble)
     if(pulses >= 9 && !protocol->got_preamble) {
         pulses = 8;
         protocol->got_preamble = true;
@@ -136,12 +133,11 @@ bool protocol_pac_stanley_encoder_start(ProtocolPACStanley* protocol) {
 
     uint8_to_hex_chars(protocol->data, &idbytes[2], 8);
 
-    // insert start and stop bits
     for(size_t i = 0; i < 16; i++)
         protocol->encoded_data[i] = 0x40 >> ((i + 3) % 5 * 2);
 
-    protocol->encoded_data[0] = 0xFF; // mark + stop
-    protocol->encoded_data[1] = 0x20; // start + reflect8(STX)
+    protocol->encoded_data[0] = 0xFF;
+    protocol->encoded_data[1] = 0x20;
 
     uint8_t checksum = 0;
     for(size_t i = 2; i < 13; i++) {
@@ -183,7 +179,6 @@ bool protocol_pac_stanley_write_data(ProtocolPACStanley* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_pac_stanley_encoder_start(protocol);
     protocol_pac_stanley_decode(protocol);
 

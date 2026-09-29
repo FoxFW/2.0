@@ -21,7 +21,6 @@
 #include <toolbox/keys_dict.h>
 #include <bit_lib/bit_lib.h>
 #include <toolbox/stream/buffered_file_stream.h>
-#include <dolphin/dolphin.h>
 #include <notification/notification_messages.h>
 #include <storage/storage.h>
 #include <nfc/protocols/mf_classic/mf_classic.h>
@@ -508,9 +507,6 @@ void mfkey(ProgramState* program_state) {
     for(i = 0; i < keyarray_size; i++) {
         keys_dict_add_key(user_dict, keyarray[i].data, sizeof(MfClassicKey));
     }
-    if(keyarray_size > 0) {
-        dolphin_deed(DolphinDeedNfcKeyAdd);
-    }
     free(nonce_arr);
     keys_dict_free(user_dict);
     free(keyarray);
@@ -668,6 +664,7 @@ int32_t mfkey_main() {
         furi_thread_alloc_ex("MFKeyWorker", 4096, mfkey_worker_thread, program_state);
 
     InputEvent input_event;
+    bool cancel_requested = false;
     for(bool main_loop = true; main_loop;) {
         FuriStatus event_status = furi_message_queue_get(event_queue, &input_event, 100);
 
@@ -689,9 +686,26 @@ int32_t mfkey_main() {
                 case InputKeyBack:
                     if(program_state->mfkey_state == Help) {
                         program_state->mfkey_state = Ready;
-                    } else {
+                    } else if(
+                        program_state->mfkey_state == Initializing ||
+                        program_state->mfkey_state == DictionaryAttack ||
+                        program_state->mfkey_state == MFKeyAttack) {
+                        // Don't join here: recover()'s own cancel check only
+                        // runs once per ~eta_round_time (30s) round, and
+                        // this mutex is the same one render_callback() needs
+                        // to draw a single frame - a synchronous join while
+                        // holding it used to freeze the whole screen (no
+                        // redraws at all, not just unresponsive input) for
+                        // that entire wait, indistinguishable from a crash.
+                        // Request cancellation and poll for the worker to
+                        // actually reach a terminal state instead; ignore
+                        // repeat presses meanwhile.
                         program_state->close_thread_please = true;
-                        // Wait until thread is finished
+                        cancel_requested = true;
+                    } else {
+                        // Ready (thread never started) or Complete/Error
+                        // (already finished): nothing to wait on, join
+                        // returns immediately same as before this fix.
                         furi_thread_join(program_state->mfkeythread);
                         main_loop = false;
                     }
@@ -700,6 +714,12 @@ int32_t mfkey_main() {
                     break;
                 }
             }
+        }
+
+        if(cancel_requested &&
+           (program_state->mfkey_state == Complete || program_state->mfkey_state == Error)) {
+            furi_thread_join(program_state->mfkeythread);
+            main_loop = false;
         }
 
         furi_mutex_release(program_state->mutex);

@@ -4,9 +4,6 @@
 #include <gpio_remap/gpio_remap_settings.h>
 #else
 
-/* Fallback if the shared gpio_remap service isn't available - private,
- * per-app copy of the same setting. */
-
 #include <furi.h>
 #include <saved_struct.h>
 #include <storage/storage.h>

@@ -435,7 +435,7 @@ LevelDuration subghz_protocol_encoder_faac_slh_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_faac_slh_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

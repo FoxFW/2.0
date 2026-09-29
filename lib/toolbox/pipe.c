@@ -3,17 +3,11 @@
 
 #define PIPE_DEFAULT_STATE_CHECK_PERIOD furi_ms_to_ticks(100)
 
-/**
- * Data shared between both sides.
- */
 typedef struct {
-    FuriSemaphore* instance_count; // <! 1 = both sides, 0 = only one side
+    FuriSemaphore* instance_count;
     FuriMutex* state_transition;
 } PipeShared;
 
-/**
- * There are two PipeSides per pipe.
- */
 struct PipeSide {
     PipeRole role;
     PipeShared* shared;
@@ -37,7 +31,9 @@ PipeSideBundle pipe_alloc(size_t capacity, size_t trigger_level) {
 }
 
 PipeSideBundle pipe_alloc_ex(PipeSideReceiveSettings alice, PipeSideReceiveSettings bob) {
-    // the underlying primitives are shared
+
+    furi_kernel_lock();
+
     FuriStreamBuffer* alice_to_bob = furi_stream_buffer_alloc(bob.capacity, bob.trigger_level);
     FuriStreamBuffer* bob_to_alice = furi_stream_buffer_alloc(alice.capacity, alice.trigger_level);
 
@@ -65,6 +61,8 @@ PipeSideBundle pipe_alloc_ex(PipeSideReceiveSettings alice, PipeSideReceiveSetti
         .state_check_period = PIPE_DEFAULT_STATE_CHECK_PERIOD,
     };
 
+    furi_kernel_unlock();
+
     return (PipeSideBundle){.alices_side = alices_side, .bobs_side = bobs_side};
 }
 
@@ -87,17 +85,19 @@ void pipe_free(PipeSide* pipe) {
     FuriStatus status = furi_semaphore_acquire(pipe->shared->instance_count, 0);
 
     if(status == FuriStatusOk) {
-        // the other side is still intact
+
         furi_mutex_release(pipe->shared->state_transition);
         free(pipe);
     } else {
-        // the other side is gone too
+
+        furi_kernel_lock();
         furi_stream_buffer_free(pipe->sending);
         furi_stream_buffer_free(pipe->receiving);
         furi_semaphore_free(pipe->shared->instance_count);
         furi_mutex_free(pipe->shared->state_transition);
         free(pipe->shared);
         free(pipe);
+        furi_kernel_unlock();
     }
 }
 

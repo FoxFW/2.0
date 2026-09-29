@@ -110,17 +110,17 @@ static void
 
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 0, ROW_1_Y + 9, "Date");
-    // Day
+
     snprintf(buffer, sizeof(buffer), "%02u", model->current.day);
     clock_settings_module_draw_block(
         canvas, 44, ROW_1_Y, 17, ROW_1_H, FontPrimary, get_state(model, 1, 0), buffer);
     canvas_draw_box(canvas, 71 - 6, ROW_1_Y + ROW_1_H - 4, 2, 2);
-    // Month
+
     snprintf(buffer, sizeof(buffer), "%02u", model->current.month);
     clock_settings_module_draw_block(
         canvas, 71, ROW_1_Y, 17, ROW_1_H, FontPrimary, get_state(model, 1, 1), buffer);
     canvas_draw_box(canvas, 98 - 6, ROW_1_Y + ROW_1_H - 4, 2, 2);
-    // Year
+
     snprintf(buffer, sizeof(buffer), "%04u", model->current.year);
     clock_settings_module_draw_block(
         canvas, 98, ROW_1_Y, 30, ROW_1_H, FontPrimary, get_state(model, 1, 2), buffer);
@@ -341,23 +341,22 @@ static bool clock_settings_module_input_callback(InputEvent* event, void* contex
                     consumed = clock_settings_module_input_navigation_callback(event, model);
                 }
 
-                // Switching between navigate/edit
                 if(model->editing != previous_editing) {
                     if(model->row == 2) {
                         if(!model->editing) {
-                            // Disable alarm
+
                             furi_hal_rtc_set_alarm(NULL, false);
-                            // Set new alarm
+
                             furi_hal_rtc_set_alarm(&model->alarm, model->alarm_enabled);
-                            // Confirm
+
                             model->alarm_enabled = furi_hal_rtc_get_alarm(&model->alarm);
                         }
                     } else {
                         if(model->editing) {
-                            // stop timer to prevent mess with current date time
+
                             furi_event_loop_timer_stop(instance->timer);
                         } else {
-                            // save date time and restart timer
+
                             furi_hal_rtc_set_datetime(&model->current);
                             furi_event_loop_timer_start(instance->timer, 1000);
                         }

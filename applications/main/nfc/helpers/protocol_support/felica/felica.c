@@ -39,7 +39,7 @@ static bool nfc_scene_info_on_event_felica(NfcApp* instance, SceneManagerEvent e
 }
 
 static void nfc_scene_more_info_on_enter_felica(NfcApp* instance) {
-    // Jump to advanced scene right away
+
     scene_manager_next_scene(instance->scene_manager, NfcSceneFelicaMoreInfo);
 }
 
@@ -85,7 +85,6 @@ bool nfc_scene_read_on_event_felica(NfcApp* instance, SceneManagerEvent event) {
         } else if(event.event == NfcCustomEventPollerIncomplete) {
             notification_message(instance->notifications, &sequence_semi_success);
             scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
-            dolphin_deed(DolphinDeedNfcReadSuccess);
         }
     }
     return true;

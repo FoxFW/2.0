@@ -4,10 +4,6 @@
 #include <furi_hal_cortex.h>
 #include <furi_hal_power.h>
 
-// ============================================================
-// 5V OTG power
-// ============================================================
-
 static bool otg_was_enabled   = false;
 static bool use_flux_capacitor = false;
 
@@ -39,9 +35,6 @@ static const GpioPin* pin_sck  = &gpio_ext_pb3;
 static const GpioPin* pin_gdo0 = &gpio_ext_pb2;
 static const GpioPin* pin_amp  = &gpio_ext_pc3;
 
-// ============================================================
-// CC1101 Registers
-// ============================================================
 #define CC_IOCFG2    0x00
 #define CC_IOCFG0    0x02
 #define CC_FIFOTHR   0x03
@@ -91,10 +84,6 @@ static const GpioPin* pin_amp  = &gpio_ext_pc3;
 
 #define MARC_IDLE    0x01
 #define MARC_TX      0x13
-
-// ============================================================
-// Band calibration
-// ============================================================
 
 typedef struct {
     uint32_t min_freq;
@@ -342,10 +331,6 @@ void rolljam_ext_gpio_deinit(void) {
     FURI_LOG_I(TAG, "EXT GPIO deinit");
 }
 
-// ============================================================
-// Noise pattern & jam helpers
-// ============================================================
-
 static void jam_start_tx(const uint8_t* pattern, uint8_t len) {
     cc_strobe(CC_SFTX);
     furi_delay_ms(1);
@@ -482,10 +467,6 @@ static int32_t jam_thread_worker(void* context) {
     FURI_LOG_I(TAG, "JAM: STOPPED (loops=%lu uf=%lu refills=%lu)", loops, underflows, refills);
     return 0;
 }
-
-// ============================================================
-// Public API
-// ============================================================
 
 void rolljam_jammer_start(RollJamApp* app) {
     if(app->jamming_active) return;

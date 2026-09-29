@@ -23,7 +23,7 @@ struct SubGhzTxRx {
     size_t preset_hopper_idx;
     SubGhzPresetHopperState preset_hopper_state;
 
-    int32_t frequency_offset; // Hz, crystal calibration offset
+    int32_t frequency_offset;
 
     SubGhzTxRxState txrx_state;
     SubGhzSpeakerState speaker_state;

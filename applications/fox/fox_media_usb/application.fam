@@ -1,0 +1,26 @@
+App(
+    appid="fox_media_usb",
+    name="Fox Media USB",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="fox_media_usb_app",
+    requires=[
+        "gui",
+        "storage",
+        "dialogs",
+    ],
+    stack_size=8 * 1024,
+    fap_description="Serves /MEDIA/ (MUSIC, VIDEO, PICTURE) as a read-only USB drive (FOX)",
+    fap_version="1.0",
+    fap_author="FoxFW",
+    fap_icon="assets/fox_media_usb_10px.png",
+    fap_icon_assets="assets",
+    fap_category="USB",
+    fap_private_libs=[
+        Lib(
+            name="fatfs",
+            fap_include_paths=["."],
+            sources=["*.c"],
+            cflags=["-Wno-error"],
+        ),
+    ],
+)

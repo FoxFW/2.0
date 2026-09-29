@@ -8,7 +8,6 @@
 
 #include "event_loop_link_i.h"
 
-// Internal FreeRTOS member names
 #define uxMessagesWaiting uxDummy4[0]
 #define uxLength          uxDummy4[1]
 
@@ -17,7 +16,6 @@ struct FuriSemaphore {
     FuriEventLoopLink event_loop_link;
 };
 
-// IMPORTANT: container MUST be the FIRST struct member
 static_assert(offsetof(FuriSemaphore, container) == 0);
 
 FuriSemaphore* furi_semaphore_alloc(uint32_t max_count, uint32_t initial_count) {
@@ -26,10 +24,6 @@ FuriSemaphore* furi_semaphore_alloc(uint32_t max_count, uint32_t initial_count) 
 
     FuriSemaphore* instance = malloc(sizeof(FuriSemaphore));
 
-    /* xSemaphoreCreate*Static only zeroes sizeof(StaticSemaphore_t) bytes.
-     * FuriEventLoopLink follows the container and is NOT covered; zero it
-     * explicitly so furi_semaphore_acquire/release notify calls are safe on
-     * recycled heap allocations. */
     instance->event_loop_link.item_in  = NULL;
     instance->event_loop_link.item_out = NULL;
 
@@ -55,7 +49,6 @@ void furi_semaphore_free(FuriSemaphore* instance) {
     furi_check(instance);
     furi_check(!FURI_IS_IRQ_MODE());
 
-    // Event Loop must be disconnected
     furi_check(!instance->event_loop_link.item_in);
     furi_check(!instance->event_loop_link.item_out);
 

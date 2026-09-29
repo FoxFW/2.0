@@ -8,10 +8,6 @@ extern "C" {
 
 typedef struct CliShell CliShell;
 
-/**
- * @brief Key combo handler
- * @return true if the event was handled, false otherwise
- */
 typedef bool (*CliShellKeyComboAction)(CliKeyCombo combo, void* context);
 
 typedef struct {

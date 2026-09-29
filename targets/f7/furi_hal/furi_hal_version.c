@@ -14,7 +14,6 @@
 #define FURI_HAL_VERSION_OTP_ADDRESS      (OTP_AREA_BASE)
 #define FURI_HAL_VERSION_PLATFORM_ID      (0x0080e126)
 
-/** OTP V0 Structure: prototypes and early EVT */
 typedef struct {
     uint8_t board_version;
     uint8_t board_target;
@@ -24,68 +23,60 @@ typedef struct {
     char name[FURI_HAL_VERSION_NAME_LENGTH];
 } FuriHalVersionOTPv0;
 
-/** OTP V1 Structure: late EVT, DVT */
 typedef struct {
-    /* First 64 bits: header */
+
     uint16_t header_magic;
     uint8_t header_version;
     uint8_t header_reserved;
     uint32_t header_timestamp;
 
-    /* Second 64 bits: board info */
-    uint8_t board_version; /** Board version */
-    uint8_t board_target; /** Board target firmware */
-    uint8_t board_body; /** Board body */
-    uint8_t board_connect; /** Board interconnect */
-    uint8_t board_color; /** Board color */
-    uint8_t board_region; /** Board region */
-    uint16_t board_reserved; /** Reserved for future use, 0x0000 */
+    uint8_t board_version;
+    uint8_t board_target;
+    uint8_t board_body;
+    uint8_t board_connect;
+    uint8_t board_color;
+    uint8_t board_region;
+    uint16_t board_reserved;
 
-    /* Third 64 bits: Unique Device Name */
-    char name[FURI_HAL_VERSION_NAME_LENGTH]; /** Unique Device Name */
+    char name[FURI_HAL_VERSION_NAME_LENGTH];
 } FuriHalVersionOTPv1;
 
-/** OTP V2 Structure: DVT2, PVT, Production */
 typedef struct {
-    /* Early First 64 bits: header */
+
     uint16_t header_magic;
     uint8_t header_version;
     uint8_t header_reserved;
     uint32_t header_timestamp;
 
-    /* Early Second 64 bits: board info */
-    uint8_t board_version; /** Board version */
-    uint8_t board_target; /** Board target firmware */
-    uint8_t board_body; /** Board body */
-    uint8_t board_connect; /** Board interconnect */
-    uint8_t board_display; /** Board display */
-    uint8_t board_reserved2_0; /** Reserved for future use, 0x00 */
-    uint16_t board_reserved2_1; /** Reserved for future use, 0x0000 */
+    uint8_t board_version;
+    uint8_t board_target;
+    uint8_t board_body;
+    uint8_t board_connect;
+    uint8_t board_display;
+    uint8_t board_reserved2_0;
+    uint16_t board_reserved2_1;
 
-    /* Late Third 64 bits: device info */
-    uint8_t board_color; /** Board color */
-    uint8_t board_region; /** Board region */
-    uint16_t board_reserved3_0; /** Reserved for future use, 0x0000 */
-    uint32_t board_reserved3_1; /** Reserved for future use, 0x00000000 */
+    uint8_t board_color;
+    uint8_t board_region;
+    uint16_t board_reserved3_0;
+    uint32_t board_reserved3_1;
 
-    /* Late Fourth 64 bits: Unique Device Name */
-    char name[FURI_HAL_VERSION_NAME_LENGTH]; /** Unique Device Name */
+    char name[FURI_HAL_VERSION_NAME_LENGTH];
 } FuriHalVersionOTPv2;
 
-/** Represenation Model: */
 typedef struct {
     uint32_t timestamp;
 
-    uint8_t board_version; /** Board version */
-    uint8_t board_target; /** Board target firmware */
-    uint8_t board_body; /** Board body */
-    uint8_t board_connect; /** Board interconnect */
-    uint8_t board_color; /** Board color */
-    uint8_t board_region; /** Board region */
-    uint8_t board_display; /** Board display */
+    uint8_t board_version;
+    uint8_t board_target;
+    uint8_t board_body;
+    uint8_t board_connect;
+    uint8_t board_color;
+    uint8_t board_region;
+    uint8_t board_display;
 
-    char name[FURI_HAL_VERSION_ARRAY_NAME_LENGTH]; /** \0 terminated name */
-    char device_name[FURI_HAL_VERSION_DEVICE_NAME_LENGTH]; /** device name for special needs */
+    char name[FURI_HAL_VERSION_ARRAY_NAME_LENGTH];
+    char device_name[FURI_HAL_VERSION_DEVICE_NAME_LENGTH];
     uint8_t ble_mac[6];
 } FuriHalVersion;
 
@@ -105,7 +96,6 @@ void furi_hal_version_set_name(const char* name) {
 
     furi_hal_version.device_name[0] = AD_TYPE_COMPLETE_LOCAL_NAME;
 
-    // BLE Mac address
     uint32_t udn = LL_FLASH_GetUDN();
     if(version_get_custom_name(NULL) != NULL) {
         udn = *((uint32_t*)version_get_custom_name(NULL));
@@ -161,17 +151,14 @@ static void furi_hal_version_load_otp_v1(void) {
 static void furi_hal_version_load_otp_v2(void) {
     const FuriHalVersionOTPv2* otp = (FuriHalVersionOTPv2*)FURI_HAL_VERSION_OTP_ADDRESS;
 
-    // 1st block, programmed afer baking
     furi_hal_version.timestamp = otp->header_timestamp;
 
-    // 2nd block, programmed afer baking
     furi_hal_version.board_version = otp->board_version;
     furi_hal_version.board_target = otp->board_target;
     furi_hal_version.board_body = otp->board_body;
     furi_hal_version.board_connect = otp->board_connect;
     furi_hal_version.board_display = otp->board_display;
 
-    // 3rd and 4th blocks, programmed on FATP stage
     if(otp->board_color != 0xFF) {
         furi_hal_version.board_color = otp->board_color;
         furi_hal_version.board_region = otp->board_region;
@@ -217,7 +204,7 @@ FuriHalVersionOtpVersion furi_hal_version_get_otp_version(void) {
     } else {
         if(((FuriHalVersionOTPv1*)FURI_HAL_VERSION_OTP_ADDRESS)->header_magic ==
            FURI_HAL_VERSION_OTP_HEADER_MAGIC) {
-            // Version 1+
+
             uint8_t version = ((FuriHalVersionOTPv1*)FURI_HAL_VERSION_OTP_ADDRESS)->header_version;
             if(version >= FuriHalVersionOtpVersion1 && version <= FuriHalVersionOtpVersion2) {
                 return version;
@@ -225,10 +212,10 @@ FuriHalVersionOtpVersion furi_hal_version_get_otp_version(void) {
                 return FuriHalVersionOtpVersionUnknown;
             }
         } else if(((FuriHalVersionOTPv0*)FURI_HAL_VERSION_OTP_ADDRESS)->board_version <= 10) {
-            // Version 0
+
             return FuriHalVersionOtpVersion0;
         } else {
-            // Version Unknown
+
             return FuriHalVersionOtpVersionUnknown;
         }
     }

@@ -54,15 +54,6 @@ void desktop_scene_slideshow_on_exit(void* context) {
     gui_set_hide_status_bar(desktop->gui, false);
     storage_common_remove(desktop->storage, SLIDESHOW_FS_PATH);
 
-    /* Process name.pending before rebooting so namechanger_srv can apply the
-     * new name on the very next boot.
-     *
-     * REBOOT DECISION: based on whether name.pending EXISTED, not on whether
-     * we could open it.  Old code set has_name_pending=false on open failure,
-     * which suppressed the reboot and silently lost the name change.
-     *
-     * DOUBLE-FREE FIX: old code called storage_file_free in the else branch
-     * AND again unconditionally — now freed exactly once at the end.        */
     const char* name_pending = "/ext/apps_data/fox_setup/name.pending";
     bool needs_reboot = storage_file_exists(desktop->storage, name_pending);
 
@@ -77,9 +68,7 @@ void desktop_scene_slideshow_on_exit(void* context) {
                 if(strcmp(name, "") == 0) {
                     storage_simply_remove(desktop->storage, NAMECHANGER_PATH);
                 } else {
-                    /* Create the parent directory first — flipper_format_file_open_always
-                     * does NOT mkdir; if the NameChanger data dir has never been created
-                     * the write fails silently and the name is never applied.           */
+
                     char nc_dir[64];
                     strlcpy(nc_dir, NAMECHANGER_PATH, sizeof(nc_dir));
                     char* sl = strrchr(nc_dir, '/');
@@ -95,10 +84,8 @@ void desktop_scene_slideshow_on_exit(void* context) {
                 }
             }
         }
-        /* If open failed: name.pending stays on disk; desktop.c startup will
-         * write the namechanger file on the next boot without an extra reboot
-         * — the name takes effect on the boot after that.                   */
-        storage_file_free(nf);  /* single free — no double-free */
+
+        storage_file_free(nf);
         furi_hal_power_reset();
     }
 }

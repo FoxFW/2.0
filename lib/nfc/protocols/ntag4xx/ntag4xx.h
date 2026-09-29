@@ -52,9 +52,7 @@ typedef struct {
     uint8_t sw_proto;
 
     uint8_t uid[NTAG4XX_UID_SIZE];
-    // [36b batch][5b fab key][7b prod week]
-    // 5b fab key is split 4b in last byte of batch and 1b in prod week
-    // Due to endianness, they appear swapped in the struct definition
+
     uint8_t batch[NTAG4XX_BATCH_SIZE];
     struct {
         uint8_t fab_key_4b : NTAG4XX_FAB_KEY_SIZE_BITS_4;
@@ -79,8 +77,6 @@ typedef struct {
 
 extern const NfcDeviceBase nfc_device_ntag4xx;
 
-// Virtual methods
-
 Ntag4xxData* ntag4xx_alloc(void);
 
 void ntag4xx_free(Ntag4xxData* data);
@@ -104,8 +100,6 @@ const uint8_t* ntag4xx_get_uid(const Ntag4xxData* data, size_t* uid_len);
 bool ntag4xx_set_uid(Ntag4xxData* data, const uint8_t* uid, size_t uid_len);
 
 Iso14443_4aData* ntag4xx_get_base_data(const Ntag4xxData* data);
-
-// Helpers
 
 Ntag4xxType ntag4xx_get_type_from_version(const Ntag4xxVersion* const version);
 

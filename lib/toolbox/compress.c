@@ -7,10 +7,8 @@
 
 #define TAG "Compress"
 
-/** Defines encoder and decoder window size */
 #define COMPRESS_EXP_BUFF_SIZE_LOG (8u)
 
-/** Defines encoder and decoder lookahead buffer size */
 #define COMPRESS_LOOKAHEAD_BUFF_SIZE_LOG (4u)
 
 #define COMPRESS_ICON_ENCODED_BUFF_SIZE (256u)
@@ -21,7 +19,6 @@ const CompressConfigHeatshrink compress_config_heatshrink_default = {
     .input_buffer_sz = COMPRESS_ICON_ENCODED_BUFF_SIZE,
 };
 
-/** Buffer size for input data */
 static bool compress_decode_internal(
     heatshrink_decoder* decoder,
     const uint8_t* data_in,
@@ -52,7 +49,7 @@ CompressIcon* compress_icon_alloc(size_t decode_buf_size) {
         COMPRESS_LOOKAHEAD_BUFF_SIZE_LOG);
     heatshrink_decoder_reset(instance->decoder);
 
-    instance->buffer_size = decode_buf_size + 4; /* To account for heatshrink's poller quirks */
+    instance->buffer_size = decode_buf_size + 4;
     instance->buffer = malloc(instance->buffer_size);
 
     return instance;
@@ -73,11 +70,11 @@ void compress_icon_decode(CompressIcon* instance, const uint8_t* icon_data, uint
     CompressHeader* header = (CompressHeader*)icon_data;
     if(header->is_compressed) {
         size_t decoded_size = 0;
-        /* If decompression fails - check that decode_buf_size is large enough */
+
         furi_check(compress_decode_internal(
             instance->decoder,
             icon_data,
-            /* Decoder will check/process headers again - need to pass them */
+
             sizeof(CompressHeader) + header->compressed_buff_size,
             instance->buffer,
             instance->buffer_size,
@@ -139,7 +136,7 @@ static bool compress_encode_internal(
     size_t res_buff_size = sizeof(CompressHeader);
 
     heatshrink_encoder_reset(encoder);
-    /* Sink data to encoding buffer */
+
     while((sunk < data_in_size) && !encode_failed) {
         sink_res =
             heatshrink_encoder_sink(encoder, &data_in[sunk], data_in_size - sunk, &sink_size);
@@ -159,7 +156,6 @@ static bool compress_encode_internal(
         } while(poll_res == HSER_POLL_MORE);
     }
 
-    /* Notify sinking complete and poll encoded data */
     finish_res = heatshrink_encoder_finish(encoder);
     if(finish_res < 0) {
         encode_failed = true;
@@ -177,7 +173,7 @@ static bool compress_encode_internal(
     }
 
     bool result = true;
-    /* Write encoded data to output buffer if compression is efficient. Otherwise, write header and original data */
+
     if(!encode_failed && (res_buff_size < data_in_size + 1)) {
         CompressHeader header = {
             .is_compressed = 0x01,
@@ -237,7 +233,6 @@ static bool compress_decode_stream_internal(
     uint8_t* compressed_chunk = malloc(work_buffer_size);
     uint8_t* decompressed_chunk = malloc(work_buffer_size);
 
-    /* Sink data to decoding buffer */
     do {
         read_size = read_cb(read_context, compressed_chunk, work_buffer_size);
 
@@ -259,7 +254,6 @@ static bool compress_decode_stream_internal(
         }
     } while(!decode_failed && read_size);
 
-    /* Notify sinking complete and poll decoded data */
     if(!decode_failed) {
         while((finish_res = heatshrink_decoder_finish(decoder)) != HSDR_FINISH_DONE) {
             if(finish_res < 0) {
@@ -344,7 +338,7 @@ static bool compress_decode_internal(
         *data_res_size = data_in_size - 1;
         result = true;
     } else {
-        /* Not enough space in output buffer */
+
         result = false;
     }
     return result;
@@ -404,8 +398,6 @@ bool compress_decode_streamed(
         write_context);
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 struct CompressStreamDecoder {
     heatshrink_decoder* decoder;
     size_t stream_position;
@@ -454,15 +446,6 @@ static bool compress_decode_stream_chunk(
     HSD_sink_res sink_res;
     HSD_poll_res poll_res;
 
-    /* 
-    First, try to output data from decoder to the output buffer. 
-    If the we could fill the output buffer, return
-    If the output buffer is not full, keep polling the decoder 
-        until it has no more data to output.
-    Then, read more data from the input and sink it to the decoder.
-    Repeat until the input is exhausted or output buffer is full.
-    */
-
     bool failed = false;
     bool can_sink_more = true;
     bool can_read_more = true;
@@ -504,7 +487,6 @@ static bool compress_decode_stream_chunk(
             }
             sd->decode_buffer_position -= sink_size;
 
-            /* If some data was left in the buffer, move it to the beginning */
             if(sink_size && sd->decode_buffer_position) {
                 memmove(
                     sd->decode_buffer, &sd->decode_buffer[sink_size], sd->decode_buffer_position);
@@ -533,11 +515,8 @@ bool compress_stream_decoder_read(
 bool compress_stream_decoder_seek(CompressStreamDecoder* instance, size_t position) {
     furi_check(instance);
 
-    /* Check if requested position is ahead of current position 
-       we can't rewind the input stream */
     furi_check(position >= instance->stream_position);
 
-    /* Read and discard data up to requested position */
     uint8_t* dummy_buffer = malloc(instance->decode_buffer_size);
     bool success = true;
 
@@ -564,7 +543,6 @@ size_t compress_stream_decoder_tell(CompressStreamDecoder* instance) {
 bool compress_stream_decoder_rewind(CompressStreamDecoder* instance) {
     furi_check(instance);
 
-    /* Reset decoder and read buffer */
     heatshrink_decoder_reset(instance->decoder);
     instance->stream_position = 0;
     instance->decode_buffer_position = 0;

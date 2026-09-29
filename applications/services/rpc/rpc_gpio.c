@@ -83,20 +83,18 @@ static void rpc_system_gpio_write_pin(const PB_Main* request, void* context) {
     const GpioPin* pin = rpc_pin_to_hal_pin(cmd.pin);
     uint8_t value = !!(cmd.value);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
-    response->has_next = false;
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
+    response.has_next = false;
 
     if(LL_GPIO_MODE_OUTPUT != LL_GPIO_GetPinMode(pin->port, pin->pin)) {
-        response->command_status = PB_CommandStatus_ERROR_GPIO_MODE_INCORRECT;
+        response.command_status = PB_CommandStatus_ERROR_GPIO_MODE_INCORRECT;
     } else {
-        response->command_status = PB_CommandStatus_OK;
+        response.command_status = PB_CommandStatus_OK;
         furi_hal_gpio_write(pin, value);
     }
 
-    rpc_send_and_release(session, response);
-
-    free(response);
+    rpc_send_and_release(session, &response);
 }
 
 static void rpc_system_gpio_read_pin(const PB_Main* request, void* context) {
@@ -109,21 +107,19 @@ static void rpc_system_gpio_read_pin(const PB_Main* request, void* context) {
     PB_Gpio_ReadPin cmd = request->content.gpio_read_pin;
     const GpioPin* pin = rpc_pin_to_hal_pin(cmd.pin);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
-    response->has_next = false;
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
+    response.has_next = false;
 
     if(LL_GPIO_MODE_INPUT != LL_GPIO_GetPinMode(pin->port, pin->pin)) {
-        response->command_status = PB_CommandStatus_ERROR_GPIO_MODE_INCORRECT;
+        response.command_status = PB_CommandStatus_ERROR_GPIO_MODE_INCORRECT;
     } else {
-        response->command_status = PB_CommandStatus_OK;
-        response->which_content = PB_Main_gpio_read_pin_response_tag;
-        response->content.gpio_read_pin_response.value = !!furi_hal_gpio_read(pin);
+        response.command_status = PB_CommandStatus_OK;
+        response.which_content = PB_Main_gpio_read_pin_response_tag;
+        response.content.gpio_read_pin_response.value = !!furi_hal_gpio_read(pin);
     }
 
-    rpc_send_and_release(session, response);
-
-    free(response);
+    rpc_send_and_release(session, &response);
 }
 
 void rpc_system_gpio_get_pin_mode(const PB_Main* request, void* context) {
@@ -136,30 +132,28 @@ void rpc_system_gpio_get_pin_mode(const PB_Main* request, void* context) {
     PB_Gpio_GetPinMode cmd = request->content.gpio_get_pin_mode;
     const GpioPin* pin = rpc_pin_to_hal_pin(cmd.pin);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
-    response->has_next = false;
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
+    response.has_next = false;
 
     uint32_t raw_pin_mode = LL_GPIO_GetPinMode(pin->port, pin->pin);
 
     PB_Gpio_GpioPinMode pin_mode;
     if(LL_GPIO_MODE_INPUT == raw_pin_mode) {
         pin_mode = PB_Gpio_GpioPinMode_INPUT;
-        response->command_status = PB_CommandStatus_OK;
+        response.command_status = PB_CommandStatus_OK;
     } else if(LL_GPIO_MODE_OUTPUT == raw_pin_mode) {
         pin_mode = PB_Gpio_GpioPinMode_OUTPUT;
-        response->command_status = PB_CommandStatus_OK;
+        response.command_status = PB_CommandStatus_OK;
     } else {
         pin_mode = PB_Gpio_GpioPinMode_INPUT;
-        response->command_status = PB_CommandStatus_ERROR_GPIO_UNKNOWN_PIN_MODE;
+        response.command_status = PB_CommandStatus_ERROR_GPIO_UNKNOWN_PIN_MODE;
     }
 
-    response->which_content = PB_Main_gpio_get_pin_mode_response_tag;
-    response->content.gpio_get_pin_mode_response.mode = pin_mode;
+    response.which_content = PB_Main_gpio_get_pin_mode_response_tag;
+    response.content.gpio_get_pin_mode_response.mode = pin_mode;
 
-    rpc_send_and_release(session, response);
-
-    free(response);
+    rpc_send_and_release(session, &response);
 }
 
 void rpc_system_gpio_set_input_pull(const PB_Main* request, void* context) {
@@ -173,10 +167,6 @@ void rpc_system_gpio_set_input_pull(const PB_Main* request, void* context) {
     const GpioPin* pin = rpc_pin_to_hal_pin(cmd.pin);
     const GpioPull pull_mode = rpc_pull_mode_to_hall_pull_mode(cmd.pull_mode);
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
-    response->has_next = false;
-
     PB_CommandStatus status;
     if(LL_GPIO_MODE_INPUT != LL_GPIO_GetPinMode(pin->port, pin->pin)) {
         status = PB_CommandStatus_ERROR_GPIO_MODE_INCORRECT;
@@ -186,8 +176,6 @@ void rpc_system_gpio_set_input_pull(const PB_Main* request, void* context) {
     }
 
     rpc_send_and_release_empty(session, request->command_id, status);
-
-    free(response);
 }
 
 void rpc_system_gpio_get_otg_mode(const PB_Main* request, void* context) {
@@ -199,15 +187,13 @@ void rpc_system_gpio_get_otg_mode(const PB_Main* request, void* context) {
 
     const bool otg_enabled = furi_hal_power_is_otg_enabled();
 
-    PB_Main* response = malloc(sizeof(PB_Main));
-    response->command_id = request->command_id;
-    response->which_content = PB_Main_gpio_get_otg_mode_response_tag;
-    response->content.gpio_get_otg_mode_response.mode = otg_enabled ? PB_Gpio_GpioOtgMode_ON :
+    PB_Main response = PB_Main_init_default;
+    response.command_id = request->command_id;
+    response.which_content = PB_Main_gpio_get_otg_mode_response_tag;
+    response.content.gpio_get_otg_mode_response.mode = otg_enabled ? PB_Gpio_GpioOtgMode_ON :
                                                                       PB_Gpio_GpioOtgMode_OFF;
 
-    rpc_send_and_release(session, response);
-
-    free(response);
+    rpc_send_and_release(session, &response);
 }
 
 void rpc_system_gpio_set_otg_mode(const PB_Main* request, void* context) {

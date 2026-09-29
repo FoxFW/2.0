@@ -8,7 +8,7 @@
 
 #define TAG "SubGhzProtocolNordIce"
 
-#define NORD_ICE_UPLOAD_SIZE 138 /* 33 bits * 2 half-bits + 2 (gap, safety) */
+#define NORD_ICE_UPLOAD_SIZE 138
 
 static const SubGhzBlockConst subghz_protocol_nord_ice_const = {
     .te_short = 300,
@@ -69,8 +69,6 @@ const SubGhzProtocol subghz_protocol_nord_ice = {
     .encoder = &subghz_protocol_nord_ice_encoder,
 };
 
-/* ------------------------------- encoder -------------------------------- */
-
 void* subghz_protocol_encoder_nord_ice_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderNordIce* instance = malloc(sizeof(SubGhzProtocolEncoderNordIce));
@@ -93,12 +91,6 @@ void subghz_protocol_encoder_nord_ice_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data. Bit 0 is short-HIGH/long-LOW, bit 1 is
- * long-HIGH/short-LOW; the last bit's LOW half is replaced with the
- * inter-frame gap (25 * te_short).
- * @param instance Pointer to a SubGhzProtocolEncoderNordIce instance
- */
 static bool subghz_protocol_encoder_nord_ice_get_upload(SubGhzProtocolEncoderNordIce* instance) {
     furi_assert(instance);
     size_t index = 0;
@@ -168,8 +160,6 @@ LevelDuration subghz_protocol_encoder_nord_ice_yield(void* context) {
     return ret;
 }
 
-/* ------------------------------- decoder -------------------------------- */
-
 void* subghz_protocol_decoder_nord_ice_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderNordIce* instance = malloc(sizeof(SubGhzProtocolDecoderNordIce));
@@ -238,8 +228,7 @@ void subghz_protocol_decoder_nord_ice_feed(void* context, bool level, volatile u
             } else if(
                 DURATION_DIFF(duration, subghz_protocol_nord_ice_const.te_short * 25) <
                 subghz_protocol_nord_ice_const.te_delta * 11) {
-                /* End of key: te_last is the final bit's HIGH half, followed
-                 * by the gap instead of its usual LOW half. */
+
                 if(DURATION_DIFF(
                        instance->decoder.te_last, subghz_protocol_nord_ice_const.te_short) <
                    subghz_protocol_nord_ice_const.te_delta) {

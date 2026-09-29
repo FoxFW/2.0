@@ -1,11 +1,11 @@
 #include "usb_uart_bridge.h"
+#include <core/kernel.h>
 #include "usb_cdc.h"
 #include <cli/cli_vcp.h>
 #include <toolbox/api_lock.h>
 #include <furi_hal.h>
 #include <furi_hal_usb_cdc.h>
 
-//TODO: FL-3276 port to new USART API
 #include <stm32wbxx_ll_lpuart.h>
 #include <stm32wbxx_ll_usart.h>
 
@@ -17,9 +17,9 @@
 #define USB_USART_DE_RE_PIN &gpio_ext_pa4
 
 static const GpioPin* flow_pins[][2] = {
-    {&gpio_ext_pa7, &gpio_ext_pa6}, // 2, 3
-    {&gpio_ext_pb2, &gpio_ext_pc3}, // 6, 7
-    {&gpio_ext_pc0, &gpio_ext_pc1}, // 16, 15
+    {&gpio_ext_pa7, &gpio_ext_pa6},
+    {&gpio_ext_pb2, &gpio_ext_pc3},
+    {&gpio_ext_pc0, &gpio_ext_pc1},
 };
 
 typedef enum {
@@ -78,8 +78,6 @@ static const CdcCallbacks cdc_cb = {
     vcp_on_cdc_control_line,
     vcp_on_line_config,
 };
-
-/* USB UART worker */
 
 static int32_t usb_uart_tx_thread(void* context);
 
@@ -345,8 +343,6 @@ static int32_t usb_uart_tx_thread(void* context) {
     return 0;
 }
 
-/* VCP callbacks */
-
 static void vcp_on_cdc_tx_complete(void* context) {
     UsbUartBridge* usb_uart = (UsbUartBridge*)context;
     furi_semaphore_release(usb_uart->tx_sem);
@@ -390,8 +386,10 @@ void usb_uart_disable(UsbUartBridge* usb_uart) {
     furi_assert(usb_uart);
     furi_thread_flags_set(furi_thread_get_id(usb_uart->thread), WorkerEvtStop);
     furi_thread_join(usb_uart->thread);
+    furi_kernel_lock();
     furi_thread_free(usb_uart->thread);
     free(usb_uart);
+    furi_kernel_unlock();
 }
 
 void usb_uart_set_config(UsbUartBridge* usb_uart, UsbUartConfig* cfg) {

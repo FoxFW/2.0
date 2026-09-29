@@ -1,4 +1,3 @@
-
 #include "nfc_cli_action_info.h"
 
 #include "../../../helpers/protocol_support/mf_ultralight/mf_ultralight_render.h"
@@ -66,7 +65,7 @@ static void nfc_cli_mfu_info_get_vendor(const uint8_t vendor_key, FuriString* ou
 
 const char*
     nfc_cli_mfu_capability_container_get_access_description(const uint8_t value, bool read) {
-    const char* description = "RFU"; //value 0x01 - 0x07, and 0xF when read
+    const char* description = "RFU";
     if(value == 0x00)
         description = "access fully granted";
     else if(value >= 0x08 && value <= 0x0E)

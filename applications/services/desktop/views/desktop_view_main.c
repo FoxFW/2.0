@@ -4,7 +4,6 @@
 #include <gui/canvas.h>
 #include <furi.h>
 #include <input/input.h>
-#include <dolphin/dolphin.h>
 
 #include "desktop_view_main.h"
 
@@ -52,8 +51,10 @@ bool desktop_main_input_callback(InputEvent* event, void* context) {
             main_view->callback(DesktopMainEventOpenArchive, main_view->context);
         } else if(event->key == InputKeyLeft) {
             main_view->callback(DesktopMainEventOpenFavoriteLeftShort, main_view->context);
+        } else if(event->key == InputKeyRight) {
+            main_view->callback(DesktopMainEventOpenFavoriteRightShort, main_view->context);
         }
-        // Right key short is handled by animation manager
+
     } else if(event->type == InputTypeLong) {
         if(event->key == InputKeyUp) {
             main_view->callback(DesktopMainEventLock, main_view->context);
@@ -64,11 +65,7 @@ bool desktop_main_input_callback(InputEvent* event, void* context) {
         } else if(event->key == InputKeyRight) {
             main_view->callback(DesktopMainEventCycleWallpaper, main_view->context);
         } else if(event->key == InputKeyOk) {
-            if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagDebug)) {
-                main_view->callback(DesktopAnimationEventNewIdleAnimation, main_view->context);
-            } else {
-                main_view->callback(DesktopMainEventOpenFavoriteOkLong, main_view->context);
-            }
+            main_view->callback(DesktopMainEventOpenFavoriteOkLong, main_view->context);
         }
     }
 

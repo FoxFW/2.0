@@ -1,5 +1,4 @@
 #include "../lfrfid_i.h"
-#include <dolphin/dolphin.h>
 
 static void lfrfid_scene_start_submenu_callback(void* context, uint32_t index) {
     LfRfid* app = context;
@@ -39,7 +38,6 @@ void lfrfid_scene_start_on_enter(void* context) {
     submenu_set_selected_item(
         submenu, scene_manager_get_scene_state(app->scene_manager, LfRfidSceneStart));
 
-    // clear key
     furi_string_reset(app->file_name);
     app->protocol_id = PROTOCOL_NO;
     app->read_type = LFRFIDWorkerReadTypeAuto;
@@ -56,11 +54,9 @@ bool lfrfid_scene_start_on_event(void* context, SceneManagerEvent event) {
             scene_manager_set_scene_state(
                 app->scene_manager, LfRfidSceneStart, LfRfidMenuIndexRead);
             scene_manager_next_scene(app->scene_manager, LfRfidSceneRead);
-            dolphin_deed(DolphinDeedRfidRead);
             consumed = true;
         } else if(event.event == LfRfidMenuIndexSaved) {
-            // Like in the other apps, explicitly save the scene state
-            // in each branch in case the user cancels loading a file.
+
             scene_manager_set_scene_state(
                 app->scene_manager, LfRfidSceneStart, LfRfidMenuIndexSaved);
             furi_string_set(app->file_path, LFRFID_APP_FOLDER);

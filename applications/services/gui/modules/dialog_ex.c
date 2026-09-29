@@ -36,14 +36,12 @@ typedef struct {
 static void dialog_ex_view_draw_callback(Canvas* canvas, void* _model) {
     DialogExModel* model = _model;
 
-    // Prepare canvas
     canvas_set_color(canvas, ColorBlack);
 
     if(model->icon.icon != NULL) {
         canvas_draw_icon(canvas, model->icon.x, model->icon.y, model->icon.icon);
     }
 
-    // Draw header
     canvas_set_font(canvas, FontPrimary);
     if(furi_string_size(model->header.text)) {
         elements_multiline_text_aligned(
@@ -55,7 +53,6 @@ static void dialog_ex_view_draw_callback(Canvas* canvas, void* _model) {
             furi_string_get_cstr(model->header.text));
     }
 
-    // Draw text
     canvas_set_font(canvas, FontSecondary);
     if(furi_string_size(model->text.text)) {
         elements_multiline_text_aligned(
@@ -67,7 +64,6 @@ static void dialog_ex_view_draw_callback(Canvas* canvas, void* _model) {
             furi_string_get_cstr(model->text.text));
     }
 
-    // Draw buttons
     if(furi_string_size(model->left_text)) {
         elements_button_left(canvas, furi_string_get_cstr(model->left_text));
     }

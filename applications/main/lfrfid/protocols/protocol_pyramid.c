@@ -58,7 +58,7 @@ void protocol_pyramid_decoder_start(ProtocolPyramid* protocol) {
 }
 
 static bool protocol_pyramid_can_be_decoded(uint8_t* data) {
-    // check preamble
+
     if(bit_lib_get_bits_16(data, 0, 16) != 0b0000000000000001 ||
        bit_lib_get_bits(data, 16, 8) != 0b00000001) {
         return false;
@@ -78,30 +78,25 @@ static bool protocol_pyramid_can_be_decoded(uint8_t* data) {
     uint8_t calc_checksum = bit_lib_crc8(checksum_data, 13, 0x31, 0x00, true, true, 0x00);
     if(checksum != calc_checksum) return false;
 
-    // Remove parity
     bit_lib_remove_bit_every_nth(data, 8, 15 * 8, 8);
 
-    // Determine Startbit and format
     int j;
     for(j = 0; j < 105; ++j) {
         if(bit_lib_get_bit(data, j)) break;
     }
     uint8_t fmt_len = 105 - j;
 
-    // Only support 26bit format for now
     if(fmt_len != 26) return false;
 
     return true;
 }
 
 static void protocol_pyramid_decode(ProtocolPyramid* protocol) {
-    // Format
+
     bit_lib_set_bits(protocol->data, 0, 26, 8);
 
-    // Facility Code
     bit_lib_copy_bits(protocol->data, 8, 8, protocol->encoded_data, 73 + 8);
 
-    // Card Number
     bit_lib_copy_bits(protocol->data, 16, 16, protocol->encoded_data, 81 + 8);
 }
 
@@ -138,12 +133,12 @@ void protocol_pyramid_add_wiegand_parity(
     uint8_t* source,
     uint8_t length) {
     bit_lib_set_bit(
-        target, target_position, protocol_pyramid_get_parity(source, 0 /* even */, length / 2));
+        target, target_position, protocol_pyramid_get_parity(source, 0 , length / 2));
     bit_lib_copy_bits(target, target_position + 1, length, source, 0);
     bit_lib_set_bit(
         target,
         target_position + length + 1,
-        protocol_pyramid_get_parity(source + length / 2, 1 /* odd */, length / 2));
+        protocol_pyramid_get_parity(source + length / 2, 1 , length / 2));
 }
 
 static void protocol_pyramid_encode(ProtocolPyramid* protocol) {
@@ -152,24 +147,19 @@ static void protocol_pyramid_encode(ProtocolPyramid* protocol) {
     uint8_t pre[16];
     memset(pre, 0, sizeof(pre));
 
-    // Format start bit
     bit_lib_set_bit(pre, 79, 1);
 
     uint8_t wiegand[3];
     memset(wiegand, 0, sizeof(wiegand));
 
-    // FC
     bit_lib_copy_bits(wiegand, 0, 8, protocol->data, 8);
 
-    // CardNum
     bit_lib_copy_bits(wiegand, 8, 16, protocol->data, 16);
 
-    // Wiegand parity
     protocol_pyramid_add_wiegand_parity(pre, 80, wiegand, 24);
 
     bit_lib_add_parity(pre, 8, protocol->encoded_data, 8, 102, 8, 1);
 
-    // Add checksum
     uint8_t checksum_buffer[13];
     for(uint8_t i = 0; i < 13; i++)
         checksum_buffer[i] = bit_lib_get_bits(protocol->encoded_data, 16 + (i * 8), 8);
@@ -190,24 +180,21 @@ LevelDuration protocol_pyramid_encoder_yield(ProtocolPyramid* protocol) {
     bool level = 0;
     uint32_t duration = 0;
 
-    // if pulse is zero, we need to output high, otherwise we need to output low
     if(protocol->encoder.pulse == 0) {
-        // get bit
+
         uint8_t bit = bit_lib_get_bit(protocol->encoded_data, protocol->encoder.encoded_index);
 
-        // get pulse from oscillator
         bool advance = fsk_osc_next(protocol->encoder.fsk_osc, bit, &duration);
 
         if(advance) {
             bit_lib_increment_index(protocol->encoder.encoded_index, PYRAMID_ENCODED_BIT_SIZE);
         }
 
-        // duration diveded by 2 because we need to output high and low
         duration = duration / 2;
         protocol->encoder.pulse = duration;
         level = true;
     } else {
-        // output low half and reset pulse
+
         duration = protocol->encoder.pulse;
         protocol->encoder.pulse = 0;
         level = false;
@@ -220,7 +207,6 @@ bool protocol_pyramid_write_data(ProtocolPyramid* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_pyramid_encode(protocol);
     bit_lib_remove_bit_every_nth(protocol->encoded_data, 8, 15 * 8, 8);
     protocol_pyramid_decode(protocol);

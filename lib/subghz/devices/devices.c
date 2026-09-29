@@ -3,16 +3,6 @@
 #include "registry.h"
 #include <furi.h>
 
-// The registry is a single global (subghz_device_registry in registry.c), and every subghz-
-// touching app calls init()/deinit() around its own lifetime with no coordination between them -
-// including the desktop status-bar's background CC1101/WiFi-icon prober, which briefly opens the
-// registry (subghz_devices_init_internal_only()) on a timer even while no app is running, since
-// that's exactly the condition it waits for. If a new app launches while that background probe is
-// mid-flight, its own init() call hits the furi_check() below with the registry already valid -
-// a hard crash needing a restart, not a graceful wait. This mutex closes that window: instead of
-// racing the check-then-act below, a second caller blocks until the first is done. Lazily
-// allocated and never freed (one small object for the firmware's lifetime) - see the header
-// comment on subghz_devices_init_internal_only() for the split init this all guards.
 static FuriMutex* subghz_devices_mutex = NULL;
 
 static FuriMutex* subghz_devices_get_mutex(void) {
@@ -20,6 +10,10 @@ static FuriMutex* subghz_devices_get_mutex(void) {
         subghz_devices_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     }
     return subghz_devices_mutex;
+}
+
+void subghz_devices_preinit(void) {
+    subghz_devices_get_mutex();
 }
 
 void subghz_devices_init(void) {
@@ -75,7 +69,7 @@ bool subghz_devices_begin(const SubGhzDevice* device) {
     if(device->interconnect->begin) {
         SubGhzDeviceConf conf = {
             .ver = 1,
-            .extended_range = false, // TODO
+            .extended_range = false,
             .amp_and_leds = furi_hal_subghz_get_ext_leds_and_amp(),
         };
 

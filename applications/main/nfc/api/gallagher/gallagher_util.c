@@ -1,16 +1,7 @@
-/* gallagher_util.c - Utilities for parsing Gallagher cards (New Zealand).
- * Author: Nick Mooney (nick@mooney.nz)
- * 
- * Reference: https://github.com/megabug/gallagher-research
-*/
-
 #include "gallagher_util.h"
 
 #define GALLAGHER_CREDENTIAL_SECTOR 15
 
-/* The Gallagher obfuscation algorithm is a 256-byte substitution table. The below array is generated from
- * https://github.com/megabug/gallagher-research/blob/master/formats/cardholder/substitution-table.bin.
-*/
 const uint8_t GALLAGHER_DECODE_TABLE[256] = {
     0x2f, 0x6e, 0xdd, 0xdf, 0x1d, 0xf,  0xb0, 0x76, 0xad, 0xaf, 0x7f, 0xbb, 0x77, 0x85, 0x11,
     0x6d, 0xf4, 0xd2, 0x84, 0x42, 0xeb, 0xf7, 0x34, 0x55, 0x4a, 0x3a, 0x10, 0x71, 0xe7, 0xa1,
@@ -31,13 +22,9 @@ const uint8_t GALLAGHER_DECODE_TABLE[256] = {
     0xbd, 0x9,  0xb5, 0x5b, 0x5,  0x86, 0x13, 0xf3, 0x24, 0xc5, 0x3f, 0x44, 0x72, 0x7c, 0x7e,
     0x36};
 
-// The second block of a Gallagher credential sector is the literal
-// "www.cardax.com  " (note two padding spaces)
 const uint8_t GALLAGHER_CARDAX_ASCII[MF_CLASSIC_BLOCK_SIZE] =
     {'w', 'w', 'w', '.', 'c', 'a', 'r', 'd', 'a', 'x', '.', 'c', 'o', 'm', ' ', ' '};
 
-/* Precondition: cardholder_data_obfuscated points to at least 8 safe-to-read bytes of memory.
-*/
 void gallagher_deobfuscate_and_parse_credential(
     GallagherCredential* credential,
     const uint8_t* cardholder_data_obfuscated) {
@@ -46,7 +33,6 @@ void gallagher_deobfuscate_and_parse_credential(
         cardholder_data_deobfuscated[i] = GALLAGHER_DECODE_TABLE[cardholder_data_obfuscated[i]];
     }
 
-    // Pull out values from the deobfuscated data
     credential->region = (cardholder_data_deobfuscated[3] >> 1) & 0x0F;
     credential->facility = ((uint16_t)(cardholder_data_deobfuscated[5] & 0x0F) << 12) +
                            ((uint16_t)cardholder_data_deobfuscated[1] << 4) +

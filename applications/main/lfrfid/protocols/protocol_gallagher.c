@@ -101,20 +101,16 @@ static void protocol_gallagher_decode(ProtocolGallagher* protocol) {
     bit_lib_remove_bit_every_nth(protocol->encoded_data, 16, 9 * 8, 9);
     protocol_gallagher_descramble(protocol->encoded_data + 2, 8);
 
-    // Region code
     bit_lib_set_bits(protocol->data, 0, (protocol->encoded_data[5] & 0x1E) >> 1, 4);
 
-    // Issue Level
     bit_lib_set_bits(protocol->data, 4, (protocol->encoded_data[9] & 0x0F), 4);
 
-    // Facility Code
     uint32_t fc = (protocol->encoded_data[7] & 0x0F) << 12 | protocol->encoded_data[3] << 4 |
                   ((protocol->encoded_data[9] >> 4) & 0x0F);
     protocol->data[3] = (uint8_t)fc;
     protocol->data[2] = (uint8_t)(fc >>= 8);
     protocol->data[1] = (uint8_t)(fc >>= 8);
 
-    // Card Number
     uint32_t card = protocol->encoded_data[2] << 16 | (protocol->encoded_data[6] & 0x1F) << 11 |
                     protocol->encoded_data[4] << 3 | (protocol->encoded_data[5] & 0xE0) >> 5;
     protocol->data[7] = (uint8_t)card;
@@ -124,22 +120,20 @@ static void protocol_gallagher_decode(ProtocolGallagher* protocol) {
 }
 
 static bool protocol_gallagher_can_be_decoded(ProtocolGallagher* protocol) {
-    // check 16 bits preamble
+
     if(bit_lib_get_bits_16(protocol->encoded_data, 0, 16) != 0b0111111111101010) return false;
 
-    // check next 16 bits preamble
     if(bit_lib_get_bits_16(protocol->encoded_data, 96, 16) != 0b0111111111101010) return false;
 
     uint8_t checksum_arr[8] = {0};
     for(int i = 0, pos = 0; i < 8; i++) {
-        // Following the preamble, every 9th bit is a checksum-bit for the preceding byte
+
         pos = 16 + (9 * i);
         checksum_arr[i] = bit_lib_get_bits(protocol->encoded_data, pos, 8);
     }
     uint8_t crc = bit_lib_get_bits(protocol->encoded_data, 16 + (9 * 8), 8);
     uint8_t calc_crc = bit_lib_crc8(checksum_arr, 8, 0x7, 0x2c, false, false, 0x00);
 
-    // crc
     if(crc != calc_crc) return false;
 
     return true;
@@ -192,7 +186,7 @@ bool protocol_gallagher_decoder_feed(ProtocolGallagher* protocol, bool level, ui
 }
 
 bool protocol_gallagher_encoder_start(ProtocolGallagher* protocol) {
-    // Preamble
+
     bit_lib_set_bits(protocol->encoded_data, 0, 0b01111111, 8);
     bit_lib_set_bits(protocol->encoded_data, 8, 0b11101010, 8);
 
@@ -211,18 +205,15 @@ bool protocol_gallagher_encoder_start(ProtocolGallagher* protocol) {
     payload[6] = 0;
     payload[7] = (fc & 0xf) << 4 | (il & 0xf);
 
-    // Gallagher scramble
     protocol_gallagher_scramble(payload, 8);
 
     for(int i = 0; i < 8; i++) {
-        // data byte
+
         bit_lib_set_bits(protocol->encoded_data, 16 + (i * 9), payload[i], 8);
 
-        // every byte is followed by a bit which is the inverse of the last bit
         bit_lib_set_bit(protocol->encoded_data, 16 + (i * 9) + 8, !(payload[i] & 0x1));
     }
 
-    // checksum
     uint8_t crc = bit_lib_crc8(payload, 8, 0x7, 0x2c, false, false, 0x00);
     bit_lib_set_bits(protocol->encoded_data, 16 + (9 * 8), crc, 8);
 
@@ -249,7 +240,6 @@ bool protocol_gallagher_write_data(ProtocolGallagher* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_gallagher_encoder_start(protocol);
     protocol_gallagher_decode(protocol);
 

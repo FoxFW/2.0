@@ -21,9 +21,7 @@ static void progress_draw_cb(Canvas* canvas, void* model) {
 static bool progress_input_cb(InputEvent* event, void* context) {
     UNUSED(context);
     UNUSED(event);
-    /* the send/receive exchange runs synchronously on the same task that
-     * drives input, so there's nothing to route here - block all input
-     * while the request is in flight. */
+
     return true;
 }
 

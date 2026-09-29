@@ -49,12 +49,12 @@ static void lfrfid_cli_read(PipeSide* pipe, FuriString* args) {
     if(args_read_string_and_trim(args, type_string)) {
         if(furi_string_cmp_str(type_string, "normal") == 0 ||
            furi_string_cmp_str(type_string, "ask") == 0) {
-            // ask
+
             type = LFRFIDWorkerReadTypeASKOnly;
         } else if(
             furi_string_cmp_str(type_string, "indala") == 0 ||
             furi_string_cmp_str(type_string, "psk") == 0) {
-            // psk
+
             type = LFRFIDWorkerReadTypePSKOnly;
         } else {
             lfrfid_cli_print_usage();
@@ -131,14 +131,13 @@ static bool lfrfid_cli_parse_args(FuriString* args, ProtocolDict* dict, Protocol
     uint8_t* data = malloc(data_size);
 
     do {
-        // load args
+
         if(!args_read_string_and_trim(args, protocol_name) ||
            !args_read_string_and_trim(args, data_text)) {
             lfrfid_cli_print_usage();
             break;
         }
 
-        // check protocol arg
         *protocol = protocol_dict_get_protocol_by_name(dict, furi_string_get_cstr(protocol_name));
         if(*protocol == PROTOCOL_NO) {
             printf(
@@ -157,7 +156,6 @@ static bool lfrfid_cli_parse_args(FuriString* args, ProtocolDict* dict, Protocol
 
         data_size = protocol_dict_get_data_size(dict, *protocol);
 
-        // check data arg
         if(!args_read_hex_bytes(data_text, data, data_size)) {
             printf(
                 "%s data needs to be %zu bytes long\r\n",
@@ -166,7 +164,6 @@ static bool lfrfid_cli_parse_args(FuriString* args, ProtocolDict* dict, Protocol
             break;
         }
 
-        // load data to protocol
         protocol_dict_set_data(dict, *protocol, data, data_size);
 
         result = true;
@@ -330,7 +327,7 @@ static void lfrfid_cli_raw_analyze(PipeSide* pipe, FuriString* args) {
                 total_pulse += pulse;
                 total_duration += duration;
 
-                if(total_protocol != PROTOCOL_NO) { //-V1051
+                if(total_protocol != PROTOCOL_NO) {
                     break;
                 }
             } else {
@@ -394,12 +391,12 @@ static void lfrfid_cli_raw_read(PipeSide* pipe, FuriString* args) {
         if(args_read_string_and_trim(args, type_string)) {
             if(furi_string_cmp_str(type_string, "normal") == 0 ||
                furi_string_cmp_str(type_string, "ask") == 0) {
-                // ask
+
                 type = LFRFIDWorkerReadTypeASKOnly;
             } else if(
                 furi_string_cmp_str(type_string, "indala") == 0 ||
                 furi_string_cmp_str(type_string, "psk") == 0) {
-                // psk
+
                 type = LFRFIDWorkerReadTypePSKOnly;
             } else {
                 lfrfid_cli_print_usage();

@@ -55,7 +55,7 @@ void protocol_keri_decoder_start(ProtocolKeri* protocol) {
 }
 
 static bool protocol_keri_check_preamble(uint8_t* data, size_t bit_index) {
-    // Preamble 11100000 00000000 00000000 00000000 1
+
     if(*(uint32_t*)&data[bit_index / 8] != 0b00000000000000000000000011100000) return false;
     if(bit_lib_get_bit(data, bit_index + 32) != 1) return false;
     return true;
@@ -64,8 +64,7 @@ static bool protocol_keri_check_preamble(uint8_t* data, size_t bit_index) {
 static bool protocol_keri_can_be_decoded(uint8_t* data) {
     if(!protocol_keri_check_preamble(data, 0)) return false;
     if(!protocol_keri_check_preamble(data, 64)) return false;
-    ///if(bit_lib_get_bit(data, 61) != 0) return false;
-    //if(bit_lib_get_bit(data, 60) != 0) return false;
+
     return true;
 }
 
@@ -101,11 +100,11 @@ static void protocol_keri_descramble(uint32_t* fc, uint32_t* cn, uint32_t* inter
     *cn = 0;
     for(uint8_t card_idx = 0; card_idx < 32; card_idx++) {
         bool bit = (*internal_id >> card_idx) & 1;
-        // Card ID
+
         if(card_to_id[card_idx] < 32) {
             *cn = *cn | (bit << card_to_id[card_idx]);
         }
-        // Card FC
+
         if(card_to_fc[card_idx] < 32) {
             *fc = *fc | (bit << card_to_fc[card_idx]);
         }
@@ -138,7 +137,7 @@ bool protocol_keri_decoder_feed(ProtocolKeri* protocol, bool level, uint32_t dur
     }
 
     if(duration > (KERI_US_PER_BIT / 4)) {
-        // Try to decode wrong phase synced data
+
         if(level) {
             duration += 120;
         } else {
@@ -252,7 +251,6 @@ bool protocol_keri_write_data(ProtocolKeri* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Start bit should be always set
     protocol->data[0] |= (1 << 7);
     protocol_keri_encoder_start(protocol);
 

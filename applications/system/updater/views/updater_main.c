@@ -214,8 +214,11 @@ static void updater_main_draw_callback(Canvas* canvas, void* _model) {
         canvas_set_font(canvas, FontSecondary);
         canvas_draw_str_aligned(canvas, text_center_x, 29, AlignCenter, AlignTop, tag_part);
 
-        // Same overall progress number the bar below already shows, e.g.
+        // Same progress number the bar below already shows, e.g.
         // "Extracting resources 34%" - matches Momentum's updater style.
+        // This is always the current stage's own percentage (0-100 within
+        // whatever step is running now), not overall install progress -
+        // see update_task_set_progress()'s own comment for why.
         char status_line[48];
         snprintf(
             status_line,

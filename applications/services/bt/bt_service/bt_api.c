@@ -6,7 +6,6 @@ FuriHalBleProfileBase* bt_profile_start(
     FuriHalBleProfileParams params) {
     furi_check(bt);
 
-    // Send message
     FuriHalBleProfileBase* profile_instance = NULL;
 
     BtMessage message = {
@@ -18,7 +17,7 @@ FuriHalBleProfileBase* bt_profile_start(
     };
     furi_check(
         furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) == FuriStatusOk);
-    // Wait for unlock
+
     api_lock_wait_unlock_and_free(message.lock);
 
     bt->current_profile = profile_instance;
@@ -33,11 +32,10 @@ bool bt_profile_restore_default(Bt* bt) {
 void bt_disconnect(Bt* bt) {
     furi_check(bt);
 
-    // Send message
     BtMessage message = {.lock = api_lock_alloc_locked(), .type = BtMessageTypeDisconnect};
     furi_check(
         furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) == FuriStatusOk);
-    // Wait for unlock
+
     api_lock_wait_unlock_and_free(message.lock);
 }
 
@@ -76,10 +74,6 @@ void bt_keys_storage_set_default_path(Bt* bt) {
 
     bt_keys_storage_set_file_path(bt->keys_storage, BT_KEYS_STORAGE_PATH);
 }
-
-/*
- * Private API for the Settings app
- */
 
 void bt_get_settings(Bt* bt, BtSettings* settings) {
     furi_assert(bt);

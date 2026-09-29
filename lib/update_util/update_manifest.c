@@ -71,7 +71,7 @@ static bool
     furi_string_free(filetype);
 
     if(update_manifest->valid) {
-        /* Optional fields - we can have dfu, radio, resources, or any combination */
+
         flipper_format_read_string(
             flipper_file, MANIFEST_KEY_DFU_FILE, update_manifest->firmware_dfu_image);
         flipper_format_read_string(
@@ -122,7 +122,6 @@ static bool
     return update_manifest->valid;
 }
 
-// Verifies that mask values are same for adjacent words (value & inverted)
 static bool ob_data_check_mask_valid(const FuriHalFlashRawOptionByteData* mask) {
     bool mask_valid = true;
     for(size_t idx = 0; mask_valid && (idx < FURI_HAL_FLASH_OB_TOTAL_VALUES); ++idx) {
@@ -131,7 +130,6 @@ static bool ob_data_check_mask_valid(const FuriHalFlashRawOptionByteData* mask) 
     return mask_valid;
 }
 
-// Verifies that all reference values have no unmasked bits
 static bool ob_data_check_masked_values_valid(
     const FuriHalFlashRawOptionByteData* data,
     const FuriHalFlashRawOptionByteData* mask) {
@@ -144,11 +142,11 @@ static bool ob_data_check_masked_values_valid(
 
 bool update_manifest_has_obdata(UpdateManifest* update_manifest) {
     bool ob_data_valid = false;
-    // do we have at least 1 value?
+
     for(size_t idx = 0; !ob_data_valid && (idx < FURI_HAL_FLASH_OB_RAW_SIZE_BYTES); ++idx) {
         ob_data_valid |= update_manifest->ob_reference.bytes[idx] != 0;
     }
-    // sanity checks
+
     ob_data_valid &= ob_data_check_mask_valid(&update_manifest->ob_write_mask);
     ob_data_valid &= ob_data_check_mask_valid(&update_manifest->ob_compare_mask);
     ob_data_valid &= ob_data_check_masked_values_valid(

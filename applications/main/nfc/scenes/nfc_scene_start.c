@@ -1,5 +1,4 @@
 #include "../nfc_app_i.h"
-#include <dolphin/dolphin.h>
 
 enum SubmenuIndex {
     SubmenuIndexRead,
@@ -21,10 +20,6 @@ void nfc_scene_start_on_enter(void* context) {
     NfcApp* nfc = context;
     Submenu* submenu = nfc->submenu;
 
-    /* Dismiss the startup loading wheel now that the start menu is ready
-     * to display. NFC's own viewport already took over on top of it the
-     * moment view_dispatcher_attach_to_gui() ran in nfc_app(); this just
-     * frees the now-hidden wheel's resources. */
     if(nfc->startup_holder) {
         view_holder_set_view(nfc->startup_holder, NULL);
         view_holder_free(nfc->startup_holder);
@@ -35,11 +30,10 @@ void nfc_scene_start_on_enter(void* context) {
         nfc->startup_loading = NULL;
     }
 
-    // Clear file name and device contents
     furi_string_reset(nfc->file_name);
     nfc_device_clear(nfc->nfc_device);
     iso14443_3a_reset(nfc->iso14443_3a_edit_data);
-    // Reset detected protocols list
+
     nfc_detected_protocols_reset(nfc->detected_protocols);
 
     submenu_add_item(submenu, "Read", SubmenuIndexRead, nfc_scene_start_submenu_callback, nfc);
@@ -75,7 +69,6 @@ bool nfc_scene_start_on_event(void* context, SceneManagerEvent event) {
         consumed = true;
         if(event.event == SubmenuIndexRead) {
             scene_manager_next_scene(nfc->scene_manager, NfcSceneDetect);
-            dolphin_deed(DolphinDeedNfcRead);
         } else if(event.event == SubmenuIndexDetectReader) {
             scene_manager_next_scene(nfc->scene_manager, NfcSceneMfClassicDetectReader);
         } else if(event.event == SubmenuIndexSaved) {

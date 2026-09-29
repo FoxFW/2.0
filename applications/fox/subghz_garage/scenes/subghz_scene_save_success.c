@@ -9,10 +9,9 @@ void subghz_scene_save_success_popup_callback(void* context) {
 void subghz_scene_save_success_on_enter(void* context) {
     SubGhz* subghz = context;
 
-    // Setup view
     subghz_ensure_popup(subghz);
     Popup* popup = subghz->popup;
-    // [NO_DOLPHIN] popup_set_icon(popup, 36, 5, &I_DolphinSaved_92x58);
+
     popup_set_header(popup, "Saved", 15, 19, AlignLeft, AlignBottom);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, subghz);
@@ -69,7 +68,6 @@ bool subghz_scene_save_success_on_event(void* context, SceneManagerEvent event) 
 void subghz_scene_save_success_on_exit(void* context) {
     SubGhz* subghz = context;
 
-    // Clear view
     Popup* popup = subghz->popup;
 
     popup_reset(popup);

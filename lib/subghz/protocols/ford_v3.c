@@ -544,26 +544,6 @@ void subghz_protocol_decoder_ford_v3_get_string(void* context, FuriString* outpu
         k[12]);
 }
 
-// =============================================================================
-// ENCODER
-//
-// Added on top of ARF's decode-only Ford V3 implementation so FoxFW keeps
-// TX/replay capability. This transmits the exact 104-bit EU-format frame
-// stored in "Raw" (either just-decoded, or loaded from a saved .sub file),
-// Manchester-encoded at the same 240/480us timing the decoder above expects.
-//
-// This is a signal REPLAY, not fresh rolling-code generation: the US "cell"
-// variant carries a proprietary rolling-code payload in bytes 9-12 that
-// hasn't been reverse-engineered upstream (ARF's own decoder never
-// interprets those bytes either), so there is no known algorithm to
-// regenerate a new valid code from a serial/counter/button alone. Loading a
-// previously captured/saved signal and sending it back is what "Send"
-// commonly means for rolling-code automotive protocols in this codebase
-// anyway; it is unlikely to unlock a car, but the previous FoxFW Ford V3
-// (different bit length and timing entirely) offered the same replay-level
-// capability without matching real hardware for detection either.
-// =============================================================================
-
 #define FORD_V3_ENC_TE_SHORT           240U
 #define FORD_V3_ENC_PREAMBLE_PAIRS     40U
 #define FORD_V3_ENC_BURST_COUNT        6U

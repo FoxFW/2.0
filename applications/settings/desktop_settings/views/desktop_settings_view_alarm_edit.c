@@ -5,8 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// Field order for Left/Right cursor navigation. Day cells are skipped during
-// navigation whenever the alarm isn't recurring (nothing to edit there).
 typedef enum {
     FieldHour = 0,
     FieldMinute,
@@ -71,7 +69,7 @@ static void change_field(AlarmEditModel* model, int8_t dir) {
     } else if(model->field >= FieldDaySun && model->field <= FieldDaySat) {
         a->days_mask ^= day_bit[model->field - FieldDaySun];
     }
-    // FieldDelete: value change is a no-op, deletion is a dedicated long-OK gesture.
+
 }
 
 static void draw_box_field(
@@ -120,11 +118,6 @@ static void desktop_settings_view_alarm_edit_draw_callback(Canvas* canvas, void*
         if(display_hour == 0) display_hour = 12;
     }
 
-    // Layout budget (canvas is 128x64, rows 0-63): every selectable
-    // draw_box_field() cell grows by 1px on each side when selected (the
-    // cursor outline), so rows are spaced to leave room for that growth as
-    // well as the cell itself - otherwise adjacent rows bleed into each
-    // other when a field on either side is selected.
     canvas_set_font(canvas, FontBigNumbers);
     snprintf(buf, sizeof(buf), "%02u", display_hour);
     draw_box_field(canvas, 22, 11, 30, 17, model->field == FieldHour, true, buf);

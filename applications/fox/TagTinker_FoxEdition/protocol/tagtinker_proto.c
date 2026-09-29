@@ -1,7 +1,3 @@
-/*
- * ESL protocol helpers.
- */
-
 #include "tagtinker_proto.h"
 #include "../tagtinker_app.h"
 #include <string.h>
@@ -108,9 +104,9 @@ bool tagtinker_barcode_to_plid(const char* barcode, uint8_t plid[4]) {
     uint64_t a = 0, b = 0;
     for(int i = 2; i < 7; i++)  a = a * 10 + (barcode[i] - '0');
     for(int i = 7; i < 12; i++) b = b * 10 + (barcode[i] - '0');
-    
+
     uint64_t id = (a << 16) | b;
-    plid[0] = id & 0xFF; // LSB first
+    plid[0] = id & 0xFF;
     plid[1] = (id >> 8)  & 0xFF;
     plid[2] = (id >> 16) & 0xFF;
     plid[3] = (id >> 24) & 0xFF;
@@ -257,7 +253,7 @@ bool tagtinker_encode_planes_payload(
     memset(payload, 0, sizeof(*payload));
     size_t total = p2 ? (count * 2U) : count;
     size_t comp_len = tagtinker_rle_planes_bit_length(p1, p2, count);
-    bool use_compressed = (mode == TagTinkerCompressionRle) || 
+    bool use_compressed = (mode == TagTinkerCompressionRle) ||
                          (mode == TagTinkerCompressionAuto && comp_len > 0U && comp_len < total);
     size_t src_len = use_compressed ? comp_len : total;
     size_t padded_bits = src_len + ((DATA_BITS_PER_FRAME - (src_len % DATA_BITS_PER_FRAME)) % DATA_BITS_PER_FRAME);

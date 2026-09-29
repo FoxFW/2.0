@@ -32,7 +32,7 @@ static const FuriLogLevelDescription FURI_LOG_LEVEL_DESCRIPTIONS[] = {
 };
 
 void furi_log_init(void) {
-    // Set default logging parameters
+
     furi_log.log_level = FURI_LOG_LEVEL_DEFAULT;
     furi_log.mutex = furi_mutex_alloc(FuriMutexTypeRecursive);
     FuriLogHandlersList_init(furi_log.tx_handlers);
@@ -147,7 +147,6 @@ void furi_log_print_format(FuriLogLevel level, const char* tag, const char* form
             break;
         }
 
-        // Timestamp
         furi_string_printf(
             string, "%lu %s[%s][%s] " _FURI_LOG_CLR_RESET, furi_get_tick(), color, log_letter, tag);
         furi_log_puts(furi_string_get_cstr(string));

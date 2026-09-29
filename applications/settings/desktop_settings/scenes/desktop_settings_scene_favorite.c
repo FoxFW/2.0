@@ -5,13 +5,6 @@
 #include <dialogs/dialogs.h>
 #include <assets_icons.h>
 
-/* NOTE: <flipper_application/flipper_application.h> removed.
- * flipper_application_load_name_and_icon() is from the flipper_application
- * library whose SDK export status we cannot verify without its application.fam.
- * The file browser for selecting favorite apps still works — icons just won't
- * be loaded from FAP metadata (item_loader_callback returns false). */
-
-// FIXED: Stubbed counts to 0 since external apps cannot index internal arrays
 #define APPS_COUNT (0)
 
 #define DEFAULT_INDEX         (0)
@@ -28,7 +21,6 @@
 
 #define PRESELECTED_SPECIAL 0xffffffff
 
-// FIXED: Removed unexported array lookups
 static const char* favorite_fap_get_app_name(size_t i) {
     UNUSED(i);
     return NULL;
@@ -39,9 +31,7 @@ static bool favorite_fap_selector_item_callback(
     void* context,
     uint8_t** icon_ptr,
     FuriString* item_name) {
-    /* flipper_application_load_name_and_icon() removed — uncertain API export.
-     * Return false so the file browser shows items without FAP metadata icons.
-     * The browser still functions; selection and path capture work normally. */
+
     UNUSED(file_path);
     UNUSED(context);
     UNUSED(icon_ptr);
@@ -93,9 +83,6 @@ void desktop_settings_scene_favorite_on_enter(void* context) {
         EXTERNAL_APPLICATION_INDEX,
         desktop_settings_scene_favorite_submenu_callback,
         app);
-
-    // FIXED: The broken for() loop has been entirely removed here. 
-    // This stops the Werror type-limits check and satisfies the compiler!
 
     if(pre_select_item == PRESELECTED_SPECIAL) {
         if(curr_favorite_app->name_or_path[0] == '\0') {
@@ -149,7 +136,7 @@ bool desktop_settings_scene_favorite_on_event(void* context, SceneManagerEvent e
             }
 
             if(dialog_file_browser_show(app->dialogs, temp_path, temp_path, &browser_options)) {
-                submenu_reset(app->submenu); 
+                submenu_reset(app->submenu);
                 strlcpy(
                     curr_favorite_app->name_or_path,
                     furi_string_get_cstr(temp_path),

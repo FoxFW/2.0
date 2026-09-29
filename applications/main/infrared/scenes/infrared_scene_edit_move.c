@@ -47,7 +47,7 @@ bool infrared_scene_edit_move_on_event(void* context, SceneManagerEvent event) {
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == InfraredCustomEventTypeButtonSelected) {
-            // Move the button in a separate thread
+
             infrared_blocking_task_start(infrared, infrared_scene_edit_move_task_callback);
 
         } else if(event.event == InfraredCustomEventTypeTaskFinished) {

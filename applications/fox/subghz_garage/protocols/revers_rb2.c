@@ -161,7 +161,7 @@ static void
     instance->encoder.size_upload = index;
 }
 
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static void subghz_protocol_revers_rb2_remote_controller(SubGhzBlockGeneric* instance) {
     instance->serial = (((instance->data << 16) >> 16) >> 10);
@@ -215,7 +215,7 @@ LevelDuration subghz_protocol_encoder_revers_rb2_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_revers_rb2_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

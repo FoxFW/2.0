@@ -20,10 +20,6 @@ typedef struct {
     TPMSField selected;
 } TPMSReceiverInfoModel;
 
-// Approximate highlight regions for the four editable fields - matches the
-// existing draw layout below (ID line, Battery corner, Temp/Pressure inside
-// the bordered box). Not pixel-tight to the text, just enough to show which
-// field Up/Down has selected, same approach subghz_view_tpms_info.c uses.
 static const struct {
     uint8_t x, y, w, h;
 } tpms_field_boxes[TPMSFieldCount] = {
@@ -93,13 +89,9 @@ void tpms_view_receiver_info_draw(Canvas* canvas, TPMSReceiverInfoModel* model) 
         canvas_draw_str_aligned(canvas, 126, 17, AlignRight, AlignCenter, buffer);
     }
 
-    // snprintf(buffer, sizeof(buffer), "Data: 0x%llX", model->generic->data);
-    // canvas_draw_str(canvas, 0, 32, buffer);
-
     elements_bold_rounded_frame(canvas, 0, 38, 127, 25);
     canvas_set_font(canvas, FontPrimary);
 
-    // Temperature
     canvas_draw_icon(canvas, 6, 43, &I_Therm_7x16);
 
     uint8_t temp_x1 = 0;
@@ -131,7 +123,6 @@ void tpms_view_receiver_info_draw(Canvas* canvas, TPMSReceiverInfoModel* model) 
     canvas_draw_str_aligned(canvas, temp_x1, 47, AlignRight, AlignTop, buffer);
     canvas_draw_circle(canvas, temp_x2, 46, 1);
 
-    // Pressure
     canvas_draw_icon(canvas, 46, 43, &I_Press_7x16);
     snprintf(buffer, sizeof(buffer), "%2.1fbar", (double)model->generic->pressure);
     canvas_draw_str(canvas, 56, 55, buffer);
@@ -166,7 +157,6 @@ void tpms_view_receiver_info_draw(Canvas* canvas, TPMSReceiverInfoModel* model) 
         }
     }
 
-    // Highlight the selected editable field
     if(model->selected < TPMSFieldCount) {
         const uint8_t x = tpms_field_boxes[model->selected].x;
         const uint8_t y = tpms_field_boxes[model->selected].y;
@@ -251,7 +241,7 @@ static void tpms_view_receiver_info_exit(void* context) {
 
 static void tpms_view_receiver_info_timer(void* context) {
     TPMSReceiverInfo* tpms_receiver_info = context;
-    // Force redraw
+
     with_view_model(
         tpms_receiver_info->view,
         TPMSReceiverInfoModel * model,
@@ -266,7 +256,6 @@ static void tpms_view_receiver_info_timer(void* context) {
 TPMSReceiverInfo* tpms_view_receiver_info_alloc() {
     TPMSReceiverInfo* tpms_receiver_info = malloc(sizeof(TPMSReceiverInfo));
 
-    // View allocation and configuration
     tpms_receiver_info->view = view_alloc();
 
     view_allocate_model(

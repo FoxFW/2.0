@@ -1,7 +1,6 @@
 #pragma once
 #include <gui/view.h>
 
-/* Button index constants — used by scene to control visibility */
 #define SGRID_IDX_READ          0
 #define SGRID_IDX_SAVED         1
 #define SGRID_IDX_READRAW       2
@@ -9,8 +8,6 @@
 #define SGRID_IDX_MODANA        4
 #define SGRID_IDX_PROTOCOLS     5
 #define SGRID_BTN_COUNT         6
-
-
 
 #ifdef __cplusplus
 extern "C" {

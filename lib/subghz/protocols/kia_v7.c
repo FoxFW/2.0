@@ -1,4 +1,5 @@
 #include "kia_v7.h"
+#include "../blocks/custom_btn_i.h"
 #include <string.h>
 
 #define KIA_V7_UPLOAD_CAPACITY    0x3A4
@@ -379,6 +380,10 @@ SubGhzProtocolStatus
         instance->generic.cnt &= 0xFFFFU;
         instance->generic.serial &= 0x0FFFFFFFU;
 
+        uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
+        if(mult == 0U) mult = 1U;
+        instance->generic.cnt = (instance->generic.cnt + mult) & 0xFFFFU;
+
         instance->generic.data = kia_v7_encode_key(
             instance->fixed_high_byte,
             instance->generic.serial,
@@ -407,6 +412,10 @@ SubGhzProtocolStatus
         if(!flipper_format_update_hex(flipper_format, "Key", key_data, sizeof(key_data))) {
             break;
         }
+
+        flipper_format_rewind(flipper_format);
+        uint32_t cnt_store = instance->generic.cnt;
+        flipper_format_insert_or_update_uint32(flipper_format, "Cnt", &cnt_store, 1);
 
         instance->encoder.is_running = true;
         ret = SubGhzProtocolStatusOk;
@@ -603,6 +612,24 @@ void kia_protocol_decoder_v7_get_string(void* context, FuriString* output) {
     SubGhzProtocolDecoderKiaV7* instance = context;
     kia_v7_decode_key_decoder(instance);
 
+    subghz_custom_btn_set_max(4);
+    uint8_t display_btn = (uint8_t)(instance->decoded_button & 0x0FU);
+    switch(subghz_custom_btn_get()) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        display_btn = 0x01U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        display_btn = 0x02U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_LEFT:
+        display_btn = 0x03U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_OK:
+    case SUBGHZ_CUSTOM_BTN_RIGHT:
+    default:
+        break;
+    }
+
     furi_string_cat_printf(
         output,
         "%s %dbit\r\n"
@@ -614,8 +641,8 @@ void kia_protocol_decoder_v7_get_string(void* context, FuriString* output) {
         instance->generic.data,
         instance->generic.serial & 0x0FFFFFFFU,
         instance->generic.cnt & 0xFFFFU,
-        instance->decoded_button & 0x0FU,
-        kia_v7_get_button_name(instance->decoded_button),
+        display_btn,
+        kia_v7_get_button_name(display_btn),
         instance->crc_calculated,
         instance->crc_valid ? "OK" : "ERR");
 }

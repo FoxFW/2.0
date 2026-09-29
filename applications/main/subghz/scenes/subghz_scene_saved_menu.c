@@ -1,4 +1,4 @@
-#include "../subghz_i.h" // IWYU pragma: keep
+#include "../subghz_i.h"
 #include <lib/subghz/protocols/base.h>
 #include <lib/subghz/protocols/fiat_v1.h>
 
@@ -9,7 +9,8 @@ enum SubmenuIndex {
     SubmenuIndexEdit,
     SubmenuIndexDelete,
     SubmenuIndexSignalSettings,
-    SubmenuIndexCounterBf
+    SubmenuIndexCounterBf,
+    SubmenuIndexSeedBf
 };
 
 void subghz_scene_saved_menu_submenu_callback(void* context, uint32_t index) {
@@ -23,6 +24,7 @@ void subghz_scene_saved_menu_on_enter(void* context) {
     FlipperFormat* fff = subghz_txrx_get_fff_data(subghz->txrx);
     bool is_psa_encrypted = false;
     bool has_counter = false;
+    bool is_renault_seed_candidate = false;
     if(fff) {
         FuriString* proto = furi_string_alloc();
         flipper_format_rewind(fff);
@@ -35,6 +37,14 @@ void subghz_scene_saved_menu_on_enter(void* context) {
                     is_psa_encrypted = true;
                 }
                 furi_string_free(type_str);
+            } else if(furi_string_equal_str(proto, "Renault V1")) {
+
+                uint8_t recovered_hex = 0;
+                flipper_format_rewind(fff);
+                if(!flipper_format_read_hex(fff, "Recovered", &recovered_hex, 1) ||
+                   recovered_hex != 1U) {
+                    is_renault_seed_candidate = true;
+                }
             }
         }
         furi_string_free(proto);
@@ -105,6 +115,15 @@ void subghz_scene_saved_menu_on_enter(void* context) {
             subghz);
     }
 
+    if(is_renault_seed_candidate) {
+        submenu_add_item(
+            subghz->submenu,
+            "Seed BF",
+            SubmenuIndexSeedBf,
+            subghz_scene_saved_menu_submenu_callback,
+            subghz);
+    }
+
     submenu_set_selected_item(
         subghz->submenu,
         scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneSavedMenu));
@@ -119,8 +138,7 @@ bool subghz_scene_saved_menu_on_event(void* context, SceneManagerEvent event) {
         if(event.event == SubmenuIndexEmulate) {
             scene_manager_set_scene_state(
                 subghz->scene_manager, SubGhzSceneSavedMenu, SubmenuIndexEmulate);
-            /* Fiat V1 needs a Hitag2 key to transmit; prompt for it first if
-             * the loaded file doesn't already have one saved. */
+
             FlipperFormat* fff = subghz_txrx_get_fff_data(subghz->txrx);
             bool needs_fiat_v1_key = false;
             if(fff) {
@@ -140,8 +158,7 @@ bool subghz_scene_saved_menu_on_event(void* context, SceneManagerEvent event) {
                 needs_fiat_v1_key ? SubGhzSceneFiatV1KeyMethod : SubGhzSceneTransmitter);
             return true;
         } else if(event.event == SubmenuIndexDetails) {
-            /* Decode the signal and show all fields in the Details scene
-             * (scrollable Widget view — no timeout, proper Back navigation). */
+
             scene_manager_set_scene_state(
                 subghz->scene_manager, SubGhzSceneSavedMenu, SubmenuIndexDetails);
             SubGhzProtocolDecoderBase* dec = subghz_txrx_get_decoder(subghz->txrx);
@@ -184,6 +201,12 @@ bool subghz_scene_saved_menu_on_event(void* context, SceneManagerEvent event) {
             scene_manager_set_scene_state(
                 subghz->scene_manager, SubGhzSceneSavedMenu, SubmenuIndexCounterBf);
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneCounterBf);
+            return true;
+        } else if(event.event == SubmenuIndexSeedBf) {
+
+            scene_manager_set_scene_state(
+                subghz->scene_manager, SubGhzSceneSavedMenu, SubmenuIndexSeedBf);
+            scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSeedBf);
             return true;
         }
     }

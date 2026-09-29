@@ -45,8 +45,6 @@ typedef struct {
     Iso14443_4aAtsData ats_data;
 } Iso14443_4aData;
 
-// Virtual methods
-
 Iso14443_4aData* iso14443_4a_alloc(void);
 
 void iso14443_4a_free(Iso14443_4aData* data);
@@ -70,8 +68,6 @@ const uint8_t* iso14443_4a_get_uid(const Iso14443_4aData* data, size_t* uid_len)
 bool iso14443_4a_set_uid(Iso14443_4aData* data, const uint8_t* uid, size_t uid_len);
 
 Iso14443_3aData* iso14443_4a_get_base_data(const Iso14443_4aData* data);
-
-// Getters & Tests
 
 uint16_t iso14443_4a_get_frame_size_max(const Iso14443_4aData* data);
 

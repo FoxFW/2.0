@@ -1,4 +1,5 @@
 #include "infrared_worker.h"
+#include <core/kernel.h>
 
 #include <furi_hal_infrared.h>
 #include <float_tools.h>
@@ -41,7 +42,7 @@ struct InfraredWorkerSignal {
     union {
         InfraredMessage message;
         struct {
-            /* +1 is for pause we add at the beginning */
+
             uint32_t timings[MAX_TIMINGS_AMOUNT + 1];
             uint32_t frequency;
             float duty_cycle;
@@ -144,7 +145,7 @@ static void
             instance->rx.received_signal_callback(
                 instance->rx.received_signal_context, &instance->signal);
     } else {
-        /* Skip first timing if it starts from Space */
+
         if((instance->signal.timings_cnt == 0) && !level) {
             return;
         }
@@ -169,7 +170,7 @@ static int32_t infrared_worker_rx_thread(void* thread_context) {
 
     while(1) {
         events = furi_thread_flags_wait(INFRARED_WORKER_ALL_RX_EVENTS, 0, FuriWaitForever);
-        furi_check(events & INFRARED_WORKER_ALL_RX_EVENTS); /* at least one caught */
+        furi_check(events & INFRARED_WORKER_ALL_RX_EVENTS);
 
         if(events & INFRARED_WORKER_RX_RECEIVED) {
             if(!instance->rx.overrun && instance->blink_enable &&
@@ -249,10 +250,12 @@ void infrared_worker_free(InfraredWorker* instance) {
     furi_record_close(RECORD_NOTIFICATION);
     infrared_free_decoder(instance->infrared_decoder);
     infrared_free_encoder(instance->infrared_encoder);
+
+    furi_kernel_lock();
     furi_stream_buffer_free(instance->stream);
     furi_thread_free(instance->thread);
-
     free(instance);
+    furi_kernel_unlock();
 }
 
 void infrared_worker_rx_start(InfraredWorker* instance) {
@@ -331,7 +334,6 @@ void infrared_worker_tx_start(InfraredWorker* instance) {
     furi_check(instance->state == InfraredWorkerStateIdle);
     furi_check(instance->tx.get_signal_callback);
 
-    // size have to be greater than api hal infrared async tx buffer size
     furi_stream_set_trigger_level(instance->stream, sizeof(InfraredWorkerTiming));
 
     furi_thread_set_callback(instance->thread, infrared_worker_tx_thread);
@@ -370,7 +372,7 @@ static FuriHalInfraredTxGetDataState
         *duration = timing.duration;
         state = timing.state;
     } else {
-        // Why bother if we crash anyway?..
+
         *level = 0;
         *duration = 100;
         state = FuriHalInfraredTxGetDataStateDone;
@@ -414,7 +416,7 @@ static bool infrared_get_new_signal(InfraredWorker* instance) {
         new_signal_obtained = true;
     } else if(response == InfraredWorkerGetSignalResponseSame) {
         new_signal_obtained = true;
-        /* no need to reinit */
+
     } else if(response == InfraredWorkerGetSignalResponseStop) {
         new_signal_obtained = false;
     } else {
@@ -435,7 +437,7 @@ static bool infrared_worker_tx_fill_buffer(InfraredWorker* instance) {
             status = infrared_encode(instance->infrared_encoder, &timing.duration, &timing.level);
         } else {
             timing.duration = instance->signal.raw.timings[instance->tx.tx_raw_cnt];
-            /* raw always starts from Mark, but we fill it with space delay at start */
+
             timing.level = (instance->tx.tx_raw_cnt % 2);
             ++instance->tx.tx_raw_cnt;
             if(instance->tx.tx_raw_cnt >= instance->signal.timings_cnt) {
@@ -489,7 +491,7 @@ static int32_t infrared_worker_tx_thread(void* thread_context) {
     while(running) {
         switch(instance->state) {
         case InfraredWorkerStateStartTx:
-            --repeats_left; /* The first message does not result in TX_MESSAGE_SENT event for some reason */
+            --repeats_left;
             instance->tx.need_reinitialization = false;
             const bool new_data_available = infrared_worker_tx_fill_buffer(instance);
             furi_hal_infrared_async_tx_start(instance->tx.frequency, instance->tx.duty_cycle);
@@ -521,7 +523,7 @@ static int32_t infrared_worker_tx_thread(void* thread_context) {
         case InfraredWorkerStateRunTx:
             events = furi_thread_flags_wait(
                 INFRARED_WORKER_ALL_TX_EVENTS, FuriFlagWaitAny, FuriWaitForever);
-            furi_check(events & INFRARED_WORKER_ALL_TX_EVENTS); /* at least one caught */
+            furi_check(events & INFRARED_WORKER_ALL_TX_EVENTS);
 
             if(events & INFRARED_WORKER_EXIT) {
                 exit_pending = true;

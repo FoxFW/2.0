@@ -36,7 +36,6 @@ static const uint32_t baud_options[] = {115200};
 #define BAUD_OPTION_DEFAULT_INDEX 0
 
 #define FOX_TERMINAL_LOG_MAX_CHARS 4000
-#define FOX_COMMANDER_EVENT_SPLASH_DONE   0
 #define FOX_CHAT_EVENT_SERIAL_BUSY_TICK   1
 #define FOX_CHAT_EVENT_SERIAL_DO_RETRY    2
 
@@ -602,11 +601,6 @@ bool app_probe_uart_selected(App* app) {
     return false;
 }
 
-static void fox_splash_done_cb(void* context) {
-    App* app = context;
-    view_dispatcher_send_custom_event(app->view_dispatcher, FOX_COMMANDER_EVENT_SPLASH_DONE);
-}
-
 static void serial_busy_timer_cb(void* context) {
     App* app = context;
     view_dispatcher_send_custom_event(app->view_dispatcher, FOX_CHAT_EVENT_SERIAL_BUSY_TICK);
@@ -619,10 +613,6 @@ static void serial_retry_timer_cb(void* context) {
 
 static bool custom_event_callback(void* context, uint32_t event) {
     App* app = context;
-    if(event == FOX_COMMANDER_EVENT_SPLASH_DONE) {
-        action_check_esp32(app);
-        return true;
-    }
     if(event == FOX_CHAT_EVENT_SERIAL_BUSY_TICK) {
         if(app->serial_busy_countdown > 0) {
             app->serial_busy_countdown--;
@@ -703,7 +693,7 @@ static bool navigation_callback(void* context) {
     return true;
 }
 
-static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
+static App* app_alloc(bool wifi_connection_target) {
     App* app = malloc(sizeof(App));
     memset(app, 0, sizeof(App));
 
@@ -720,8 +710,6 @@ static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
     view_dispatcher_set_navigation_event_callback(app->view_dispatcher, navigation_callback);
     view_dispatcher_set_custom_event_callback(app->view_dispatcher, custom_event_callback);
-
-    app->splash = fox_splash_alloc(&I_fox_64x64, 2000, 666, fox_splash_done_cb, app);
 
     app->submenu = submenu_alloc();
     app->message_view = message_view_alloc(app);
@@ -749,8 +737,6 @@ static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
     app->connect_settings_view = connect_settings_view_alloc(app);
 
     view_dispatcher_add_view(
-        app->view_dispatcher, FoxCommanderViewSplash, fox_splash_get_view(app->splash));
-    view_dispatcher_add_view(
         app->view_dispatcher, FoxCommanderViewMenu, submenu_get_view(app->submenu));
     view_dispatcher_add_view(
         app->view_dispatcher, FoxCommanderViewMessage, app->message_view);
@@ -774,13 +760,7 @@ static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
     app->serial_busy_timer  = furi_timer_alloc(serial_busy_timer_cb,  FuriTimerTypePeriodic, app);
     app->serial_retry_timer = furi_timer_alloc(serial_retry_timer_cb, FuriTimerTypeOnce,     app);
 
-    if(skip_splash) {
-        action_check_esp32(app);
-    } else {
-        app->current_view = FoxCommanderViewSplash;
-        view_dispatcher_switch_to_view(app->view_dispatcher, FoxCommanderViewSplash);
-        fox_splash_start(app->splash);
-    }
+    action_check_esp32(app);
 
     return app;
 }
@@ -793,7 +773,6 @@ static void app_free(App* app) {
 
     if(app->esp_at != NULL) esp_at_free(app->esp_at);
 
-    view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewSplash);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewMenu);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewMessage);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewTerminal);
@@ -804,7 +783,6 @@ static void app_free(App* app) {
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewSettings);
     view_dispatcher_remove_view(app->view_dispatcher, FoxCommanderViewConnectSettings);
 
-    fox_splash_free(app->splash);
     submenu_free(app->submenu);
     view_free(app->terminal_view);
     s_terminal_view_app = NULL;
@@ -827,10 +805,8 @@ static void app_free(App* app) {
 
 int32_t foxhub_main(void* p) {
     const char* arg = (const char*)p;
-    bool wifi_connection_target = (arg != NULL && strcmp(arg, "SKIPSPLASH_WIFICONN") == 0);
-    bool skip_splash =
-        wifi_connection_target || (arg != NULL && strcmp(arg, "SKIPSPLASH") == 0);
-    App* app = app_alloc(skip_splash, wifi_connection_target);
+    bool wifi_connection_target = (arg != NULL && strcmp(arg, "WIFICONN") == 0);
+    App* app = app_alloc(wifi_connection_target);
     view_dispatcher_run(app->view_dispatcher);
     app_free(app);
     return 0;

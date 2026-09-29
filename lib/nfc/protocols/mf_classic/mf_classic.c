@@ -120,20 +120,17 @@ static void mf_classic_parse_block(FuriString* block_str, MfClassicData* data, u
     if(block_unknown_bytes_mask != 0xffff) {
         if(is_sector_trailer) {
             MfClassicSectorTrailer* sec_tr_tmp = (MfClassicSectorTrailer*)&block_tmp;
-            // Load Key A
-            // Key A mask 0b0000000000111111 = 0x003f
+
             if((block_unknown_bytes_mask & 0x003f) == 0) {
                 uint64_t key =
                     bit_lib_bytes_to_num_be(sec_tr_tmp->key_a.data, sizeof(MfClassicKey));
                 mf_classic_set_key_found(data, sector_num, MfClassicKeyTypeA, key);
             }
-            // Load Access Bits
-            // Access bits mask 0b0000001111000000 = 0x03c0
+
             if((block_unknown_bytes_mask & 0x03c0) == 0) {
                 mf_classic_set_block_read(data, block_num, &block_tmp);
             }
-            // Load Key B
-            // Key B mask 0b1111110000000000 = 0xfc00
+
             if((block_unknown_bytes_mask & 0xfc00) == 0) {
                 uint64_t key =
                     bit_lib_bytes_to_num_be(sec_tr_tmp->key_b.data, sizeof(MfClassicKey));
@@ -155,10 +152,9 @@ bool mf_classic_load(MfClassicData* data, FlipperFormat* ff, uint32_t version) {
     bool parsed = false;
 
     do {
-        // Read ISO14443_3A data
+
         if(!iso14443_3a_load(data->iso14443_3a_data, ff, version)) break;
 
-        // Read Mifare Classic type
         if(!flipper_format_read_string(ff, "Mifare Classic type", temp_str)) break;
         bool type_parsed = false;
         for(size_t i = 0; i < MfClassicTypeNum; i++) {
@@ -169,12 +165,11 @@ bool mf_classic_load(MfClassicData* data, FlipperFormat* ff, uint32_t version) {
         }
         if(!type_parsed) break;
 
-        // Read format version
         uint32_t data_format_version = 0;
         bool old_format = false;
-        // Read Mifare Classic format version
+
         if(!flipper_format_read_uint32(ff, "Data format version", &data_format_version, 1)) {
-            // Load unread sectors with zero keys access for backward compatibility
+
             if(!flipper_format_rewind(ff)) break;
             old_format = true;
         } else {
@@ -183,7 +178,6 @@ bool mf_classic_load(MfClassicData* data, FlipperFormat* ff, uint32_t version) {
             }
         }
 
-        // Read Mifare Classic blocks
         bool block_read = true;
         FuriString* block_str = furi_string_alloc();
         uint16_t blocks_total = mf_classic_get_total_block_num(data->type);
@@ -198,7 +192,6 @@ bool mf_classic_load(MfClassicData* data, FlipperFormat* ff, uint32_t version) {
         furi_string_free(block_str);
         if(!block_read) break;
 
-        // Set keys and blocks as unknown for backward compatibility
         if(old_format) {
             data->key_a_mask = 0ULL;
             data->key_b_mask = 0ULL;
@@ -220,7 +213,7 @@ static void
     if(is_sec_trailer) {
         uint8_t sector_num = mf_classic_get_sector_by_block(block_num);
         MfClassicSectorTrailer* sec_tr = mf_classic_get_sector_trailer_by_sector(data, sector_num);
-        // Write key A
+
         for(size_t i = 0; i < sizeof(sec_tr->key_a); i++) {
             if(mf_classic_is_key_found(data, sector_num, MfClassicKeyTypeA)) {
                 furi_string_cat_printf(block_str, "%02X ", sec_tr->key_a.data[i]);
@@ -228,7 +221,7 @@ static void
                 furi_string_cat_printf(block_str, "?? ");
             }
         }
-        // Write Access bytes
+
         for(size_t i = 0; i < MF_CLASSIC_ACCESS_BYTES_SIZE; i++) {
             if(mf_classic_is_block_read(data, block_num)) {
                 furi_string_cat_printf(block_str, "%02X ", sec_tr->access_bits.data[i]);
@@ -236,7 +229,7 @@ static void
                 furi_string_cat_printf(block_str, "?? ");
             }
         }
-        // Write key B
+
         for(size_t i = 0; i < sizeof(sec_tr->key_b); i++) {
             if(mf_classic_is_key_found(data, sector_num, MfClassicKeyTypeB)) {
                 furi_string_cat_printf(block_str, "%02X ", sec_tr->key_b.data[i]);
@@ -245,7 +238,7 @@ static void
             }
         }
     } else {
-        // Write data block
+
         for(size_t i = 0; i < MF_CLASSIC_BLOCK_SIZE; i++) {
             if(mf_classic_is_block_read(data, block_num)) {
                 furi_string_cat_printf(block_str, "%02X ", data->block[block_num].data[i]);
@@ -360,11 +353,10 @@ bool mf_classic_set_uid(MfClassicData* data, const uint8_t* uid, size_t uid_len)
     if(uid_valid) {
         uint8_t* block = data->block[0].data;
 
-        // Copy UID to block 0
         memcpy(block, data->iso14443_3a_data->uid, uid_len);
 
         if(uid_len == 4) {
-            // Calculate BCC byte
+
             block[uid_len] = 0;
 
             for(size_t i = 0; i < uid_len; i++) {
@@ -484,9 +476,9 @@ void mf_classic_value_to_block(int32_t value, uint8_t addr, MfClassicBlock* bloc
 
     uint32_t v_inv = ~((uint32_t)value);
 
-    memcpy(&block->data[0], &value, 4); //-V1086
-    memcpy(&block->data[4], &v_inv, 4); //-V1086
-    memcpy(&block->data[8], &value, 4); //-V1086
+    memcpy(&block->data[0], &value, 4);
+    memcpy(&block->data[4], &v_inv, 4);
+    memcpy(&block->data[8], &value, 4);
 
     block->data[12] = addr;
     block->data[13] = ~addr & 0xFF;
@@ -788,7 +780,6 @@ bool mf_classic_is_allowed_access(
 bool mf_classic_is_value_block(MfClassicSectorTrailer* sec_tr, uint8_t block_num) {
     furi_check(sec_tr);
 
-    // Check if key A can write, if it can, it's transport configuration, not data block
     return !mf_classic_is_allowed_access_data_block(
                sec_tr, block_num, MfClassicKeyTypeA, MfClassicActionDataWrite) &&
            (mf_classic_is_allowed_access_data_block(

@@ -1,7 +1,3 @@
-/*
- * Main Menu
- */
-
 #include "../tagtinker_app.h"
 
 enum {

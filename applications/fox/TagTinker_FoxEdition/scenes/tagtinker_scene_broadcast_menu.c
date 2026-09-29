@@ -1,7 +1,3 @@
-/*
- * Broadcast menu - page select / diagnostic page
- */
-
 #include "../tagtinker_app.h"
 
 static void broadcast_menu_cb(void* ctx, uint32_t index) {

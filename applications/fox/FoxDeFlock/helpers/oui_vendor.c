@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2026 ReconGrunt
+
 #include "oui_vendor.h"
 
 #include <stddef.h>
@@ -9,10 +9,8 @@ typedef struct {
     const char* name;
 } OuiVendor;
 
-// Curated, high-confidence subset. Surveillance cameras and many IoT devices
-// (including Flock units) run on Espressif silicon, so those are well covered.
 static const OuiVendor VENDORS[] = {
-    // Espressif (ESP32/ESP8266 - common in cameras/IoT, incl. Flock hardware)
+
     {{0x24, 0x0a, 0xc4}, "Espressif"},
     {{0x24, 0x6f, 0x28}, "Espressif"},
     {{0x30, 0xae, 0xa4}, "Espressif"},
@@ -30,14 +28,14 @@ static const OuiVendor VENDORS[] = {
     {{0xec, 0xfa, 0xbc}, "Espressif"},
     {{0xc4, 0x4f, 0x33}, "Espressif"},
     {{0x3c, 0x71, 0xbf}, "Espressif"},
-    // Raspberry Pi
+
     {{0xb8, 0x27, 0xeb}, "Raspberry Pi"},
     {{0xdc, 0xa6, 0x32}, "Raspberry Pi"},
     {{0xe4, 0x5f, 0x01}, "Raspberry Pi"},
     {{0x28, 0xcd, 0xc1}, "Raspberry Pi"},
     {{0xd8, 0x3a, 0xdd}, "Raspberry Pi"},
     {{0x2c, 0xcf, 0x67}, "Raspberry Pi"},
-    // Ubiquiti
+
     {{0x04, 0x18, 0xd6}, "Ubiquiti"},
     {{0x24, 0xa4, 0x3c}, "Ubiquiti"},
     {{0x78, 0x8a, 0x20}, "Ubiquiti"},
@@ -48,7 +46,7 @@ static const OuiVendor VENDORS[] = {
     {{0xfc, 0xec, 0xda}, "Ubiquiti"},
     {{0x68, 0xd7, 0x9a}, "Ubiquiti"},
     {{0x74, 0x83, 0xc2}, "Ubiquiti"},
-    // TP-Link
+
     {{0x50, 0xc7, 0xbf}, "TP-Link"},
     {{0x14, 0xcc, 0x20}, "TP-Link"},
     {{0xa4, 0x2b, 0xb0}, "TP-Link"},
@@ -57,14 +55,14 @@ static const OuiVendor VENDORS[] = {
     {{0x60, 0x32, 0xb1}, "TP-Link"},
     {{0xb0, 0x48, 0x7a}, "TP-Link"},
     {{0xac, 0x84, 0xc6}, "TP-Link"},
-    // Netgear
+
     {{0x20, 0xe5, 0x2a}, "Netgear"},
     {{0x9c, 0x3d, 0xcf}, "Netgear"},
     {{0xa0, 0x40, 0xa0}, "Netgear"},
     {{0xc0, 0x3f, 0x0e}, "Netgear"},
     {{0x28, 0xc6, 0x8e}, "Netgear"},
     {{0x3c, 0x37, 0x86}, "Netgear"},
-    // Surveillance cameras
+
     {{0x4c, 0xbd, 0x8f}, "Hikvision"},
     {{0xbc, 0xad, 0x28}, "Hikvision"},
     {{0xc0, 0x56, 0xe3}, "Hikvision"},

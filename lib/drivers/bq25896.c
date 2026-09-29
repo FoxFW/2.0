@@ -42,7 +42,6 @@ bool bq25896_init(const FuriHalI2cBusHandle* handle) {
     result &= furi_hal_i2c_write_reg_8(
         handle, BQ25896_ADDRESS, 0x14, *(uint8_t*)&bq25896_regs.r14, BQ25896_I2C_TIMEOUT);
 
-    // Readout all registers
     result &= furi_hal_i2c_read_mem(
         handle,
         BQ25896_ADDRESS,
@@ -51,7 +50,6 @@ bool bq25896_init(const FuriHalI2cBusHandle* handle) {
         sizeof(bq25896_regs),
         BQ25896_I2C_TIMEOUT);
 
-    // Poll ADC forever
     bq25896_regs.r02.CONV_START = 1;
     bq25896_regs.r02.CONV_RATE = 1;
     result &= furi_hal_i2c_write_reg_8(
@@ -61,9 +59,8 @@ bool bq25896_init(const FuriHalI2cBusHandle* handle) {
     result &= furi_hal_i2c_write_reg_8(
         handle, BQ25896_ADDRESS, 0x07, *(uint8_t*)&bq25896_regs.r07, BQ25896_I2C_TIMEOUT);
 
-    // OTG power configuration
-    bq25896_regs.r0A.BOOSTV = 0x8; // BOOST Voltage: 5.062V
-    bq25896_regs.r0A.BOOST_LIM = BoostLim_1400; // BOOST Current limit: 1.4A
+    bq25896_regs.r0A.BOOSTV = 0x8;
+    bq25896_regs.r0A.BOOST_LIM = BoostLim_1400;
     result &= furi_hal_i2c_write_reg_8(
         handle, BQ25896_ADDRESS, 0x0A, *(uint8_t*)&bq25896_regs.r0A, BQ25896_I2C_TIMEOUT);
 
@@ -104,7 +101,7 @@ ChrgStat bq25896_get_charge_status(const FuriHalI2cBusHandle* handle) {
 }
 
 bool bq25896_is_charging(const FuriHalI2cBusHandle* handle) {
-    // Include precharge, fast charging, and charging termination done as "charging"
+
     return bq25896_get_charge_status(handle) != ChrgStatNo;
 }
 
@@ -150,18 +147,15 @@ uint16_t bq25896_get_vreg_voltage(const FuriHalI2cBusHandle* handle) {
 
 void bq25896_set_vreg_voltage(const FuriHalI2cBusHandle* handle, uint16_t vreg_voltage) {
     if(vreg_voltage < 3840) {
-        // Minimum valid value is 3840 mV
+
         vreg_voltage = 3840;
     } else if(vreg_voltage > 4208) {
-        // Maximum safe value is 4208 mV
+
         vreg_voltage = 4208;
     }
 
-    // Find the nearest voltage value (subtract offset, divide into sections)
-    // Values are truncated downward as needed (e.g. 4200mV -> 4192 mV)
     bq25896_regs.r06.VREG = (uint8_t)((vreg_voltage - 3840) / 16);
 
-    // Apply changes
     furi_hal_i2c_write_reg_8(
         handle, BQ25896_ADDRESS, 0x06, *(uint8_t*)&bq25896_regs.r06, BQ25896_I2C_TIMEOUT);
 }

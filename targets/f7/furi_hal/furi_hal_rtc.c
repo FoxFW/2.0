@@ -85,15 +85,13 @@ static void furi_hal_rtc_reset(void) {
 }
 
 static bool furi_hal_rtc_start_clock_and_switch(void) {
-    // Clock operation require access to Backup Domain
+
     LL_PWR_EnableBkUpAccess();
 
-    // Enable LSI and LSE
     LL_RCC_LSI1_Enable();
     LL_RCC_LSE_SetDriveCapability(LL_RCC_LSEDRIVE_HIGH);
     LL_RCC_LSE_Enable();
 
-    // Wait for LSI and LSE startup
     uint32_t c = 0;
     while(!FURI_HAL_RTC_CLOCK_IS_READY() && c < FURI_HAL_RTC_LSE_STARTUP_TIME) {
         LL_mDelay(1);
@@ -112,35 +110,30 @@ static bool furi_hal_rtc_start_clock_and_switch(void) {
 static void furi_hal_rtc_recover(void) {
     DateTime datetime = {0};
 
-    // Handle fixable LSE failure
     if(LL_RCC_LSE_IsCSSDetected()) {
         furi_hal_light_sequence("rgb B");
-        // Shutdown LSE and LSECSS
+
         LL_RCC_LSE_DisableCSS();
         LL_RCC_LSE_Disable();
     } else {
         furi_hal_light_sequence("rgb R");
     }
 
-    // Temporary switch to LSI
     LL_RCC_SetRTCClockSource(LL_RCC_RTC_CLKSOURCE_LSI);
     if(LL_RCC_GetRTCClockSource() == LL_RCC_RTC_CLKSOURCE_LSI) {
-        // Get datetime before RTC Domain reset
+
         furi_hal_rtc_get_datetime(&datetime);
     }
 
-    // Reset RTC Domain
     furi_hal_rtc_reset();
 
-    // Start Clock
     if(!furi_hal_rtc_start_clock_and_switch()) {
-        // Plan C: reset RTC and restart
+
         furi_hal_light_sequence("rgb R.r.R.r.R.r");
         furi_hal_rtc_reset();
         NVIC_SystemReset();
     }
 
-    // Set date if it valid
     if(datetime.year != 0) {
         furi_hal_rtc_set_datetime(&datetime);
     }
@@ -150,10 +143,9 @@ static void furi_hal_rtc_alarm_handler(void* context) {
     UNUSED(context);
 
     if(LL_RTC_IsActiveFlag_ALRA(RTC) != 0) {
-        /* Clear the Alarm interrupt pending bit */
+
         LL_RTC_ClearFlag_ALRA(RTC);
 
-        /* Alarm callback */
         furi_check(furi_hal_rtc.alarm_callback);
         furi_hal_rtc.alarm_callback(furi_hal_rtc.alarm_callback_context);
     }
@@ -177,16 +169,14 @@ static void furi_hal_rtc_set_alarm_out(bool enable) {
 }
 
 void furi_hal_rtc_init_early(void) {
-    // Enable RTCAPB clock
+
     LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_RTCAPB);
 
-    // Prepare clock
     if(!furi_hal_rtc_start_clock_and_switch()) {
-        // Plan B: try to recover
+
         furi_hal_rtc_recover();
     }
 
-    // Verify header register
     uint32_t data_reg = furi_hal_rtc_get_register(FuriHalRtcRegisterHeader);
     FuriHalRtcHeader* data = (FuriHalRtcHeader*)&data_reg;
     if(data->magic != FURI_HAL_RTC_HEADER_MAGIC || data->version != FURI_HAL_RTC_HEADER_VERSION) {
@@ -397,13 +387,11 @@ void furi_hal_rtc_set_datetime(DateTime* datetime) {
     furi_check(datetime);
 
     FURI_CRITICAL_ENTER();
-    /* Disable write protection */
+
     LL_RTC_DisableWriteProtection(RTC);
 
-    /* Enter Initialization mode and wait for INIT flag to be set */
     furi_hal_rtc_enter_init_mode();
 
-    /* Set time */
     LL_RTC_TIME_Config(
         RTC,
         LL_RTC_TIME_FORMAT_AM_OR_24,
@@ -411,7 +399,6 @@ void furi_hal_rtc_set_datetime(DateTime* datetime) {
         __LL_RTC_CONVERT_BIN2BCD(datetime->minute),
         __LL_RTC_CONVERT_BIN2BCD(datetime->second));
 
-    /* Set date */
     LL_RTC_DATE_Config(
         RTC,
         datetime->weekday,
@@ -419,10 +406,8 @@ void furi_hal_rtc_set_datetime(DateTime* datetime) {
         __LL_RTC_CONVERT_BIN2BCD(datetime->month),
         __LL_RTC_CONVERT_BIN2BCD(datetime->year - 2000));
 
-    /* Exit Initialization mode */
     furi_hal_rtc_exit_init_mode();
 
-    /* Enable write protection */
     LL_RTC_EnableWriteProtection(RTC);
     FURI_CRITICAL_EXIT();
 }
@@ -432,8 +417,8 @@ void furi_hal_rtc_get_datetime(DateTime* datetime) {
     furi_check(datetime);
 
     FURI_CRITICAL_ENTER();
-    uint32_t time = LL_RTC_TIME_Get(RTC); // 0x00HHMMSS
-    uint32_t date = LL_RTC_DATE_Get(RTC); // 0xWWDDMMYY
+    uint32_t time = LL_RTC_TIME_Get(RTC);
+    uint32_t date = LL_RTC_DATE_Get(RTC);
     FURI_CRITICAL_EXIT();
 
     datetime->second = __LL_RTC_CONVERT_BCD2BIN((time >> 0) & 0xFF);
@@ -490,28 +475,27 @@ void furi_hal_rtc_set_alarm_callback(FuriHalRtcAlarmCallback callback, void* con
     LL_RTC_DisableWriteProtection(RTC);
     if(callback) {
         furi_check(!furi_hal_rtc.alarm_callback);
-        // Set our callbacks
+
         furi_hal_rtc.alarm_callback = callback;
         furi_hal_rtc.alarm_callback_context = context;
-        // Enable RTC ISR
+
         furi_hal_interrupt_set_isr(FuriHalInterruptIdRtcAlarm, furi_hal_rtc_alarm_handler, NULL);
-        // Hello EXTI my old friend
-        // Chain: RTC->LINE-17->EXTI->NVIC->FuriHalInterruptIdRtcAlarm
+
         LL_EXTI_EnableRisingTrig_0_31(LL_EXTI_LINE_17);
         LL_EXTI_EnableIT_0_31(LL_EXTI_LINE_17);
-        // Enable alarm interrupt
+
         LL_RTC_EnableIT_ALRA(RTC);
-        // Force trigger
+
         furi_hal_rtc_alarm_handler(NULL);
     } else {
         furi_check(furi_hal_rtc.alarm_callback);
-        // Cleanup EXTI flags and config
+
         LL_EXTI_DisableIT_0_31(LL_EXTI_LINE_17);
         LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_17);
         LL_EXTI_DisableRisingTrig_0_31(LL_EXTI_LINE_17);
-        // Cleanup NVIC flags and config
+
         furi_hal_interrupt_set_isr(FuriHalInterruptIdRtcAlarm, NULL, NULL);
-        // Disable alarm interrupt
+
         LL_RTC_DisableIT_ALRA(RTC);
 
         furi_hal_rtc.alarm_callback = NULL;

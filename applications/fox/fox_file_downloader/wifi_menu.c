@@ -999,7 +999,7 @@ void wifi_menu_select(App* app, MenuContext ctx, uint32_t index) {
                     loader_enqueue_launch(
                         loader,
                         EXT_PATH("apps/Fox/ESP32/fox_portal.fap"),
-                        "SKIPSPLASH",
+                        NULL,
                         LoaderDeferredLaunchFlagGui);
                     furi_record_close(RECORD_LOADER);
                     view_dispatcher_stop(app->view_dispatcher);
@@ -1249,10 +1249,10 @@ static void network_list_draw_cb(Canvas* canvas, void* model) {
         const FoxWifiNetwork* n = &app->networks[i];
 
         if(selected) {
-            canvas_draw_rbox(canvas, 2, by, 124, bh, 3);
+            canvas_draw_rbox(canvas, 8, by, 112, bh, 3);
             canvas_set_color(canvas, ColorWhite);
         } else {
-            canvas_draw_rframe(canvas, 2, by, 124, bh, 3);
+            canvas_draw_rframe(canvas, 8, by, 112, bh, 3);
         }
 
         canvas_set_font(canvas, FontPrimary);
@@ -1277,8 +1277,7 @@ static void network_list_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(app->network_count > NETWORK_ROW_VIS) {
-        // Dotted track + solid position block, matching FOX_CHILL's
-        // scrollbar style instead of a plain solid bar with no track.
+
         int available_h = 64 - NETWORK_ROW_HEADER_H;
         elements_scrollbar_pos(
             canvas,
@@ -1381,10 +1380,10 @@ static void station_list_draw_cb(Canvas* canvas, void* model) {
         const FoxStation* s = &app->stations[i];
 
         if(selected) {
-            canvas_draw_rbox(canvas, 2, by, 124, bh, 3);
+            canvas_draw_rbox(canvas, 8, by, 112, bh, 3);
             canvas_set_color(canvas, ColorWhite);
         } else {
-            canvas_draw_rframe(canvas, 2, by, 124, bh, 3);
+            canvas_draw_rframe(canvas, 8, by, 112, bh, 3);
         }
 
         canvas_set_font(canvas, FontPrimary);
@@ -1399,8 +1398,7 @@ static void station_list_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(app->station_count > STATION_ROW_VIS) {
-        // Dotted track + solid position block, matching FOX_CHILL's
-        // scrollbar style instead of a plain solid bar with no track.
+
         int available_h = 64 - STATION_ROW_HEADER_H;
         elements_scrollbar_pos(
             canvas,

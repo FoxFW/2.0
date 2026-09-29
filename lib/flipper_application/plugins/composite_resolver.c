@@ -4,7 +4,7 @@
 #include <m-list.h>
 #include <m-algo.h>
 
-LIST_DEF(ElfApiInterfaceList, const ElfApiInterface*, M_POD_OPLIST) // NOLINT
+LIST_DEF(ElfApiInterfaceList, const ElfApiInterface*, M_POD_OPLIST)
 #define M_OPL_ElfApiInterfaceList_t() LIST_OPLIST(ElfApiInterfaceList, M_POD_OPLIST)
 
 struct CompositeApiResolver {

@@ -1,32 +1,6 @@
 #include "notification.h"
 #include <toolbox/strint.h>
 
-/*
-Python script for note messages generation
-
-# coding: utf-8
-# Python script for note messages generation
-from typing import List
-
-note_names: List = ['c', 'cs', 'd', 'ds', 'e', 'f', 'fs', 'g', 'gs', 'a', 'as', 'b']
-base_note: float = 16.3515979
-cf: float = 2 ** (1.0 / 12)
-
-note: float = base_note
-for octave in range(9):
-    for name in note_names:
-        print(f"const NotificationMessage message_note_{name}{octave}" + " = {\n"
-              "\t.type = NotificationMessageTypeSoundOn,\n"
-              f"\t.data.sound.frequency = {round(note, 2)}f,\n"
-              "\t.data.sound.volume = 1.0f,\n"
-              "};")
-        note = note * cf
-
-for octave in range(9):
-    for name in note_names:
-        print(f"extern const NotificationMessage message_note_{name}{octave};")
-*/
-
 const NotificationMessage message_click = {
     .type = NotificationMessageTypeSoundOn,
     .data.sound.frequency = 1.0f,
@@ -574,7 +548,7 @@ const NotificationMessage message_note_b8 = {
 };
 
 float notification_messages_notes_frequency_from_name(const char* note_name) {
-    const float base_note = 16.3515979f; // C0
+    const float base_note = 16.3515979f;
 
     const char* note_names[] = {"c", "cs", "d", "ds", "e", "f", "fs", "g", "gs", "a", "as", "b"};
     const size_t notes_count = COUNT_OF(note_names);

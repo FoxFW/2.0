@@ -20,7 +20,6 @@ void ble_gatt_characteristic_init(
     furi_check(char_descriptor);
     furi_check(char_instance);
 
-    // Copy the descriptor to the instance, since it may point to stack memory
     char_instance->characteristic = malloc(sizeof(BleGattCharacteristicParams));
     memcpy(
         (void*)char_instance->characteristic,

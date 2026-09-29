@@ -9,10 +9,10 @@
 
 #define TAG "FelicaPoller"
 
-ARRAY_DEF(felica_service_array, FelicaService, M_POD_OPLIST); // -V658
-ARRAY_DEF(felica_area_array, FelicaArea, M_POD_OPLIST); // -V658
-ARRAY_DEF(felica_public_block_array, FelicaPublicBlock, M_POD_OPLIST); // -V658
-ARRAY_DEF(felica_system_array, FelicaSystem, M_POD_OPLIST); // -V658
+ARRAY_DEF(felica_service_array, FelicaService, M_POD_OPLIST);
+ARRAY_DEF(felica_area_array, FelicaArea, M_POD_OPLIST);
+ARRAY_DEF(felica_public_block_array, FelicaPublicBlock, M_POD_OPLIST);
+ARRAY_DEF(felica_system_array, FelicaSystem, M_POD_OPLIST);
 
 typedef NfcCommand (*FelicaPollerReadHandler)(FelicaPoller* instance);
 
@@ -104,7 +104,7 @@ NfcCommand felica_poller_state_handler_activate(FelicaPoller* instance) {
             instance->state = FelicaPollerStateReadLiteBlocks;
             break;
         default:
-            // Unimplemented
+
             instance->state = FelicaPollerStateReadSuccess;
             break;
         }
@@ -176,7 +176,7 @@ NfcCommand felica_poller_state_handler_auth_internal(FelicaPoller* instance) {
         instance->state = FelicaPollerStateReadLiteBlocks;
         break;
     default:
-        // Unimplemented
+
         instance->state = FelicaPollerStateReadSuccess;
         break;
     }
@@ -231,7 +231,7 @@ NfcCommand felica_poller_state_handler_auth_external(FelicaPoller* instance) {
         instance->data->data.fs.state.data,
         instance->data->data.fs.mac_a.data);
 
-    memcpy(instance->data->data.fs.mac_a.data + 8, instance->data->data.fs.wcnt.data, 3); //-V1086
+    memcpy(instance->data->data.fs.mac_a.data + 8, instance->data->data.fs.wcnt.data, 3);
 
     uint8_t tx_data[FELICA_DATA_BLOCK_SIZE * 2];
     memcpy(tx_data, instance->data->data.fs.state.data, FELICA_DATA_BLOCK_SIZE);
@@ -265,7 +265,7 @@ NfcCommand felica_poller_state_handler_auth_external(FelicaPoller* instance) {
         instance->state = FelicaPollerStateReadLiteBlocks;
         break;
     default:
-        // Unimplemented
+
         instance->state = FelicaPollerStateReadSuccess;
         break;
     }
@@ -400,7 +400,7 @@ NfcCommand felica_poller_state_handler_read_standard_blocks(FelicaPoller* instan
                 have_read_anything = true;
                 block_list[0]++;
             } else {
-                break; // No more blocks to read in this service, ok to continue for loop
+                break;
             }
         } while(block_list[0] < FELICA_STANDARD_MAX_BLOCK_COUNT);
 

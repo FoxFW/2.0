@@ -107,7 +107,7 @@ static BleEventAckStatus ble_svc_serial_event_handler(void* event, void* context
             attribute_modified = (aci_gatt_attribute_modified_event_rp0*)blecore_evt->data;
             if(attribute_modified->Attr_Handle ==
                serial_svc->chars[SerialSvcGattCharacteristicRx].handle + 2) {
-                // Descriptor handle
+
                 ret = BleEventAckFlowEnable;
                 FURI_LOG_D(TAG, "RX descriptor event");
             } else if(
@@ -319,7 +319,7 @@ bool ble_svc_serial_custom_data_tx(BleServiceSerial* serial_svc, uint8_t* data, 
             0,
             serial_svc->svc_handle,
             serial_svc->chars[SerialSvcGattCharacteristicCustomDataTx].handle,
-            remained ? 0x00 : 0x01, // 0x01 = notify (not indicate like TX)
+            remained ? 0x00 : 0x01,
             data_len,
             value_offset,
             value_len,

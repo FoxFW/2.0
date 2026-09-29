@@ -1,11 +1,3 @@
-/**
- * @file infrared_brute_force.h
- * @brief Infrared signal brute-forcing library.
- *
- * The BruteForce library is used to send large quantities of signals,
- * sorted by a category. It is used to implement the Universal Remote
- * feature.
- */
 #pragma once
 
 #include <stdint.h>
@@ -17,130 +9,39 @@
 extern "C" {
 #endif
 
-/**
- * @brief InfraredBruteForce opaque type declaration.
- */
 typedef struct InfraredBruteForce InfraredBruteForce;
 
-/**
- * @brief Create a new InfraredBruteForce instance.
- *
- * @returns pointer to the created instance.
- */
 InfraredBruteForce* infrared_brute_force_alloc(void);
 
-/**
- * @brief Delete an InfraredBruteForce instance.
- *
- * @param[in,out] brute_force pointer to the instance to be deleted.
- */
 void infrared_brute_force_free(InfraredBruteForce* brute_force);
 
-/**
- * @brief Set an InfraredBruteForce instance to use a signal database contained in a file.
- *
- * @param[in,out] brute_force pointer to the instance to be configured.
- * @param[in] db_filename pointer to a zero-terminated string containing a full path to the database file.
- */
 void infrared_brute_force_set_db_filename(InfraredBruteForce* brute_force, const char* db_filename);
 
-/**
- * @brief Build a signal dictionary from a previously set database file.
- *
- * This function must be called each time after setting the database via
- * a infrared_brute_force_set_db_filename() call.
- *
- * @param[in,out] brute_force pointer to the instance to be updated.
- * @returns InfraredErrorCodeNone on success, otherwise error code.
- */
 InfraredErrorCode infrared_brute_force_calculate_messages(InfraredBruteForce* brute_force);
 
-/**
- * @brief Start transmitting signals from a category stored in the dictionary.
- *
- * The function locates the category identified by @p index, reports the number of
- * records it contains via @p record_count, and prepares the brute-force instance
- * to transmit those signals. On failure @p record_count is set to zero.
- *
- * @param[in,out] brute_force pointer to the instance to be started.
- * @param[in] index index of the signal category in the dictionary.
- * @param[out] record_count pointer that receives the number of records in the category.
- * @returns true if the category is found and the backing database file is opened, false otherwise.
- */
 bool infrared_brute_force_start(
     InfraredBruteForce* brute_force,
     uint32_t index,
     uint32_t* record_count);
 
-/**
- * @brief Determine whether the transmission was started.
- *
- * @param[in] brute_force pointer to the instance to be tested.
- * @returns true if transmission was started, false otherwise.
- */
 bool infrared_brute_force_is_started(const InfraredBruteForce* brute_force);
 
-/**
- * @brief Stop transmitting the signals.
- *
- * @param[in] brute_force pointer to the instance to be stopped.
- */
 void infrared_brute_force_stop(InfraredBruteForce* brute_force);
 
-/**
- * @brief Send an arbitrary signal from the chosen category.
- * 
- * @param[in] brute_force pointer to the instance
- * @param signal_index the index of the signal within the category, must be
- *                     between 0 and `record_count` as told by
- *                     `infrared_brute_force_start`
- * 
- * @returns true on success, false otherwise
- */
 bool infrared_brute_force_send(InfraredBruteForce* brute_force, uint32_t signal_index);
 
-/**
- * @brief Load a signal from the chosen category without transmitting it.
- *
- * @param[in] brute_force pointer to the instance
- * @param[in] signal_index the index of the signal within the category, same range as
- *                         accepted by infrared_brute_force_send()
- * @param[out] signal pointer to the signal to load into. Must be allocated.
- * @returns true on success, false otherwise
- */
 bool infrared_brute_force_load_signal(
     InfraredBruteForce* brute_force,
     uint32_t signal_index,
     InfraredSignal* signal);
 
-/**
- * @brief Get the name of the category currently being transmitted.
- *
- * The return value remains valid until the next infrared_brute_force_start() or
- * infrared_brute_force_stop() call.
- *
- * @param[in] brute_force pointer to the instance to be queried.
- * @returns pointer to a zero-terminated string containing the category name.
- */
 const char* infrared_brute_force_get_current_record_name(const InfraredBruteForce* brute_force);
 
-/**
- * @brief Add a signal category to an InfraredBruteForce instance's dictionary.
- *
- * @param[in,out] brute_force pointer to the instance to be updated.
- * @param[in] index index of the category to be added.
- * @param[in] name name of the category to be added.
- */
 void infrared_brute_force_add_record(
     InfraredBruteForce* brute_force,
     uint32_t index,
     const char* name);
 
-/**
- * @brief Reset an InfraredBruteForce instance.
- *
- * @param[in,out] brute_force pointer to the instance to be reset.
- */
 void infrared_brute_force_reset(InfraredBruteForce* brute_force);
 
 #ifdef __cplusplus

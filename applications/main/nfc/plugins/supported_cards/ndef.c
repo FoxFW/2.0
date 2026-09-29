@@ -1,19 +1,3 @@
-// Parser for NDEF format data
-// Supports multiple NDEF messages and records in same tag
-// Parsed types: URI (+ Phone, Mail), Text, BT MAC, Contact, WiFi, Empty, SmartPoster
-// Documentation and sources indicated where relevant
-// Made by @Willy-JL
-// Mifare Ultralight support by @Willy-JL
-// Mifare Classic support by @luu176 & @Willy-JL
-// SLIX support by @Willy-JL
-
-// We use an arbitrary position system here, in order to support more protocols.
-// Each protocol parses basic structure of the card, then starts ndef_parse_tlv()
-// using an arbitrary position value that it can understand. When accessing data
-// to parse NDEF content, ndef_get() will then map this arbitrary value to the
-// card using state in Ndef struct, skipping blocks or sectors as needed. This
-// way, NDEF parsing code does not need to know details of card layout.
-
 #include "nfc_supported_card_plugin.h"
 #include <flipper_application.h>
 
@@ -28,7 +12,7 @@
 #define TAG "NDEF"
 
 #define NDEF_PROTO_INVALID (-1)
-#define NDEF_PROTO_RAW     (0) // For parsing data fed manually
+#define NDEF_PROTO_RAW     (0)
 #define NDEF_PROTO_UL      (1)
 #define NDEF_PROTO_MFC     (2)
 #define NDEF_PROTO_SLIX    (3)
@@ -48,10 +32,6 @@
         "\e#NDEF Format Data\nCard: %s\n", \
         nfc_device_get_name(device, NfcDeviceNameTypeFull))
 
-// ---=== structures ===---
-
-// TLV structure:
-// https://docs.nordicsemi.com/bundle/ncs-latest/page/nrfxlib/nfc/doc/type_2_tag.html#data
 typedef enum FURI_PACKED {
     NdefTlvPadding = 0x00,
     NdefTlvLockControl = 0x01,
@@ -61,8 +41,6 @@ typedef enum FURI_PACKED {
     NdefTlvTerminator = 0xFE,
 } NdefTlv;
 
-// Type Name Format values:
-// https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/protocols/nfc/index.html#flags-and-tnf
 typedef enum FURI_PACKED {
     NdefTnfEmpty = 0x00,
     NdefTnfWellKnownType = 0x01,
@@ -74,10 +52,8 @@ typedef enum FURI_PACKED {
     NdefTnfReserved = 0x07,
 } NdefTnf;
 
-// Flags and TNF structure:
-// https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/protocols/nfc/index.html#flags-and-tnf
 typedef struct FURI_PACKED {
-    // Reversed due to endianness
+
     NdefTnf type_name_format : 3;
     bool id_length_present   : 1;
     bool short_record        : 1;
@@ -87,10 +63,8 @@ typedef struct FURI_PACKED {
 } NdefFlagsTnf;
 _Static_assert(sizeof(NdefFlagsTnf) == 1);
 
-// URI payload format:
-// https://learn.adafruit.com/adafruit-pn532-rfid-nfc/ndef#uri-records-0x55-slash-u-607763
 static const char* ndef_uri_prepends[] = {
-    [0x00] = NULL, // Allows detecting no prepend and checking schema for type
+    [0x00] = NULL,
     [0x01] = "http://www.",
     [0x02] = "https://www.",
     [0x03] = "http://",
@@ -128,9 +102,6 @@ static const char* ndef_uri_prepends[] = {
     [0x23] = "urn:nfc:",
 };
 
-// ---=== card memory layout abstraction ===---
-
-// Shared context and state, read above
 typedef struct {
     FuriString* output;
 #if NDEF_PROTO == NDEF_PROTO_RAW
@@ -164,31 +135,20 @@ typedef struct {
 static bool ndef_get(Ndef* ndef, size_t pos, size_t len, void* buf) {
 #if NDEF_PROTO == NDEF_PROTO_RAW
 
-    // Using user-provided pointer, simply need to remap to it
     if(pos + len > ndef->raw.size) return false;
     memcpy(buf, ndef->raw.data + pos, len);
     return true;
 
 #elif NDEF_PROTO == NDEF_PROTO_UL
 
-    // Memory space is contiguous, simply need to remap to data pointer
     if(pos + len > ndef->ul.size) return false;
     memcpy(buf, ndef->ul.start + pos, len);
     return true;
 
 #elif NDEF_PROTO == NDEF_PROTO_MFC
 
-    // We need to skip sector trailers and MAD2, NDEF parsing just uses
-    // a position offset in data space, as if it were contiguous.
-
-    // Start with a simple data space size check
     if(pos + len > ndef->mfc.size) return false;
 
-    // First 128 blocks are 32 sectors: 3 data blocks, 1 sector trailer.
-    // Sector 16 contains MAD2 and we need to skip this.
-    // So the first 93 (31*3) data blocks correspond to 128 real blocks.
-    // Last 128 blocks are 8 sectors: 15 data blocks, 1 sector trailer.
-    // So the last 120 (8*15) data blocks correspond to 128 real blocks.
     const size_t real_block_data_offset = pos % MF_CLASSIC_BLOCK_SIZE;
     size_t small_sector_data_blocks = pos / MF_CLASSIC_BLOCK_SIZE;
     size_t large_sector_data_blocks = 0;
@@ -201,7 +161,7 @@ static bool ndef_get(Ndef* ndef, size_t pos, size_t len, void* buf) {
     const size_t small_sectors = small_sector_data_blocks / 3;
     size_t real_block = small_sectors * 4 + small_sector_block_offset;
     if(small_sectors >= 16) {
-        real_block += 4; // Skip MAD2
+        real_block += 4;
     }
     if(large_sector_data_blocks) {
         const size_t large_sector_block_offset = large_sector_data_blocks % 15;
@@ -222,7 +182,7 @@ static bool ndef_get(Ndef* ndef, size_t pos, size_t len, void* buf) {
         if(len) {
             real_block = sector_trailer + 1;
             if(real_block == 64) {
-                real_block += 4; // Skip MAD2
+                real_block += 4;
             }
             cur = &ndef->mfc.blocks[real_block].data[0];
         }
@@ -232,14 +192,12 @@ static bool ndef_get(Ndef* ndef, size_t pos, size_t len, void* buf) {
 
 #elif NDEF_PROTO == NDEF_PROTO_SLIX
 
-    // Memory space is contiguous, simply need to remap to data pointer
     if(pos + len > ndef->slix.size) return false;
     memcpy(buf, ndef->slix.start + pos, len);
     return true;
 
 #elif NDEF_PROTO == NDEF_PROTO_T4T
 
-    // Memory space is contiguous, simply need to remap to data pointer
     if(pos + len > ndef->t4t.size) return false;
     memcpy(buf, ndef->t4t.data + pos, len);
     return true;
@@ -254,8 +212,6 @@ static bool ndef_get(Ndef* ndef, size_t pos, size_t len, void* buf) {
 
 #endif
 }
-
-// ---=== output helpers ===---
 
 static inline bool is_printable(char c) {
     return (c >= ' ' && c <= '~') || c == '\r' || c == '\n';
@@ -272,11 +228,9 @@ static bool is_text(const uint8_t* buf, size_t len) {
 
 static bool ndef_dump(Ndef* ndef, const char* prefix, size_t pos, size_t len, bool force_hex) {
     if(prefix) furi_string_cat_printf(ndef->output, "%s: ", prefix);
-    // We don't have direct access to memory chunks due to different card layouts
-    // Making a temporary buffer is wasteful of RAM and we can't afford this
-    // So while iterating like this is inefficient, it saves RAM and works between multiple card types
+
     if(!force_hex) {
-        // If we find a non-printable character along the way, reset string to prev state and re-do as hex
+
         size_t string_prev = furi_string_size(ndef->output);
         for(size_t i = 0; i < len; i++) {
             char c;
@@ -315,8 +269,6 @@ static void
     furi_string_cat(ndef->output, "\n");
 }
 
-// ---=== payload parsing ===---
-
 static inline uint8_t hex_to_int(char c) {
     if(c >= '0' && c <= '9') return c - '0';
     if(c >= 'A' && c <= 'F') return c - 'A' + 10;
@@ -331,7 +283,6 @@ static char url_decode_char(const char* str) {
 static bool ndef_parse_uri(Ndef* ndef, size_t pos, size_t len) {
     const char* type = "URI";
 
-    // Parse URI prepend type
     const char* prepend = NULL;
     uint8_t prepend_type;
     if(!ndef_get(ndef, pos++, 1, &prepend_type)) return false;
@@ -344,16 +295,15 @@ static bool ndef_parse_uri(Ndef* ndef, size_t pos, size_t len) {
             type = "URL";
         } else if(strncmp(prepend, "tel:", 4) == 0) {
             type = "Phone";
-            prepend = ""; // Not NULL to avoid schema check below, only want to hide it from output
+            prepend = "";
         } else if(strncmp(prepend, "mailto:", 7) == 0) {
             type = "Mail";
-            prepend = ""; // Not NULL to avoid schema check below, only want to hide it from output
+            prepend = "";
         }
     }
 
-    // Parse and optionally skip schema, if no prepend was specified
     if(!prepend) {
-        char schema[7] = {0}; // Longest schema we check is 7 char long without terminator
+        char schema[7] = {0};
         if(!ndef_get(ndef, pos, MIN(sizeof(schema), len), schema)) return false;
         if(strncmp(schema, "http", 4) == 0) {
             type = "URL";
@@ -368,18 +318,16 @@ static bool ndef_parse_uri(Ndef* ndef, size_t pos, size_t len) {
         }
     }
 
-    // Print static data as-is
     furi_string_cat_printf(ndef->output, "%s\n", type);
     if(prepend) {
         furi_string_cat(ndef->output, prepend);
     }
 
-    // Print URI one char at a time and perform URL decode
     while(len) {
         char c;
         if(!ndef_get(ndef, pos++, 1, &c)) return false;
         len--;
-        if(c != '%' || len < 2) { // Not encoded, or not enough remaining text for encoded char
+        if(c != '%' || len < 2) {
             furi_string_push_back(ndef->output, c);
             continue;
         }
@@ -387,8 +335,7 @@ static bool ndef_parse_uri(Ndef* ndef, size_t pos, size_t len) {
         if(!ndef_get(ndef, pos, 2, enc)) return false;
         enc[0] = toupper(enc[0]);
         enc[1] = toupper(enc[1]);
-        // Only consume and print these 2 characters if they're valid URL encoded
-        // Otherwise they're processed in next iterations and we output the % char
+
         if(((enc[0] >= 'A' && enc[0] <= 'F') || (enc[0] >= '0' && enc[0] <= '9')) &&
            ((enc[1] >= 'A' && enc[1] <= 'F') || (enc[1] >= '0' && enc[1] <= '9'))) {
             pos += 2;
@@ -415,22 +362,16 @@ static bool ndef_parse_bt(Ndef* ndef, size_t pos, size_t len) {
 }
 
 static bool ndef_parse_vcard(Ndef* ndef, size_t pos, size_t len) {
-    // We hide redundant tags the user is probably not interested in.
-    // Would be easier with FuriString checks for start_with() and end_with()
-    // but to do that would waste lots of RAM on a cloned string buffer
-    // so instead we just look for these markers at start/end and shift
-    // pos and len then use ndef_dump() to output one char at a time.
-    // Results in minimal stack and no heap usage at all.
+
     static const char* const begin_tag = "BEGIN:VCARD";
     static const uint8_t begin_len = strlen(begin_tag);
     static const char* const version_tag = "VERSION:";
     static const uint8_t version_len = strlen(version_tag);
     static const char* const end_tag = "END:VCARD";
     static const uint8_t end_len = strlen(end_tag);
-    char tmp[13] = {0}; // Enough for BEGIN:VCARD\r\n
+    char tmp[13] = {0};
     uint8_t skip = 0;
 
-    // Skip BEGIN tag
     if(len >= sizeof(tmp)) {
         if(!ndef_get(ndef, pos, sizeof(tmp), tmp)) return false;
         if(strncmp(begin_tag, tmp, begin_len) == 0) {
@@ -442,7 +383,6 @@ static bool ndef_parse_vcard(Ndef* ndef, size_t pos, size_t len) {
         }
     }
 
-    // Skip VERSION tag
     if(len >= sizeof(tmp)) {
         if(!ndef_get(ndef, pos, sizeof(tmp), tmp)) return false;
         if(strncmp(version_tag, tmp, version_len) == 0) {
@@ -457,12 +397,9 @@ static bool ndef_parse_vcard(Ndef* ndef, size_t pos, size_t len) {
         }
     }
 
-    // Skip END tag
     if(len >= sizeof(tmp)) {
         if(!ndef_get(ndef, pos + len - sizeof(tmp), sizeof(tmp), tmp)) return false;
-        // Read more than length of END tag and check multiple offsets, might have some padding after
-        // Worst case: there is END:VCARD\r\n\r\n which is same length as tmp buffer (13)
-        // Not sure if this is in spec but might aswell check
+
         static const uint8_t offsets = sizeof(tmp) - end_len + 1;
         for(uint8_t offset = 0; offset < offsets; offset++) {
             if(strncmp(end_tag, tmp + offset, end_len) == 0) {
@@ -479,8 +416,6 @@ static bool ndef_parse_vcard(Ndef* ndef, size_t pos, size_t len) {
     return true;
 }
 
-// Loosely based on Android WiFi NDEF implementation:
-// https://android.googlesource.com/platform/packages/apps/Nfc/+/025560080737b43876c9d81feff3151f497947e8/src/com/android/nfc/NfcWifiProtectedSetup.java
 static bool ndef_parse_wifi(Ndef* ndef, size_t pos, size_t len) {
 #define CREDENTIAL_FIELD_ID        (0x100E)
 #define SSID_FIELD_ID              (0x1045)
@@ -586,8 +521,6 @@ static bool ndef_parse_wifi(Ndef* ndef, size_t pos, size_t len) {
     return true;
 }
 
-// ---=== ndef layout parsing ===---
-
 bool ndef_parse_record(
     Ndef* ndef,
     size_t pos,
@@ -621,7 +554,7 @@ bool ndef_parse_record(
         } else if(strncmp("T", type, type_len) == 0) {
             return ndef_parse_text(ndef, pos, len);
         }
-        // Dump data without parsing
+
         furi_string_cat(ndef->output, "Unknown\n");
         ndef_print(ndef, "Well-known Type", type, type_len, false);
         if(!ndef_dump(ndef, "Payload", pos, len, false)) return false;
@@ -635,7 +568,7 @@ bool ndef_parse_record(
         } else if(strncmp("application/vnd.wfa.wsc", type, type_len) == 0) {
             return ndef_parse_wifi(ndef, pos, len);
         }
-        // Dump data without parsing
+
         furi_string_cat(ndef->output, "Unknown\n");
         ndef_print(ndef, "Media Type", type, type_len, false);
         if(!ndef_dump(ndef, "Payload", pos, len, false)) return false;
@@ -648,7 +581,7 @@ bool ndef_parse_record(
     case NdefTnfUnchanged:
     case NdefTnfReserved:
     default:
-        // Dump data without parsing
+
         furi_string_cat(ndef->output, "Unsupported\n");
         ndef_print(ndef, "Type name format", &tnf, 1, true);
         ndef_print(ndef, "Type", type, type_len, false);
@@ -657,15 +590,13 @@ bool ndef_parse_record(
     }
 }
 
-// NDEF message structure:
-// https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/protocols/nfc/index.html#ndef_message_and_record_format
 bool ndef_parse_message(Ndef* ndef, size_t pos, size_t len, size_t message_num, bool smart_poster) {
     size_t end = pos + len;
 
     size_t record_num = 0;
     bool last_record = false;
     while(pos < end) {
-        // Flags and TNF
+
         NdefFlagsTnf flags_tnf;
         if(!ndef_get(ndef, pos++, 1, &flags_tnf)) return false;
         FURI_LOG_D(TAG, "flags_tnf: %02X", *(uint8_t*)&flags_tnf);
@@ -675,19 +606,17 @@ bool ndef_parse_message(Ndef* ndef, size_t pos, size_t len, size_t message_num, 
         FURI_LOG_D(TAG, "flags_tnf.short_record: %d", flags_tnf.short_record);
         FURI_LOG_D(TAG, "flags_tnf.id_length_present: %d", flags_tnf.id_length_present);
         FURI_LOG_D(TAG, "flags_tnf.type_name_format: %02X", flags_tnf.type_name_format);
-        // Message Begin should only be set on first record
+
         if(record_num++ && flags_tnf.message_begin) return false;
-        // Message End should only be set on last record
+
         if(last_record) return false;
         if(flags_tnf.message_end) last_record = true;
-        // Chunk Flag not supported
+
         if(flags_tnf.chunk_flag) return false;
 
-        // Type Length
         uint8_t type_len;
         if(!ndef_get(ndef, pos++, 1, &type_len)) return false;
 
-        // Payload Length field of 1 or 4 bytes
         uint32_t payload_len;
         if(flags_tnf.short_record) {
             uint8_t payload_len_short;
@@ -699,14 +628,12 @@ bool ndef_parse_message(Ndef* ndef, size_t pos, size_t len, size_t message_num, 
             pos += sizeof(payload_len);
         }
 
-        // ID Length
         uint8_t id_len = 0;
         if(flags_tnf.id_length_present) {
             if(!ndef_get(ndef, pos++, 1, &id_len)) return false;
         }
 
-        // Payload Type
-        char type_buf[32]; // Longest type supported in ndef_parse_record() is 32 chars excl terminator
+        char type_buf[32];
         char* type = type_buf;
         bool type_was_allocated = false;
         if(type_len) {
@@ -721,7 +648,6 @@ bool ndef_parse_message(Ndef* ndef, size_t pos, size_t len, size_t message_num, 
             pos += type_len;
         }
 
-        // Payload ID
         pos += id_len;
 
         if(smart_poster) {
@@ -751,8 +677,6 @@ bool ndef_parse_message(Ndef* ndef, size_t pos, size_t len, size_t message_num, 
     return pos == end && (last_record || record_num == 0);
 }
 
-// TLV structure:
-// https://docs.nordicsemi.com/bundle/ncs-latest/page/nrfxlib/nfc/doc/type_2_tag.html#data
 size_t ndef_parse_tlv(Ndef* ndef, size_t pos, size_t len, size_t already_parsed) {
     size_t end = pos + len;
     size_t message_num = 0;
@@ -764,35 +688,35 @@ size_t ndef_parse_tlv(Ndef* ndef, size_t pos, size_t len, size_t already_parsed)
 
         switch(tlv) {
         default:
-            // Unknown, bail to avoid problems
+
             return 0;
 
         case NdefTlvPadding:
-            // Has no length, skip to next byte
+
             break;
 
         case NdefTlvTerminator:
-            // NDEF message finished, return whether we parsed something
+
             return message_num;
 
         case NdefTlvLockControl:
         case NdefTlvMemoryControl:
         case NdefTlvProprietary:
         case NdefTlvNdefMessage: {
-            // Calculate length
+
             uint16_t len;
             uint8_t len_type;
             if(!ndef_get(ndef, pos++, 1, &len_type)) return 0;
-            if(len_type < 0xFF) { // 1 byte length
+            if(len_type < 0xFF) {
                 len = len_type;
-            } else { // 3 byte length (0xFF marker + 2 byte integer)
+            } else {
                 if(!ndef_get(ndef, pos, sizeof(len), &len)) return 0;
                 len = bit_lib_bytes_to_num_be((void*)&len, sizeof(len));
                 pos += sizeof(len);
             }
 
             if(tlv != NdefTlvNdefMessage) {
-                // We don't care, skip this TLV block to next one
+
                 pos += len;
                 break;
             }
@@ -806,26 +730,19 @@ size_t ndef_parse_tlv(Ndef* ndef, size_t pos, size_t len, size_t already_parsed)
         }
     }
 
-    // Reached data end with no TLV terminator,
-    // but also no errors, treat this as a success
     return message_num;
 }
 
 #if NDEF_PROTO != NDEF_PROTO_RAW
 
-// ---=== protocol entry-points ===---
-
 #if NDEF_PROTO == NDEF_PROTO_UL
 
-// MF UL memory layout:
-// https://docs.nordicsemi.com/bundle/ncs-latest/page/nrfxlib/nfc/doc/type_2_tag.html#memory_layout
 static bool ndef_ul_parse(const NfcDevice* device, FuriString* parsed_data) {
     furi_assert(device);
     furi_assert(parsed_data);
 
     const MfUltralightData* data = nfc_device_get_data(device, NfcProtocolMfUltralight);
 
-    // Check card type can contain NDEF
     if(data->type != MfUltralightTypeNTAG203 && data->type != MfUltralightTypeNTAG213 &&
        data->type != MfUltralightTypeNTAG215 && data->type != MfUltralightTypeNTAG216 &&
        data->type != MfUltralightTypeNTAGI2C1K && data->type != MfUltralightTypeNTAGI2C2K &&
@@ -834,17 +751,15 @@ static bool ndef_ul_parse(const NfcDevice* device, FuriString* parsed_data) {
         return false;
     }
 
-    // Check Capability Container (CC) values
     struct {
         uint8_t nfc_magic_number;
         uint8_t document_version_number;
-        uint8_t data_area_size; // Usable byte size / 8, only includes user memory
+        uint8_t data_area_size;
         uint8_t read_write_access;
     }* cc = (void*)&data->page[3].data[0];
     if(cc->nfc_magic_number != 0xE1) return false;
     if(cc->document_version_number != 0x10) return false;
 
-    // Calculate usable data area
     const uint8_t* start = &data->page[4].data[0];
     const uint8_t* end = start + (cc->data_area_size * 8);
     size_t max_size = mf_ultralight_get_pages_total(data->type) * MF_ULTRALIGHT_PAGE_SIZE;
@@ -876,13 +791,9 @@ static bool ndef_ul_parse(const NfcDevice* device, FuriString* parsed_data) {
 
 #elif NDEF_PROTO == NDEF_PROTO_MFC
 
-// MFC MAD datasheet:
-// https://www.nxp.com/docs/en/application-note/AN10787.pdf
 #define AID_SIZE (2)
 static const uint64_t mad_key = 0xA0A1A2A3A4A5;
 
-// NDEF on MFC breakdown:
-// https://learn.adafruit.com/adafruit-pn532-rfid-nfc/ndef#storing-ndef-messages-in-mifare-sectors-607778
 static const uint8_t ndef_aid[AID_SIZE] = {0x03, 0xE1};
 
 static bool ndef_mfc_parse(const NfcDevice* device, FuriString* parsed_data) {
@@ -891,13 +802,11 @@ static bool ndef_mfc_parse(const NfcDevice* device, FuriString* parsed_data) {
 
     const MfClassicData* data = nfc_device_get_data(device, NfcProtocolMfClassic);
 
-    // Check card type can contain NDEF
     if(data->type != MfClassicType1k && data->type != MfClassicType4k &&
        data->type != MfClassicTypeMini) {
         return false;
     }
 
-    // Check MADs for what sectors contain NDEF data AIDs
     bool sectors_with_ndef[MF_CLASSIC_TOTAL_SECTORS_MAX] = {0};
     const size_t sector_count = mf_classic_get_total_sectors_num(data->type);
     const struct {
@@ -910,14 +819,14 @@ static bool ndef_mfc_parse(const NfcDevice* device, FuriString* parsed_data) {
     for(uint8_t mad = 0; mad < COUNT_OF(mads); mad++) {
         const size_t block = mads[mad].block;
         const size_t sector = mf_classic_get_sector_by_block(block);
-        if(sector_count <= sector) continue; // Skip this MAD if not present
-        // Check MAD key
+        if(sector_count <= sector) continue;
+
         const MfClassicSectorTrailer* sector_trailer =
             mf_classic_get_sector_trailer_by_sector(data, sector);
         const uint64_t sector_key_a = bit_lib_bytes_to_num_be(
             sector_trailer->key_a.data, COUNT_OF(sector_trailer->key_a.data));
         if(sector_key_a != mad_key) continue;
-        // Find NDEF AIDs
+
         for(uint8_t aid_index = 0; aid_index < mads[mad].aid_count; aid_index++) {
             const uint8_t* aid = &data->block[block].data[2 + aid_index * AID_SIZE];
             if(memcmp(aid, ndef_aid, AID_SIZE) == 0) {
@@ -928,20 +837,13 @@ static bool ndef_mfc_parse(const NfcDevice* device, FuriString* parsed_data) {
 
     NDEF_TITLE(device, parsed_data);
 
-    // Calculate how large the data space is, so excluding sector trailers and MAD2.
-    // Makes sure we stay within this card's actual content when parsing.
-    // First 32 sectors: 3 data blocks, 1 sector trailer.
-    // Sector 16 contains MAD2 and we need to skip this.
-    // So the first 32 sectors correspond to 93 (31*3) data blocks.
-    // Last 8 sectors: 15 data blocks, 1 sector trailer.
-    // So the last 8 sectors correspond to 120 (8*15) data blocks.
     size_t data_size;
     if(sector_count > 32) {
         data_size = 93 + (sector_count - 32) * 15;
     } else {
         data_size = sector_count * 3;
         if(sector_count > 16) {
-            data_size -= 3; // Skip MAD2
+            data_size -= 3;
         }
     }
     data_size *= MF_CLASSIC_BLOCK_SIZE;
@@ -961,13 +863,11 @@ static bool ndef_mfc_parse(const NfcDevice* device, FuriString* parsed_data) {
         FURI_LOG_D(TAG, "sector: %d", sector);
         size_t string_prev = furi_string_size(parsed_data);
 
-        // Convert real sector number to data block number
-        // to skip sector trailers and MAD2
         size_t data_block;
         if(sector < 32) {
             data_block = sector * 3;
             if(sector >= 16) {
-                data_block -= 3; // Skip MAD2
+                data_block -= 3;
             }
         } else {
             data_block = 93 + (sector - 32) * 15;
@@ -994,8 +894,6 @@ static bool ndef_mfc_parse(const NfcDevice* device, FuriString* parsed_data) {
 
 #elif NDEF_PROTO == NDEF_PROTO_SLIX
 
-// SLIX NDEF memory layout:
-// https://community.nxp.com/pwmxy87654/attachments/pwmxy87654/nfc/7583/1/EEOL_2011FEB16_EMS_RFD_AN_01.pdf
 static bool ndef_slix_parse(const NfcDevice* device, FuriString* parsed_data) {
     furi_assert(device);
     furi_assert(parsed_data);
@@ -1005,25 +903,20 @@ static bool ndef_slix_parse(const NfcDevice* device, FuriString* parsed_data) {
     const uint16_t block_count = iso15693_3_get_block_count(data);
     const uint8_t* blocks = simple_array_cget_data(data->block_data);
 
-    // TODO(-nofl): Find some way to check for other iso15693 NDEF cards and
-    // split this to also support non-slix iso15693 NDEF tags
-    // Rest of the code works on iso15693 too, but uses SLIX layout assumptions
     if(block_size != SLIX_BLOCK_SIZE) {
         return false;
     }
 
-    // Check Capability Container (CC) values
     struct {
         uint8_t nfc_magic_number;
-        uint8_t read_write_access       : 4; // Reversed due to endianness
+        uint8_t read_write_access       : 4;
         uint8_t document_version_number : 4;
-        uint8_t data_area_size; // Total byte size / 8, includes block 0
+        uint8_t data_area_size;
         uint8_t mbread_ipread;
     }* cc = (void*)&blocks[0 * block_size];
     if(cc->nfc_magic_number != 0xE1) return false;
     if(cc->document_version_number != 0x4) return false;
 
-    // Calculate usable data area
     const uint8_t* start = &blocks[1 * block_size];
     const uint8_t* end = blocks + (cc->data_area_size * 8);
     size_t max_size = block_count * block_size;
@@ -1093,9 +986,6 @@ static bool ndef_t4t_parse(const NfcDevice* device, FuriString* parsed_data) {
 
 #endif
 
-// ---=== boilerplate ===---
-
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin ndef_plugin = {
     .verify = NULL,
     .read = NULL,
@@ -1114,14 +1004,12 @@ static const NfcSupportedCardsPlugin ndef_plugin = {
 #endif
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor ndef_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &ndef_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* ndef_plugin_ep(void) {
     return &ndef_plugin_descriptor;
 }

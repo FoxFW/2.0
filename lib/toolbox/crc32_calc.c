@@ -56,7 +56,6 @@ uint32_t crc32_calc_file(File* file, const FileCrcProgressCb progress_cb, void* 
 
     uint32_t file_size = storage_file_size(file);
 
-    /* Feed file contents per sector into CRC calc */
     for(uint32_t fptr = 0; fptr < file_size;) {
         data_buffer_valid_len = storage_file_read(file, data_buffer, CRC_DATA_BUFFER_MAX_LEN);
         if(data_buffer_valid_len == 0) {

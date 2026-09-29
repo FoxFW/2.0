@@ -91,7 +91,7 @@ void desktop_view_pin_timeout_start(DesktopViewPinTimeout* instance, uint32_t ti
     furi_assert(instance);
 
     DesktopViewPinTimeoutModel* model = view_get_model(instance->view);
-    // no race - always called when timer is stopped
+
     model->time_left = time_left;
     view_commit_model(instance->view, true);
 

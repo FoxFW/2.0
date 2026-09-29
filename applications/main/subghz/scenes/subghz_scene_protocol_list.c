@@ -1,30 +1,3 @@
-/**
- * @file subghz_scene_protocol_list.c
- *
- * Protocol List with live ON/OFF toggles, organized into manufacturer/
- * family groups. Each group has its own master toggle (sets every member
- * at once) as well as individual per-protocol toggles nested underneath.
- *
- * Root-cause fix for all previous crashes:
- * ─────────────────────────────────────────
- * variable_item_list_add() returns a pointer INTO the list's internal
- * VariableItemArray (M*LIB ARRAY_DEF, stores structs by value).  When the
- * array runs out of capacity it reallocs — moving every item — so every
- * pointer previously returned by _add() becomes dangling.
- *
- * Fix: variable_item_list_reserve(list, total_items) is called BEFORE the
- * first _add().  This pre-allocates enough capacity for all items in one
- * shot, so no realloc ever occurs and all returned pointers stay valid for
- * the lifetime of the list.
- *
- * Layout:
- *  Row 0   "Protocols"     value: "62" or "48/62"  (count header, live update)
- *  Row 1   "Select"        value: "All" / "None"    (OK to apply)
- *  Row 2…  [Group name]    value: "ON" / "OFF" / "MIX"  (master toggle)
- *          "  [Protocol]"  value: "ON" / "OFF"          (indented, nested)
- *          "RAW" and "BinRAW" locked ON, non-interactive, ungrouped.
- */
-
 #include "../subghz_i.h"
 #include "../subghz_protocol_filter.h"
 #include "../subghz_protocol_groups.h"
@@ -38,44 +11,25 @@ static const char* const proto_toggle_labels[] = {"OFF", "ON"};
 static const char* const group_toggle_labels[] = {"OFF", "ON"};
 static const char* const select_labels[]       = {"All", "None"};
 
-
 typedef struct {
     SubGhz* subghz;
     size_t  protocol_index;
     size_t  group;
-    bool    enabled;   /* updated in callback; used by apply_items_to_filter */
+    bool    enabled;
     VariableItem* item;
-    /* Row label ("  <protocol name>"), OWNED by this ctx. Required because
-     * variable_item_list_add() stores the const char* it's given by
-     * reference (see VariableItemList's own struct: `const char* label;`,
-     * never copied) - it does NOT duplicate the string the way
-     * variable_item_set_current_value_text() does internally via
-     * furi_string_set(). A label built in a function-local stack buffer
-     * (as this used to be, one `char label[32]` declared inside the
-     * per-protocol loop below) becomes a dangling pointer the instant
-     * protocol_list_populate() returns and its stack frame is torn down;
-     * every row's `label` pointer then ends up reading whatever the same
-     * reused stack slot last held - in practice, uniformly, the last
-     * protocol name written into it. That's the confirmed root cause of a
-     * real-hardware bug where every per-protocol row read the same single
-     * protocol's name (whichever one happened to populate last) instead of
-     * its own. g_proto_ctx (this struct's array) is heap-allocated and
-     * lives for as long as the scene may still redraw, so a buffer stored
-     * here - unlike the old stack buffer - stays valid for the pointer's
-     * entire real lifetime. */
+
     char label[32];
 } ProtoItemCtx;
 
 static ProtoItemCtx*   g_proto_ctx       = NULL;
 static size_t          g_proto_ctx_count = 0;
 static uint8_t         g_select_choice   = 0;
-static VariableItem*   g_count_item      = NULL;  /* safe: array pre-allocated */
+static VariableItem*   g_count_item      = NULL;
 static VariableItem*   g_group_items[SUBGHZ_PROTOCOL_GROUP_COUNT];
 static bool             g_group_present[SUBGHZ_PROTOCOL_GROUP_COUNT];
 static bool          g_filter_dirty    = false;
 static bool          g_count_dirty     = false;
 static SubGhz*       g_proto_subghz    = NULL;
-
 
 static void build_count_text(SubGhz* subghz, size_t total, char* buf, size_t n) {
     size_t active = subghz_protocol_filter_enabled_count(subghz->protocol_filter, total);
@@ -96,9 +50,6 @@ static void apply_items_to_filter(void) {
     g_filter_dirty = false;
 }
 
-/* Recompute a group header's ON/OFF/MIX display from its members' current
- * in-memory state (doesn't touch the underlying filter - that's handled by
- * apply_items_to_filter on a dirty flag, same as before). */
 static void refresh_group_header(size_t group) {
     if(group >= SUBGHZ_PROTOCOL_GROUP_COUNT || !g_group_items[group]) return;
 
@@ -122,7 +73,6 @@ static void refresh_group_header(size_t group) {
     }
 }
 
-
 static void proto_toggle_cb(VariableItem* item) {
     uintptr_t ctx_raw = (uintptr_t)variable_item_get_context(item);
     if(!ctx_raw) return;
@@ -138,10 +88,6 @@ static void proto_toggle_cb(VariableItem* item) {
     refresh_group_header(g_proto_ctx[ci].group);
 }
 
-
-/* Encoded as (group_index + 1) | 0x8000 to distinguish from per-protocol
- * ctx (which uses (ci + 1) with the top bit clear - proto count never
- * gets remotely close to 0x8000). */
 #define GROUP_CTX_FLAG 0x8000u
 
 static void group_toggle_cb(VariableItem* item) {
@@ -167,21 +113,14 @@ static void group_toggle_cb(VariableItem* item) {
     g_count_dirty  = true;
 }
 
-
 static void select_value_change_cb(VariableItem* item) {
     g_select_choice = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, select_labels[g_select_choice]);
 }
 
-/* RAW and BinRAW are both generic capture modes, not named protocols - they
- * get their own always-on ungrouped rows instead of being sorted into a
- * brand group. Without this, BinRAW was the sole member of the "General"
- * catch-all group, which just showed up as an odd single-protocol group at
- * the bottom of the list. */
 static bool is_raw_family(const char* name) {
     return strcmp(name, "RAW") == 0 || strcmp(name, "BinRAW") == 0;
 }
-
 
 static void protocol_list_populate(SubGhz* subghz) {
     VariableItemList* list = subghz->variable_item_list;
@@ -197,13 +136,11 @@ static void protocol_list_populate(SubGhz* subghz) {
     g_proto_ctx = malloc(sizeof(ProtoItemCtx) * alloc);
     furi_assert(g_proto_ctx);
 
-    /* Which group each registry protocol belongs to, and whether any
-     * non-RAW member exists in that group (so we skip empty groups). */
     size_t group_of[PROTO_LIST_MAX];
     for(size_t i = 0; i < total && i < PROTO_LIST_MAX; i++) {
         const SubGhzProtocol* proto = subghz_protocol_registry_get_by_index(&subghz_protocol_registry, i);
         if(!proto) continue;
-        if(is_raw_family(proto->name)) continue; /* RAW/BinRAW aren't grouped */
+        if(is_raw_family(proto->name)) continue;
         group_of[i] = subghz_protocol_group_for_name(proto->name);
         g_group_present[group_of[i]] = true;
     }
@@ -213,12 +150,8 @@ static void protocol_list_populate(SubGhz* subghz) {
         if(g_group_present[g]) group_row_count++;
     }
 
-    /* Pre-allocate: 1 count + 1 select + 1 RAW row (if present) + group
-     * header rows + protocol rows. Prevents ANY realloc - all _add()
-     * pointers stay valid for the lifetime of this populate. */
     variable_item_list_reserve(list, total + group_row_count + 2);
 
-    /* Row 0: count header — pointer valid because array is pre-allocated */
     char count_buf[16];
     build_count_text(subghz, total, count_buf, sizeof(count_buf));
     g_count_item = variable_item_list_add(list, "Protocols", 1, NULL, NULL);
@@ -227,13 +160,10 @@ static void protocol_list_populate(SubGhz* subghz) {
     g_count_dirty  = false;
     g_filter_dirty = false;
 
-    /* Row 1: Select All / None */
     VariableItem* sel = variable_item_list_add(list, "Select", 2, select_value_change_cb, NULL);
     variable_item_set_current_value_index(sel, g_select_choice);
     variable_item_set_current_value_text(sel, select_labels[g_select_choice]);
 
-    /* RAW/BinRAW rows, if present - forced ON, non-interactive, ungrouped.
-     * "RAW" is listed first, "BinRAW" second, matching registry order. */
     for(size_t i = 0; i < total && i < PROTO_LIST_MAX; i++) {
         const SubGhzProtocol* proto = subghz_protocol_registry_get_by_index(&subghz_protocol_registry, i);
         if(proto && is_raw_family(proto->name)) {
@@ -244,7 +174,6 @@ static void protocol_list_populate(SubGhz* subghz) {
         }
     }
 
-    /* One block per group, in display order: header row + its members. */
     for(size_t g = 0; g < SUBGHZ_PROTOCOL_GROUP_COUNT; g++) {
         if(!g_group_present[g]) continue;
 
@@ -266,10 +195,6 @@ static void protocol_list_populate(SubGhz* subghz) {
             g_proto_ctx[ci].group          = g;
             g_proto_ctx[ci].enabled        = enabled;
 
-            /* Written directly into the ctx's own persistent buffer, not a
-             * local stack variable - see the ProtoItemCtx::label comment
-             * above for why (variable_item_list_add() keeps this pointer
-             * by reference, never copies it). */
             snprintf(
                 g_proto_ctx[ci].label, sizeof(g_proto_ctx[ci].label), "  %s", proto->name);
             VariableItem* it = variable_item_list_add(
@@ -283,7 +208,6 @@ static void protocol_list_populate(SubGhz* subghz) {
     }
 }
 
-
 static void protocol_list_enter_cb(void* context, uint32_t index) {
     SubGhz* subghz = context;
     if(index != SELECT_ROW_INDEX) return;
@@ -296,7 +220,6 @@ static void protocol_list_enter_cb(void* context, uint32_t index) {
     protocol_list_populate(subghz);
     variable_item_list_set_selected_item(subghz->variable_item_list, SELECT_ROW_INDEX);
 }
-
 
 void subghz_scene_protocol_list_on_enter(void* context) {
     SubGhz* subghz = context;

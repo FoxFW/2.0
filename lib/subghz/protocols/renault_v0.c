@@ -4,6 +4,7 @@
 #include "../blocks/encoder.h"
 #include "../blocks/generic.h"
 #include "../blocks/math.h"
+#include "../blocks/custom_btn_i.h"
 #include <lib/toolbox/level_duration.h>
 
 #define RENAULT_V0_MIN_BITS           0x52U
@@ -1101,9 +1102,32 @@ SubGhzProtocolStatus
             flipper_format_rewind(flipper_format);
             flipper_format_read_uint32(flipper_format, "Serial", &serial_u32, 1);
             flipper_format_rewind(flipper_format);
-            flipper_format_read_uint32(flipper_format, "Btn", &btn_u32, 1);
+            const bool got_btn = flipper_format_read_uint32(flipper_format, "Btn", &btn_u32, 1);
             flipper_format_rewind(flipper_format);
-            flipper_format_read_uint32(flipper_format, "Cnt", &cnt_u32, 1);
+            const bool got_cnt = flipper_format_read_uint32(flipper_format, "Cnt", &cnt_u32, 1);
+
+            if(!got_cnt) {
+                uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
+                if(mult == 0U) mult = 1U;
+                cnt_u32 = (cnt_u32 + mult) & 0xFFU;
+            }
+
+            if(!got_btn) {
+                subghz_custom_btn_set_max(4);
+                switch(subghz_custom_btn_get()) {
+                case SUBGHZ_CUSTOM_BTN_UP:
+                    btn_u32 = 0x06U;
+                    break;
+                case SUBGHZ_CUSTOM_BTN_DOWN:
+                    btn_u32 = 0x0AU;
+                    break;
+                case SUBGHZ_CUSTOM_BTN_OK:
+                case SUBGHZ_CUSTOM_BTN_LEFT:
+                case SUBGHZ_CUSTOM_BTN_RIGHT:
+                default:
+                    break;
+                }
+            }
 
             instance->tx_button = (uint8_t)btn_u32;
             if(!renault_v0_type_button_valid(captured_type, instance->tx_button)) {
@@ -1175,6 +1199,10 @@ SubGhzProtocolStatus
                     break;
                 }
             }
+
+            flipper_format_rewind(flipper_format);
+            uint32_t cnt_store = instance->generic.cnt;
+            flipper_format_insert_or_update_uint32(flipper_format, "Cnt", &cnt_store, 1);
         }
 
         instance->encoder.is_running = true;
@@ -1319,6 +1347,25 @@ void subghz_protocol_decoder_renault_v0_get_string(void* context, FuriString* ou
 
     SubGhzProtocolDecoderRenaultV0* instance = context;
 
+    uint8_t display_btn = (uint8_t)instance->generic.btn;
+    if(instance->type_id == RenaultV0Type13) {
+        subghz_custom_btn_set_max(4);
+        switch(subghz_custom_btn_get()) {
+        case SUBGHZ_CUSTOM_BTN_UP:
+            display_btn = 0x06U;
+            break;
+        case SUBGHZ_CUSTOM_BTN_DOWN:
+            display_btn = 0x0AU;
+            break;
+        case SUBGHZ_CUSTOM_BTN_OK:
+        case SUBGHZ_CUSTOM_BTN_LEFT:
+        case SUBGHZ_CUSTOM_BTN_RIGHT:
+        default:
+            display_btn = (uint8_t)instance->generic.btn;
+            break;
+        }
+    }
+
     furi_string_cat_printf(
         output,
         "%s %dbit\r\n"
@@ -1332,8 +1379,8 @@ void subghz_protocol_decoder_renault_v0_get_string(void* context, FuriString* ou
         instance->generic.data,
         instance->key2,
         instance->generic.serial,
-        instance->generic.btn,
-        renault_v0_get_button_name(instance->type_id, instance->generic.btn),
+        display_btn,
+        renault_v0_get_button_name(instance->type_id, display_btn),
         instance->generic.cnt,
         instance->check_c1 ? "ERR" : "OK",
         instance->check_c2 ? "ERR" : "OK",

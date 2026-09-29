@@ -11,28 +11,6 @@
 
 #define TAG "DesktopSrv"
 
-static void desktop_scene_main_new_idle_animation_callback(void* context) {
-    furi_assert(context);
-    Desktop* desktop = context;
-    view_dispatcher_send_custom_event(
-        desktop->view_dispatcher, DesktopAnimationEventNewIdleAnimation);
-}
-
-static void desktop_scene_main_check_animation_callback(void* context) {
-    furi_assert(context);
-    Desktop* desktop = context;
-    view_dispatcher_send_custom_event(
-        desktop->view_dispatcher, DesktopAnimationEventCheckAnimation);
-}
-
-static void desktop_scene_main_interact_animation_callback(void* context) {
-    furi_assert(context);
-    Desktop* desktop = context;
-    view_dispatcher_send_custom_event(
-        desktop->view_dispatcher, DesktopAnimationEventInteractAnimation);
-}
-
-
 static inline bool desktop_scene_main_check_none(const char* str) {
     return (str[1] == '\0' && str[0] == '?');
 }
@@ -41,14 +19,12 @@ static void desktop_scene_main_open_app_or_profile(Desktop* desktop, FavoriteApp
     bool load_ok = false;
     if(strlen(application->name_or_path) > 0) {
         if(!desktop_scene_main_check_none(application->name_or_path)) {
-            // Load app
+
             loader_start_detached_with_gui_error(desktop->loader, application->name_or_path, NULL);
         }
         load_ok = true;
     }
-    /* Default (empty / "Dolphin"): open FFV.
-     * Previously opened subghz/read causing SubGHz to launch even when
-     * settings showed "Dolphin (default)".                              */
+
     if(!load_ok) {
         loader_start_detached_with_gui_error(
             desktop->loader, EXT_PATH("apps/Fox/ffb.fap"), NULL);
@@ -74,24 +50,12 @@ void desktop_scene_main_callback(DesktopEvent event, void* context) {
 void desktop_scene_main_on_enter(void* context) {
     Desktop* desktop = (Desktop*)context;
 
-    // A Fox Alarm Clock alarm fired while we couldn't safely interrupt
-    // (an app was running, or the device was PIN-locked) - now that we're
-    // back at idle, jump straight into the ringing Fox Clock screen instead
-    // of the normal desktop.
     if(desktop->alarm_ringing) {
         scene_manager_next_scene(desktop->scene_manager, DesktopSceneClockLock);
         return;
     }
 
     DesktopMainView* main_view = desktop->main_view;
-
-    animation_manager_set_context(desktop->animation_manager, desktop);
-    animation_manager_set_new_idle_callback(
-        desktop->animation_manager, desktop_scene_main_new_idle_animation_callback);
-    animation_manager_set_check_callback(
-        desktop->animation_manager, desktop_scene_main_check_animation_callback);
-    animation_manager_set_interact_callback(
-        desktop->animation_manager, desktop_scene_main_interact_animation_callback);
 
     desktop_main_set_callback(main_view, desktop_scene_main_callback, desktop);
 
@@ -123,13 +87,13 @@ bool desktop_scene_main_on_event(void* context, SceneManagerEvent event) {
             break;
 
         case DesktopMainEventOpenClockLock:
-            // This tells the Flipper to transition to our new stealth clock scene
+
             scene_manager_next_scene(desktop->scene_manager, DesktopSceneClockLock);
             consumed = true;
             break;
 
         case DesktopMainEventOpenArchive:
-            /* Always open FFV — Archive is replaced by FFV in FoxFW. */
+
             loader_start_detached_with_gui_error(
                 desktop->loader, EXT_PATH("apps/Fox/ffb.fap"), NULL);
             consumed = true;
@@ -152,7 +116,7 @@ bool desktop_scene_main_on_event(void* context, SceneManagerEvent event) {
             consumed = true;
             break;
         case DesktopMainEventOpenFavoriteRightShort:
-            desktop_scene_main_start_favorite(
+            desktop_scene_main_open_app_or_profile(
                 desktop, &desktop->settings.favorite_apps[FavoriteAppRightShort]);
             consumed = true;
             break;
@@ -163,22 +127,6 @@ bool desktop_scene_main_on_event(void* context, SceneManagerEvent event) {
         case DesktopMainEventOpenFavoriteOkLong:
             desktop_scene_main_start_favorite(
                 desktop, &desktop->settings.favorite_apps[FavoriteAppOkLong]);
-            consumed = true;
-            break;
-
-        case DesktopAnimationEventCheckAnimation:
-            animation_manager_check_blocking_process(desktop->animation_manager);
-            consumed = true;
-            break;
-        case DesktopAnimationEventNewIdleAnimation:
-            animation_manager_new_idle_process(desktop->animation_manager);
-            consumed = true;
-            break;
-        case DesktopAnimationEventInteractAnimation:
-            if(!animation_manager_interact_process(desktop->animation_manager)) {
-                desktop_scene_main_open_app_or_profile(
-                    desktop, &desktop->settings.favorite_apps[FavoriteAppRightShort]);
-            }
             consumed = true;
             break;
 
@@ -196,10 +144,5 @@ bool desktop_scene_main_on_event(void* context, SceneManagerEvent event) {
 }
 
 void desktop_scene_main_on_exit(void* context) {
-    Desktop* desktop = (Desktop*)context;
-
-    animation_manager_set_new_idle_callback(desktop->animation_manager, NULL);
-    animation_manager_set_check_callback(desktop->animation_manager, NULL);
-    animation_manager_set_interact_callback(desktop->animation_manager, NULL);
-    animation_manager_set_context(desktop->animation_manager, desktop);
+    UNUSED(context);
 }

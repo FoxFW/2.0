@@ -56,7 +56,7 @@ static void input_cli_send(PipeSide* pipe, FuriString* args, FuriPubSub* event_p
     bool parsed = false;
 
     do {
-        // Parse Key
+
         if(!args_read_string_and_trim(args, key_str)) {
             break;
         }
@@ -75,7 +75,7 @@ static void input_cli_send(PipeSide* pipe, FuriString* args, FuriPubSub* event_p
         } else {
             break;
         }
-        // Parse Type
+
         if(!furi_string_cmp(args, "press")) {
             event.type = InputTypePress;
         } else if(!furi_string_cmp(args, "release")) {
@@ -90,7 +90,7 @@ static void input_cli_send(PipeSide* pipe, FuriString* args, FuriPubSub* event_p
         parsed = true;
     } while(false);
 
-    if(parsed) { //-V547
+    if(parsed) {
         furi_pubsub_publish(event_pubsub, &event);
     } else {
         input_cli_send_print_usage();

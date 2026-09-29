@@ -65,7 +65,7 @@ void protocol_nexwatch_decoder_start(ProtocolNexwatch* protocol) {
 }
 
 static bool protocol_nexwatch_check_preamble(uint8_t* data, size_t bit_index) {
-    // 01010110
+
     if(bit_lib_get_bits(data, bit_index, 8) != 0b01010110) return false;
     return true;
 }
@@ -100,20 +100,17 @@ static uint8_t protocol_nexwatch_checksum(uint8_t magic, uint32_t id, uint8_t pa
 static bool protocol_nexwatch_can_be_decoded(uint8_t* data) {
     if(!protocol_nexwatch_check_preamble(data, 0)) return false;
 
-    // Check for reserved word (32-bit)
     if(bit_lib_get_bits_32(data, 8, 32) != 0) {
         return false;
     }
 
     uint8_t parity = bit_lib_get_bits(data, 76, 4);
 
-    // parity check
-    // from 32b hex id, 4b mode
     uint8_t hex[5] = {0};
     for(uint8_t i = 0; i < 5; i++) {
         hex[i] = bit_lib_get_bits(data, 40 + (i * 8), 8);
     }
-    //mode is only 4 bits.
+
     hex[4] &= 0xf0;
     uint8_t calc_parity = protocol_nexwatch_parity(hex);
 
@@ -144,7 +141,7 @@ static bool protocol_nexwatch_decoder_feed_internal(bool polarity, uint32_t time
 }
 
 static void protocol_nexwatch_descramble(uint32_t* id, uint32_t* scrambled) {
-    // 255 = Not used/Unknown other values are the bit offset in the ID/FC values
+
     const uint8_t hex_2_id[] = {31, 27, 23, 19, 15, 11, 7, 3, 30, 26, 22, 18, 14, 10, 6, 2,
                                 29, 25, 21, 17, 13, 9,  5, 1, 28, 24, 20, 16, 12, 8,  4, 0};
 
@@ -187,7 +184,7 @@ bool protocol_nexwatch_decoder_feed(ProtocolNexwatch* protocol, bool level, uint
     }
 
     if(duration > (NEXWATCH_US_PER_BIT / 4)) {
-        // Try to decode wrong phase synced data
+
         if(level) {
             duration += 120;
         } else {

@@ -37,7 +37,6 @@ InfraredStatus infrared_encoder_samsung32_encode_repeat(
     bool* level) {
     furi_assert(encoder);
 
-    /* space + 2 timings preambule + payload + stop bit */
     uint32_t timings_encoded_up_to_repeat = 1 + 2 + encoder->bits_encoded * 2 + 1;
     uint32_t repeat_cnt = encoder->timings_encoded - timings_encoded_up_to_repeat;
 

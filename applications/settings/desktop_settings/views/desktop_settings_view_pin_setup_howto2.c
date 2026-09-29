@@ -4,12 +4,6 @@
 
 #include "desktop_settings_view_pin_setup_howto2.h"
 
-/* NOTE: Dead includes removed:
- *   <furi_hal.h>, <toolbox/version.h>,
- *   <dolphin/helpers/dolphin_state.h>, <dolphin/dolphin.h>
- * None of their symbols were used — they were leftover from the original
- * internal version and could contribute unresolvable imports to the FAP. */
-
 struct DesktopSettingsViewPinSetupHowto2 {
     View* view;
     DesktopSettingsViewPinSetupHowto2Callback cancel_callback;

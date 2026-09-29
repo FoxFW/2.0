@@ -35,7 +35,6 @@ typedef struct {
 static void popup_view_draw_callback(Canvas* canvas, void* _model) {
     PopupModel* model = _model;
 
-    // Prepare canvas
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
 
@@ -43,7 +42,6 @@ static void popup_view_draw_callback(Canvas* canvas, void* _model) {
         canvas_draw_icon(canvas, model->icon.x, model->icon.y, model->icon.icon);
     }
 
-    // Draw header
     if(model->header.text != NULL) {
         canvas_set_font(canvas, FontPrimary);
         elements_multiline_text_aligned(
@@ -55,7 +53,6 @@ static void popup_view_draw_callback(Canvas* canvas, void* _model) {
             model->header.text);
     }
 
-    // Draw text
     if(model->text.text != NULL) {
         canvas_set_font(canvas, FontSecondary);
         elements_multiline_text_aligned(
@@ -81,7 +78,6 @@ static bool popup_view_input_callback(InputEvent* event, void* context) {
     Popup* popup = context;
     bool consumed = false;
 
-    // Process key presses only
     if(event->type == InputTypeShort && popup->callback) {
         popup->callback(popup->context);
         consumed = true;

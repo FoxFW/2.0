@@ -1,4 +1,4 @@
-#include "../subghz_i.h" // IWYU pragma: keep
+#include "../subghz_i.h"
 #include <lib/subghz/protocols/base.h>
 
 enum SubmenuIndex {
@@ -89,13 +89,11 @@ bool subghz_scene_saved_menu_on_event(void* context, SceneManagerEvent event) {
         if(event.event == SubmenuIndexEmulate) {
             scene_manager_set_scene_state(
                 subghz->scene_manager, SubGhzSceneSavedMenu, SubmenuIndexEmulate);
-            /* Decoded signals go directly to the Transmitter scene which shows
-             * protocol name, key data, and action buttons (e.g. LOCK/UNLOCK). */
+
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneTransmitter);
             return true;
         } else if(event.event == SubmenuIndexDetails) {
-            /* Decode the signal and show all fields in the Details scene
-             * (scrollable Widget view — no timeout, proper Back navigation). */
+
             scene_manager_set_scene_state(
                 subghz->scene_manager, SubGhzSceneSavedMenu, SubmenuIndexDetails);
             SubGhzProtocolDecoderBase* dec = subghz_txrx_get_decoder(subghz->txrx);

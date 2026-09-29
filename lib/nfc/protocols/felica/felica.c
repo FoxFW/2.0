@@ -14,9 +14,6 @@
 
 static const uint32_t felica_data_format_version = 2;
 
-/** @brief This is used in felica_prepare_first_block to define which 
- * type of block needs to be prepared.
-*/
 typedef enum {
     FelicaMACTypeRead,
     FelicaMACTypeWrite,
@@ -101,16 +98,12 @@ bool felica_load(FelicaData* data, FlipperFormat* ff, uint32_t version) {
     FuriString* str_key_buffer = furi_string_alloc();
     FuriString* str_data_buffer = furi_string_alloc();
 
-    // Header
     do {
         if(version < NFC_UNIFIED_FORMAT_VERSION) break;
 
         uint32_t data_format_version = 0;
         if(!flipper_format_read_uint32(ff, FELICA_DATA_FORMAT_VERSION, &data_format_version, 1))
             break;
-
-        // V1 saving function always treated everything as Felica Lite
-        // So we load the blocks as if everything is Felica Lite
 
         if(!flipper_format_read_hex(ff, FELICA_MANUFACTURE_ID, data->idm.data, FELICA_IDM_SIZE))
             break;
@@ -133,7 +126,7 @@ bool felica_load(FelicaData* data, FlipperFormat* ff, uint32_t version) {
 
     switch(data->workflow_type) {
     case FelicaLite:
-        // Blocks data
+
         do {
             uint32_t blocks_total = 0;
             uint32_t blocks_read = 0;
@@ -179,7 +172,6 @@ bool felica_load(FelicaData* data, FlipperFormat* ff, uint32_t version) {
             system->system_code = system_code;
             system->system_code_idx = sys_idx;
 
-            // Areas
             do {
                 uint32_t area_count = 0;
                 if(!flipper_format_read_uint32(ff, "Area found", &area_count, 1)) break;
@@ -207,7 +199,6 @@ bool felica_load(FelicaData* data, FlipperFormat* ff, uint32_t version) {
                 }
             } while(false);
 
-            // Services
             do {
                 uint32_t service_count = 0;
                 if(!flipper_format_read_uint32(ff, "Service found", &service_count, 1)) break;
@@ -225,7 +216,6 @@ bool felica_load(FelicaData* data, FlipperFormat* ff, uint32_t version) {
                     }
                     FelicaService* service = simple_array_get(system->services, i);
 
-                    // all unread in the beginning. reserved for future block load
                     if(!sscanf(
                            furi_string_get_cstr(str_data_buffer),
                            "| Code %04hX |",
@@ -236,7 +226,6 @@ bool felica_load(FelicaData* data, FlipperFormat* ff, uint32_t version) {
                 }
             } while(false);
 
-            // Public blocks
             do {
                 furi_string_reset(str_data_buffer);
                 furi_string_reset(str_key_buffer);
@@ -266,7 +255,7 @@ bool felica_load(FelicaData* data, FlipperFormat* ff, uint32_t version) {
                     if(needle == FURI_STRING_FAILURE) {
                         break;
                     }
-                    needle += 6; // length of "Data: " = 6
+                    needle += 6;
                     furi_string_mid(str_data_buffer, needle, 3 * FELICA_DATA_BLOCK_SIZE);
                     furi_string_replace_all(str_data_buffer, " ", "");
                     if(!hex_chars_to_uint8(
@@ -300,7 +289,7 @@ bool felica_save(const FelicaData* data, FlipperFormat* ff) {
     FuriString* str_data_buffer = furi_string_alloc();
     FuriString* str_key_buffer = furi_string_alloc();
     do {
-        // Header
+
         if(!flipper_format_write_comment_cstr(ff, FELICA_PROTOCOL_NAME " specific data")) break;
         if(!flipper_format_write_uint32(
                ff, FELICA_DATA_FORMAT_VERSION, &felica_data_format_version, 1))
@@ -322,14 +311,13 @@ bool felica_save(const FelicaData* data, FlipperFormat* ff) {
     switch(data->workflow_type) {
     case FelicaLite:
         if(!flipper_format_write_comment_cstr(ff, "Felica Lite specific data")) break;
-        // Blocks count
+
         do {
             uint32_t blocks_total = data->blocks_total;
             uint32_t blocks_read = data->blocks_read;
             if(!flipper_format_write_uint32(ff, "Blocks total", &blocks_total, 1)) break;
             if(!flipper_format_write_uint32(ff, "Blocks read", &blocks_read, 1)) break;
 
-            // Blocks data
             furi_string_reset(str_data_buffer);
             furi_string_reset(str_key_buffer);
             for(uint8_t i = 0; i < blocks_total; i++) {
@@ -365,14 +353,9 @@ bool felica_save(const FelicaData* data, FlipperFormat* ff) {
             do {
                 uint32_t area_count = simple_array_get_count(system->areas);
                 uint32_t service_count = simple_array_get_count(system->services);
-                // Note: The theoretical max area/service count is 2^10
-                // So uint16_t is already enough for practical usage
-                // The following key index print will use %03X because 12 bits are enough to cover 0-1023
 
-                // Area count
                 if(!flipper_format_write_uint32(ff, "Area found", &area_count, 1)) break;
 
-                // Area data
                 furi_string_reset(str_data_buffer);
                 furi_string_reset(str_key_buffer);
                 for(uint16_t i = 0; i < area_count; i++) {
@@ -390,10 +373,8 @@ bool felica_save(const FelicaData* data, FlipperFormat* ff) {
                 }
                 if(!flipper_format_write_empty_line(ff)) break;
 
-                // Service count
                 if(!flipper_format_write_uint32(ff, "Service found", &service_count, 1)) break;
 
-                // Service data
                 furi_string_reset(str_data_buffer);
                 furi_string_reset(str_key_buffer);
                 for(uint16_t i = 0; i < service_count; i++) {
@@ -411,7 +392,6 @@ bool felica_save(const FelicaData* data, FlipperFormat* ff) {
                 }
                 if(!flipper_format_write_empty_line(ff)) break;
 
-                // Directory tree
                 furi_string_reset(str_data_buffer);
                 furi_string_reset(str_key_buffer);
                 furi_string_printf(
@@ -419,11 +399,10 @@ bool felica_save(const FelicaData* data, FlipperFormat* ff) {
                     "\n::: ... are public services\n||| ... are private services");
                 felica_write_directory_tree(system, str_data_buffer);
                 furi_string_replace_all(str_data_buffer, ":", "+");
-                // We use a clearer marker in saved text files
+
                 if(!flipper_format_write_string(ff, "Directory Tree", str_data_buffer)) break;
             } while(false);
 
-            // Public blocks
             do {
                 uint32_t public_block_count = simple_array_get_count(system->public_blocks);
                 if(!flipper_format_write_uint32(ff, "Public blocks read", &public_block_count, 1))
@@ -454,7 +433,6 @@ bool felica_save(const FelicaData* data, FlipperFormat* ff) {
         break;
     }
 
-    // Clean up
     furi_string_free(str_data_buffer);
     furi_string_free(str_key_buffer);
 
@@ -482,7 +460,6 @@ const char* felica_get_device_name(const FelicaData* data, NfcDeviceNameType nam
 const uint8_t* felica_get_uid(const FelicaData* data, size_t* uid_len) {
     furi_check(data);
 
-    // Consider Manufacturer ID as UID
     if(uid_len) {
         *uid_len = FELICA_IDM_SIZE;
     }
@@ -493,7 +470,6 @@ const uint8_t* felica_get_uid(const FelicaData* data, size_t* uid_len) {
 bool felica_set_uid(FelicaData* data, const uint8_t* uid, size_t uid_len) {
     furi_check(data);
 
-    // Consider Manufacturer ID as UID
     const bool uid_valid = uid_len == FELICA_IDM_SIZE;
     if(uid_valid) {
         memcpy(data->idm.data, uid, uid_len);
@@ -711,11 +687,11 @@ void felica_write_directory_tree(const FelicaSystem* system, FuriString* str) {
 }
 
 void felica_get_workflow_type(FelicaData* data) {
-    // Reference: Proxmark3 repo
+
     uint8_t rom_type = data->pmm.data[0];
     uint8_t workflow_type = data->pmm.data[1];
     if(workflow_type <= 0x48) {
-        // More liberal check because most of these should be treated as FeliCa Standard, regardless of mobile or not.
+
         data->workflow_type = FelicaStandard;
     } else {
         switch(workflow_type) {
@@ -724,16 +700,16 @@ void felica_get_workflow_type(FelicaData* data) {
             break;
         case 0xF0:
         case 0xF1:
-        case 0xF2: // 0xF2 => FeliCa Link RC-S967 in Lite-S Mode or Lite-S HT Mode
+        case 0xF2:
             data->workflow_type = FelicaLite;
             break;
-        case 0xE1: // Felica Link
-        case 0xE0: // Felica Plug
+        case 0xE1:
+        case 0xE0:
             data->workflow_type = FelicaUnknown;
             break;
         case 0xFF:
             if(rom_type == 0xFF) {
-                data->workflow_type = FelicaUnknown; // Felica Link
+                data->workflow_type = FelicaUnknown;
             }
             break;
         default:
@@ -744,13 +720,12 @@ void felica_get_workflow_type(FelicaData* data) {
 }
 
 void felica_get_ic_name(const FelicaData* data, FuriString* ic_name) {
-    // Reference: Proxmark3 repo
+
     uint8_t rom_type = data->pmm.data[0];
     uint8_t ic_type = data->pmm.data[1];
 
     switch(ic_type) {
-        // FeliCa Standard Products:
-        // odd findings
+
     case 0x00:
         furi_string_set_str(ic_name, "FeliCa Standard RC-S830");
         break;
@@ -807,7 +782,7 @@ void felica_get_ic_name(const FelicaData* data, FuriString* ic_name) {
         break;
     case 0x20:
         furi_string_set_str(ic_name, "FeliCa Standard RC-S962");
-        // RC-S962 has been extensively found in Japan Transit ICs, despite model number not ending in 4
+
         break;
     case 0x31:
         furi_string_set_str(ic_name, "FeliCa Standard RC-S104,\nJapan Transit IC");
@@ -851,7 +826,7 @@ void felica_get_ic_name(const FelicaData* data, FuriString* ic_name) {
     case 0xA2:
         furi_string_set_str(ic_name, "FeliCa Standard RC-SA14");
         break;
-    // NFC Dynamic Tag (FeliCa Plug) Products:
+
     case 0xE0:
         furi_string_set_str(ic_name, "FeliCa Plug RC-S926,\nNFC Dynamic Tag");
         break;
@@ -868,7 +843,7 @@ void felica_get_ic_name(const FelicaData* data, FuriString* ic_name) {
         furi_string_set_str(ic_name, "FeliCa Link RC-S967,\nLite-S Mode or Lite-S HT Mode");
         break;
     case 0xFF:
-        if(rom_type == 0xFF) { // from FeliCa Link User's Manual
+        if(rom_type == 0xFF) {
             furi_string_set_str(ic_name, "FeliCa Link RC-S967,\nNFC-DEP Mode");
         }
         break;
@@ -890,7 +865,6 @@ void felica_service_get_attribute_string(const FelicaService* service, FuriStrin
     furi_string_cat_str(str, is_public ? "| Public  " : "| Private ");
 
     bool is_purse = (service->attr & FELICA_SERVICE_ATTRIBUTE_PURSE) != 0;
-    // Subfield bitwise attributes are applicable depending on is PURSE or not
 
     if(is_purse) {
         furi_string_cat_str(str, "| Purse  |");

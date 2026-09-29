@@ -1,7 +1,3 @@
-/*
- * Barcode input view.
- */
-
 #pragma once
 
 #include <gui/view.h>

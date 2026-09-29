@@ -4,9 +4,6 @@
 #include <applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h>
 #include <targets/f7/furi_hal/furi_hal_subghz.h>
 
-/* Fixed list position of the two nav-only rows below (File Prefix, Custom
- * Frequencies) - always after Bypass Region Lock and before Counter Incr.,
- * so the position is stable whether or not the debug-only rows are present. */
 #define RADIO_SETTINGS_ROW_FILE_PREFIX   5
 #define RADIO_SETTINGS_ROW_CUSTOM_FREQ   6
 
@@ -73,7 +70,6 @@ const int32_t debug_counter_val[DEBUG_COUNTER_COUNT] = {
     -50,
 };
 
-//TX Power
 #define TX_POWER_COUNT 9
 const char* const tx_power_text[TX_POWER_COUNT] = {
     "Preset",
@@ -87,10 +83,9 @@ const char* const tx_power_text[TX_POWER_COUNT] = {
     "-30dBm",
 };
 
-// Frequency offset: -500kHz to +500kHz in 10kHz steps = 101 values, center at index 50
 #define FREQ_OFFSET_COUNT  101
 #define FREQ_OFFSET_CENTER 50
-#define FREQ_OFFSET_STEP   10000 // 10 kHz
+#define FREQ_OFFSET_STEP   10000
 
 static void subghz_scene_radio_settings_set_freq_offset(VariableItem* item) {
     SubGhz* subghz = variable_item_get_context(item);
@@ -113,8 +108,8 @@ static void subghz_scene_radio_settings_set_freq_offset(VariableItem* item) {
 
 #define VIZ_MODE_COUNT 2
 static const char* const viz_mode_text[VIZ_MODE_COUNT] = {
-    "Bar",  /* Full-screen vertical bars */
-    "Line", /* Connected-line trace, like a spectrum analyzer */
+    "Bar",
+    "Line",
 };
 static const uint32_t viz_mode_value[VIZ_MODE_COUNT] = {0, 1};
 
@@ -133,7 +128,7 @@ static void subghz_scene_radio_settings_set_device(VariableItem* item) {
     if(!subghz_txrx_radio_device_is_external_connected(
            subghz->txrx, SUBGHZ_DEVICE_CC1101_EXT_NAME) &&
        radio_device_value[index] == SubGhzRadioDeviceTypeExternalCC1101) {
-        //ToDo correct if there is more than 1 module
+
         index = 0;
     }
     variable_item_set_current_value_text(item, radio_device_text[index]);
@@ -144,13 +139,10 @@ static void subghz_scene_radio_settings_set_tx_power(VariableItem* item) {
     SubGhz* subghz = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
 
-    //Update the Menu Item on screen
     variable_item_set_current_value_text(item, tx_power_text[index]);
 
-    //Set TX power and remember setting
     subghz->last_settings->tx_power = subghz->tx_power = index;
 
-    //Save the settings now, this is the convention here!
     subghz_save_all(subghz);
 }
 
@@ -168,10 +160,10 @@ static void subghz_scene_reciever_config_set_ext_amp_leds_control(VariableItem* 
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, on_off_text[index]);
     subghz->last_settings->leds_and_amp = index == 1;
-    // Set globally in furi hal
+
     furi_hal_subghz_set_ext_leds_and_amp(subghz->last_settings->leds_and_amp);
     subghz_save_all(subghz);
-    // reinit external device
+
     const SubGhzRadioDeviceType current = subghz_txrx_radio_device_get(subghz->txrx);
     if(current != SubGhzRadioDeviceTypeInternal) {
         subghz_txrx_radio_device_set(subghz->txrx, SubGhzRadioDeviceTypeInternal);
@@ -201,8 +193,7 @@ static void subghz_scene_radio_settings_set_bypass_region_lock(VariableItem* ite
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, on_off_text[index]);
     subghz->last_settings->bypass_region_lock = (index == 1);
-    // Push live immediately, same flag the SD-card dangerous_settings file
-    // sets at boot - either source can enable it.
+
     furi_hal_subghz_set_dangerous_frequency(subghz->last_settings->bypass_region_lock);
     subghz_save_all(subghz);
 }
@@ -219,8 +210,6 @@ void subghz_scene_radio_settings_on_enter(void* context) {
     int32_t value_index;
     VariableItem* item;
 
-    /* Visualizer Graph Style — kept first/top of the list since it's the
-     * most frequently adjusted setting. */
     item = variable_item_list_add(
         subghz->variable_item_list,
         "Visualizer Graph Style",
@@ -237,7 +226,7 @@ void subghz_scene_radio_settings_on_enter(void* context) {
     uint8_t value_count_device = RADIO_DEVICE_COUNT;
     if(subghz_txrx_radio_device_get(subghz->txrx) == SubGhzRadioDeviceTypeInternal &&
        !subghz_txrx_radio_device_is_external_connected(subghz->txrx, SUBGHZ_DEVICE_CC1101_EXT_NAME))
-        value_count_device = 1; // Only 1 item if external disconnected
+        value_count_device = 1;
     item = variable_item_list_add(
         subghz->variable_item_list,
         "Module",
@@ -249,7 +238,6 @@ void subghz_scene_radio_settings_on_enter(void* context) {
     variable_item_set_current_value_index(item, value_index);
     variable_item_set_current_value_text(item, radio_device_text[value_index]);
 
-    //Add TX Power
     item = variable_item_list_add(
         subghz->variable_item_list,
         "TX Power",

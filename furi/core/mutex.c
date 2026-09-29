@@ -7,7 +7,6 @@
 
 #include "event_loop_link_i.h"
 
-// Internal FreeRTOS member names
 #define ucQueueType ucDummy9
 
 struct FuriMutex {
@@ -15,7 +14,6 @@ struct FuriMutex {
     FuriEventLoopLink event_loop_link;
 };
 
-// IMPORTANT: container MUST be the FIRST struct member
 static_assert(offsetof(FuriMutex, container) == 0);
 
 FuriMutex* furi_mutex_alloc(FuriMutexType type) {
@@ -23,10 +21,6 @@ FuriMutex* furi_mutex_alloc(FuriMutexType type) {
 
     FuriMutex* instance = malloc(sizeof(FuriMutex));
 
-    /* xSemaphoreCreate*Static only zeroes sizeof(StaticSemaphore_t) bytes.
-     * FuriEventLoopLink follows the container and is NOT covered; zero it
-     * explicitly so furi_mutex_acquire/release notify calls are safe on
-     * recycled heap allocations. */
     instance->event_loop_link.item_in  = NULL;
     instance->event_loop_link.item_out = NULL;
 
@@ -49,7 +43,6 @@ void furi_mutex_free(FuriMutex* instance) {
     furi_check(!FURI_IS_IRQ_MODE());
     furi_check(instance);
 
-    // Event Loop must be disconnected
     furi_check(!instance->event_loop_link.item_in);
     furi_check(!instance->event_loop_link.item_out);
 

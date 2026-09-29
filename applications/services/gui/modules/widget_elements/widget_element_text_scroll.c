@@ -10,7 +10,7 @@ typedef struct {
     FuriString* text;
 } TextScrollLineArray;
 
-ARRAY_DEF(TextScrollLineArray, TextScrollLineArray, M_POD_OPLIST) //-V658
+ARRAY_DEF(TextScrollLineArray, TextScrollLineArray, M_POD_OPLIST)
 
 typedef struct {
     TextScrollLineArray_t line_array;
@@ -66,15 +66,15 @@ static void widget_element_text_scroll_fill_lines(Canvas* canvas, WidgetElement*
 
     while(!all_text_processed) {
         if(reached_new_line) {
-            // Set default line properties
+
             line_tmp.font = FontSecondary;
             line_tmp.horizontal = AlignLeft;
             furi_string_reset(line_tmp.text);
-            // Process control symbols
+
             while(widget_element_text_scroll_process_ctrl_symbols(&line_tmp, model->text))
                 ;
         }
-        // Set canvas font
+
         canvas_set_font(canvas, line_tmp.font);
         const CanvasFontParameters* params = canvas_get_font_params(canvas, line_tmp.font);
         total_height += params->height;
@@ -154,7 +154,7 @@ static void widget_element_text_scroll_draw(Canvas* canvas, WidgetElement* eleme
                 canvas, x, y, line->horizontal, AlignTop, furi_string_get_cstr(line->text));
             y += params->leading_default;
         }
-        // Draw scroll bar
+
         if(model->scroll_pos_total > 1) {
             elements_scrollbar_pos(
                 canvas,
@@ -223,7 +223,6 @@ WidgetElement* widget_element_text_scroll_create(
     const char* text) {
     furi_assert(text);
 
-    // Allocate and init model
     WidgetElementTextScrollModel* model = malloc(sizeof(WidgetElementTextScrollModel));
     model->x = x;
     model->y = y;
@@ -243,4 +242,4 @@ WidgetElement* widget_element_text_scroll_create(
     text_scroll->model_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
 
     return text_scroll;
-} //-V773
+}

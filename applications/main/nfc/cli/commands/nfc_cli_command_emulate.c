@@ -118,9 +118,4 @@ const NfcCliActionDescriptor emulate_action = {
 
 const NfcCliActionDescriptor* emulate_actions_collection[] = {&emulate_action};
 
-//Command descriptor
 ADD_NFC_CLI_COMMAND(emulate, "", emulate_actions_collection);
-
-//Command usage: emulate [-f <file>]
-//Command examples:
-//emulate -f ext/nfc/test.nfc

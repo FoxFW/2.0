@@ -116,7 +116,7 @@ static void pin_menu_enter_callback(void* context, uint32_t index) {
     DesktopSettingsApp* app = context;
 
     if(index < (uint32_t)s_pin_action_count) {
-        // PIN set / change / remove buttons
+
         if(!desktop_pin_code_is_set()) {
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppScenePinSetupHowto);
         } else if(index == 0) {
@@ -133,13 +133,13 @@ static void pin_menu_enter_callback(void* context, uint32_t index) {
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppScenePinAuth);
         }
     } else if(index == (uint32_t)(s_pin_action_count + 2)) {
-        // "Advanced Security" navigation button (index = PIN buttons + MAX Attempts + On Exceed)
+
         scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneDisconnectServices);
     } else if(index == (uint32_t)(s_pin_action_count + 3)) {
-        // "Lock Screen Display" navigation button
+
         scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneLockDisplay);
     }
-    // All other indices are variable items handled by their own change callbacks
+
 }
 
 void desktop_settings_scene_pin_menu_on_enter(void* context) {
@@ -171,10 +171,8 @@ void desktop_settings_scene_pin_menu_on_enter(void* context) {
         s_exceed_item,
         app->settings.pin_max_attempts == 0 ? "N/A" : s_exceed_labels[app->settings.pin_exceed_action]);
 
-    // Navigation button at index s_pin_action_count + 2 — handled in enter_callback
     variable_item_list_add(var_list, "Advanced Security", 0, NULL, NULL);
 
-    // Navigation button at index s_pin_action_count + 3 — handled in enter_callback
     variable_item_list_add(var_list, "Lock Screen Display", 0, NULL, NULL);
 
     VariableItem* poweroff_item = variable_item_list_add(
@@ -197,9 +195,7 @@ void desktop_settings_scene_pin_menu_on_enter(void* context) {
         usb_item, usb_inhibit_text[app->settings.usb_inhibit_auto_lock]);
 
     variable_item_list_set_enter_callback(var_list, pin_menu_enter_callback, app);
-    // Always start at the top — the shared VariableItemList widget otherwise keeps
-    // whatever index was last selected in a DIFFERENT scene (e.g. Disconnect
-    // Services), so without this the menu can appear scrolled to a random row.
+
     variable_item_list_set_selected_item(var_list, 0);
     view_dispatcher_switch_to_view(app->view_dispatcher, DesktopSettingsAppViewVarItemList);
 }

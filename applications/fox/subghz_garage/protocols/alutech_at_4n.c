@@ -157,7 +157,7 @@ LevelDuration subghz_protocol_encoder_alutech_at_4n_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static uint32_t subghz_protocol_alutech_at_4n_get_magic_data_from_buffer(
     uint8_t* buffer,
@@ -527,7 +527,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_alutech_at_4n_deserialize(
 
     return res;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_alutech_at_4n_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderAlutech_at_4n* instance =
@@ -852,7 +852,7 @@ static uint8_t subghz_protocol_alutech_at_4n_get_btn_code(void) {
 
     return btn;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void subghz_protocol_decoder_alutech_at_4n_get_string(void* context, FuriString* output) {
     furi_assert(context);

@@ -3,95 +3,74 @@
 #include <storage/storage.h>
 #include <string.h>
 
-const char* const subghz_garage_protocol_group_names[SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT] = {
-    "General",
-    "General 2",
-    "Chamberlain (USA)",
-    "Linear (USA)",
-    "Italian Brands 1",
-    "Italian Brands 2",
-    "Italian Brands 3",
-    "Spain, Russia",
-    "Germany",
-    "China / Gate Only",
-    "Blinds / Shutters",
-};
-
 const char* const subghz_garage_protocol_group_paths[SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT] = {
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g1.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g2.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g3.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g4.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g5.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g6.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g7.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g8.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g9.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g10.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_protocols_g11.fal"),
+    APP_ASSETS_PATH("plugins/grp_g1.fal"),
+    APP_ASSETS_PATH("plugins/grp_g2.fal"),
+    APP_ASSETS_PATH("plugins/grp_g3.fal"),
+    APP_ASSETS_PATH("plugins/grp_g4.fal"),
+    APP_ASSETS_PATH("plugins/grp_g5.fal"),
+    APP_ASSETS_PATH("plugins/grp_g6.fal"),
+    APP_ASSETS_PATH("plugins/grp_g7.fal"),
+    APP_ASSETS_PATH("plugins/grp_g8.fal"),
+    APP_ASSETS_PATH("plugins/grp_g9.fal"),
+    APP_ASSETS_PATH("plugins/grp_g10.fal"),
+    APP_ASSETS_PATH("plugins/grp_g11.fal"),
 };
 
-/* Keep in sync by hand with each group's registry in
- * protocols/plugins/subghz_garage_protocol_plugin_g1..g11.c - see the
- * comment on this array's declaration in protocol_groups.h for why this
- * can't just be read off the loaded registry. */
-const char* const subghz_garage_protocol_group_members[SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT] = {
-    "SMC5326, Holtek, Holtek HT12X, Princeton",
-    "X10, KeyFinder, KeeLoq",
-    "Chamberlain Code, Security+ 1.0, Security+ 2.0",
-    "Linear, LinearDelta3, MegaCode",
-    "Beninca ARC, CAME, CAME Atomo, CAME TWEE",
-    "KingGates Stylo4K, Nice FLO, Nice FloR-S, Phoenix_V2",
-    "FAAC SLH, Roger, Doitrand, Telcoma/Cardin EDGE",
-    "Alutech AT-4N, Ansonic, Clemsa, Mastercode",
-    "Dickert MAHS, Hormann HSM, Marantec, Marantec24",
-    "GangQi, GateTX, Hay21, Revers RB2",
-    "Somfy Telis, Somfy Keytis, Jarolift, Dooya",
-};
+bool subghz_garage_protocol_group_next_enabled(
+    const uint8_t* enabled_groups, uint8_t start_index, SubGhzGarageProtocolGroup* out_group) {
+    for(uint8_t i = start_index; i < SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT; i++) {
+        if(enabled_groups[i]) {
+            *out_group = (SubGhzGarageProtocolGroup)i;
+            return true;
+        }
+    }
+    return false;
+}
 
 const char* const subghz_garage_tx_protocol_paths[SubGhzGarageTxProtocolCount] = {
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_alutech_at_4n.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_somfy_telis.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_jarolift.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_nice_flo.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_came_twee.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_secplus_v1.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_smc5326.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_dickert_mahs.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_roger.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_keyfinder.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_secplus_v2.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_princeton.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_gangqi.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_hay21.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_dooya.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_holtek.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_came.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_nice_flor_s.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_beninca_arc.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_marantec.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_holtek_ht12x.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_revers_rb2.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_megacode.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_marantec24.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_faac_slh.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_came_atomo.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_chamb_code.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_mastercode.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_linear.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_linear_delta3.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_gate_tx.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_kinggates_stylo_4k.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_somfy_keytis.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_phoenix_v2.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_clemsa.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_ansonic.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_doitrand.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_hormann.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_x10.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_telcoma_edge.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_raw.fal"),
-    APP_ASSETS_PATH("plugins/subghz_garage_tx_bin_raw.fal"),
+    APP_ASSETS_PATH("plugins/tx_alutech_at_4n.fal"),
+    APP_ASSETS_PATH("plugins/tx_somfy_telis.fal"),
+    APP_ASSETS_PATH("plugins/tx_jarolift.fal"),
+    APP_ASSETS_PATH("plugins/tx_nice_flo.fal"),
+    APP_ASSETS_PATH("plugins/tx_came_twee.fal"),
+    APP_ASSETS_PATH("plugins/tx_secplus_v1.fal"),
+    APP_ASSETS_PATH("plugins/tx_smc5326.fal"),
+    APP_ASSETS_PATH("plugins/tx_dickert_mahs.fal"),
+    APP_ASSETS_PATH("plugins/tx_roger.fal"),
+    APP_ASSETS_PATH("plugins/tx_keyfinder.fal"),
+    APP_ASSETS_PATH("plugins/tx_secplus_v2.fal"),
+    APP_ASSETS_PATH("plugins/tx_princeton.fal"),
+    APP_ASSETS_PATH("plugins/tx_gangqi.fal"),
+    APP_ASSETS_PATH("plugins/tx_hay21.fal"),
+    APP_ASSETS_PATH("plugins/tx_dooya.fal"),
+    APP_ASSETS_PATH("plugins/tx_holtek.fal"),
+    APP_ASSETS_PATH("plugins/tx_came.fal"),
+    APP_ASSETS_PATH("plugins/tx_nice_flor_s.fal"),
+    APP_ASSETS_PATH("plugins/tx_beninca_arc.fal"),
+    APP_ASSETS_PATH("plugins/tx_marantec.fal"),
+    APP_ASSETS_PATH("plugins/tx_holtek_ht12x.fal"),
+    APP_ASSETS_PATH("plugins/tx_revers_rb2.fal"),
+    APP_ASSETS_PATH("plugins/tx_megacode.fal"),
+    APP_ASSETS_PATH("plugins/tx_marantec24.fal"),
+    APP_ASSETS_PATH("plugins/tx_faac_slh.fal"),
+    APP_ASSETS_PATH("plugins/tx_came_atomo.fal"),
+    APP_ASSETS_PATH("plugins/tx_chamb_code.fal"),
+    APP_ASSETS_PATH("plugins/tx_mastercode.fal"),
+    APP_ASSETS_PATH("plugins/tx_linear.fal"),
+    APP_ASSETS_PATH("plugins/tx_linear_delta3.fal"),
+    APP_ASSETS_PATH("plugins/tx_gate_tx.fal"),
+    APP_ASSETS_PATH("plugins/tx_kinggates_stylo_4k.fal"),
+    APP_ASSETS_PATH("plugins/tx_somfy_keytis.fal"),
+    APP_ASSETS_PATH("plugins/tx_phoenix_v2.fal"),
+    APP_ASSETS_PATH("plugins/tx_clemsa.fal"),
+    APP_ASSETS_PATH("plugins/tx_ansonic.fal"),
+    APP_ASSETS_PATH("plugins/tx_doitrand.fal"),
+    APP_ASSETS_PATH("plugins/tx_hormann.fal"),
+    APP_ASSETS_PATH("plugins/tx_x10.fal"),
+    APP_ASSETS_PATH("plugins/tx_telcoma_edge.fal"),
+    APP_ASSETS_PATH("plugins/tx_raw.fal"),
+    APP_ASSETS_PATH("plugins/tx_bin_raw.fal"),
 };
 
 typedef struct {

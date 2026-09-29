@@ -1,10 +1,6 @@
 #include "rolljam_scene.h"
 #include "../helpers/rolljam_receiver.h"
 
-// ============================================================
-// Phase 4 / Result: user chooses to SAVE or REPLAY 2nd code
-// ============================================================
-
 static void result_dialog_callback(DialogExResult result, void* context) {
     RollJamApp* app = context;
 

@@ -472,14 +472,6 @@ static void *safe_realloc(void *ptr, size_t size)
     return realloc(ptr, size);
 }
 
-/* Decoded protocols are synthesized by the firmware's own SubGhz encoder: the
- * key file is deserialized into a transmitter and we collect the level/duration
- * upload it would send on air. Every protocol the firmware supports works with
- * no per-protocol code here. Rolling codes (KeeLoq, Nice Flor-S, ...) increment
- * and re-encrypt their counter inside the encoder, so the synthesized frame is
- * the NEXT counter value, not a byte-for-byte replay; the manufacturer keystores
- * (system + user) are loaded so that encryption works. */
-
 static SubGhzEnvironment *subghz_env_setup(void)
 {
     SubGhzEnvironment *env = subghz_environment_alloc();
@@ -579,12 +571,6 @@ static bool synthesize_via_transmitter(
                 break;
         }
 
-        /* The encoder repeats the same upload `repeat` times. Find the true
-         * period P (smallest P for which the whole buffer is P-periodic - this
-         * rejects the short sub-period of a repetitive preamble like KeeLoq's,
-         * unlike a header-only match) and keep ONE period plus the next frame's
-         * header as its trailing sync. Without this, N duplicates bloat the
-         * buffer and OOM on large frames (e.g. Nice Flor-S). */
         size_t n = sd->count;
         for (size_t p = 4; p * 2 <= n; p++)
         {
@@ -600,12 +586,7 @@ static bool synthesize_via_transmitter(
 
             if (periodic)
             {
-                /* Keep one period. Append the next frame's first sample as a
-                 * trailing delimiter only when it is a gap (gap-first protocols
-                 * like Dooya/CAME, whose period otherwise ends on a pulse and
-                 * leaves the last bit unframed). Pulse-first protocols (KeeLoq)
-                 * already end the period on their inter-frame guard gap, so
-                 * appending data[p] there would dangle a stray pulse. */
+
                 sd->count = (sd->data[p] < 0) ? p + 1 : p;
                 break;
             }

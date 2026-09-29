@@ -2,13 +2,11 @@
 
 #include <furi.h>
 
-// EMV Specific masks
 #define ISO14443_4_BLOCK_PCB_I_        (0U << 6)
 #define ISO14443_4_BLOCK_PCB_R_        (2U << 6)
 #define ISO14443_4_BLOCK_PCB_TYPE_MASK (3U << 6)
 #define ISO14443_4_BLOCK_PCB_S_WTX     (3U << 4)
 #define ISO14443_4_BLOCK_PCB_S         (3U << 6)
-//
 
 #define ISO14443_4_BLOCK_PCB      (1U << 1)
 #define ISO14443_4_BLOCK_PCB_MASK (0x03)
@@ -73,7 +71,6 @@ struct Iso14443_4Layer {
     uint8_t pcb;
     uint8_t pcb_prev;
 
-    // Listener specific
     uint8_t cid;
     uint8_t nad;
     bool can_pps;
@@ -198,19 +195,18 @@ Iso14443_4aError iso14443_4_layer_decode_response_pwt_ext(
                 bit_buffer_copy_right(output_data, block_data, 1);
                 ret = Iso14443_4aErrorNone;
             } else {
-                // send original request again
+
                 ret = Iso14443_4aErrorSendExtra;
             }
             break;
         case ISO14443_4_BLOCK_PCB_R_:
-            // TODO
+
             break;
         case ISO14443_4_BLOCK_PCB_S:
             if((pcb_field & ISO14443_4_BLOCK_PCB_S_WTX) == ISO14443_4_BLOCK_PCB_S_WTX) {
                 const uint8_t inf_field = bit_buffer_get_byte(block_data, 1);
-                //const uint8_t power_level = inf_field >> 6;
+
                 const uint8_t wtxm = inf_field & 0b111111;
-                //uint32_t fwt_temp = MIN((fwt * wtxm), fwt_max);
 
                 bit_buffer_append_byte(
                     output_data,
@@ -260,7 +256,7 @@ Iso14443_4LayerResult iso14443_4_layer_decode_command(
                 uint8_t pps1 = bit_buffer_get_byte(input_data, 2);
                 uint8_t dsi = pps1 & ISO14443_4_BLOCK_PPS_1_DSI_MASK;
                 uint8_t dri = pps1 & ISO14443_4_BLOCK_PPS_1_DRI_MASK;
-                // TODO: do we need to change bit timings somehow? DRI and DSI mean different bit timing divisors
+
                 UNUSED(dsi);
                 UNUSED(dri);
             }
@@ -286,7 +282,7 @@ Iso14443_4LayerResult iso14443_4_layer_decode_command(
         } else if(instance->cid != ISO14443_4_LAYER_CID_NOT_SUPPORTED && instance->cid != 0) {
             return Iso14443_4LayerResultSkip;
         }
-        // TODO: properly handle block chaining
+
         if(instance->pcb & ISO14443_4_BLOCK_PCB_I_NAD_MASK) {
             if(instance->nad == ISO14443_4_LAYER_NAD_NOT_SUPPORTED) {
                 return Iso14443_4LayerResultSkip;
@@ -308,16 +304,16 @@ Iso14443_4LayerResult iso14443_4_layer_decode_command(
             return Iso14443_4LayerResultSkip;
         }
         if((instance->pcb & ISO14443_4_BLOCK_PCB_S_WTX_DESELECT_MASK) == 0) {
-            // DESELECT
+
             bit_buffer_copy(block_data, input_data);
             return Iso14443_4LayerResultSend | Iso14443_4LayerResultHalt;
         } else {
-            // WTX ACK or wrong value
+
             return Iso14443_4LayerResultSkip;
         }
 
     } else if(ISO14443_4_BLOCK_PCB_IS_R_BLOCK(instance->pcb)) {
-        // TODO: properly handle R blocks while chaining
+
         iso14443_4_layer_update_pcb(instance, true);
         instance->pcb |= ISO14443_4_BLOCK_PCB_R_NACK_MASK;
         bit_buffer_reset(block_data);
@@ -339,7 +335,7 @@ bool iso14443_4_layer_encode_response(
         if(instance->pcb_prev & ISO14443_4_BLOCK_PCB_I_CID_MASK) {
             bit_buffer_append_byte(block_data, instance->cid);
         }
-        // TODO: properly handle block chaining and related R block responses
+
         if(instance->pcb_prev & ISO14443_4_BLOCK_PCB_I_NAD_MASK &&
            instance->nad != ISO14443_4_LAYER_NAD_NOT_SET) {
             bit_buffer_append_byte(block_data, instance->nad);

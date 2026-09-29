@@ -55,7 +55,7 @@ void protocol_paradox_decoder_start(ProtocolParadox* protocol) {
 }
 
 static bool protocol_paradox_can_be_decoded(ProtocolParadox* protocol) {
-    // check preamble
+
     if(protocol->encoded_data[0] != 0b00001111 ||
        protocol->encoded_data[PARADOX_ENCODED_DATA_LAST] != 0b00001111)
         return false;
@@ -104,7 +104,7 @@ bool protocol_paradox_decoder_feed(ProtocolParadox* protocol, bool level, uint32
 }
 
 static void protocol_paradox_encode(const uint8_t* decoded_data, uint8_t* encoded_data) {
-    // preamble
+
     bit_lib_set_bits(encoded_data, 0, 0b00001111, 8);
 
     for(size_t i = 0; i < 44; i++) {
@@ -206,7 +206,6 @@ bool protocol_paradox_write_data(ProtocolParadox* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_paradox_encode(protocol->data, (uint8_t*)protocol->encoded_data);
     protocol_paradox_decode(protocol->encoded_data, protocol->data);
 

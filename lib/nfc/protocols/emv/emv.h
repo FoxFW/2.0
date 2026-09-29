@@ -46,7 +46,6 @@ extern "C" {
 #define EMV_TAG_RESP_BUF_SIZE        0x6C
 #define EMV_TAG_RESP_BYTES_AVAILABLE 0x61
 
-// Not used tags
 #define EMV_TAG_FORM_FACTOR       0x9F6E
 #define EMV_TAG_APP_TEMPLATE      0x61
 #define EMV_TAG_FCI               0xBF0C
@@ -86,7 +85,7 @@ typedef struct {
     char application_name[16 + 1];
     char application_label[16 + 1];
     char cardholder_name[24 + 1];
-    uint8_t pan[10]; // card_number
+    uint8_t pan[10];
     uint8_t pan_len;
     uint8_t exp_day;
     uint8_t exp_month;
@@ -117,8 +116,6 @@ typedef struct {
 
 extern const NfcDeviceBase nfc_device_emv;
 
-// Virtual methods
-
 EmvData* emv_alloc(void);
 
 void emv_free(EmvData* data);
@@ -142,10 +139,6 @@ const uint8_t* emv_get_uid(const EmvData* data, size_t* uid_len);
 bool emv_set_uid(EmvData* data, const uint8_t* uid, size_t uid_len);
 
 Iso14443_4aData* emv_get_base_data(const EmvData* data);
-
-// Getters and tests
-
-//const EmvApplication* emv_get_application(const EmvData* data);
 
 #ifdef __cplusplus
 }

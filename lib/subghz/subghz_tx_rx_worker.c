@@ -5,7 +5,7 @@
 #define TAG "SubGhzTxRxWorker"
 
 #define SUBGHZ_TXRX_WORKER_BUF_SIZE      2048
-//you can not set more than 62 because it will not fit into the FIFO CC1101
+
 #define SUBGHZ_TXRX_WORKER_MAX_TXRX_SIZE 60
 
 #define SUBGHZ_TXRX_WORKER_TIMEOUT_READ_WRITE_BUF 40
@@ -71,7 +71,7 @@ bool subghz_tx_rx_worker_rx(SubGhzTxRxWorker* instance, uint8_t* data, uint8_t* 
         instance->status = SubGhzTxRxWorkerStatusRx;
         furi_delay_tick(1);
     }
-    //waiting for reception to complete
+
     while(furi_hal_gpio_read(instance->device_data_gpio)) {
         furi_delay_tick(1);
         if(!--timeout) {
@@ -104,10 +104,10 @@ void subghz_tx_rx_worker_tx(SubGhzTxRxWorker* instance, uint8_t* data, size_t si
         subghz_devices_idle(instance->device);
     }
     subghz_devices_write_packet(instance->device, data, size);
-    subghz_devices_set_tx(instance->device); //start send
+    subghz_devices_set_tx(instance->device);
     instance->status = SubGhzTxRxWorkerStatusTx;
     while(!furi_hal_gpio_read(
-        instance->device_data_gpio)) { // Wait for GDO0 to be set -> sync transmitted
+        instance->device_data_gpio)) {
         furi_delay_tick(1);
         if(!--timeout) {
             FURI_LOG_W(TAG, "TX !cc1101_g0 timeout");
@@ -115,7 +115,7 @@ void subghz_tx_rx_worker_tx(SubGhzTxRxWorker* instance, uint8_t* data, size_t si
         }
     }
     while(furi_hal_gpio_read(
-        instance->device_data_gpio)) { // Wait for GDO0 to be cleared -> end of packet
+        instance->device_data_gpio)) {
         furi_delay_tick(1);
         if(!--timeout) {
             FURI_LOG_W(TAG, "TX cc1101_g0 timeout");
@@ -125,11 +125,7 @@ void subghz_tx_rx_worker_tx(SubGhzTxRxWorker* instance, uint8_t* data, size_t si
     subghz_devices_idle(instance->device);
     instance->status = SubGhzTxRxWorkerStatusIDLE;
 }
-/** Worker thread
- * 
- * @param context 
- * @return exit code 
- */
+
 static int32_t subghz_tx_rx_worker_thread(void* context) {
     SubGhzTxRxWorker* instance = context;
     furi_check(instance->device);
@@ -153,10 +149,10 @@ static int32_t subghz_tx_rx_worker_thread(void* context) {
     bool callback_rx = false;
 
     while(instance->worker_running) {
-        //transmit
+
         size_tx = furi_stream_buffer_bytes_available(instance->stream_tx);
         if(size_tx > 0 && !timeout_tx) {
-            timeout_tx = 10; //20ms
+            timeout_tx = 10;
             if(size_tx > SUBGHZ_TXRX_WORKER_MAX_TXRX_SIZE) {
                 furi_stream_buffer_receive(
                     instance->stream_tx,
@@ -165,20 +161,20 @@ static int32_t subghz_tx_rx_worker_thread(void* context) {
                     SUBGHZ_TXRX_WORKER_TIMEOUT_READ_WRITE_BUF);
                 subghz_tx_rx_worker_tx(instance, data, SUBGHZ_TXRX_WORKER_MAX_TXRX_SIZE);
             } else {
-                //TODO FL-3554: checking that it managed to write all the data to the TX buffer
+
                 furi_stream_buffer_receive(
                     instance->stream_tx, &data, size_tx, SUBGHZ_TXRX_WORKER_TIMEOUT_READ_WRITE_BUF);
                 subghz_tx_rx_worker_tx(instance, data, size_tx);
             }
         } else {
-            //receive
+
             if(subghz_tx_rx_worker_rx(instance, data, size_rx)) {
                 if(furi_stream_buffer_spaces_available(instance->stream_rx) >= size_rx[0]) {
                     if(instance->callback_have_read &&
                        furi_stream_buffer_bytes_available(instance->stream_rx) == 0) {
                         callback_rx = true;
                     }
-                    //TODO FL-3554: checking that it managed to write all the data to the RX buffer
+
                     furi_stream_buffer_send(
                         instance->stream_rx,
                         &data,
@@ -189,7 +185,7 @@ static int32_t subghz_tx_rx_worker_thread(void* context) {
                         callback_rx = false;
                     }
                 } else {
-                    //TODO FL-3555: RX buffer overflow
+
                 }
             }
         }
@@ -224,11 +220,14 @@ SubGhzTxRxWorker* subghz_tx_rx_worker_alloc(void) {
 void subghz_tx_rx_worker_free(SubGhzTxRxWorker* instance) {
     furi_check(instance);
     furi_check(!instance->worker_running);
+
+    furi_kernel_lock();
     furi_stream_buffer_free(instance->stream_tx);
     furi_stream_buffer_free(instance->stream_rx);
     furi_thread_free(instance->thread);
 
     free(instance);
+    furi_kernel_unlock();
 }
 
 bool subghz_tx_rx_worker_start(

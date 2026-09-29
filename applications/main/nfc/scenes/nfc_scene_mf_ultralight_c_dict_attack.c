@@ -1,9 +1,6 @@
 #include "../nfc_app_i.h"
-#include <dolphin/dolphin.h>
 
 #define TAG "NfcMfUlCDictAttack"
-
-// TODO: Support card_detected properly
 
 enum {
     DictAttackStateUserDictInProgress,
@@ -41,15 +38,14 @@ NfcCommand nfc_mf_ultralight_c_dict_attack_worker_callback(NfcGenericEvent event
     } else if(poller_event->type == MfUltralightPollerEventTypeReadSuccess) {
         nfc_device_set_data(
             instance->nfc_device, NfcProtocolMfUltralight, nfc_poller_get_data(instance->poller));
-        // Check if this is a successful authentication by looking at the poller's auth context
+
         const MfUltralightData* data = nfc_poller_get_data(instance->poller);
 
-        // Update page information
         dict_attack_set_pages_read(instance->dict_attack, data->pages_read);
         dict_attack_set_pages_total(instance->dict_attack, data->pages_total);
 
         if(data->pages_read == data->pages_total) {
-            // Full read indicates successful authentication in dict attack mode
+
             instance->mf_ultralight_c_dict_context.auth_success = true;
             dict_attack_set_key_found(instance->dict_attack, true);
         }
@@ -74,12 +70,8 @@ void nfc_scene_mf_ultralight_c_dict_attack_prepare_view(NfcApp* instance) {
     uint32_t state =
         scene_manager_get_scene_state(instance->scene_manager, NfcSceneMfUltralightCDictAttack);
 
-    // Set attack type to Ultralight C
     dict_attack_set_type(instance->dict_attack, DictAttackTypeMfUltralightC);
 
-    // Guard: if a previous write phase left a dict handle open, close it now.
-    // Without this, navigating write->back->read->dict-attack would open the same
-    // file twice, corrupting VFS state and causing a ViewPort lockup.
     if(instance->mf_ultralight_c_dict_context.dict) {
         keys_dict_free(instance->mf_ultralight_c_dict_context.dict);
         instance->mf_ultralight_c_dict_context.dict = NULL;
@@ -120,9 +112,8 @@ void nfc_scene_mf_ultralight_c_dict_attack_prepare_view(NfcApp* instance) {
     dict_attack_set_current_dict_key(
         instance->dict_attack, instance->mf_ultralight_c_dict_context.dict_keys_current);
 
-    // Set initial Ultralight C specific values
     dict_attack_set_key_found(instance->dict_attack, false);
-    dict_attack_set_pages_total(instance->dict_attack, 48); // Ultralight C page count
+    dict_attack_set_pages_total(instance->dict_attack, 48);
     dict_attack_set_pages_read(instance->dict_attack, 0);
 
     dict_attack_set_callback(
@@ -141,7 +132,6 @@ void nfc_scene_mf_ultralight_c_dict_attack_on_enter(void* context) {
         DictAttackStateUserDictInProgress);
     nfc_scene_mf_ultralight_c_dict_attack_prepare_view(instance);
 
-    // Setup and start worker
     instance->poller = nfc_poller_alloc(instance->nfc, NfcProtocolMfUltralight);
     nfc_poller_start(instance->poller, nfc_mf_ultralight_c_dict_attack_worker_callback, instance);
 
@@ -170,7 +160,6 @@ bool nfc_scene_mf_ultralight_c_dict_attack_on_event(void* context, SceneManagerE
                 if(instance->mf_ultralight_c_dict_context.auth_success) {
                     notification_message(instance->notifications, &sequence_success);
                     scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
-                    dolphin_deed(DolphinDeedNfcReadSuccess);
                     consumed = true;
                 } else {
                     nfc_poller_stop(instance->poller);
@@ -190,14 +179,13 @@ bool nfc_scene_mf_ultralight_c_dict_attack_on_event(void* context, SceneManagerE
                     consumed = true;
                 }
             } else {
-                // Could check if card is fully read here like MFC dict attack, but found key means fully read
+
                 if(instance->mf_ultralight_c_dict_context.auth_success) {
                     notification_message(instance->notifications, &sequence_success);
                 } else {
                     notification_message(instance->notifications, &sequence_semi_success);
                 }
                 scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
-                dolphin_deed(DolphinDeedNfcReadSuccess);
                 consumed = true;
             }
         } else if(event.event == NfcCustomEventDictAttackDataUpdate) {
@@ -221,7 +209,6 @@ bool nfc_scene_mf_ultralight_c_dict_attack_on_event(void* context, SceneManagerE
             } else {
                 notification_message(instance->notifications, &sequence_semi_success);
                 scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
-                dolphin_deed(DolphinDeedNfcReadSuccess);
             }
             consumed = true;
         }

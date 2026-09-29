@@ -7,9 +7,6 @@ extern "C" {
 
 typedef struct DesktopSettingsViewMenuStyle DesktopSettingsViewMenuStyle;
 
-/* style_index matches fox_theme's own numbering (0=Classic, 1=Fox Theme,
- * 2=Carousel, 3=Slider) - the view's own display order is independent of
- * this and handled internally. */
 typedef void (*DesktopSettingsViewMenuStyleCallback)(void* context, uint8_t style_index);
 
 DesktopSettingsViewMenuStyle* desktop_settings_view_menu_style_alloc(void);

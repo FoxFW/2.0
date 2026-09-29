@@ -4,28 +4,20 @@
 #include <stdio.h>
 
 typedef struct {
-    const char* title;    /* top row of the box */
-    const char* subtitle; /* bottom row of the box */
+    const char* title;
+    const char* subtitle;
 } SubGhzModePickerOption;
 
 static const SubGhzModePickerOption k_options[] = {
     [SUBGHZ_MODE_PICKER_AUTOMOTIVE]     = {"Automotive", "Ford, Kia, Hyundai, etc"},
     [SUBGHZ_MODE_PICKER_GARAGE]         = {"Garage/Gate/Other", "Non-Automotive Only"},
     [SUBGHZ_MODE_PICKER_JAMMER]         = {"RF Jammer", "Radio Frequency Jammer"},
+    [SUBGHZ_MODE_PICKER_BRUTEFORCER]    = {"SubRATT", "Sub-GHz Random Attack"},
     [SUBGHZ_MODE_PICKER_TPMS]           = {"TPMS", "Tire Pressure Sensors"},
     [SUBGHZ_MODE_PICKER_RADIO_SETTINGS] = {"Radio Settings", "Sub-GHz Settings/Options"},
 };
 #define OPTION_COUNT (sizeof(k_options) / sizeof(k_options[0]))
 
-/* Full-width double-row boxes, 2 visible per page - same geometry/pattern
- * as subghz_garage's Protocol Group list
- * (applications/fox/subghz_garage/views/subghz_view_protocol_groups.c):
- * BOX_X=4/BOX_W=120 leaves the rightmost 4px for elements_scrollbar(), and
- * the 2-of-N-visible/clamped-top scrolling is the same mechanic. No more
- * heading (frees up the vertical space that let these boxes grow from
- * 24px to 28px tall) and no more Left/Right mode carousel - Automotive and
- * Garage are now their own rows like Radio Settings always was, so
- * Up/Down/OK is the entire input model. */
 #define BOX_X          4
 #define BOX_W          120
 #define BOX_H          28

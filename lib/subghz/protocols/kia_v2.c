@@ -207,6 +207,10 @@ SubGhzProtocolStatus
         uint16_t raw_count = (uint16_t)((instance->generic.data >> 4) & 0xFFF);
         instance->generic.cnt = ((raw_count >> 4) | (raw_count << 8)) & 0xFFF;
 
+        uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
+        if(mult == 0U) mult = 1U;
+        instance->generic.cnt = (instance->generic.cnt + mult) & 0xFFFU;
+
         instance->encoder.repeat = 10;
 
         uint64_t new_data = 0;
@@ -223,6 +227,16 @@ SubGhzProtocolStatus
 
         instance->generic.data = new_data;
         instance->generic.data_count_bit = 53;
+
+        uint8_t key_data[8];
+        for(int i = 0; i < 8; i++) {
+            key_data[i] = (uint8_t)((instance->generic.data >> (56 - 8 * i)) & 0xFF);
+        }
+        flipper_format_rewind(flipper_format);
+        flipper_format_update_hex(flipper_format, "Key", key_data, 8);
+        flipper_format_rewind(flipper_format);
+        uint32_t cnt_store = instance->generic.cnt;
+        flipper_format_insert_or_update_uint32(flipper_format, "Cnt", &cnt_store, 1);
 
         FURI_LOG_I(
             TAG,
@@ -419,17 +433,56 @@ SubGhzProtocolStatus
     subghz_protocol_decoder_kia_v2_deserialize(void* context, FlipperFormat* flipper_format) {
     furi_assert(context);
     SubGhzProtocolDecoderKiaV2* instance = context;
-    return subghz_block_generic_deserialize_check_count_bit(
+    SubGhzProtocolStatus ret = subghz_block_generic_deserialize_check_count_bit(
         &instance->generic, flipper_format, subghz_protocol_kia_v2_const.min_count_bit_for_found);
+    if(ret == SubGhzProtocolStatusOk) {
+        instance->generic.serial = (uint32_t)((instance->generic.data >> 20) & 0xFFFFFFFF);
+        instance->generic.btn = (uint8_t)((instance->generic.data >> 16) & 0x0F);
+        uint16_t raw_count = (uint16_t)((instance->generic.data >> 4) & 0xFFF);
+        instance->generic.cnt = ((raw_count >> 4) | (raw_count << 8)) & 0xFFF;
+    }
+    return ret;
+}
+
+static uint8_t kia_v2_ui_button(uint8_t custom, uint8_t original_btn) {
+    switch(custom) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        return 0x01U;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        return 0x02U;
+    case SUBGHZ_CUSTOM_BTN_LEFT:
+        return 0x03U;
+    case SUBGHZ_CUSTOM_BTN_RIGHT:
+        return 0x04U;
+    case SUBGHZ_CUSTOM_BTN_OK:
+    default:
+        return original_btn;
+    }
 }
 
 void subghz_protocol_decoder_kia_v2_get_string(void* context, FuriString* output) {
     furi_assert(context);
     SubGhzProtocolDecoderKiaV2* instance = context;
 
-    uint8_t crc = instance->generic.data & 0x0F;
+    subghz_custom_btn_set_max(4);
+    uint8_t original_btn = (uint8_t)(instance->generic.btn & 0x0FU);
+    uint8_t display_btn = original_btn;
+    uint8_t custom_btn_id = subghz_custom_btn_get();
+    if(custom_btn_id != SUBGHZ_CUSTOM_BTN_OK) {
+        display_btn = kia_v2_ui_button(custom_btn_id, original_btn);
+    }
 
-    bool crc_valid = crc == kia_v2_calculate_crc(instance->generic.data);
+    uint64_t display_data = instance->generic.data;
+    if(display_btn != original_btn) {
+        display_data = (display_data & ~((uint64_t)0x0FULL << 16)) |
+                       ((uint64_t)(display_btn & 0x0FU) << 16);
+        uint8_t new_crc = kia_v2_calculate_crc(display_data);
+        display_data = (display_data & ~((uint64_t)0x0FULL)) | (new_crc & 0x0FU);
+    }
+
+    uint8_t crc = display_data & 0x0F;
+
+    bool crc_valid = crc == kia_v2_calculate_crc(display_data);
 
     furi_string_cat_printf(
         output,
@@ -439,9 +492,9 @@ void subghz_protocol_decoder_kia_v2_get_string(void* context, FuriString* output
         "Cnt:%03lX CRC:%X - %s\r\n",
         instance->generic.protocol_name,
         instance->generic.data_count_bit,
-        instance->generic.data,
+        display_data,
         instance->generic.serial,
-        instance->generic.btn,
+        display_btn,
         instance->generic.cnt,
         crc,
         crc_valid ? "OK" : "BAD");

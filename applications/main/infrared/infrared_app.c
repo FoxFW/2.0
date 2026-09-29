@@ -1,11 +1,11 @@
 #include "infrared_app_i.h"
+#include <core/kernel.h>
 
 #include <power/power_service/power.h>
 
 #include <string.h>
 #include <toolbox/path.h>
 #include <toolbox/saved_struct.h>
-#include <dolphin/dolphin.h>
 
 #define TAG "InfraredApp"
 
@@ -117,7 +117,7 @@ void infrared_find_vacant_remote_name(FuriString* name, const char* path) {
     FS_Error status = storage_common_stat(storage, furi_string_get_cstr(base_path), NULL);
 
     if(status == FSE_OK) {
-        /* If the suggested name is occupied, try another one (name2, name3, etc) */
+
         size_t dot = furi_string_search_rchar(base_path, '.');
         furi_string_left(base_path, dot);
 
@@ -295,10 +295,11 @@ static void infrared_free(InfraredApp* infrared) {
     furi_record_close(RECORD_GUI);
     infrared->gui = NULL;
 
+    furi_kernel_lock();
     furi_string_free(infrared->file_path);
     furi_string_free(infrared->button_name);
-
     free(infrared);
+    furi_kernel_unlock();
 }
 
 InfraredErrorCode infrared_add_named_remote_with_button(
@@ -388,7 +389,6 @@ void infrared_tx_start(InfraredApp* infrared) {
         infrared_worker_set_decoded_signal(infrared->worker, message);
     }
 
-    dolphin_deed(DolphinDeedIrSend);
     infrared_play_notification_message(infrared, InfraredNotificationMessageBlinkStartSend);
 
     infrared_worker_tx_set_get_signal_callback(
@@ -429,7 +429,6 @@ void infrared_tx_send_once(InfraredApp* infrared) {
         return;
     }
 
-    dolphin_deed(DolphinDeedIrSend);
     infrared_signal_transmit(infrared->current_signal);
 }
 
@@ -626,7 +625,7 @@ int32_t infrared_app(void* p) {
     } else {
         view_dispatcher_attach_to_gui(
             infrared->view_dispatcher, infrared->gui, ViewDispatcherTypeFullscreen);
-        if(is_remote_loaded) { //-V547
+        if(is_remote_loaded) {
             scene_manager_next_scene(infrared->scene_manager, InfraredSceneRemote);
         } else {
             scene_manager_next_scene(infrared->scene_manager, InfraredSceneStart);

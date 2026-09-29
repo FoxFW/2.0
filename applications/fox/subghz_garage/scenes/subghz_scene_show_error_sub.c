@@ -1,4 +1,4 @@
-#include "../subghz_i.h" // IWYU pragma: keep
+#include "../subghz_i.h"
 #include "../helpers/subghz_custom_event.h"
 
 void subghz_scene_show_error_sub_popup_callback(void* context) {
@@ -9,10 +9,9 @@ void subghz_scene_show_error_sub_popup_callback(void* context) {
 void subghz_scene_show_error_sub_on_enter(void* context) {
     SubGhz* subghz = context;
 
-    // Setup view
     subghz_ensure_popup(subghz);
     Popup* popup = subghz->popup;
-    // [NO_DOLPHIN] popup_set_icon(popup, 83, 22, &I_WarningDolphinFlip_45x42);
+
     popup_set_header(popup, furi_string_get_cstr(subghz->error_str), 14, 15, AlignLeft, AlignTop);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, subghz);
@@ -27,8 +26,7 @@ bool subghz_scene_show_error_sub_on_event(void* context, SceneManagerEvent event
     SubGhz* subghz = context;
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == SubGhzCustomEventSceneShowErrorSub) {
-            scene_manager_search_and_switch_to_previous_scene(
-                subghz->scene_manager, SubGhzSceneStart);
+            subghz_return_to_launcher(subghz);
             return true;
         }
     }

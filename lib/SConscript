@@ -37,7 +37,6 @@ libs = env.BuildModules(
         "signal_reader",
         "u8g2",
         "flipper_application",
-        "music_worker",
         "nanopb",
         "update_util",
         "heatshrink",

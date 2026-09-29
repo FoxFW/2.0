@@ -37,7 +37,7 @@ void* calloc(size_t count, size_t size) {
 }
 
 char* strdup(const char* s) {
-    // arg s marked as non-null, so we need hack to check for NULL
+
     furi_check(((uint32_t)s << 2) != 0);
 
     size_t siz = strlen(s) + 1;
@@ -95,8 +95,8 @@ size_t memmgr_pool_get_max_block(void) {
 }
 
 void* aligned_malloc(size_t size, size_t alignment) {
-    void* p1; // original block
-    void** p2; // aligned block
+    void* p1;
+    void** p2;
     int offset = alignment - 1 + sizeof(void*);
     if((p1 = (void*)malloc(size + offset)) == NULL) {
         return NULL;

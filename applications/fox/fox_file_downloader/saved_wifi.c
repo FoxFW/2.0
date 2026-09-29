@@ -488,10 +488,10 @@ static void saved_list_draw_cb(Canvas* canvas, void* model) {
         const FoxSavedWifi* n = &app->saved_wifi[i];
 
         if(selected) {
-            canvas_draw_rbox(canvas, 2, by, 124, bh, 3);
+            canvas_draw_rbox(canvas, 8, by, 112, bh, 3);
             canvas_set_color(canvas, ColorWhite);
         } else {
-            canvas_draw_rframe(canvas, 2, by, 124, bh, 3);
+            canvas_draw_rframe(canvas, 8, by, 112, bh, 3);
         }
 
         canvas_set_font(canvas, FontPrimary);
@@ -505,8 +505,7 @@ static void saved_list_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(app->saved_wifi_count > SAVED_ROW_VIS) {
-        // Dotted track + solid position block, matching FOX_CHILL's
-        // scrollbar style instead of a plain solid bar with no track.
+
         int available_h = 64 - SAVED_ROW_HEADER_H;
         elements_scrollbar_pos(
             canvas,

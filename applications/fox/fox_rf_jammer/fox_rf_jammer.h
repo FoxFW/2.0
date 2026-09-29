@@ -53,6 +53,9 @@ typedef struct {
     const SubGhzDevice* device;
     SubGhzTxRxWorker*   subghz_txrx;
     FuriThread*         tx_thread;
+
+    FuriTimer*          loading_timer;
+    uint8_t             loading_frame;
 } FoxRFJammer;
 
 FoxRFJammer* fox_rf_jammer_alloc(void);

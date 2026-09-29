@@ -16,22 +16,22 @@ typedef struct {
 } MfClassicKeyPair;
 
 static MfClassicKeyPair microel_1k_keys[] = {
-    {.a = 0x000000000000, .b = 0x000000000000}, // 000
-    {.a = 0x000000000000, .b = 0x000000000000}, // 001
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 002
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 003
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 004
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 005
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 006
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 007
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 008
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 009
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 010
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 011
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 012
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 013
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 014
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 015
+    {.a = 0x000000000000, .b = 0x000000000000},
+    {.a = 0x000000000000, .b = 0x000000000000},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
 };
 
 const uint8_t verify_sector = 1;
@@ -62,19 +62,19 @@ void generateKeyA(const uint8_t* uid, uint8_t uidSize, uint8_t keyA[]) {
 
     if(firstCharacter == 0x2 || firstCharacter == 0x3 || firstCharacter == 0xA ||
        firstCharacter == 0xB) {
-        // XOR WITH 0x40
+
         for(size_t i = 0; i < sizeof(sumHex); i++) {
             keyA[i] = 0x40 ^ sumHex[i];
         }
     } else if(
         firstCharacter == 0x6 || firstCharacter == 0x7 || firstCharacter == 0xE ||
         firstCharacter == 0xF) {
-        // XOR WITH 0xC0
+
         for(size_t i = 0; i < sizeof(sumHex); i++) {
             keyA[i] = 0xC0 ^ sumHex[i];
         }
     } else {
-        //Key a is the same as sumHex
+
         for(size_t i = 0; i < sizeof(sumHex); i++) {
             keyA[i] = sumHex[i];
         }
@@ -103,23 +103,20 @@ static bool microel_read(Nfc* nfc, NfcDevice* device) {
         MfClassicError error = mf_classic_poller_sync_detect_type(nfc, &type);
         if(error != MfClassicErrorNone) break;
 
-        //Get UID and check if it is 4 bytes
         size_t uid_len;
         const uint8_t* uid = mf_classic_get_uid(data, &uid_len);
         FURI_LOG_D(TAG, "UID identified: %02X%02X%02X%02X", uid[0], uid[1], uid[2], uid[3]);
         if(uid_len != UID_LENGTH) break;
 
-        // Generate keys
         uint8_t keyA[KEY_LENGTH];
         uint8_t keyB[KEY_LENGTH];
         generateKeyA(uid, UID_LENGTH, keyA);
         generateKeyB(keyA, KEY_LENGTH, keyB);
 
-        // Check key 0a to verify if it is a microel card
         MfClassicKey key = {0};
         bit_lib_num_to_bytes_be(
             bit_lib_bytes_to_num_be(keyA, KEY_LENGTH), COUNT_OF(key.data), key.data);
-        const uint8_t block_num = mf_classic_get_first_block_num_of_sector(0); // This is 0
+        const uint8_t block_num = mf_classic_get_first_block_num_of_sector(0);
         MfClassicAuthContext auth_context;
         error =
             mf_classic_poller_sync_auth(nfc, block_num, &key, MfClassicKeyTypeA, &auth_context);
@@ -127,7 +124,6 @@ static bool microel_read(Nfc* nfc, NfcDevice* device) {
             break;
         }
 
-        // Save keys generated to stucture
         for(size_t i = 0; i < mf_classic_get_total_sectors_num(data->type); i++) {
             if(microel_1k_keys[i].a == 0x000000000000) {
                 microel_1k_keys[i].a = bit_lib_bytes_to_num_be(keyA, KEY_LENGTH);
@@ -171,23 +167,20 @@ static bool microel_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        //Get UID
+
         size_t uid_len;
         const uint8_t* uid = mf_classic_get_uid(data, &uid_len);
         if(uid_len != UID_LENGTH) break;
 
-        // Generate key from uid
         uint8_t keyA[KEY_LENGTH];
         generateKeyA(uid, UID_LENGTH, keyA);
 
-        // Verify key
         MfClassicSectorTrailer* sec_tr =
             mf_classic_get_sector_trailer_by_sector(data, verify_sector);
         uint64_t key = bit_lib_bytes_to_num_be(sec_tr->key_a.data, 6);
         uint64_t key_for_check_from_array = bit_lib_bytes_to_num_be(keyA, KEY_LENGTH);
         if(key != key_for_check_from_array) break;
 
-        //Get credit in block number 8
         const uint8_t* temp_ptr = data->block[4].data;
         uint16_t balance = (temp_ptr[6] << 8) | (temp_ptr[5]);
         uint16_t previous_balance = (data->block[5].data[6] << 8) | (data->block[5].data[5]);
@@ -210,23 +203,20 @@ static bool microel_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin microel_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify =
-        NULL, // the verification I need is based on verifying the keys generated via uid and try to authenticate not like on mizip that there is default b0 but added verify in read function
+        NULL,
     .read = microel_read,
     .parse = microel_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor microel_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &microel_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* microel_plugin_ep(void) {
     return &microel_plugin_descriptor;
 }

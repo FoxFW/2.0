@@ -120,18 +120,6 @@ void http_download_url_submitted(App* app) {
     storage_file_free(f);
     furi_record_close(RECORD_STORAGE);
 
-    // This used to run a whole separate "is this URL real?" probe first -
-    // connect, read the headers, then deliberately hang up - before ever
-    // starting the actual download, which meant a full second connection
-    // (and its own chance to fail) right after the first one succeeded.
-    // Now there's exactly one connection: it starts streaming into the
-    // .download file the moment [DOWNLOAD/START/SUCCESS] comes back
-    // (see download_derive_found_info/download_attempt in url_download.c),
-    // in the background, before the user has done anything. download_confirmed
-    // stays false until they press Install on the Connecting/Downloading
-    // progress screen; until then, Cancel/Back just deletes whatever came
-    // down so far (download_unconfirmed_finished, download_pending_cancel)
-    // instead of leaving it as a resumable interrupted download.
     app->download_purpose = DownloadPurposeFile;
     app->download_confirmed = false;
     app->download_connected = false;
@@ -143,11 +131,6 @@ void http_download_url_submitted(App* app) {
     app_start_download(app);
 }
 
-// Called from the worker thread (url_download.c's download_attempt) the
-// first time a download actually connects - derives the destination
-// filename/path from the URL now that we know it's real, so the
-// Connecting screen has something to show and a real download_path exists
-// for the streaming loop to write to.
 void download_derive_found_info(App* app, uint32_t size, const char* type) {
     url_derive_filename(
         app->download_url, app->download_found_name, sizeof(app->download_found_name));
@@ -168,20 +151,11 @@ void download_derive_found_info(App* app, uint32_t size, const char* type) {
     furi_record_close(RECORD_STORAGE);
 }
 
-// Sets the worker's cancel flag - same mechanism as a normal confirmed
-// download's Back-to-cancel, just without the confirm dialog, since
-// nothing here has been confirmed as something the user wants to keep
-// yet. The actual cleanup (delete vs. just stopping) happens once the
-// worker has actually unwound, in download_unconfirmed_finished below -
-// it can't happen here, since the worker thread may still be mid-write.
 void download_pending_cancel(App* app) {
     app->download_cancel_requested = true;
     app->download_cancel_requested_tick = furi_get_tick();
 }
 
-// The user pressed Install - from this point on it behaves exactly like a
-// download they started normally: mark it resumable if interrupted, and
-// let the progress view switch from "Connecting" to "Downloading".
 void download_install_confirm(App* app) {
     app->download_confirmed = true;
 
@@ -193,10 +167,7 @@ void download_install_confirm(App* app) {
     furi_mutex_release(app->download_progress_mutex);
 
     if(already_done && already_ok) {
-        // It finished in the background before the user got here - the
-        // worker already renamed the file into place (download_worker_thread
-        // doesn't wait on confirmation to do that). Nothing left to mark as
-        // resumable for a download that's already done; just report it.
+
         uint32_t bytes;
         furi_mutex_acquire(app->download_progress_mutex, FuriWaitForever);
         bytes = app->download_progress_bytes;
@@ -214,12 +185,6 @@ void download_install_confirm(App* app) {
     download_state_mark_started(app->download_url, app->download_path);
 }
 
-// Called from main.c's FOX_DOWNLOAD_EVENT_WORKER_DONE handler when a plain
-// URL download's worker finishes before the user has pressed Install.
-// Nothing here was ever something the user asked to keep: a cancel or a
-// genuine failure cleans up and heads back; finishing successfully in the
-// background just leaves the merged Connecting/Install screen up (it's
-// already showing it, pinned at 100%) so the user still gets to decide.
 void download_unconfirmed_finished(App* app, bool ok, const char* error) {
     if(app->download_cancel_requested) {
         Storage* storage = furi_record_open(RECORD_STORAGE);
@@ -238,8 +203,7 @@ void download_unconfirmed_finished(App* app, bool ok, const char* error) {
         app_render_log(app);
         return;
     }
-    // Finished cleanly but unconfirmed - stay put, the Connecting/Install
-    // screen is already showing.
+
 }
 
 static void load_last_download_url(App* app) {
@@ -283,10 +247,7 @@ void file_downloader_open(App* app) {
 static App* s_download_found_app = NULL;
 
 void download_found_confirm(App* app) {
-    // Catalog installs and GitHub file downloads only ever show File Found
-    // after already picking their destination path with no network probe
-    // beforehand (unlike a plain URL download) - this is their one and
-    // only connection, so it's confirmed the instant the user presses it.
+
     app->download_confirmed = true;
     app_start_download(app);
 }
@@ -458,10 +419,7 @@ void download_resume_start(App* app) {
     snprintf(app->download_found_name, sizeof(app->download_found_name), "%s", app->download_resume_name);
     snprintf(app->download_path, sizeof(app->download_path), "%s", app->download_resume_path);
     app->download_purpose = DownloadPurposeFile;
-    // Resuming an interrupted download was already confirmed the first
-    // time around (that's why there's a resume marker on disk to resume
-    // from) - skip straight to the normal Downloading screen, no
-    // Connecting/Install step.
+
     app->download_confirmed = true;
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
@@ -476,12 +434,7 @@ void download_resume_start(App* app) {
 }
 
 void download_resume_delete(App* app) {
-    // "Restart" - delete whatever partial data was saved, then start the
-    // same download over from scratch instead of dropping back to the
-    // menu. The state marker is left alone: it already points at this
-    // download's URL/path, and with the .download file gone,
-    // url_download.c's resume-offset detection naturally finds nothing to
-    // resume from and downloads from byte 0.
+
     if(app->download_resume_path[0] != '\0') {
         char work_path[FOX_DOWNLOAD_PATH_MAX + 10];
         download_work_path(app->download_resume_path, work_path, sizeof(work_path));

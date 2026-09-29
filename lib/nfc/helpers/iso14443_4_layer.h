@@ -19,8 +19,6 @@ void iso14443_4_layer_set_i_block(Iso14443_4Layer* instance, bool chaining, bool
 void iso14443_4_layer_set_r_block(Iso14443_4Layer* instance, bool acknowledged, bool CID_present);
 void iso14443_4_layer_set_s_block(Iso14443_4Layer* instance, bool deselect, bool CID_present);
 
-// Poller mode
-
 void iso14443_4_layer_encode_command(
     Iso14443_4Layer* instance,
     const BitBuffer* input_data,
@@ -35,8 +33,6 @@ Iso14443_4aError iso14443_4_layer_decode_response_pwt_ext(
     Iso14443_4Layer* instance,
     BitBuffer* output_data,
     const BitBuffer* block_data);
-
-// Listener mode
 
 typedef enum {
     Iso14443_4LayerResultSkip = (0),

@@ -24,26 +24,6 @@ assetsenv.Depends(proto, proto_options)
 assetsenv.Alias("proto", proto)
 
 
-# Internal animations
-
-dolphin_internal = assetsenv.DolphinSymBuilder(
-    assetsenv["ASSETS_WORK_DIR"],
-    assetsenv["ASSETS_SRC_DIR"].Dir("dolphin"),
-    DOLPHIN_RES_TYPE="internal",
-)
-assetsenv.Alias("dolphin_internal", dolphin_internal)
-
-
-# Blocking animations
-
-dolphin_blocking = assetsenv.DolphinSymBuilder(
-    assetsenv["ASSETS_WORK_DIR"],
-    assetsenv["ASSETS_SRC_DIR"].Dir("dolphin"),
-    DOLPHIN_RES_TYPE="blocking",
-)
-assetsenv.Alias("dolphin_blocking", dolphin_blocking)
-
-
 # Protobuf version meta
 proto_ver = assetsenv.ProtoVerBuilder(
     "${ASSETS_WORK_DIR}/protobuf_version.h",
@@ -53,7 +33,7 @@ assetsenv.Depends(proto_ver, proto)
 assetsenv.Alias("proto_ver", proto_ver)
 
 # Gather everything into a static lib
-assets_parts = (icons, proto, dolphin_blocking, dolphin_internal, proto_ver)
+assets_parts = (icons, proto, proto_ver)
 env.Replace(FW_ASSETS_HEADERS=assets_parts)
 
 assetslib = assetsenv.Library("${FW_LIB_NAME}", assets_parts)
@@ -62,18 +42,18 @@ assetsenv.Install("${LIB_DIST_DIR}", assetslib)
 
 # Resources for SD card
 if assetsenv["IS_BASE_FIRMWARE"]:
-    dolphin_external_out_dir = assetsenv["ASSETS_WORK_DIR"].Dir("dolphin")
-    # External dolphin animations
-    dolphin_external = assetsenv.DolphinExtBuilder(
-        dolphin_external_out_dir,
-        assetsenv["ASSETS_SRC_DIR"].Dir("dolphin"),
-        DOLPHIN_RES_TYPE="external",
+    fox_external_out_dir = assetsenv["ASSETS_WORK_DIR"].Dir("fox")
+    # External fox animations
+    fox_external = assetsenv.FoxExtBuilder(
+        fox_external_out_dir,
+        assetsenv["ASSETS_SRC_DIR"].Dir("fox"),
+        FOX_RES_TYPE="external",
     )
     if assetsenv["FORCE"]:
-        assetsenv.AlwaysBuild(dolphin_external)
-    assetsenv.Alias("dolphin_ext", dolphin_external)
-    assetsenv.Clean(dolphin_external, dolphin_external_out_dir)
+        assetsenv.AlwaysBuild(fox_external)
+    assetsenv.Alias("fox_ext", fox_external)
+    assetsenv.Clean(fox_external, fox_external_out_dir)
 
-    env.Replace(DOLPHIN_EXTERNAL_OUT_DIR=dolphin_external_out_dir)
+    env.Replace(FOX_EXTERNAL_OUT_DIR=fox_external_out_dir)
 
 Return("assetslib")

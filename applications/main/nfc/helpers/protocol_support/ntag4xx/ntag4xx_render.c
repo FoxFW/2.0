@@ -23,14 +23,16 @@ void nfc_render_ntag4xx_info(
             break;
         case Ntag4xxType424DNATT:
             has_tagtamper = true;
-            /* fall-through */
+            __attribute__((fallthrough));
+
         case Ntag4xxType424DNA:
             size_ndef = 256;
             size_proprietary = 128;
             break;
         case Ntag4xxType426QDNATT:
             has_tagtamper = true;
-            /* fall-through */
+            __attribute__((fallthrough));
+
         case Ntag4xxType426QDNA:
             size_ndef = 768;
             size_proprietary = 128;

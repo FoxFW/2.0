@@ -1,6 +1,7 @@
 #include "flipper.pb.h"
 #include "rpc_i.h"
 #include <gps/gps_i.h>
+#include <core/kernel.h>
 
 #define TAG "RpcGps"
 
@@ -120,6 +121,8 @@ void rpc_gps_free(void* context) {
     furi_record_close(RECORD_GPS);
 
     rpc_gps->session = NULL;
+    furi_kernel_lock();
     free(rpc_gps->request);
     free(rpc_gps);
+    furi_kernel_unlock();
 }

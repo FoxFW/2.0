@@ -13,7 +13,6 @@
 
 #include <applications/services/storage/storage.h>
 #include <applications/services/dialogs/dialogs.h>
-#include <dolphin/dolphin.h>
 #include <flipper_format.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -579,7 +578,6 @@ static void t5577_writer_view_write_enter_callback(void* context) {
     app->timer =
         furi_timer_alloc(t5577_writer_view_write_timer_callback, FuriTimerTypePeriodic, context);
     furi_timer_start(app->timer, repeat_writing_period);
-    dolphin_deed(DolphinDeedRfidEmulate);
     notification_message(app->notifications, &sequence_blink_start_magenta);
 }
 

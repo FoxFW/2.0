@@ -430,7 +430,7 @@ LevelDuration subghz_protocol_encoder_came_atomo_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_came_atomo_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -606,7 +606,7 @@ void atomo_encrypt(uint8_t* buff) {
 
     buff[0] = (buff[0] ^ 5) & 0x7F;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void atomo_decrypt(uint8_t* buff) {
     buff[0] = (buff[0] ^ 5) & 0x7F;
@@ -694,7 +694,7 @@ static uint8_t subghz_protocol_came_atomo_get_btn_code(void) {
 
     return btn;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 uint8_t subghz_protocol_decoder_came_atomo_get_hash_data(void* context) {
     furi_assert(context);

@@ -1,6 +1,7 @@
 #ifdef FW_CFG_unit_tests
 
 #include <lib/nfc/nfc.h>
+#include <core/kernel.h>
 #include <lib/nfc/helpers/iso14443_crc.h>
 #include <lib/nfc/protocols/iso14443_3a/iso14443_3a.h>
 #include <lib/nfc/protocols/felica/felica.h>
@@ -342,11 +343,11 @@ void nfc_start(Nfc* instance, NfcEventCallback callback, void* context) {
 
     if(instance->mode == NfcModeListener) {
         furi_check(listener_queue == NULL);
-        // Check that poller didn't start
+
         furi_check(poller_queue == NULL);
     } else {
         furi_check(poller_queue == NULL);
-        // Check that poller is started after listener
+
         furi_check(listener_queue);
     }
 
@@ -384,23 +385,25 @@ void nfc_stop(Nfc* instance) {
         furi_message_queue_put(listener_queue, &message, FuriWaitForever);
         furi_thread_join(instance->worker_thread);
 
+        furi_kernel_lock();
         furi_message_queue_free(listener_queue);
         listener_queue = NULL;
 
         furi_thread_free(instance->worker_thread);
         instance->worker_thread = NULL;
+        furi_kernel_unlock();
     } else {
         furi_thread_join(instance->worker_thread);
 
+        furi_kernel_lock();
         furi_message_queue_free(poller_queue);
         poller_queue = NULL;
 
         furi_thread_free(instance->worker_thread);
         instance->worker_thread = NULL;
+        furi_kernel_unlock();
     }
 }
-
-// Called from worker thread
 
 NfcError nfc_listener_tx(Nfc* instance, const BitBuffer* tx_buffer) {
     furi_check(instance);
@@ -437,9 +440,9 @@ NfcError
     message.type = NfcMessageTypeTx;
     message.data.data_bits = bit_buffer_get_size(tx_buffer);
     bit_buffer_write_bytes(tx_buffer, message.data.data, bit_buffer_get_size_bytes(tx_buffer));
-    // Tx
+
     furi_check(furi_message_queue_put(listener_queue, &message, FuriWaitForever) == FuriStatusOk);
-    // Rx
+
     FuriStatus status = furi_message_queue_get(poller_queue, &message, 50);
 
     if(status == FuriStatusErrorTimeout) {
@@ -462,8 +465,6 @@ NfcError nfc_iso14443a_poller_trx_custom_parity(
     uint32_t fwt) {
     return nfc_poller_trx(instance, tx_buffer, rx_buffer, fwt);
 }
-
-// Technology specific API
 
 NfcError nfc_iso14443a_poller_trx_short_frame(
     Nfc* instance,

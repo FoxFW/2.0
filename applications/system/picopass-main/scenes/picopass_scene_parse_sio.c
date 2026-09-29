@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 
 #define ASN_EMIT_DEBUG 0
 #include <SIO.h>

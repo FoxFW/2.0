@@ -14,40 +14,34 @@ extern "C" {
 typedef struct FuriHalSpiBus FuriHalSpiBus;
 typedef struct FuriHalSpiBusHandle FuriHalSpiBusHandle;
 
-/** FuriHal spi bus states */
 typedef enum {
-    FuriHalSpiBusEventInit, /**< Bus initialization event, called on system start */
-    FuriHalSpiBusEventDeinit, /**< Bus deinitialization event, called on system stop */
-    FuriHalSpiBusEventLock, /**< Bus lock event, called before activation */
-    FuriHalSpiBusEventUnlock, /**< Bus unlock event, called after deactivation */
-    FuriHalSpiBusEventActivate, /**< Bus activation event, called before handle activation */
-    FuriHalSpiBusEventDeactivate, /**< Bus deactivation event, called after handle deactivation  */
+    FuriHalSpiBusEventInit,
+    FuriHalSpiBusEventDeinit,
+    FuriHalSpiBusEventLock,
+    FuriHalSpiBusEventUnlock,
+    FuriHalSpiBusEventActivate,
+    FuriHalSpiBusEventDeactivate,
 } FuriHalSpiBusEvent;
 
-/** FuriHal spi bus event callback */
 typedef void (*FuriHalSpiBusEventCallback)(FuriHalSpiBus* bus, FuriHalSpiBusEvent event);
 
-/** FuriHal spi bus */
 struct FuriHalSpiBus {
     SPI_TypeDef* spi;
     FuriHalSpiBusEventCallback callback;
     const FuriHalSpiBusHandle* current_handle;
 };
 
-/** FuriHal spi handle states */
 typedef enum {
-    FuriHalSpiBusHandleEventInit, /**< Handle init, called on system start, initialize gpio for idle state */
-    FuriHalSpiBusHandleEventDeinit, /**< Handle deinit, called on system stop, deinitialize gpio for default state */
-    FuriHalSpiBusHandleEventActivate, /**< Handle activate: connect gpio and apply bus config */
-    FuriHalSpiBusHandleEventDeactivate, /**< Handle deactivate: disconnect gpio and reset bus config */
+    FuriHalSpiBusHandleEventInit,
+    FuriHalSpiBusHandleEventDeinit,
+    FuriHalSpiBusHandleEventActivate,
+    FuriHalSpiBusHandleEventDeactivate,
 } FuriHalSpiBusHandleEvent;
 
-/** FuriHal spi handle event callback */
 typedef void (*FuriHalSpiBusHandleEventCallback)(
     const FuriHalSpiBusHandle* handle,
     FuriHalSpiBusHandleEvent event);
 
-/** FuriHal spi handle */
 struct FuriHalSpiBusHandle {
     FuriHalSpiBus* bus;
     FuriHalSpiBusHandleEventCallback callback;

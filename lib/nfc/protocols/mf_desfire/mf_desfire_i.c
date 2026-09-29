@@ -260,7 +260,7 @@ bool mf_desfire_file_settings_parse(MfDesfireFileSettings* data, const BitBuffer
             if(!has_counter_limit) {
                 file_settings_temp.transaction_mac.counter_limit = 0;
             } else {
-                // AES (4b) or LRP (2b)
+
                 const size_t counter_limit_size = (layout.transaction_mac.key_option & 0x02) ? 4 :
                                                                                                2;
                 memcpy(
@@ -316,7 +316,6 @@ bool mf_desfire_file_data_parse(MfDesfireFileData* data, const BitBuffer* buf) {
         bit_buffer_write_bytes(buf, simple_array_get_data(data->data), data_size);
     }
 
-    // Success no matter whether there is data or not
     return true;
 }
 

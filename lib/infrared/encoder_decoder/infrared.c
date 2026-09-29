@@ -277,7 +277,6 @@ void infrared_reset_encoder(InfraredEncoderHandler* handler, const InfraredMessa
     furi_check(required_encoder->reset);
     furi_check(required_encoder->alloc);
 
-    /* Realloc encoder if different protocol set */
     if(required_encoder != handler->encoder) {
         if(handler->handler != NULL) {
             furi_check(handler->encoder->free);

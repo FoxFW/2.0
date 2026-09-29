@@ -1,42 +1,3 @@
-/*
- * Flipper-side TagTinker WiFi link - Fox ESP32 Firmware edition.
- *
- * TagTinker originally shipped its own ESP-IDF firmware (esp32-wifi-fw)
- * speaking a bespoke 0xAA55 framed binary protocol. This file replaces
- * that with the AT bracket-command protocol every other Fox app already
- * speaks to Fox ESP32 Firmware (see esp_at.c), so a WiFi Dev Board that's
- * already flashed for FoxHub/Chat/Portal/etc. works here too
- * with no second flash.
- *
- * Mapping from the old wire protocol to Fox ESP32 Firmware commands:
- *
- *   WIFI_SET      -> [WIFI/SAVE] then [WIFI/CONNECT]
- *   WIFI_FORGET   -> [WIFI/FORGET]
- *   WIFI_STATUS   -> [WIFI/STATUS] + [WIFI/SSID] + [IP/ADDRESS]
- *   LIST_PLUGINS  -> [DOWNLOAD/START]+[DOWNLOAD/STREAM] on <cloud>/plugins,
- *                    parsed as JSON on the FAP side (the ESP no longer
- *                    parses or re-frames anything).
- *   RUN_PLUGIN    -> [DOWNLOAD/START]+[DOWNLOAD/STREAM] on
- *                    <cloud>/render/<id>?w=&h=&accent=&<params>. The
- *                    worker's 8-byte framebuffer header (width, height,
- *                    planes, reserved, row_stride) rides straight through
- *                    the raw byte stream and is parsed here instead of on
- *                    the ESP.
- *   HELLO         -> auto-sent [VERSION] probe right after open().
- *
- * Threading model:
- *
- *   - Public API calls (ping/query_status/set_creds/forget/list_plugins/
- *     run_plugin) just enqueue a small command struct and return
- *     immediately, matching the old fire-and-forget framed-emit calls.
- *   - A single worker thread pulls commands off that queue and executes
- *     them one at a time as blocking send/receive sequences against
- *     esp_at.c (the same transport fox_update_downloader uses). All
- *     TtWifiEvent callback invocations happen on this worker thread, same
- *     as before.
- *   - esp_at.c owns the actual UART + expansion-port lifecycle, so this
- *     file no longer touches FuriHalSerial or Expansion directly.
- */
 #include "tagtinker_wifi.h"
 #include "esp_at.h"
 #include "gpio_remap_compat.h"
@@ -58,8 +19,6 @@
 #define DL_CHUNK_TIMEOUT_MS  10000
 #define RENDER_STREAM_BUF    512
 #define PLUGIN_BODY_MAX      12288
-
-/* ---- Command queue -------------------------------------------------------*/
 
 typedef enum {
     WcPing,
@@ -96,15 +55,12 @@ struct TagTinkerWifi {
     char    cached_ids[TT_WIFI_MAX_FAP_PLUGINS][32];
     uint8_t cached_id_count;
 
-    /* Reusable scratch buffer for TtWifiEvtPlugin dispatch. */
     TagTinkerWifiPlugin pending_plugin;
 };
 
 static void emit(TagTinkerWifi* w, TtWifiEvent* ev) {
     if(w->cb) w->cb(ev, w->user);
 }
-
-/* ---- AT line helpers ------------------------------------------------------*/
 
 typedef enum { WlOk, WlError, WlTimeout } WaitResult;
 
@@ -145,20 +101,11 @@ static bool read_plain_line(EspAt* esp_at, char* out, size_t out_size, uint32_t 
     return true;
 }
 
-/* Blank lines never reach esp_at_receive - esp_at.c's line collector drops
- * zero-length lines before they hit the message queue - so a single read
- * is enough to catch the tag that follows a raw byte stream. */
 static bool dl_stream_end_ok(EspAt* esp_at) {
     EspAtMsg msg;
     if(!esp_at_receive(esp_at, &msg, 3000)) return false;
     return strcmp(msg.line, "[DOWNLOAD/STREAM/END]") == 0;
 }
-
-/* ---- Tiny JSON helpers -----------------------------------------------------
- * Deliberately minimal (no allocation beyond the caller's buffers, no
- * recursion) - mirrors the same style Fox ESP32 Firmware's own
- * http_bridge.cpp uses for its AT-command JSON, just reimplemented here
- * since the FAP has no cJSON and doesn't need one for this. */
 
 static bool j_find_key(const char* json, const char* key, size_t* out_pos) {
     char pat[40];
@@ -205,9 +152,6 @@ static const char* j_array_start(const char* json, const char* key) {
     return p ? p + 1 : NULL;
 }
 
-/* Walks one top-level element (quoted string or {..} object) starting at
- * *cursor, skipping leading whitespace/commas. Returns false at the
- * closing ']'. Advances *cursor past the element on success. */
 static bool j_next_element(const char** cursor, const char** out_start, size_t* out_len) {
     const char* p = *cursor;
     while(*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',') p++;
@@ -270,8 +214,6 @@ static void j_copy_unquoted(const char* start, size_t len, char* out, size_t cap
     out[i] = 0;
 }
 
-/* ---- Escaping --------------------------------------------------------------*/
-
 static void json_escape(char* dst, size_t dst_cap, const char* src) {
     size_t i = 0;
     for(const char* p = src; *p && i + 2 < dst_cap; p++) {
@@ -302,8 +244,6 @@ static void url_encode(char* dst, size_t dst_cap, const char* src) {
     }
     dst[i] = 0;
 }
-
-/* ---- Plugin manifest JSON -> TagTinkerWifiPlugin --------------------------*/
 
 static void parse_plugin_json(
     uint8_t index,
@@ -383,8 +323,6 @@ static void parse_plugin_json(
     }
 }
 
-/* ---- DOWNLOAD/START + DOWNLOAD/STREAM helpers -----------------------------*/
-
 static WaitResult dl_start(EspAt* esp_at, const char* url, uint32_t* out_size, char* err, size_t err_size) {
     char cmd[420];
     snprintf(cmd, sizeof(cmd), "[DOWNLOAD/START]{\"url\":\"%s\"}", url);
@@ -406,8 +344,6 @@ static WaitResult dl_stream_begin(EspAt* esp_at) {
     esp_at_send(esp_at, "[DOWNLOAD/STREAM]");
     return wait_for_line(esp_at, "[DOWNLOAD/STREAM/BEGIN]", NULL, 0, DL_START_WAIT_MS);
 }
-
-/* ---- Command handlers ------------------------------------------------------*/
 
 static void handle_ping(TagTinkerWifi* w) {
     esp_at_send(w->esp_at, "[VERSION]");
@@ -650,9 +586,7 @@ static void handle_run_plugin(TagTinkerWifi* w, const WifiCmd* cmd) {
     uint16_t iw = (uint16_t)(hdr[0] | (hdr[1] << 8));
     uint16_t ih = (uint16_t)(hdr[2] | (hdr[3] << 8));
     uint8_t  planes = hdr[4];
-    /* hdr[5] is reserved, hdr[6..7] is row_stride - not needed here since
-     * the BMP writer derives its own row stride from width, same as it
-     * always has (RESULT_BEGIN never carried row_stride either). */
+
     uint32_t pixel_total = total_size - 8;
 
     TtWifiEvent begin_ev = {
@@ -703,8 +637,6 @@ static void handle_run_plugin(TagTinkerWifi* w, const WifiCmd* cmd) {
     emit(w, &end_ev);
 }
 
-/* ---- Worker thread ---------------------------------------------------------*/
-
 static int32_t worker_thread(void* ctx) {
     TagTinkerWifi* w = ctx;
     WifiCmd cmd;
@@ -733,8 +665,6 @@ static int32_t worker_thread(void* ctx) {
     }
     return 0;
 }
-
-/* ---- Public API ------------------------------------------------------------*/
 
 static void enqueue(TagTinkerWifi* w, const WifiCmd* cmd) {
     if(!w->esp_at) return;
@@ -792,8 +722,6 @@ void tagtinker_wifi_run_plugin(
     enqueue(w, &cmd);
 }
 
-/* ---- Lifecycle ---------------------------------------------------------- */
-
 TagTinkerWifi* tagtinker_wifi_alloc(TtWifiEventCb cb, void* user) {
     TagTinkerWifi* w = malloc(sizeof(*w));
     memset(w, 0, sizeof(*w));
@@ -825,9 +753,6 @@ bool tagtinker_wifi_open(TagTinkerWifi* w) {
     w->worker = furi_thread_alloc_ex("TtWifiCmd", 3072, worker_thread, w);
     furi_thread_start(w->worker);
 
-    /* Fox ESP32 Firmware doesn't beacon on boot the way the old custom
-     * firmware did, so we probe for it explicitly right after opening -
-     * this is the new HELLO equivalent. */
     tagtinker_wifi_ping(w);
     return true;
 }

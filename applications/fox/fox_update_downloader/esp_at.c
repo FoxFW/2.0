@@ -75,11 +75,7 @@ static int32_t esp_at_worker(void* context) {
             if(esp_at->raw_trigger_armed) {
                 size_t trig_len = strlen(esp_at->raw_trigger);
                 if(n >= trig_len && strncmp(line, esp_at->raw_trigger, trig_len) == 0) {
-                    // Flip to raw mode right now, in this same thread/iteration,
-                    // before the loop can pull another byte off rx_stream. This
-                    // closes the race where the first bytes of a raw stream
-                    // (sent by the peer immediately after this marker line)
-                    // would otherwise get consumed here as text.
+
                     esp_at->raw_trigger_armed = false;
                     esp_at->raw_mode = true;
                 }
@@ -151,9 +147,11 @@ void esp_at_free(EspAt* esp_at) {
     expansion_enable(esp_at->expansion);
     furi_record_close(RECORD_EXPANSION);
 
+    furi_kernel_lock();
     furi_stream_buffer_free(esp_at->rx_stream);
     furi_message_queue_free(esp_at->msg_queue);
     free(esp_at);
+    furi_kernel_unlock();
 }
 
 void esp_at_send(EspAt* esp_at, const char* command) {

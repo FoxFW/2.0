@@ -7,9 +7,6 @@ void infrared_scene_universal_leds_on_enter(void* context) {
     ButtonPanel* button_panel = infrared->button_panel;
     InfraredBruteForce* brute_force = infrared->brute_force;
 
-    // Button codes
-    // Power_off, Power_on, Brightness_up, Brightness_dn, Red, Blue, Green, White
-
     infrared_brute_force_set_db_filename(brute_force, EXT_PATH("infrared/assets/leds.ir"));
 
     button_panel_reserve(button_panel, 2, 4);

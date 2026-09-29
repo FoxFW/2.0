@@ -4,6 +4,8 @@
 #include <lib/subghz/blocks/encoder.h>
 #include <lib/subghz/blocks/generic.h>
 #include <lib/subghz/blocks/math.h>
+
+#include <lib/subghz/blocks/custom_btn_i.h>
 #include <string.h>
 
 #define TAG "FiatProtocolV1"
@@ -263,6 +265,11 @@ static void fiat_v1_decode_fields(SubGhzProtocolDecoderFiatV1* instance) {
     instance->decoder.decode_data = instance->generic.data;
     instance->decoder.decode_count_bit = instance->generic.data_count_bit;
     fiat_v1_verify_hitag2_key(instance);
+
+    if(subghz_custom_btn_get_original() == 0) {
+        subghz_custom_btn_set_original(instance->generic.btn);
+    }
+    subghz_custom_btn_set_max(4);
 }
 
 static bool fiat_v1_commit(
@@ -730,6 +737,42 @@ SubGhzProtocolStatus
         instance->epoch = 0U;
     }
 
+    const uint8_t original_btn = (uint8_t)(button & 0x0FU);
+    if(subghz_custom_btn_get_original() == 0) {
+        subghz_custom_btn_set_original(original_btn);
+    }
+    subghz_custom_btn_set_max(4);
+    const uint8_t custom_btn_id = subghz_custom_btn_get();
+
+    switch(custom_btn_id) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        button = 0x8U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        button = 0x4U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_LEFT:
+        button = 0x2U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_RIGHT:
+        button = 0x1U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_OK:
+    default:
+
+        button = original_btn;
+        break;
+    }
+
+    {
+        uint32_t override_cnt = 0U;
+        if(subghz_block_generic_global_counter_override_get(&override_cnt)) {
+            control = override_cnt;
+        } else {
+            control += (uint32_t)furi_hal_subghz_get_rolling_counter_mult();
+        }
+    }
+
     control &= 0x03FFU;
     button &= 0x0FU;
     instance->generic.serial = serial;
@@ -748,6 +791,15 @@ SubGhzProtocolStatus
         instance->hop,
         instance->tail_bits);
     instance->frame_xor = instance->raw_data[12];
+
+    flipper_format_rewind(flipper_format);
+    flipper_format_insert_or_update_hex(
+        flipper_format, FIAT_V1_RAW_FIELD, instance->raw_data, FIAT_V1_WIRE_BYTES);
+    flipper_format_rewind(flipper_format);
+    {
+        uint32_t cnt_store = control;
+        flipper_format_insert_or_update_uint32(flipper_format, "Cnt", &cnt_store, 1);
+    }
 
     uint32_t repeat = FIAT_V1_ENC_DEFAULT_REPEAT;
     flipper_format_rewind(flipper_format);
@@ -978,9 +1030,34 @@ SubGhzProtocolStatus
     return SubGhzProtocolStatusOk;
 }
 
+static uint8_t fiat_v1_custom_to_btn(uint8_t custom, uint8_t original_btn) {
+    switch(custom) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        return 0x8U;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        return 0x4U;
+    case SUBGHZ_CUSTOM_BTN_LEFT:
+        return 0x2U;
+    case SUBGHZ_CUSTOM_BTN_RIGHT:
+        return 0x1U;
+    case SUBGHZ_CUSTOM_BTN_OK:
+    default:
+        return original_btn;
+    }
+}
+
 void subghz_protocol_decoder_fiat_v1_get_string(void* context, FuriString* output) {
     furi_check(context);
     SubGhzProtocolDecoderFiatV1* instance = context;
+
+    uint8_t display_btn = instance->generic.btn;
+    if(instance->hitag2_key_valid) {
+        subghz_custom_btn_set_max(4);
+        uint8_t custom = subghz_custom_btn_get();
+        if(custom != SUBGHZ_CUSTOM_BTN_OK) {
+            display_btn = fiat_v1_custom_to_btn(custom, instance->generic.btn);
+        }
+    }
 
     furi_string_cat_printf(
         output,
@@ -994,14 +1071,37 @@ void subghz_protocol_decoder_fiat_v1_get_string(void* context, FuriString* outpu
         instance->hitag2_key_valid ? "KEY:OK" : "KEY:??",
         (unsigned long)instance->generic.serial,
         (unsigned long)instance->generic.cnt,
-        instance->generic.btn,
+        display_btn,
         (unsigned long)instance->hop,
         instance->family,
         (unsigned long)instance->uid,
         (unsigned long)instance->hop,
-        instance->generic.btn,
-        fiat_v1_button_name(instance->generic.btn),
+        display_btn,
+        fiat_v1_button_name(display_btn),
         (unsigned long)instance->generic.cnt,
         instance->tail_bits,
         instance->frame_xor);
+}
+
+uint32_t subghz_protocol_fiat_v1_compute_auth(
+    uint32_t uid,
+    uint8_t button,
+    uint16_t control,
+    const uint8_t key[6],
+    uint32_t epoch) {
+    return fiat_v1_bcm_generate_authenticator(uid, button, control, key, epoch);
+}
+
+bool subghz_protocol_fiat_v1_verify_key(
+    uint32_t uid,
+    uint8_t button,
+    uint16_t control,
+    uint32_t hop,
+    const uint8_t key[6],
+    uint32_t epoch) {
+    return fiat_v1_key_matches(uid, button, control, hop, key, epoch);
+}
+
+const uint8_t (*subghz_protocol_fiat_v1_get_known_keys(void))[6] {
+    return fiat_v1_known_keys;
 }

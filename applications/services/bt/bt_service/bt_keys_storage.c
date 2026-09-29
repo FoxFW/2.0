@@ -11,14 +11,13 @@
 
 #define BT_KEYS_STORAGE_MAGIC          (0x18)
 #define BT_KEYS_STORAGE_VERSION        (1)
-#define BT_KEYS_STORAGE_LEGACY_VERSION (0) // Legacy version with no root keys
+#define BT_KEYS_STORAGE_LEGACY_VERSION (0)
 
 #define TAG "BtKeyStorage"
 
-// Identity root key
 static const uint8_t gap_legacy_irk[16] =
     {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0};
-// Encryption root key
+
 static const uint8_t gap_legacy_erk[16] =
     {0xfe, 0xdc, 0xba, 0x09, 0x87, 0x65, 0x43, 0x21, 0xfe, 0xdc, 0xba, 0x09, 0x87, 0x65, 0x43, 0x21};
 
@@ -116,9 +115,9 @@ BtKeysStorage* bt_keys_storage_alloc(const char* keys_storage_path) {
     furi_assert(keys_storage_path);
 
     BtKeysStorage* instance = malloc(sizeof(BtKeysStorage));
-    // Set default nvm ram parameters
+
     furi_hal_bt_get_key_storage_buff(&instance->nvm_sram_buff, &instance->nvm_sram_buff_size);
-    // Set key storage file
+
     instance->file_path = furi_string_alloc();
     furi_string_set_str(instance->file_path, keys_storage_path);
 
@@ -208,7 +207,6 @@ bool bt_keys_storage_is_changed(BtKeysStorage* instance) {
             break;
         }
 
-        // Early check for legacy version: always considered changed, no need to load
         if(file_version == BT_KEYS_STORAGE_LEGACY_VERSION) {
             is_changed = true;
             break;
@@ -223,7 +221,6 @@ bool bt_keys_storage_is_changed(BtKeysStorage* instance) {
             break;
         }
 
-        // At this point, it's version 1 file we have
         const BtKeysStorageFile* loaded = (const BtKeysStorageFile*)data_buffer;
         size_t expected_file_size = sizeof(GapRootSecurityKeys) + instance->current_size;
         if(payload_size == expected_file_size) {
@@ -292,7 +289,7 @@ bool bt_keys_storage_load(BtKeysStorage* instance) {
             loaded = bt_keys_storage_load_legacy_pairings(instance, file_data, payload_size);
             break;
         }
-        // Only v1 left
+
         loaded = bt_keys_storage_load_keys_and_pairings(instance, file_data, payload_size);
     } while(false);
 
@@ -322,7 +319,6 @@ bool bt_keys_storage_update(BtKeysStorage* instance, uint8_t* start_addr, uint32
 
         instance->current_size = new_size;
 
-        // Save using version 1 format with embedded root keys
         bool data_updated = bt_keys_storage_save(instance);
 
         if(!data_updated) {

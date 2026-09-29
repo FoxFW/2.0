@@ -5,12 +5,12 @@
 
 enum {
     MifareDesfireMoreInfoStateMenu,
-    MifareDesfireMoreInfoStateItem, // MUST be last, states >= this correspond with submenu index
+    MifareDesfireMoreInfoStateItem,
 };
 
 enum SubmenuIndex {
     SubmenuIndexCardInfo,
-    SubmenuIndexDynamic, // dynamic indices start here
+    SubmenuIndexDynamic,
 };
 
 void nfc_scene_mf_desfire_more_info_on_enter(void* context) {
@@ -93,7 +93,7 @@ bool nfc_scene_mf_desfire_more_info_on_event(void* context, SceneManagerEvent ev
             scene_manager_set_scene_state(
                 nfc->scene_manager, NfcSceneMfDesfireMoreInfo, MifareDesfireMoreInfoStateMenu);
         } else {
-            // Return directly to the Info scene
+
             scene_manager_search_and_switch_to_previous_scene(nfc->scene_manager, NfcSceneInfo);
         }
         consumed = true;
@@ -105,7 +105,6 @@ bool nfc_scene_mf_desfire_more_info_on_event(void* context, SceneManagerEvent ev
 void nfc_scene_mf_desfire_more_info_on_exit(void* context) {
     NfcApp* nfc = context;
 
-    // Clear views
     text_box_reset(nfc->text_box);
     furi_string_reset(nfc->text_box_store);
     submenu_reset(nfc->submenu);

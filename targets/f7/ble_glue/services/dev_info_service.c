@@ -36,7 +36,7 @@ static char software_revision[DEVICE_INFO_SOFTWARE_REV_SIZE] = {0};
 
 static bool
     dev_info_char_data_callback(const void* context, const uint8_t** data, uint16_t* data_len) {
-    *data_len = (uint16_t)strlen(context); //-V1029
+    *data_len = (uint16_t)strlen(context);
     if(data) {
         *data = (const uint8_t*)context;
     }
@@ -112,7 +112,6 @@ BleServiceDevInfo* ble_svc_dev_info_start(void) {
         version_get_builddate(NULL));
     snprintf(hardware_revision, sizeof(hardware_revision), "%d", version_get_target(NULL));
 
-    // Add Device Information Service
     uint16_t uuid = DEVICE_INFORMATION_SERVICE_UUID;
     if(!ble_gatt_service_add(
            UUID_TYPE_16,
@@ -138,13 +137,12 @@ BleServiceDevInfo* ble_svc_dev_info_start(void) {
 
 void ble_svc_dev_info_stop(BleServiceDevInfo* dev_info_svc) {
     furi_check(dev_info_svc);
-    /* Delete service characteristics */
+
     for(size_t i = 0; i < DevInfoSvcGattCharacteristicCount; i++) {
         ble_gatt_characteristic_delete(
             dev_info_svc->service_handle, &dev_info_svc->characteristics[i]);
     }
 
-    /* Delete service */
     ble_gatt_service_delete(dev_info_svc->service_handle);
 
     free(dev_info_svc);

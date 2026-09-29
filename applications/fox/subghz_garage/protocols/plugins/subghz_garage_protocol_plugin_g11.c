@@ -1,7 +1,6 @@
 #include "../subghz_garage_protocol_plugin.h"
 #include "../protocol_groups.h"
 
-/* Group 11 - Blinds / Shutters / Awnings: Somfy, Jarolift, Dooya. */
 static const SubGhzProtocol* const subghz_garage_protocol_registry_g11_items[] = {
     &subghz_protocol_raw,
     &subghz_protocol_bin_raw,

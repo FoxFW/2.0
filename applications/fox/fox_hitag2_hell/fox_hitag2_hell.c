@@ -1,16 +1,3 @@
-// Fox Hitag2 Hell - standalone Fiat V1 Hitag2 key recovery.
-//
-// Ported from ARF's subghz_hitag2_bf/subghz_hitag2_hell/subghz_hitag2_core
-// cascade (L1 known keys .. L5 bitsliced Hitag2Hell guess-and-determine
-// attack), rebuilt as an external .fap instead of being wired into core
-// subghz's scene tree. Launched with a Fiat V1 .sub file path as its
-// argument (see subghz_scene_fiat_v1_key_method.c); reads the capture,
-// scans the same folder for additional same-UID captures, then runs the
-// cascade in a worker thread while a simple ViewPort shows progress. On
-// success, writes "Hitag2 Key" / "Hitag2 Epoch" back into the original
-// .sub file - the same field names our core Fiat V1 protocol already
-// reads, so the file becomes re-emittable immediately.
-
 #include "helpers/hitag2_bf.h"
 
 #include <furi.h>
@@ -18,6 +5,7 @@
 #include <gui/elements.h>
 #include <notification/notification_messages.h>
 #include <storage/storage.h>
+#include <dialogs/dialogs.h>
 #include <flipper_format/flipper_format.h>
 #include <toolbox/path.h>
 #include <stdio.h>
@@ -28,6 +16,7 @@
 #define FIAT_V1_PROTOCOL_NAME "Fiat V1"
 #define HITAG2_HELL_MAX_SCAN_FILES 64U
 #define HITAG2_HELL_REDRAW_MS 100
+#define HITAG2_HELL_SUBGHZ_DIR "/ext/subghz"
 
 typedef struct {
     Gui* gui;
@@ -44,7 +33,6 @@ typedef struct {
 
     FuriString* file_path;
 
-    // Mutex-protected display state
     bool started;
     bool done;
     bool success;
@@ -58,10 +46,6 @@ typedef struct {
     uint8_t captures;
     char message[160];
 } Hitag2HellApp;
-
-// -----------------------------------------------------------------------------
-// Fiat V1 .sub file helpers
-// -----------------------------------------------------------------------------
 
 static bool hitag2_hell_extract_capture(
     FlipperFormat* fff,
@@ -95,9 +79,6 @@ static bool hitag2_hell_extract_capture(
     return true;
 }
 
-// Scan the same directory as `main_path` for other Fiat V1 .sub files
-// sharing the same UID, adding them as extra captures (up to the cascade's
-// max capture count).
 static uint8_t hitag2_hell_scan_directory_for_captures(
     SubGhzHitag2Bf* bf,
     const char* main_path,
@@ -195,10 +176,6 @@ static void hitag2_hell_write_key_to_file(
     flipper_format_free(fff);
     furi_record_close(RECORD_STORAGE);
 }
-
-// -----------------------------------------------------------------------------
-// Worker thread
-// -----------------------------------------------------------------------------
 
 static bool hitag2_hell_progress_cb(
     uint8_t level,
@@ -298,10 +275,6 @@ static int32_t hitag2_hell_thread(void* context) {
     view_port_update(app->view_port);
     return 0;
 }
-
-// -----------------------------------------------------------------------------
-// Drawing
-// -----------------------------------------------------------------------------
 
 static void hitag2_hell_format_count(char* buf, size_t len, uint64_t count) {
     if(count >= 1000000000ULL) {
@@ -420,7 +393,13 @@ static void hitag2_hell_draw_callback(Canvas* canvas, void* context) {
         }
         canvas_draw_str(canvas, 2, 58, elapsed_str);
 
-        canvas_draw_str_aligned(canvas, 126, 64, AlignRight, AlignBottom, "BACK: Cancel");
+        canvas_draw_str_aligned(
+            canvas,
+            126,
+            64,
+            AlignRight,
+            AlignBottom,
+            app->user_cancel ? "Cancelling..." : "BACK: Cancel");
     } else {
         canvas_set_font(canvas, FontPrimary);
         canvas_draw_str_aligned(
@@ -437,10 +416,6 @@ static void hitag2_hell_input_callback(InputEvent* event, void* context) {
     Hitag2HellApp* app = context;
     furi_message_queue_put(app->input_queue, event, FuriWaitForever);
 }
-
-// -----------------------------------------------------------------------------
-// App lifecycle
-// -----------------------------------------------------------------------------
 
 static Hitag2HellApp* hitag2_hell_app_alloc(void) {
     Hitag2HellApp* app = malloc(sizeof(Hitag2HellApp));
@@ -470,10 +445,12 @@ static void hitag2_hell_app_free(Hitag2HellApp* app) {
     furi_record_close(RECORD_GUI);
 
     if(app->bf) subghz_hitag2_bf_free(app->bf);
+    furi_kernel_lock();
     furi_string_free(app->file_path);
     furi_message_queue_free(app->input_queue);
     furi_mutex_free(app->mutex);
     free(app);
+    furi_kernel_unlock();
 }
 
 int32_t fox_hitag2_hell_app(void* p) {
@@ -481,6 +458,20 @@ int32_t fox_hitag2_hell_app(void* p) {
 
     if(p && ((const char*)p)[0]) {
         furi_string_set_str(app->file_path, (const char*)p);
+    }
+
+    if(furi_string_size(app->file_path) == 0) {
+
+        DialogsApp* dialogs = furi_record_open(RECORD_DIALOGS);
+        FuriString* picked_path = furi_string_alloc_set(HITAG2_HELL_SUBGHZ_DIR);
+        DialogsFileBrowserOptions browser_options;
+        dialog_file_browser_set_basic_options(&browser_options, ".sub", NULL);
+        browser_options.base_path = HITAG2_HELL_SUBGHZ_DIR;
+        if(dialog_file_browser_show(dialogs, picked_path, picked_path, &browser_options)) {
+            furi_string_set(app->file_path, picked_path);
+        }
+        furi_string_free(picked_path);
+        furi_record_close(RECORD_DIALOGS);
     }
 
     bool have_capture = false;
@@ -518,7 +509,8 @@ int32_t fox_hitag2_hell_app(void* p) {
         furi_mutex_release(app->mutex);
 
         app->start_tick = furi_get_tick();
-        app->thread = furi_thread_alloc_ex("Hitag2Hell", 4096, hitag2_hell_thread, app);
+
+        app->thread = furi_thread_alloc_ex("Hitag2Hell", 6144, hitag2_hell_thread, app);
         furi_thread_start(app->thread);
     }
 
@@ -526,18 +518,34 @@ int32_t fox_hitag2_hell_app(void* p) {
 
     InputEvent event;
     bool thread_joined = false;
+    bool cancel_requested = false;
     while(!app->exit_requested) {
         if(furi_message_queue_get(app->input_queue, &event, HITAG2_HELL_REDRAW_MS) ==
            FuriStatusOk) {
-            if(event.type != InputTypeShort) continue;
-            if(event.key == InputKeyBack || event.key == InputKeyOk) {
+            if(event.type == InputTypeShort &&
+               (event.key == InputKeyBack || event.key == InputKeyOk)) {
                 if(app->thread && !thread_joined) {
-                    app->user_cancel = true;
-                    furi_thread_join(app->thread);
-                    furi_thread_free(app->thread);
-                    app->thread = NULL;
-                    thread_joined = true;
+                    if(!cancel_requested) {
+                        cancel_requested = true;
+                        app->user_cancel = true;
+                        view_port_update(app->view_port);
+                    }
+
+                } else {
+                    app->exit_requested = true;
                 }
+            }
+        }
+
+        if(cancel_requested && app->thread && !thread_joined) {
+            furi_mutex_acquire(app->mutex, FuriWaitForever);
+            bool worker_done = app->done;
+            furi_mutex_release(app->mutex);
+            if(worker_done) {
+                furi_thread_join(app->thread);
+                furi_thread_free(app->thread);
+                app->thread = NULL;
+                thread_joined = true;
                 app->exit_requested = true;
             }
         }

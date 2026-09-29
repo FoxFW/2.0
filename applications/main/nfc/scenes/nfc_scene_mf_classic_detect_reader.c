@@ -149,13 +149,11 @@ bool nfc_scene_mf_classic_detect_reader_on_event(void* context, SceneManagerEven
 void nfc_scene_mf_classic_detect_reader_on_exit(void* context) {
     NfcApp* instance = context;
 
-    // Clear view
     detect_reader_reset(instance->detect_reader);
 
     furi_timer_stop(instance->timer);
     furi_timer_free(instance->timer);
 
-    // Stop notifications
     nfc_blink_stop(instance);
     notification_message(instance->notifications, &sequence_reset_green);
 }

@@ -13,14 +13,14 @@
 static uint32_t furi_hal_random_read_rng(void) {
     while(LL_RNG_IsActiveFlag_CECS(RNG) || LL_RNG_IsActiveFlag_SECS(RNG) ||
           !LL_RNG_IsActiveFlag_DRDY(RNG)) {
-        /* Error handling as described in RM0434, pg. 582-583 */
+
         if(LL_RNG_IsActiveFlag_CECS(RNG)) {
-            /* Clock error occurred */
+
             LL_RNG_ClearFlag_CEIS(RNG);
         }
 
         if(LL_RNG_IsActiveFlag_SECS(RNG)) {
-            /* Noise source error occurred */
+
             LL_RNG_ClearFlag_SEIS(RNG);
 
             for(uint32_t i = 0; i < 12; ++i) {

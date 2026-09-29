@@ -130,7 +130,7 @@ static bool metromoney_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // Verify key
+
         const uint8_t ticket_sector_number = 1;
         const uint8_t ticket_block_number = 1;
 
@@ -141,7 +141,6 @@ static bool metromoney_parse(const NfcDevice* device, FuriString* parsed_data) {
             bit_lib_bytes_to_num_be(sec_tr->key_a.data, COUNT_OF(sec_tr->key_a.data));
         if(key != metromoney_1k_keys[ticket_sector_number].a) break;
 
-        // Parse data
         const uint8_t start_block_num =
             mf_classic_get_first_block_num_of_sector(ticket_sector_number);
 
@@ -169,7 +168,6 @@ static bool metromoney_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin metromoney_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = metromoney_verify,
@@ -177,14 +175,12 @@ static const NfcSupportedCardsPlugin metromoney_plugin = {
     .parse = metromoney_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor metromoney_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &metromoney_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* metromoney_plugin_ep(void) {
     return &metromoney_plugin_descriptor;
 }

@@ -1,86 +1,3 @@
-/**
- * @file nfc_protocol_support.h
- * @brief Interface for application-level protocol support.
- *
- * NFC protocol support helper abstracts common scenes with a single interface
- * and lets each protocol decide on concrete implementation.
- *
- * # Integrating a new protocol into the application
- *
- * Most of the scenes in the NFC application work through abstract APIs, so they do not need
- * protocol-specific versions of themselves. However, when such a situation
- * occurs, the protocol support helper provides another level of abstraction to hide
- * the protocol-specific details and isolate them to separate modules.
- *
- * @see nfc_protocol.h for more information on adding library protocols.
- *
- * The steps for adding support for a library protocol are described below.
- *
- * ## 1. Create the files
- *
- * ### 1.1 Recommended file structure
- *
- * The recommended file structure for a protocol support is as follows:
- *
- * ```text
- * protocol_support
- *        |
- *        +- protocol_name
- *                |
- *                +- protocol_name.h
- *                |
- *                +- protocol_name.c
- *                |
- *                +- protocol_name_render.h
- *                |
- *                +- protocol_name_render.c
- *                |
- * ```
- * ### 1.2 File structure explanation
- *
- * | Filename               | Explanation |
- * |:-----------------------|:------------|
- * | protocol_name.h        | Interface structure declaration. |
- * | protocol_name.c        | Protocol-specific scene implemenatations and definitions. |
- * | protocol_name_render.h | Protocol-specific rendering (formatting) functions. Used for converting protocol data into textual descriptions. |
- * | protocol_name_render.c | Implementations for functions declared in `protocol_name_render.h`.|
- *
- * ## 2. Implement the code
- *
- * ### 2.1 Features
- *
- * Decide what features the protocol will be providing. The features can be combined using bitwise OR (`"|"`).
- * This choice influences which scenes will have to be implemented in step 2.2.
- *
- * @see NfcProtocolFeature for the enumeration of possible features to implement.
- *
- * ### 2.2 Scenes
- *
- * If a particular scene is not implemented, its empty placeholder from nfc_protocol_support_gui_common.h must be used instead.
- *
- * @see nfc_protocol_support_common.h for the enumeration of all scenes that can be implemented.
- * @see nfc_protocol_support_base.h for the scene implementation details.
- *
- * ### 2.3. Registering the protocol support
- *
- * After completing the protocol support, it must be registered within the application in order for it to be usable.
- *
- * In `protocol_name.c`, add `NFC_PROTOCOL_SUPPORT_PLUGIN(protocol_name, NfcProtocolName)` at the bottom,
- * below the `NfcProtocolSupportBase` structure definition.
- *
- * In `application.fam`, add a new entry for the plugin, following the other examples.
- *
- * In nfc_protocol_support.c, add a new entry in the `nfc_protocol_support_plugin_names[]`
- * array under the appropriate index with the name of the plugin (without the `nfc_` prefix).
- *
- * ## Done!
- *
- * @note It will not always be possible to abstract all of the protocol's functionality using the protocol support helper.
- * In such cases, the protocol lists its own scenes in `extra_scenes` and the application carries only a thunk for each
- * one (as an example, note the `nfc/scenes/nfc_scene_mf_classic_*` scenes which didn't fit this paradigm).
- *
- * @see NfcProtocolSupportBase::extra_scenes for the details.
- */
 #pragma once
 
 #include <gui/scene_manager.h>
@@ -92,37 +9,13 @@ typedef struct NfcProtocolSupport NfcProtocolSupport;
 
 void nfc_protocol_support_free(void* context);
 
-/**
- * @brief Abstract interface for on_enter() scene handler.
- *
- * Is to be called whenever a scene is entered to.
- *
- * @param[in] scene identifier of the scene associated with the handler.
- * @param[in,out] context pointer to a user-specified context (will be passed to concrete handler).
- */
 void nfc_protocol_support_on_enter(NfcProtocolSupportScene scene, void* context);
 
-/**
- * @brief Abstract interface for on_event() scene handler.
- *
- * @param[in] scene identifier of the scene associated with the handler.
- * @param[in,out] context pointer to a user-specified context (will be passed to concrete handler).
- * @param[in] event SceneManager event to be handled by the scene.
- * @returns true if the event was consumed, false otherwise.
- */
 bool nfc_protocol_support_on_event(
     NfcProtocolSupportScene scene,
     void* context,
     SceneManagerEvent event);
 
-/**
- * @brief Abstract interface for on_exit() scene handler.
- *
- * Is to be called whenever a scene is exited from.
- *
- * @param[in] scene identifier of the scene associated with the handler.
- * @param[in,out] context pointer to a user-specified context (will be passed to concrete handler).
- */
 void nfc_protocol_support_on_exit(NfcProtocolSupportScene scene, void* context);
 
 bool nfc_protocol_support_has_feature(
@@ -130,45 +23,12 @@ bool nfc_protocol_support_has_feature(
     void* context,
     NfcProtocolFeature feature);
 
-/**
- * @brief Abstract interface for on_enter() of a protocol-specific scene.
- *
- * Loads @p protocol's plugin if it is not the one currently loaded, then dispatches. Entry is the
- * only safe moment to do that, so this is also what makes scenes reachable before any card is read
- * work, and what recovers a scene re-entered on Back after the card protocol changed underneath it.
- *
- * Shows the failure screen if the plugin cannot be loaded or does not implement this index.
- *
- * @param[in] protocol protocol that owns the scene. Indices are per protocol - index 0 is a
- *                     different scene in every plugin - so this is what makes one meaningful.
- * @param[in] index protocol-local index of the scene, as listed in its extra_scenes array.
- * @param[in,out] context pointer to the NFC application instance.
- */
 void nfc_protocol_support_extra_on_enter(NfcProtocol protocol, size_t index, void* context);
 
-/**
- * @brief Abstract interface for on_event() of a protocol-specific scene.
- *
- * Unlike on_enter this never loads: it can run with the plugin's own code on the call stack.
- * Returns false if the wrong plugin is loaded.
- *
- * @param[in] protocol protocol that owns the scene.
- * @param[in] index protocol-local index of the scene.
- * @param[in,out] context pointer to the NFC application instance.
- * @param[in] event SceneManager event to be handled by the scene.
- * @returns true if the event was consumed, false otherwise.
- */
 bool nfc_protocol_support_extra_on_event(
     NfcProtocol protocol,
     size_t index,
     void* context,
     SceneManagerEvent event);
 
-/**
- * @brief Abstract interface for on_exit() of a protocol-specific scene.
- *
- * @param[in] protocol protocol that owns the scene.
- * @param[in] index protocol-local index of the scene.
- * @param[in,out] context pointer to the NFC application instance.
- */
 void nfc_protocol_support_extra_on_exit(NfcProtocol protocol, size_t index, void* context);

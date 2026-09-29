@@ -19,7 +19,6 @@
 #define SPI_DMA_RX_DEF     SPI_DMA, SPI_DMA_RX_CHANNEL
 #define SPI_DMA_TX_DEF     SPI_DMA, SPI_DMA_TX_CHANNEL
 
-// For simplicity, I assume that only one SPI DMA transaction can occur at a time.
 static FuriSemaphore* spi_dma_lock = NULL;
 static FuriSemaphore* spi_dma_completed = NULL;
 
@@ -66,11 +65,9 @@ void furi_hal_spi_release(const FuriHalSpiBusHandle* handle) {
     furi_check(handle);
     furi_check(handle->bus->current_handle == handle);
 
-    // Handle event and unset handle
     handle->callback(handle, FuriHalSpiBusHandleEventDeactivate);
     handle->bus->current_handle = NULL;
 
-    // Bus events
     handle->bus->callback(handle->bus, FuriHalSpiBusEventDeactivate);
     handle->bus->callback(handle->bus, FuriHalSpiBusEventUnlock);
 
@@ -78,7 +75,7 @@ void furi_hal_spi_release(const FuriHalSpiBusHandle* handle) {
 }
 
 static void furi_hal_spi_bus_end_txrx(const FuriHalSpiBusHandle* handle, uint32_t timeout) {
-    UNUSED(timeout); // FIXME
+    UNUSED(timeout);
     while(LL_SPI_GetTxFIFOLevel(handle->bus->spi) != LL_SPI_TX_FIFO_EMPTY)
         ;
     while(LL_SPI_IsActiveFlag_BSY(handle->bus->spi))
@@ -201,12 +198,10 @@ bool furi_hal_spi_bus_trx_dma(
     furi_check(handle->bus->current_handle == handle);
     furi_check(size > 0);
 
-    // If scheduler is not running, use blocking mode
     if(!furi_kernel_is_running()) {
         return furi_hal_spi_bus_trx(handle, tx_buffer, rx_buffer, size, timeout_ms);
     }
 
-    // Lock DMA
     furi_check(furi_semaphore_acquire(spi_dma_lock, FuriWaitForever) == FuriStatusOk);
 
     const uint32_t dma_dummy_u32 = 0xFFFFFFFF;
@@ -227,7 +222,6 @@ bool furi_hal_spi_bus_trx_dma(
     }
 
     if(rx_buffer == NULL) {
-        // Only TX mode, do not use RX channel
 
         LL_DMA_InitTypeDef dma_config = {0};
         dma_config.PeriphOrM2MSrcAddress = (uint32_t) & (spi->DR);
@@ -256,18 +250,16 @@ bool furi_hal_spi_bus_trx_dma(
             LL_SPI_EnableDMAReq_TX(spi);
         }
 
-        // acquire semaphore before enabling DMA
         furi_check(furi_semaphore_acquire(spi_dma_completed, timeout_ms) == FuriStatusOk);
 
         LL_DMA_EnableIT_TC(SPI_DMA_TX_DEF);
         LL_DMA_EnableChannel(SPI_DMA_TX_DEF);
 
-        // and wait for it to be released (DMA transfer complete)
         if(furi_semaphore_acquire(spi_dma_completed, timeout_ms) != FuriStatusOk) {
             ret = false;
             FURI_LOG_E(TAG, "DMA timeout\r\n");
         }
-        // release semaphore, because we are using it as a flag
+
         furi_semaphore_release(spi_dma_completed);
 
         LL_DMA_DisableIT_TC(SPI_DMA_TX_DEF);
@@ -279,11 +271,11 @@ bool furi_hal_spi_bus_trx_dma(
 
         LL_DMA_DeInit(SPI_DMA_TX_DEF);
     } else {
-        // TRX or RX mode, use both channels
+
         uint32_t tx_mem_increase_mode;
 
         if(tx_buffer == NULL) {
-            // RX mode, use dummy data instead of TX buffer
+
             tx_buffer = (uint8_t*)&dma_dummy_u32;
             tx_mem_increase_mode = LL_DMA_MEMORY_NOINCREMENT;
         } else {
@@ -336,19 +328,17 @@ bool furi_hal_spi_bus_trx_dma(
             LL_SPI_EnableDMAReq_RX(spi);
         }
 
-        // acquire semaphore before enabling DMA
         furi_check(furi_semaphore_acquire(spi_dma_completed, timeout_ms) == FuriStatusOk);
 
         LL_DMA_EnableIT_TC(SPI_DMA_RX_DEF);
         LL_DMA_EnableChannel(SPI_DMA_RX_DEF);
         LL_DMA_EnableChannel(SPI_DMA_TX_DEF);
 
-        // and wait for it to be released (DMA transfer complete)
         if(furi_semaphore_acquire(spi_dma_completed, timeout_ms) != FuriStatusOk) {
             ret = false;
             FURI_LOG_E(TAG, "DMA timeout\r\n");
         }
-        // release semaphore, because we are using it as a flag
+
         furi_semaphore_release(spi_dma_completed);
 
         LL_DMA_DisableIT_TC(SPI_DMA_RX_DEF);

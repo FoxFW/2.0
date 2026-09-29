@@ -206,15 +206,6 @@ static void bambu_sha256_final(BambuSha256Context* context, uint8_t hash[32]) {
 
 #define BAMBU_SHA256_BLOCK_SIZE 64
 
-// HMAC-SHA256 restricted to keys no longer than the SHA-256 block size. RFC 2104
-// hashes an oversized key down to 32 bytes first; that branch is omitted because
-// both call sites pass a compile-time-constant 16 (the master key) or 32 (the
-// PRK), and carrying it costs a third BambuSha256Context on a 5 KB thread stack.
-//
-// The guard is furi_check, not furi_assert: furi_assert is gated on
-// `#ifdef FURI_DEBUG` (furi/core/check.h), which no shipped build defines, so
-// it would compile to nothing. What is being guarded is a stack buffer
-// overflow inside key derivation.
 static void bambu_hmac_sha256(
     const uint8_t* key,
     size_t key_len,
@@ -227,8 +218,6 @@ static void bambu_hmac_sha256(
     uint8_t inner_hash[32];
     BambuSha256Context context;
 
-    // HMAC zero-pads the key out to the block size, so every byte past key_len
-    // is the pad constant unchanged.
     memset(pad, 0x36, sizeof(pad));
     for(size_t i = 0; i < key_len; i++) {
         pad[i] ^= key[i];
@@ -274,7 +263,6 @@ static void
     static const size_t sector_count = 16;
     static const size_t key_size = sizeof(MfClassicKey);
 
-    // Fully initialises *keys, so callers may hand it uninitialised storage.
     memset(keys, 0, sizeof(*keys));
 
     uint8_t prk[32];
@@ -308,11 +296,6 @@ static void
         generated += chunk_len;
     }
 
-    // Key A only - Bambu tags carry an all-zero key B (RFID-Tag-Guide,
-    // BambuLabRfid.md) that no derived key can match, and the trailers' 87
-    // 87 87 access bits leave every block this plugin reads accessible with
-    // key A alone, so a key B entry would only cost an extra auth attempt
-    // per block for no benefit.
     for(size_t sector = 0; sector < sector_count; sector++) {
         const uint8_t* sector_key = &key_material[sector * key_size];
         memcpy(keys->key_a[sector].data, sector_key, key_size);
@@ -347,9 +330,7 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
     nfc_device_copy_data(device, NfcProtocolMfClassic, data);
 
     do {
-        // The poller that produced this device already ran its own type
-        // detection, so re-probing the card here would only repeat two full
-        // NFC poller cycles to learn what data->type already holds.
+
         if(data->type != MfClassicType1k) {
             break;
         }
@@ -360,26 +341,11 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
             break;
         }
 
-        // Card-presence fast-fail. mf_classic_poller_sync_read() blocks on
-        // FuriWaitForever and only completes once the card has been detected,
-        // so without a bounded probe first, a card lifted after detection
-        // hangs the NFC app thread. This is the same block-62 nonce probe
-        // detect_type used for its 1K check, but one poller cycle instead of
-        // two.
         if(mf_classic_poller_sync_collect_nt(nfc, 62, MfClassicKeyTypeA, NULL) !=
            MfClassicErrorNone) {
             break;
         }
 
-        // MfClassicDeviceKeys is 496 bytes - a tenth of the NFC app's 5 KB
-        // main thread stack, which this function runs on. Held on the heap
-        // (freed right below) rather than as a stack local so it isn't
-        // resident twice at once across the call into
-        // mf_classic_poller_sync_read(), which takes it by value.
-        //
-        // Invariant, enforced by nothing but this comment and the adjacency
-        // of the three lines below: no break or return may be inserted
-        // between the malloc and the free. One would leak 496 bytes silently.
         MfClassicDeviceKeys* keys = malloc(sizeof(MfClassicDeviceKeys));
         bambu_derive_keys_from_uid(uid, uid_len, keys);
         MfClassicError error = mf_classic_poller_sync_read(nfc, keys, data);
@@ -405,50 +371,34 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
     return is_read;
 }
 
-// Main parse function: Extract and format all Bambu spool data
 static bool bambu_parse(const NfcDevice* device, FuriString* parsed_data) {
     furi_assert(device);
     furi_assert(parsed_data);
 
     const MfClassicData* data = nfc_device_get_data(device, NfcProtocolMfClassic);
 
-    // Quick type check
     if(data->type != MfClassicType1k) {
         return false;
     }
 
-    // Reject a card whose required blocks were never recovered, so a partial
-    // read cannot present zero-filled blocks as genuine spool data.
-    //
-    // The mask test is load-bearing, not redundant: mf_classic_load() zeroes
-    // block_read_mask wholesale for any dump saved without "Data format
-    // version: 2", even though every block loaded fine. On those files an
-    // all-zero mask means "this file predates the mask", not "nothing was
-    // read", so checking the required blocks unconditionally would reject
-    // older saved dumps that parse correctly today. Only trust the mask when
-    // it carries information.
     if(bambu_block_read_mask_is_populated(data) && !bambu_has_required_blocks(data)) {
         return false;
     }
 
-    // Verify this is a Bambu tag using our detection logic
     if(!bambu_tag_is_valid(data)) {
         return false;
     }
 
-    // Parse Material ID and Variant ID from Block 1
     const uint8_t* block1 = data->block[BLOCK_MATERIAL_IDS].data;
-    char material_id[7] = {0}; // "GFxxx" + null
-    char variant_id[8] = {0}; // "xxx-Rx" + null
+    char material_id[7] = {0};
+    char variant_id[8] = {0};
     bambu_copy_ascii_string(material_id, &block1[8], 6);
     bambu_copy_ascii_string(variant_id, &block1[0], 7);
 
-    // Parse Detailed Type from Block 4
     const uint8_t* block4 = data->block[BLOCK_DETAILED_TYPE].data;
     char detailed_type[17] = {0};
     bambu_copy_ascii_string(detailed_type, block4, 16);
 
-    // Parse Color, Weight, Diameter from Block 5
     const uint8_t* block5 = data->block[BLOCK_COLOR_WEIGHT].data;
     uint8_t color_r = block5[0];
     uint8_t color_g = block5[1];
@@ -457,29 +407,23 @@ static bool bambu_parse(const NfcDevice* device, FuriString* parsed_data) {
     uint16_t weight_grams = bambu_read_le16(&block5[4]);
     float diameter_mm = bambu_read_le_float(&block5[8]);
 
-    // Parse Temperatures from Block 6
     const uint8_t* block6 = data->block[BLOCK_TEMPERATURES].data;
     uint16_t drying_temp = bambu_read_le16(&block6[0]);
     uint16_t drying_hours = bambu_read_le16(&block6[2]);
     uint16_t hotend_max = bambu_read_le16(&block6[8]);
     uint16_t hotend_min = bambu_read_le16(&block6[10]);
 
-    // Parse Nozzle Diameter from Block 8 (float at bytes 12-15)
     const uint8_t* block8 = data->block[BLOCK_NOZZLE].data;
     float nozzle_diameter = bambu_read_le_float(&block8[12]);
 
-    // Parse Spool Width from Block 10 (uint16 at bytes 4-5, value in mm*100)
     const uint8_t* block10 = data->block[BLOCK_SPOOL_WIDTH].data;
     uint16_t spool_width_raw = bambu_read_le16(&block10[4]);
     float spool_width_mm = (float)spool_width_raw / 100.0f;
 
-    // Parse Production Date from Block 12 (ASCII YYYY_MM_DD_HH_MM)
     const uint8_t* block12 = data->block[BLOCK_PRODUCTION_DATE].data;
     char production_date[17] = {0};
     bambu_copy_ascii_string(production_date, block12, 16);
 
-    // Format production date from "YYYY_MM_DD_HH_MM" to "YYYY-MM-DD HH:MM"
-    // Only format if underscores are present at expected positions
     if(production_date[4] == '_' && production_date[7] == '_' && production_date[10] == '_' &&
        production_date[13] == '_') {
         production_date[4] = '-';
@@ -488,19 +432,14 @@ static bool bambu_parse(const NfcDevice* device, FuriString* parsed_data) {
         production_date[13] = ':';
     }
 
-    // Parse Filament Length from Block 14 (uint16 at bytes 4-5, meters)
     const uint8_t* block14 = data->block[BLOCK_FILAMENT_LENGTH].data;
     uint16_t filament_length = bambu_read_le16(&block14[4]);
 
-    // Look up filament info from variant_id
     const BambuFilamentInfo* filament_info = bambu_lookup_filament(variant_id);
 
-    // Build formatted output
     furi_string_cat_printf(parsed_data, "\e#Bambu Lab Filament\n");
     furi_string_cat_printf(parsed_data, "Type: %s\n", detailed_type);
 
-    // Display color: show name with hex if available, otherwise just hex
-    // For hex code: show 6-digit if fully opaque, otherwise show "#RRGGBB @ XX%"
     if(filament_info != NULL) {
         if(color_a == 0xFF) {
             furi_string_cat_printf(
@@ -563,22 +502,19 @@ static bool bambu_parse(const NfcDevice* device, FuriString* parsed_data) {
     return true;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin bambu_plugin = {
     .protocol = NfcProtocolMfClassic,
-    .verify = NULL, // No early verify - validation done in parse()
+    .verify = NULL,
     .read = bambu_read,
     .parse = bambu_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor bambu_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &bambu_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* bambu_plugin_ep(void) {
     return &bambu_plugin_descriptor;
 }

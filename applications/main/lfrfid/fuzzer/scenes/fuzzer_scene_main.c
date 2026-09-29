@@ -73,9 +73,8 @@ void fuzzer_scene_main_on_enter(void* context) {
 
     fuzzer_view_main_update_data(app->main_view, app->fuzzer_state);
 
-    // Setup view
     Popup* popup = app->popup;
-    // popup_set_icon(popup, 72, 17, &I_DolphinCommon_56x48);
+
     popup_set_timeout(popup, 2500);
     popup_set_context(popup, app);
     popup_set_callback(popup, fuzzer_scene_main_error_popup_callback);
@@ -102,7 +101,6 @@ bool fuzzer_scene_main_on_event(void* context, SceneManagerEvent event) {
         } else if(event.event == FuzzerCustomEventViewMainOk) {
             fuzzer_view_main_get_state(app->main_view, &app->fuzzer_state);
 
-            // TODO error logic
             bool loading_ok = false;
 
             switch(fuzzer_proto_get_attack_id_by_index(app->fuzzer_state.menu_index)) {
@@ -111,13 +109,13 @@ bool fuzzer_scene_main_on_event(void* context, SceneManagerEvent event) {
                     fuzzer_worker_init_attack_dict(app->worker, app->fuzzer_state.proto_index);
 
                 if(!loading_ok) {
-                    // error
+
                     fuzzer_scene_main_show_error(app, "Default dictionary\nis empty");
                 }
                 break;
 
             case FuzzerAttackIdBFCustomerID:
-                // TODO
+
                 app->payload->data_size = fuzzer_proto_get_max_data_size();
                 memset(app->payload->data, 0x00, app->payload->data_size);
 
@@ -130,7 +128,7 @@ bool fuzzer_scene_main_on_event(void* context, SceneManagerEvent event) {
                     scene_manager_next_scene(app->scene_manager, FuzzerSceneFieldEditor);
 
                 } else {
-                    // error
+
                 }
                 break;
 
@@ -173,7 +171,7 @@ bool fuzzer_scene_main_on_event(void* context, SceneManagerEvent event) {
                         app->worker, app->fuzzer_state.proto_index, app->file_path);
                     if(!loading_ok) {
                         fuzzer_scene_main_show_error(app, "Incorrect key format\nor length");
-                        // error
+
                     }
                 }
                 break;
@@ -194,7 +192,6 @@ bool fuzzer_scene_main_on_event(void* context, SceneManagerEvent event) {
 }
 
 void fuzzer_scene_main_on_exit(void* context) {
-    // furi_assert(context);
-    // PacsFuzzerApp* app = context;
+
     UNUSED(context);
 }

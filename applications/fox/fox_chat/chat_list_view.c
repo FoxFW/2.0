@@ -8,9 +8,9 @@ static App* s_chat_list_view_app = NULL;
 #define CHAT_ROW_HEADER_H 14
 #define CHAT_ROW_H        22
 #define CHAT_ROW_VIS       2
-#define CHAT_ROW_BOX_X      2
-#define CHAT_ROW_BOX_W    124
-#define CHAT_ROW_INNER_W  116
+#define CHAT_ROW_BOX_X      8
+#define CHAT_ROW_BOX_W    112
+#define CHAT_ROW_INNER_W  104
 
 bool chat_find_username_split(const char* text, size_t* out_name_len) {
     const char* p = strstr(text, ": ");
@@ -116,8 +116,7 @@ size_t chat_wrap_lines(
 
 static void chat_draw_scroll(Canvas* canvas, size_t total, size_t vis, size_t scroll) {
     if(total <= vis) return;
-    // Dotted track + solid position block, matching FOX_CHILL's scrollbar
-    // style instead of a plain solid bar with no track.
+
     int area_h = 64 - CHAT_ROW_HEADER_H;
     elements_scrollbar_pos(canvas, 128, CHAT_ROW_HEADER_H, (size_t)area_h, scroll, total);
 }

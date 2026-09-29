@@ -2,10 +2,6 @@
 #include "../helpers/rolljam_cc1101_ext.h"
 #include "../helpers/rolljam_receiver.h"
 
-// ============================================================
-// Phase 2: JAM + CAPTURE second keyfob press
-// ============================================================
-
 static void phase2_timer_callback(void* context) {
     RollJamApp* app = context;
 

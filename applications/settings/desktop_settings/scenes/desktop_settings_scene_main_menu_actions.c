@@ -8,12 +8,9 @@
 #include "desktop_settings_scene.h"
 #include "desktop_settings_scene_i.h"
 
-// Kept in sync with desktop_settings_scene_main_menu.c and
-// applications/services/loader/loader_main_menu_pins.c — see the comment
-// there for why this is duplicated rather than shared via a header.
 #define MAIN_MENU_PINS_MAX       12
 #define MAIN_MENU_PINS_PATH_LEN  128
-#define MAIN_MENU_PINS_NAME_LEN  7 // 6-char custom label + NUL
+#define MAIN_MENU_PINS_NAME_LEN  7
 #define MAIN_MENU_PINS_FILE_NAME ".main_menu.pins"
 
 typedef struct {
@@ -147,7 +144,6 @@ void desktop_settings_scene_main_menu_actions_on_enter(void* context) {
     uint32_t pin_index = scene_manager_get_scene_state(
         app->scene_manager, DesktopSettingsAppSceneMainMenuActions);
 
-    // heap-allocated: ~1.6KB is too much for a stack local here (see stack_size comment)
     MainMenuPinsUI* pins = malloc(sizeof(MainMenuPinsUI));
     main_menu_pins_load(pins);
 

@@ -6,7 +6,6 @@
 
 #define TAG "EMVPoller"
 
-// MAX Le is 255 bytes + 2 for CRC
 #define EMV_BUF_SIZE (512U)
 
 typedef NfcCommand (*EmvPollerReadHandler)(EmvPoller* instance);
@@ -77,7 +76,7 @@ static NfcCommand emv_poller_handler_select_application(EmvPoller* instance) {
         FURI_LOG_D(TAG, "Select application success");
     } else {
         FURI_LOG_E(TAG, "Failed to select application");
-        // We have to try GPO request with empty tag
+
     }
     instance->state = EmvPollerStateGetProcessingOptions;
 
@@ -93,13 +92,12 @@ static NfcCommand emv_poller_handler_get_processing_options(EmvPoller* instance)
         FURI_LOG_E(TAG, "Failed to get processing options");
     }
 
-    // Read another informations
     instance->state = EmvPollerStateReadFiles;
     return NfcCommandContinue;
 }
 
 static NfcCommand emv_poller_handler_read_files(EmvPoller* instance) {
-    // Search PAN
+
     emv_poller_read_afl(instance, false, &instance->records_mask);
     emv_poller_read_log_entry(instance);
 
@@ -111,7 +109,6 @@ static NfcCommand emv_poller_handler_read_extra_data(EmvPoller* instance) {
     emv_poller_get_last_online_atc(instance);
     emv_poller_get_pin_try_counter(instance);
 
-    // Search cardholder name. This operation may break communication with the card, so it should be the last one
     emv_poller_read_afl(instance, true, &instance->records_mask);
 
     instance->state = EmvPollerStateReadSuccess;

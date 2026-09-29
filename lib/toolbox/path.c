@@ -121,9 +121,8 @@ bool path_contains_only_ascii(const char* path) {
     for(; *name_pos; ++name_pos) {
         const char c = *name_pos;
 
-        // Regular ASCII characters from 0x20 to 0x7e
         const bool is_out_of_range = (c < ' ') || (c > '~');
-        // Cross-platform forbidden character set
+
         const bool is_forbidden = strchr("\\<>*|\":?", c);
 
         if(is_out_of_range || is_forbidden) {

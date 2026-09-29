@@ -10,7 +10,7 @@ static App* s_log_list_app = NULL;
 #define LOG_LIST_ROW_HEADER_H 14
 #define LOG_LIST_ROW_H        22
 #define LOG_LIST_ROW_VIS      2
-#define LOG_LIST_NAME_MAX_W   112
+#define LOG_LIST_NAME_MAX_W   104
 
 #define LOG_LIST_SCROLL_MS 50
 
@@ -98,10 +98,10 @@ static void log_list_draw_cb(Canvas* canvas, void* model) {
         bool selected = (i == app->log_file_selected);
 
         if(selected) {
-            canvas_draw_rbox(canvas, 2, by, 120, bh, 3);
+            canvas_draw_rbox(canvas, 8, by, 112, bh, 3);
             canvas_set_color(canvas, ColorWhite);
         } else {
-            canvas_draw_rframe(canvas, 2, by, 120, bh, 3);
+            canvas_draw_rframe(canvas, 8, by, 112, bh, 3);
         }
 
         char display_name[FOX_LOG_FILENAME_MAX];
@@ -112,7 +112,7 @@ static void log_list_draw_cb(Canvas* canvas, void* model) {
         canvas_set_font(canvas, FontSecondary);
         if(selected) {
             fox_scroll_text_draw(
-                canvas, 2, by, 120, bh, by + 15, 4, true, display_name, &app->log_list_text_anim);
+                canvas, 8, by, 112, bh, by + 15, 4, true, display_name, &app->log_list_text_anim);
         } else {
             log_list_draw_name(canvas, 64, by + 15, display_name);
         }
@@ -121,8 +121,7 @@ static void log_list_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(app->log_file_count > LOG_LIST_ROW_VIS) {
-        // Dotted track + solid position block, matching FOX_CHILL's
-        // scrollbar style instead of a plain solid bar with no track.
+
         int available_h = 64 - LOG_LIST_ROW_HEADER_H;
         elements_scrollbar_pos(
             canvas,

@@ -3,30 +3,29 @@
 
 #define TAG "EMVPoller"
 
-// "Terminal" parameters, which could be requested by card
-const PDOLValue pdol_term_info = {0x9F59, {0xC8, 0x80, 0x00}}; // Terminal transaction information
-const PDOLValue pdol_term_type = {0x9F5A, {0x00}}; // Terminal transaction type
-const PDOLValue pdol_merchant_type = {0x9F58, {0x01}}; // Merchant type indicator
+const PDOLValue pdol_term_info = {0x9F59, {0xC8, 0x80, 0x00}};
+const PDOLValue pdol_term_type = {0x9F5A, {0x00}};
+const PDOLValue pdol_merchant_type = {0x9F58, {0x01}};
 const PDOLValue pdol_term_trans_qualifies = {
     0x9F66,
-    {0x79, 0x00, 0x40, 0x80}}; // Terminal transaction qualifiers
+    {0x79, 0x00, 0x40, 0x80}};
 const PDOLValue pdol_addtnl_term_qualifies = {
     0x9F40,
-    {0x79, 0x00, 0x40, 0x80}}; // Terminal transaction qualifiers
+    {0x79, 0x00, 0x40, 0x80}};
 const PDOLValue pdol_amount_authorise = {
     0x9F02,
-    {0x00, 0x00, 0x00, 0x10, 0x00, 0x00}}; // Amount, authorised
-const PDOLValue pdol_amount = {0x9F03, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}; // Amount
-const PDOLValue pdol_country_code = {0x9F1A, {0x01, 0x24}}; // Terminal country code
-const PDOLValue pdol_currency_code = {0x5F2A, {0x01, 0x24}}; // Transaction currency code
+    {0x00, 0x00, 0x00, 0x10, 0x00, 0x00}};
+const PDOLValue pdol_amount = {0x9F03, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
+const PDOLValue pdol_country_code = {0x9F1A, {0x01, 0x24}};
+const PDOLValue pdol_currency_code = {0x5F2A, {0x01, 0x24}};
 const PDOLValue pdol_term_verification = {
     0x95,
-    {0x00, 0x00, 0x00, 0x00, 0x00}}; // Terminal verification results
-const PDOLValue pdol_transaction_date = {0x9A, {0x19, 0x01, 0x01}}; // Transaction date
-const PDOLValue pdol_transaction_type = {0x9C, {0x00}}; // Transaction type
+    {0x00, 0x00, 0x00, 0x00, 0x00}};
+const PDOLValue pdol_transaction_date = {0x9A, {0x19, 0x01, 0x01}};
+const PDOLValue pdol_transaction_type = {0x9C, {0x00}};
 const PDOLValue pdol_transaction_cert = {0x98, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}; // Transaction cert
-const PDOLValue pdol_unpredict_number = {0x9F37, {0x82, 0x3D, 0xDE, 0x7A}}; // Unpredictable number
+                                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
+const PDOLValue pdol_unpredict_number = {0x9F37, {0x82, 0x3D, 0xDE, 0x7A}};
 
 const PDOLValue* const pdol_values[] = {
     &pdol_term_info,
@@ -91,7 +90,7 @@ static bool
         FURI_LOG_T(TAG, "found EMV_TAG_LOG_FMT %X: len %d", tag, tlen);
         break;
     case EMV_TAG_GPO_FMT1:
-        // skip AIP
+
         i += 2;
         tlen -= 2;
         furi_check(tlen < sizeof(app->afl.data));
@@ -157,9 +156,9 @@ static bool
         success = true;
         FURI_LOG_T(TAG, "found EMV_TAG_AFL %x (len=%d)", tag, tlen);
         break;
-    // Tracks data https://murdoch.is/papers/defcon20emvdecode.pdf
+
     case EMV_TAG_TRACK_1_EQUIV: {
-        // Contain PAN and expire date
+
         char track_1_equiv[80];
         memcpy(track_1_equiv, &buff[i], tlen);
         track_1_equiv[tlen] = '\0';
@@ -170,7 +169,7 @@ static bool
     case EMV_TAG_TRACK_2_DATA:
     case EMV_TAG_TRACK_2_EQUIV: {
         FURI_LOG_T(TAG, "found EMV_TAG_TRACK_2 %X", tag);
-        // 0xD0 delimits PAN from expiry (YYMM)
+
         for(int x = 1; x < tlen; x++) {
             if(buff[i + x + 1] > 0xD0) {
                 memcpy(app->pan, &buff[i], x + 1);
@@ -181,7 +180,6 @@ static bool
             }
         }
 
-        // Convert 4-bit to ASCII representation
         char track_2_equiv[41];
         uint8_t track_2_equiv_len = 0;
         for(int x = 0; x < tlen; x++) {
@@ -204,7 +202,6 @@ static bool
         memcpy(app->cardholder_name, &buff[i], tlen);
         app->cardholder_name[tlen] = '\0';
 
-        // use space char as terminator
         for(size_t i = 0; i < tlen; i++)
             if(app->cardholder_name[i] == 0x20) {
                 app->cardholder_name[i] = '\0';
@@ -300,11 +297,11 @@ static bool emv_response_error(const uint8_t* buff, uint16_t len) {
         switch(buff[i]) {
         case EMV_TAG_RESP_BUF_SIZE:
             FURI_LOG_T(TAG, " Wrong length. Read %02X bytes", buff[i + 1]);
-            // Need to request SFI again with this length value
+
             return error;
         case EMV_TAG_RESP_BYTES_AVAILABLE:
             FURI_LOG_T(TAG, " Bytes available: %02X", buff[i + 1]);
-            // Need to request one more time
+
             return error;
 
         default:
@@ -327,7 +324,7 @@ static bool
 
     if(emv_response_error(buff, len)) return success;
 
-    if((first_byte & 31) == 31) { // 2-byte tag
+    if((first_byte & 31) == 31) {
         tag = buff[i] << 8 | buff[i + 1];
         i++;
         FURI_LOG_T(TAG, " 2-byte TLV EMV tag: %x", tag);
@@ -337,7 +334,7 @@ static bool
     }
     i++;
     tlen = buff[i];
-    if((tlen & 128) == 128) { // long length value
+    if((tlen & 128) == 128) {
         i++;
         tlen = buff[i];
         FURI_LOG_T(TAG, " 2-byte TLV length: %d", tlen);
@@ -390,11 +387,11 @@ static bool emv_decode_response_tlv(const uint8_t* buff, uint8_t len, EmvApplica
         success = emv_parse_tag(buff, len, &tag, &tlen, &i);
         if(!success) return success;
 
-        if((first_byte & 32) == 32) { // "Constructed" -- contains more TLV data to parse
+        if((first_byte & 32) == 32) {
             FURI_LOG_T(TAG, "Constructed TLV %x", tag);
             if(!emv_decode_response_tlv(&buff[i], tlen, app)) {
                 FURI_LOG_T(TAG, "Failed to decode response for %x", tag);
-                // return false;
+
             } else {
                 success = true;
             }
@@ -429,7 +426,7 @@ static void emv_prepare_pdol(APDU* dest, APDU* src) {
         }
 
         if(!tag_found) {
-            // Unknown tag, fill zeros
+
             memset(dest->data + dest->size, 0, tlen);
             dest->size += tlen;
         }
@@ -440,12 +437,12 @@ EmvError emv_poller_select_ppse(EmvPoller* instance) {
     EmvError error = EmvErrorNone;
 
     const uint8_t emv_select_ppse_cmd[] = {
-        0x00, 0xA4, // SELECT ppse
-        0x04, 0x00, // P1:By name, P2: empty
-        0x0e, // Lc: Data length
-        0x32, 0x50, 0x41, 0x59, 0x2e, 0x53, 0x59, // Data string:
-        0x53, 0x2e, 0x44, 0x44, 0x46, 0x30, 0x31, // 2PAY.SYS.DDF01 (PPSE)
-        0x00 // Le
+        0x00, 0xA4,
+        0x04, 0x00,
+        0x0e,
+        0x32, 0x50, 0x41, 0x59, 0x2e, 0x53, 0x59,
+        0x53, 0x2e, 0x44, 0x44, 0x46, 0x30, 0x31,
+        0x00
     };
 
     bit_buffer_reset(instance->tx_buffer);
@@ -485,18 +482,16 @@ EmvError emv_poller_select_application(EmvPoller* instance) {
 
     const uint8_t emv_select_header[] = {
         0x00,
-        0xA4, // SELECT application
+        0xA4,
         0x04,
-        0x00 // P1:By name, P2:First or only occurence
+        0x00
     };
 
     bit_buffer_reset(instance->tx_buffer);
     bit_buffer_reset(instance->rx_buffer);
 
-    // Copy header
     bit_buffer_copy_bytes(instance->tx_buffer, emv_select_header, sizeof(emv_select_header));
 
-    // Copy AID
     bit_buffer_append_byte(instance->tx_buffer, instance->data->emv_application.aid_len);
     bit_buffer_append_bytes(
         instance->tx_buffer,
@@ -542,10 +537,8 @@ EmvError emv_poller_get_processing_options(EmvPoller* instance) {
     bit_buffer_reset(instance->tx_buffer);
     bit_buffer_reset(instance->rx_buffer);
 
-    // Copy header
     bit_buffer_copy_bytes(instance->tx_buffer, emv_gpo_header, sizeof(emv_gpo_header));
 
-    // Prepare and copy pdol parameters
     APDU pdol_data = {0, {0}};
     emv_prepare_pdol(&pdol_data, &instance->data->emv_application.pdol);
 
@@ -591,10 +584,10 @@ EmvError emv_poller_read_sfi_record(EmvPoller* instance, uint8_t sfi, uint8_t re
     uint8_t sfi_param = (sfi << 3) | (1 << 2);
     uint8_t emv_sfi_header[] = {
         0x00,
-        0xB2, // READ RECORD
-        record_num, // P1:record_number
-        sfi_param, // P2:SFI
-        0x00 // Le
+        0xB2,
+        record_num,
+        sfi_param,
+        0x00
     };
 
     bit_buffer_reset(instance->tx_buffer);
@@ -627,7 +620,7 @@ EmvError emv_poller_read_afl(EmvPoller* instance, bool bruteforce_sfi, uint16_t*
     bool cardholder_name_fetched = strlen(instance->data->emv_application.cardholder_name);
 
     if(!bruteforce_sfi) {
-        // SEARCH PAN, RETURN WHEN FOUND
+
         APDU* afl = &instance->data->emv_application.afl;
 
         if(afl->size == 0) {
@@ -636,17 +629,16 @@ EmvError emv_poller_read_afl(EmvPoller* instance, bool bruteforce_sfi, uint16_t*
 
         FURI_LOG_D(TAG, "Search PAN in SFI");
 
-        // Iterate through all files
         for(size_t i = 0; i < instance->data->emv_application.afl.size; i += 4) {
             uint8_t sfi = afl->data[i] >> 3;
             uint8_t record_start = afl->data[i + 1];
             uint8_t record_end = afl->data[i + 2];
-            // Iterate through all records in file
+
             for(uint8_t record = record_start; record <= record_end; ++record) {
                 if((sfi <= 3) && (record <= 5))
                     FURI_BIT_SET(
                         *readed_mask,
-                        record + ((sfi - 2) * 8)); //black magic: mask 0003333300022222
+                        record + ((sfi - 2) * 8));
 
                 error = emv_poller_read_sfi_record(instance, sfi, record);
                 if(error != EmvErrorNone) break;
@@ -662,16 +654,16 @@ EmvError emv_poller_read_afl(EmvPoller* instance, bool bruteforce_sfi, uint16_t*
                 if(instance->data->emv_application.pan_len) {
                     pan_fetched = true;
                     break;
-                } // Card number fetched
+                }
             }
             if(pan_fetched) break;
         }
-    } else { // BRUTFORCE FILES 2-3. SEARCH CARDHOLDER NAME
+    } else {
         FURI_LOG_T(TAG, "Bruteforce files 2-3");
         for(size_t sfi = 2; sfi <= 3; sfi++) {
-            // Iterate through records 1-5 in file
+
             for(size_t record = 1; record <= 5; record++) {
-                // Skip previously readed sfi
+
                 if((*readed_mask >> (record + ((sfi - 2) * 8))) & (0b1)) continue;
 
                 error = emv_poller_read_sfi_record(instance, sfi, record);
@@ -707,7 +699,7 @@ static EmvError emv_poller_req_get_data(EmvPoller* instance, uint16_t tag) {
     bit_buffer_append_byte(instance->tx_buffer, EMV_REQ_GET_DATA & 0xFF);
     bit_buffer_append_byte(instance->tx_buffer, tag >> 8);
     bit_buffer_append_byte(instance->tx_buffer, tag & 0xFF);
-    bit_buffer_append_byte(instance->tx_buffer, 0x00); //Length
+    bit_buffer_append_byte(instance->tx_buffer, 0x00);
 
     do {
         FURI_LOG_D(TAG, "Get data for tag 0x%x", tag);
@@ -767,7 +759,7 @@ EmvError emv_poller_read_log_entry(EmvPoller* instance) {
     uint8_t sfi = instance->data->emv_application.log_sfi;
     uint8_t record_start = 1;
     uint8_t record_end = records;
-    // Iterate through all records in file
+
     for(uint8_t record = record_start; record <= record_end; ++record) {
         error = emv_poller_read_sfi_record(instance, sfi, record);
         if(error != EmvErrorNone) break;

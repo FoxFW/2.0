@@ -1,7 +1,3 @@
-/*
- * Target actions scene.
- */
-
 #include "../tagtinker_app.h"
 
 static void target_actions_cb(void* ctx, uint32_t index) {
@@ -119,7 +115,7 @@ bool tagtinker_scene_target_actions_on_event(void* ctx, SceneManagerEvent event)
             app->frame_repeats[0] = 160;
 
             app->frame_sequence[1] = malloc(TAGTINKER_MAX_FRAME_SIZE);
-            /* 0x06 command, 0x49 payload (LED flash, page 1, no forever), 0x0005 duration */
+
             const uint8_t blink_payload[6] = {0x06, 0x49, 0x00, 0x00, 0x00, 0x05};
             app->frame_lengths[1] = tagtinker_make_addressed_frame(
                 app->frame_sequence[1], target->plid, blink_payload, 6);

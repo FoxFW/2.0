@@ -1,32 +1,3 @@
-/**
- * @file subghz_signal_visualizer.c
- * @brief Real-time RF signal visualizer for the SubGHz application.
- *
- * Renders RSSI samples from the CC1101 onto the Flipper's 128×64 display
- * in two modes:
- *   - Bar:  full-screen vertical-bar display with software trigger
- *   - Line:    continuous connected-trace rendering of the live signal
- *
- * Sampling strategy
- * -----------------
- * A high-priority FuriTimer fires every 1 ms and writes a single RSSI
- * reading into a power-of-two ring buffer (VIZ_RAW_BUF_SIZE samples).
- * A second timer fires every ~33 ms (≈30 fps), snapshots the ring buffer
- * into the view model, advances the waterfall matrix, and schedules a
- * canvas redraw via with_view_model(..., true).
- *
- * Trigger
- * -------
- * A software edge trigger watches for the RSSI rising through the user-
- * adjustable threshold.  When armed (RSSI was below threshold) and a
- * rising edge is detected the display latches on that sample index, giving
- * stable captures of burst OOK/ASK transmissions.
- * Up/Down on the D-pad move the threshold in 1 dBm steps.
- * OK toggles between Bar and Line modes. There is no
- * "Classic"/line-waveform mode — it has been removed entirely.
- * Back exits the view.
- */
-
 #include "subghz_signal_visualizer.h"
 
 #include <furi.h>
@@ -39,34 +10,25 @@
 
 #define TAG "SubGhzVisualizer"
 
-
-/** Ring buffer depth.  Must be a power of two. */
 #define VIZ_RAW_BUF_SIZE     1024u
 #define VIZ_RAW_BUF_MASK     (VIZ_RAW_BUF_SIZE - 1u)
 
-/** Number of horizontal pixels (= display columns = samples to show). */
 #define VIZ_DISP_W           128u
 
-/** Full oscilloscope height (pixels). */
 #define VIZ_OSCOPE_H         64u
 
-/** RSSI working range (dBm).  Values outside are clamped. */
 #define RSSI_FLOOR           (-100.0f)
 #define RSSI_CEIL            (-30.0f)
-#define RSSI_SPAN            (RSSI_CEIL - RSSI_FLOOR)   /* 70 dBm */
+#define RSSI_SPAN            (RSSI_CEIL - RSSI_FLOOR)
 
-/** Default trigger threshold (dBm). */
 #define TRIGGER_DEFAULT      (-72.0f)
 #define TRIGGER_STEP         (1.0f)
 #define TRIGGER_MIN          RSSI_FLOOR
 #define TRIGGER_MAX          (RSSI_CEIL - TRIGGER_STEP)
 
-/** Sample timer period: 1 ms ≈ 1 kHz. */
 #define SAMPLE_TIMER_MS      1u
 
-/** Redraw timer period: ~33 ms ≈ 30 fps. */
 #define REDRAW_TIMER_MS      33u
-
 
 typedef enum {
     VizModeBar = 0,
@@ -74,58 +36,44 @@ typedef enum {
     VizModeCount,
 } VizMode;
 
-/**
- * View model: written only from the redraw timer callback (under the view
- * mutex via with_view_model); read only from the draw callback (same mutex).
- */
 typedef struct {
-    /* 128 display samples, RSSI offset from RSSI_FLOOR, range 0..127 */
+
     uint8_t disp_samples[VIZ_DISP_W];
 
     VizMode        mode;
-    float          trigger_threshold;  /* dBm */
-    bool           trigger_active;     /* rising edge was detected this frame */
-    char           freq_str[20];       /* e.g. "433.92 MHz" */
-    char           mod_str[16];        /* e.g. "AM650" */
+    float          trigger_threshold;
+    bool           trigger_active;
+    char           freq_str[20];
+    char           mod_str[16];
 } SubGhzSignalVisualizerModel;
 
-/**
- * Opaque view struct.  Fields here are accessed from multiple timer
- * callbacks and must be protected by sample_mutex.
- */
 struct SubGhzSignalVisualizer {
     View*                          view;
     SubGhzSignalVisualizerCallback callback;
     void*                          context;
     SubGhzTxRx*                   txrx;
 
-    /* 1 kHz ring buffer -------------------------------------------------- */
     FuriMutex* sample_mutex;
-    int8_t     raw_buf[VIZ_RAW_BUF_SIZE]; /* RSSI as int8 (dBm, ~−127..0) */
-    uint16_t   write_head;                /* next write position           */
+    int8_t     raw_buf[VIZ_RAW_BUF_SIZE];
+    uint16_t   write_head;
 
-    /* Trigger state (also protected by sample_mutex) --------------------- */
     float trigger_threshold;
-    bool  trigger_armed;    /* true if RSSI was below threshold             */
-    bool  trigger_active;   /* rising-edge latched this sample window       */
-    uint16_t trigger_idx;   /* raw_buf index of the most-recent rising edge */
+    bool  trigger_armed;
+    bool  trigger_active;
+    uint16_t trigger_idx;
 
-    /* Timers ------------------------------------------------------------- */
-    FuriTimer* sample_timer; /* 1 ms  – fills raw_buf                       */
-    FuriTimer* redraw_timer; /* 33 ms – snapshots into model, triggers draw  */
+    FuriTimer* sample_timer;
+    FuriTimer* redraw_timer;
 
     bool running;
 };
 
-
-
 static inline uint8_t rssi_to_pixel_h(float rssi, uint8_t area_h) {
     if(rssi < RSSI_FLOOR) rssi = RSSI_FLOOR;
     if(rssi > RSSI_CEIL)  rssi = RSSI_CEIL;
-    float norm = (rssi - RSSI_FLOOR) / RSSI_SPAN; /* 0.0 .. 1.0 */
+    float norm = (rssi - RSSI_FLOOR) / RSSI_SPAN;
     return (uint8_t)(norm * (float)(area_h - 1));
 }
-
 
 static void viz_sample_timer_callback(void* ctx) {
     SubGhzSignalVisualizer* inst = ctx;
@@ -137,11 +85,10 @@ static void viz_sample_timer_callback(void* ctx) {
 
     inst->raw_buf[inst->write_head & VIZ_RAW_BUF_MASK] = rssi_i;
 
-    /* Trigger edge detection: armed when RSSI drops below threshold. */
     if((float)rssi_i < inst->trigger_threshold) {
         inst->trigger_armed = true;
     } else if(inst->trigger_armed) {
-        /* Rising edge above threshold while armed → latch. */
+
         inst->trigger_armed  = false;
         inst->trigger_active = true;
         inst->trigger_idx    = inst->write_head;
@@ -152,26 +99,22 @@ static void viz_sample_timer_callback(void* ctx) {
     furi_mutex_release(inst->sample_mutex);
 }
 
-
 static void viz_redraw_timer_callback(void* ctx) {
     SubGhzSignalVisualizer* inst = ctx;
 
     furi_mutex_acquire(inst->sample_mutex, FuriWaitForever);
 
-    /* Choose display start: either a latched trigger index or the newest
-     * VIZ_DISP_W samples (free-running). */
     uint16_t start;
     bool trig = inst->trigger_active;
     if(trig) {
-        /* Show VIZ_DISP_W/4 samples of pre-trigger + signal. */
+
         start = (inst->trigger_idx - (VIZ_DISP_W / 4)) & VIZ_RAW_BUF_MASK;
-        inst->trigger_active = false; /* consume latch */
+        inst->trigger_active = false;
     } else {
-        /* Free-running: most recent VIZ_DISP_W samples. */
+
         start = (inst->write_head - VIZ_DISP_W) & VIZ_RAW_BUF_MASK;
     }
 
-    /* Collect VIZ_DISP_W samples from the ring buffer. */
     int8_t snapshot[VIZ_DISP_W];
     for(uint16_t i = 0; i < VIZ_DISP_W; i++) {
         snapshot[i] = inst->raw_buf[(start + i) & VIZ_RAW_BUF_MASK];
@@ -181,12 +124,11 @@ static void viz_redraw_timer_callback(void* ctx) {
 
     furi_mutex_release(inst->sample_mutex);
 
-    /* ---------- update view model ---------- */
     with_view_model(
         inst->view,
         SubGhzSignalVisualizerModel * mdl,
         {
-            /* Convert to uint8 offset (0..127) for compact model storage. */
+
             for(uint16_t i = 0; i < VIZ_DISP_W; i++) {
                 float rv = (float)snapshot[i];
                 if(rv < RSSI_FLOOR) rv = RSSI_FLOOR;
@@ -198,8 +140,6 @@ static void viz_redraw_timer_callback(void* ctx) {
             mdl->trigger_threshold = thr;
             mdl->trigger_active    = trig;
 
-            /* Refresh frequency / modulation overlay every frame.
-             * FuriString temps are allocated on the heap to avoid VLA. */
             FuriString* fs = furi_string_alloc();
             FuriString* ms = furi_string_alloc();
             subghz_txrx_get_frequency_and_modulation(inst->txrx, fs, ms, false);
@@ -208,30 +148,15 @@ static void viz_redraw_timer_callback(void* ctx) {
             furi_string_free(fs);
             furi_string_free(ms);
         },
-        true /* trigger redraw */);
+        true );
 }
 
-
-/**
- * Draw the live signal display, full 128x64.  Two styles, both reading
- * from the same disp_samples[] live RSSI window — no "Classic" line-
- * waveform mode and no waterfall scrolling history exist anymore:
- *
- *   Bar  — each column is a filled vertical bar (signal "strength" view)
- *   Line — columns are connected with line segments, giving a continuous
- *          trace similar to a spectrum-analyzer envelope. A quiet/empty
- *          signal renders as a flat baseline.
- *
- * Also draws a dashed trigger threshold line and a "TRG" badge when the
- * trigger has just fired.
- */
 static void draw_signal_area(Canvas* canvas, SubGhzSignalVisualizerModel* mdl) {
     const uint8_t y_top  = 0;
     const uint8_t area_h = VIZ_OSCOPE_H;
 
     canvas_draw_frame(canvas, 0, y_top, VIZ_DISP_W, area_h);
 
-    /* Trigger threshold line (dashed, 1 pixel above the frame bottom). */
     float thr_norm = (mdl->trigger_threshold - RSSI_FLOOR) / RSSI_SPAN;
     if(thr_norm < 0.0f) thr_norm = 0.0f;
     if(thr_norm > 1.0f) thr_norm = 1.0f;
@@ -255,7 +180,7 @@ static void draw_signal_area(Canvas* canvas, SubGhzSignalVisualizerModel* mdl) {
             prev_y = y;
         }
     } else {
-        /* Bar (default): filled vertical bars. */
+
         for(uint8_t x = 1; x < VIZ_DISP_W - 1; x++) {
             uint8_t h = (uint8_t)((float)mdl->disp_samples[x] / 127.0f *
                                    (float)(area_h - 2));
@@ -264,13 +189,11 @@ static void draw_signal_area(Canvas* canvas, SubGhzSignalVisualizerModel* mdl) {
         }
     }
 
-    /* Trigger badge. */
     if(mdl->trigger_active) {
         canvas_set_font(canvas, FontSecondary);
         canvas_draw_str(canvas, 2, (uint8_t)(y_top + 8), "TRG");
     }
 }
-
 
 static void viz_draw_callback(Canvas* canvas, void* model_ptr) {
     SubGhzSignalVisualizerModel* mdl = model_ptr;
@@ -278,9 +201,6 @@ static void viz_draw_callback(Canvas* canvas, void* model_ptr) {
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
 
-    /* Both Bar and Line modes share the exact same full-screen layout and
-     * overlay text — they only differ in how the signal itself is drawn,
-     * handled inside draw_signal_area(). */
     draw_signal_area(canvas, mdl);
 
     canvas_set_font(canvas, FontSecondary);
@@ -294,7 +214,6 @@ static void viz_draw_callback(Canvas* canvas, void* model_ptr) {
     canvas_draw_str(canvas, 3, VIZ_OSCOPE_H - 2, thr_label);
 }
 
-
 static bool viz_input_callback(InputEvent* event, void* ctx) {
     SubGhzSignalVisualizer* inst = ctx;
 
@@ -304,7 +223,7 @@ static bool viz_input_callback(InputEvent* event, void* ctx) {
 
     switch(event->key) {
     case InputKeyUp:
-        /* Raise trigger threshold (less sensitive). */
+
         furi_mutex_acquire(inst->sample_mutex, FuriWaitForever);
         inst->trigger_threshold += TRIGGER_STEP;
         if(inst->trigger_threshold > TRIGGER_MAX) inst->trigger_threshold = TRIGGER_MAX;
@@ -312,7 +231,7 @@ static bool viz_input_callback(InputEvent* event, void* ctx) {
         return true;
 
     case InputKeyDown:
-        /* Lower trigger threshold (more sensitive). */
+
         furi_mutex_acquire(inst->sample_mutex, FuriWaitForever);
         inst->trigger_threshold -= TRIGGER_STEP;
         if(inst->trigger_threshold < TRIGGER_MIN) inst->trigger_threshold = TRIGGER_MIN;
@@ -320,7 +239,7 @@ static bool viz_input_callback(InputEvent* event, void* ctx) {
         return true;
 
     case InputKeyOk:
-        /* Toggle display mode. */
+
         with_view_model(
             inst->view,
             SubGhzSignalVisualizerModel * mdl,
@@ -339,7 +258,6 @@ static bool viz_input_callback(InputEvent* event, void* ctx) {
     }
 }
 
-
 SubGhzSignalVisualizer* subghz_signal_visualizer_alloc(SubGhzTxRx* txrx) {
     furi_assert(txrx);
 
@@ -357,7 +275,6 @@ SubGhzSignalVisualizer* subghz_signal_visualizer_alloc(SubGhzTxRx* txrx) {
     inst->sample_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     furi_assert(inst->sample_mutex);
 
-    /* Allocate and configure view. */
     inst->view = view_alloc();
     view_set_context(inst->view, inst);
     view_allocate_model(inst->view, ViewModelTypeLocking,
@@ -365,7 +282,6 @@ SubGhzSignalVisualizer* subghz_signal_visualizer_alloc(SubGhzTxRx* txrx) {
     view_set_draw_callback(inst->view, viz_draw_callback);
     view_set_input_callback(inst->view, viz_input_callback);
 
-    /* Initialize model defaults. */
     with_view_model(
         inst->view,
         SubGhzSignalVisualizerModel * mdl,
@@ -378,7 +294,6 @@ SubGhzSignalVisualizer* subghz_signal_visualizer_alloc(SubGhzTxRx* txrx) {
         },
         false);
 
-    /* Allocate timers (not started yet). */
     inst->sample_timer = furi_timer_alloc(viz_sample_timer_callback,
                                           FuriTimerTypePeriodic, inst);
     inst->redraw_timer = furi_timer_alloc(viz_redraw_timer_callback,
@@ -425,10 +340,8 @@ void subghz_signal_visualizer_start(SubGhzSignalVisualizer* instance) {
     if(instance->running) return;
     instance->running = true;
 
-    /* Put radio into RX if it isn't already. */
     subghz_txrx_rx_start(instance->txrx);
 
-    /* Reset ring buffer and trigger state. */
     furi_mutex_acquire(instance->sample_mutex, FuriWaitForever);
     memset(instance->raw_buf, (int8_t)RSSI_FLOOR, sizeof(instance->raw_buf));
     instance->write_head     = 0;
@@ -436,7 +349,6 @@ void subghz_signal_visualizer_start(SubGhzSignalVisualizer* instance) {
     instance->trigger_active = false;
     furi_mutex_release(instance->sample_mutex);
 
-    /* Start sample timer first (1 ms), then the slower redraw timer. */
     furi_timer_start(instance->sample_timer, SAMPLE_TIMER_MS);
     furi_timer_start(instance->redraw_timer, REDRAW_TIMER_MS);
 

@@ -24,16 +24,4 @@ struct FuzzerProtocol {
     const ProtoDict dict;
 };
 
-// #define MAX_PAYLOAD_SIZE 6
-
-// #define FUZZ_TIME_DELAY_MIN (5)
-// #define FUZZ_TIME_DELAY_DEFAULT (10)
-// #define FUZZ_TIME_DELAY_MAX (70)
-
-// #define MAX_PAYLOAD_SIZE 8
-
-// #define FUZZ_TIME_DELAY_MIN (4)
-// #define FUZZ_TIME_DELAY_DEFAULT (8)
-// #define FUZZ_TIME_DELAY_MAX (80)
-
 extern const FuzzerProtocol fuzzer_proto_items[];

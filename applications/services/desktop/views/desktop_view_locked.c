@@ -87,40 +87,32 @@ void desktop_view_locked_update(DesktopViewLocked* locked_view) {
     furi_timer_stop(locked_view->timer);
 }
 
-// Draw a closed padlock using primitives only (no icon dependency)
 static void draw_padlock_closed(Canvas* canvas) {
     uint8_t cx = 64;
-    uint8_t by = 31; // body top Y
+    uint8_t by = 31;
 
-    // Shackle: two legs + top bar (closed arch)
-    canvas_draw_box(canvas, cx - 7, by - 10, 3, 11); // left leg
-    canvas_draw_box(canvas, cx + 4, by - 10, 3, 11); // right leg
-    canvas_draw_box(canvas, cx - 7, by - 10, 14, 3); // top bar
+    canvas_draw_box(canvas, cx - 7, by - 10, 3, 11);
+    canvas_draw_box(canvas, cx + 4, by - 10, 3, 11);
+    canvas_draw_box(canvas, cx - 7, by - 10, 14, 3);
 
-    // Body
     canvas_draw_rbox(canvas, cx - 10, by, 20, 16, 2);
 
-    // Keyhole (white)
     canvas_set_color(canvas, ColorWhite);
     canvas_draw_disc(canvas, cx, by + 6, 3);
     canvas_draw_box(canvas, cx - 1, by + 6, 3, 4);
     canvas_set_color(canvas, ColorBlack);
 }
 
-// Draw an open padlock (shackle lifted, visible on the right)
 static void draw_padlock_open(Canvas* canvas) {
     uint8_t cx = 64;
     uint8_t by = 31;
 
-    // Lifted shackle (only right leg + top going to the right)
-    canvas_draw_box(canvas, cx + 4, by - 2,  3, 4);  // right leg stub in body hole
-    canvas_draw_box(canvas, cx + 4, by - 14, 3, 12); // right leg above body
-    canvas_draw_box(canvas, cx + 4, by - 14, 9, 3);  // top bar going right
+    canvas_draw_box(canvas, cx + 4, by - 2,  3, 4);
+    canvas_draw_box(canvas, cx + 4, by - 14, 3, 12);
+    canvas_draw_box(canvas, cx + 4, by - 14, 9, 3);
 
-    // Body
     canvas_draw_rbox(canvas, cx - 10, by, 20, 16, 2);
 
-    // Keyhole (white)
     canvas_set_color(canvas, ColorWhite);
     canvas_draw_disc(canvas, cx, by + 6, 3);
     canvas_draw_box(canvas, cx - 1, by + 6, 3, 4);
@@ -162,7 +154,6 @@ static void desktop_view_locked_draw(Canvas* canvas, void* model) {
     DesktopViewLockedModel* m = model;
     DesktopViewLockedState view_state = m->view_state;
 
-    // Unlocked state is transparent — let underlying views render through
     if(view_state == DesktopViewLockedStateUnlocked) return;
 
     canvas_clear(canvas);

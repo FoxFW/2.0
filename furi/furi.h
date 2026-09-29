@@ -24,7 +24,6 @@
 
 #include <furi_hal_gpio.h>
 
-// Workaround for math.h leaking through HAL in older versions
 #include <math.h>
 
 #ifdef __cplusplus

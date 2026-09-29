@@ -89,7 +89,7 @@ static uint8_t get_bit_length(const uint8_t* half_block) {
 }
 
 static uint64_t get_pacs_bits(const uint8_t* block, uint8_t bitLength) {
-    // Remove sentinel bit from credential.  Byteswapping to handle array of bytes vs 64bit value
+
     uint64_t sentinel = __builtin_bswap64(1ULL << bitLength);
     uint64_t swapped = 0;
     memcpy(&swapped, block, sizeof(uint64_t));
@@ -106,14 +106,13 @@ static bool hid_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // verify key
+
         const uint8_t verify_sector = 1;
         MfClassicSectorTrailer* sec_tr =
             mf_classic_get_sector_trailer_by_sector(data, verify_sector);
         uint64_t key = bit_lib_bytes_to_num_be(sec_tr->key_a.data, 6);
         if(key != hid_key) break;
 
-        // Currently doesn't support bit length > 63
         const uint8_t* credential_block = data->block[5].data + 8;
 
         uint8_t bitLength = get_bit_length(credential_block);
@@ -131,7 +130,6 @@ static bool hid_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin hid_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = hid_verify,
@@ -139,14 +137,12 @@ static const NfcSupportedCardsPlugin hid_plugin = {
     .parse = hid_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor hid_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &hid_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* hid_plugin_ep(void) {
     return &hid_plugin_descriptor;
 }

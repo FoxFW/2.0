@@ -9,10 +9,8 @@
 #include <gui/modules/text_input.h>
 
 #include "esp_at.h"
-#include "fox_splash.h"
 
 typedef enum {
-    AiChatViewSplash,
     AiChatViewMenu,
     AiChatViewMessage,
     AiChatViewTerminal,
@@ -36,8 +34,6 @@ typedef enum {
 typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
-
-    FoxSplash* splash;
 
     Submenu* submenu;
     TextInput* text_input;

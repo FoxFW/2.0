@@ -16,8 +16,8 @@
 #define INFRARED_NEC_REPEAT_COUNT_MIN   1
 #define INFRARED_NEC_REPEAT_MARK        9000
 #define INFRARED_NEC_REPEAT_SPACE       2250
-#define INFRARED_NEC_PREAMBLE_TOLERANCE 200 // us
-#define INFRARED_NEC_BIT_TOLERANCE      120 // us
+#define INFRARED_NEC_PREAMBLE_TOLERANCE 200
+#define INFRARED_NEC_BIT_TOLERANCE      120
 
 extern const InfraredCommonProtocolSpec infrared_protocol_nec;
 

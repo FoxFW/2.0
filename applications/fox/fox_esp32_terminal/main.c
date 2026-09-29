@@ -33,7 +33,6 @@ static const uint32_t baud_options[] = {115200};
 
 #define FOX_TERMINAL_LOG_MAX_CHARS 4000
 
-#define FOX_TERMINAL_EVENT_SPLASH_DONE      0
 #define FOX_TERMINAL_EVENT_SERIAL_BUSY_TICK 1
 #define FOX_TERMINAL_EVENT_SERIAL_DO_RETRY  2
 #define FOX_TERMINAL_EVENT_POLL_TICK        3
@@ -101,9 +100,7 @@ bool app_expect_line(App* app, const char* expected, uint32_t timeout_ms) {
 void app_show_terminal(App* app) {
     if(app == NULL) return;
     terminal_unpause(app);
-    // Default focus to "Send", matching what OK used to do unconditionally
-    // before this screen had a real focus model - see app.h's comment on
-    // terminal_bar_focus_left.
+
     app->terminal_bar_focus_left = false;
     app->current_view = FoxTerminalViewTerminal;
     if(app->view_dispatcher != NULL) {
@@ -266,12 +263,6 @@ bool app_probe_uart_selected(App* app) {
     return false;
 }
 
-static void fox_splash_done_cb(void* context) {
-    App* app = context;
-    if(app == NULL || app->view_dispatcher == NULL) return;
-    view_dispatcher_send_custom_event(app->view_dispatcher, FOX_TERMINAL_EVENT_SPLASH_DONE);
-}
-
 static void serial_busy_timer_cb(void* context) {
     App* app = context;
     if(app == NULL || app->view_dispatcher == NULL) return;
@@ -294,10 +285,6 @@ static bool custom_event_callback(void* context, uint32_t event) {
     App* app = context;
     if(app == NULL) return false;
 
-    if(event == FOX_TERMINAL_EVENT_SPLASH_DONE) {
-        action_check_esp32(app);
-        return true;
-    }
     if(event == FOX_TERMINAL_EVENT_SERIAL_BUSY_TICK) {
         if(app->serial_busy_countdown > 0) {
             app->serial_busy_countdown--;
@@ -385,7 +372,7 @@ static bool navigation_callback(void* context) {
     }
 }
 
-static App* app_alloc(bool skip_splash) {
+static App* app_alloc(void) {
     App* app = malloc(sizeof(App));
     if(app == NULL) return NULL;
     memset(app, 0, sizeof(App));
@@ -411,8 +398,6 @@ static App* app_alloc(bool skip_splash) {
     view_dispatcher_set_navigation_event_callback(app->view_dispatcher, navigation_callback);
     view_dispatcher_set_custom_event_callback(app->view_dispatcher, custom_event_callback);
 
-    app->splash = fox_splash_alloc(&I_fox_64x64, 2000, 666, fox_splash_done_cb, app);
-
     app->message_view = message_view_alloc(app);
     app->connect_settings_view = connect_settings_view_alloc(app);
     app->main_menu_view = main_menu_view_alloc(app);
@@ -431,10 +416,6 @@ static App* app_alloc(bool skip_splash) {
             false);
     }
 
-    if(app->splash != NULL) {
-        view_dispatcher_add_view(
-            app->view_dispatcher, FoxTerminalViewSplash, fox_splash_get_view(app->splash));
-    }
     if(app->main_menu_view != NULL) {
         view_dispatcher_add_view(
             app->view_dispatcher, FoxTerminalViewMainMenu, app->main_menu_view);
@@ -472,13 +453,7 @@ static App* app_alloc(bool skip_splash) {
     app->serial_retry_timer = furi_timer_alloc(serial_retry_timer_cb, FuriTimerTypeOnce,     app);
     app->terminal_poll_timer = furi_timer_alloc(terminal_poll_timer_cb, FuriTimerTypePeriodic, app);
 
-    if(app->splash != NULL && !skip_splash) {
-        app->current_view = FoxTerminalViewSplash;
-        view_dispatcher_switch_to_view(app->view_dispatcher, FoxTerminalViewSplash);
-        fox_splash_start(app->splash);
-    } else {
-        action_check_esp32(app);
-    }
+    action_check_esp32(app);
 
     return app;
 }
@@ -511,7 +486,6 @@ static void app_free(App* app) {
     if(app->esp_at != NULL) esp_at_free(app->esp_at);
 
     if(app->view_dispatcher != NULL) {
-        view_dispatcher_remove_view(app->view_dispatcher, FoxTerminalViewSplash);
         view_dispatcher_remove_view(app->view_dispatcher, FoxTerminalViewMainMenu);
         view_dispatcher_remove_view(app->view_dispatcher, FoxTerminalViewMessage);
         view_dispatcher_remove_view(app->view_dispatcher, FoxTerminalViewConnectSettings);
@@ -521,7 +495,6 @@ static void app_free(App* app) {
         view_dispatcher_remove_view(app->view_dispatcher, FoxTerminalViewLogContent);
     }
 
-    if(app->splash != NULL) fox_splash_free(app->splash);
     if(app->main_menu_view != NULL) main_menu_view_free(app->main_menu_view);
     if(app->terminal_view != NULL) terminal_view_free(app->terminal_view);
     if(app->message_view != NULL) message_view_free(app->message_view);
@@ -540,8 +513,8 @@ static void app_free(App* app) {
 }
 
 int32_t fox_esp32_terminal_main(void* p) {
-    bool skip_splash = (p != NULL && strcmp((const char*)p, "SKIPSPLASH") == 0);
-    App* app = app_alloc(skip_splash);
+    UNUSED(p);
+    App* app = app_alloc();
     if(app == NULL) return -1;
     if(app->view_dispatcher != NULL) view_dispatcher_run(app->view_dispatcher);
     app_free(app);

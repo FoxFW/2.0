@@ -1,4 +1,5 @@
 #include "app.h"
+#include <core/kernel.h>
 #include "fox_file_downloader_icons.h"
 #include "wifi_menu.h"
 #include "saved_wifi.h"
@@ -41,7 +42,6 @@ static const uint32_t baud_options[] = {115200};
 #define BAUD_OPTION_DEFAULT_INDEX 0
 
 #define FOX_TERMINAL_LOG_MAX_CHARS 4000
-#define FOX_DOWNLOADER_EVENT_SPLASH_DONE      0
 #define FOX_DOWNLOADER_EVENT_SERIAL_BUSY_TICK 1
 #define FOX_DOWNLOADER_EVENT_SERIAL_DO_RETRY  2
 
@@ -568,11 +568,6 @@ bool app_probe_uart_selected(App* app) {
     return false;
 }
 
-static void fox_splash_done_cb(void* context) {
-    App* app = context;
-    view_dispatcher_send_custom_event(app->view_dispatcher, FOX_DOWNLOADER_EVENT_SPLASH_DONE);
-}
-
 static void serial_busy_timer_cb(void* context) {
     App* app = context;
     view_dispatcher_send_custom_event(app->view_dispatcher, FOX_DOWNLOADER_EVENT_SERIAL_BUSY_TICK);
@@ -585,15 +580,8 @@ static void serial_retry_timer_cb(void* context) {
 
 static bool custom_event_callback(void* context, uint32_t event) {
     App* app = context;
-    if(event == FOX_DOWNLOADER_EVENT_SPLASH_DONE) {
-        action_check_esp32(app);
-        return true;
-    }
     if(event == FOX_DOWNLOADER_EVENT_SKIP_WAIT_TIMEOUT) {
-        // The "Not waiting for ESP32..." popup's 2.5s auto-dismiss fired -
-        // the actual cancel is still running in the background and will
-        // clean itself up via FOX_DOWNLOAD_EVENT_WORKER_DONE whenever the
-        // ESP32 responds; this just stops making the user wait for it.
+
         download_progress_view_clear_wait_popups();
         app_switch_to_menu(app, app->menu_return_context);
         return true;
@@ -662,11 +650,7 @@ static bool custom_event_callback(void* context, uint32_t event) {
             } else if(app->download_purpose == DownloadPurposeGithubTree) {
                 github_show_file_list(app);
             } else {
-                // Stay on the progress view and let it show a "Complete"
-                // screen (see current_phase() in download_progress_view.c,
-                // which now checks download_progress_done/ok) instead of
-                // jumping to the terminal/log screen - still logged for
-                // the terminal's history in case it's checked later.
+
                 app_log(
                     app,
                     "Downloaded %s (%lu KB) to %s",
@@ -683,11 +667,7 @@ static bool custom_event_callback(void* context, uint32_t event) {
                 "This app's catalog build doesn't match this firmware's API. May work on other firmware.",
                 true);
         } else if(strcmp(error, "Stream protocol error") == 0) {
-            // This specific error usually means the UART framing got
-            // desynced, which is far more likely at a raised baud rate -
-            // point at the fix instead of leaving it as a bare error.
-            // Flipper-side only (see url_download.c) - no ESP32 firmware
-            // change needed.
+
             if(app->download_settings.baud > FOX_DOWNLOAD_BAUD) {
                 app_log(
                     app,
@@ -762,7 +742,7 @@ static bool navigation_callback(void* context) {
     return true;
 }
 
-static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
+static App* app_alloc(bool wifi_connection_target) {
     App* app = malloc(sizeof(App));
     memset(app, 0, sizeof(App));
 
@@ -782,8 +762,6 @@ static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
     view_dispatcher_set_navigation_event_callback(app->view_dispatcher, navigation_callback);
     view_dispatcher_set_custom_event_callback(app->view_dispatcher, custom_event_callback);
-
-    app->splash = fox_splash_alloc(&I_fox_64x64, 2000, 666, fox_splash_done_cb, app);
 
     app->submenu = submenu_alloc();
     app->message_view = message_view_alloc(app);
@@ -823,8 +801,6 @@ static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
     app->github_file_list_view = github_file_list_view_alloc(app);
 
     view_dispatcher_add_view(
-        app->view_dispatcher, FoxDownloaderViewSplash, fox_splash_get_view(app->splash));
-    view_dispatcher_add_view(
         app->view_dispatcher, FoxDownloaderViewMenu, submenu_get_view(app->submenu));
     view_dispatcher_add_view(
         app->view_dispatcher, FoxDownloaderViewMessage, app->message_view);
@@ -862,13 +838,7 @@ static App* app_alloc(bool skip_splash, bool wifi_connection_target) {
     app->serial_busy_timer  = furi_timer_alloc(serial_busy_timer_cb,  FuriTimerTypePeriodic, app);
     app->serial_retry_timer = furi_timer_alloc(serial_retry_timer_cb, FuriTimerTypeOnce,     app);
 
-    if(skip_splash) {
-        action_check_esp32(app);
-    } else {
-        app->current_view = FoxDownloaderViewSplash;
-        view_dispatcher_switch_to_view(app->view_dispatcher, FoxDownloaderViewSplash);
-        fox_splash_start(app->splash);
-    }
+    action_check_esp32(app);
 
     return app;
 }
@@ -888,7 +858,6 @@ static void app_free(App* app) {
 
     if(app->esp_at != NULL) esp_at_free(app->esp_at);
 
-    view_dispatcher_remove_view(app->view_dispatcher, FoxDownloaderViewSplash);
     view_dispatcher_remove_view(app->view_dispatcher, FoxDownloaderViewMenu);
     view_dispatcher_remove_view(app->view_dispatcher, FoxDownloaderViewMessage);
     view_dispatcher_remove_view(app->view_dispatcher, FoxDownloaderViewTerminal);
@@ -906,7 +875,6 @@ static void app_free(App* app) {
     view_dispatcher_remove_view(app->view_dispatcher, FoxDownloaderViewMyAppsList);
     view_dispatcher_remove_view(app->view_dispatcher, FoxDownloaderViewGithubFileList);
 
-    fox_splash_free(app->splash);
     submenu_free(app->submenu);
     view_free(app->terminal_view);
     s_terminal_view_app = NULL;
@@ -931,17 +899,17 @@ static void app_free(App* app) {
     view_dispatcher_free(app->view_dispatcher);
     furi_record_close(RECORD_GUI);
 
+    furi_kernel_lock();
     furi_string_free(app->log);
     furi_string_free(app->pending_ssid);
     free(app);
+    furi_kernel_unlock();
 }
 
 int32_t fox_file_downloader_main(void* p) {
     const char* arg = (const char*)p;
-    bool wifi_connection_target = (arg != NULL && strcmp(arg, "SKIPSPLASH_WIFICONN") == 0);
-    bool skip_splash =
-        wifi_connection_target || (arg != NULL && strcmp(arg, "SKIPSPLASH") == 0);
-    App* app = app_alloc(skip_splash, wifi_connection_target);
+    bool wifi_connection_target = (arg != NULL && strcmp(arg, "WIFICONN") == 0);
+    App* app = app_alloc(wifi_connection_target);
     view_dispatcher_run(app->view_dispatcher);
     app_free(app);
     return 0;

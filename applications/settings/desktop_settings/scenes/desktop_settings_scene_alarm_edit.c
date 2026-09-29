@@ -26,8 +26,6 @@ static void desktop_settings_scene_alarm_edit_delete_callback(void* context) {
         ds_alarm_edit_push_settings(app);
     }
 
-    // Nothing left to save for this (now-deleted) alarm - skip straight back
-    // to the list instead of going through the normal Back-save path.
     scene_manager_previous_scene(app->scene_manager);
 }
 

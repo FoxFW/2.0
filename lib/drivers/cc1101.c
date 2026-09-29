@@ -9,7 +9,7 @@ static bool
 
     while(furi_hal_gpio_read(handle->miso)) {
         if(furi_hal_cortex_timer_is_expired(timer)) {
-            //timeout
+
             return false;
         }
     }
@@ -127,7 +127,6 @@ CC1101Status cc1101_flush_tx(const FuriHalSpiBusHandle* handle) {
 uint32_t cc1101_set_frequency(const FuriHalSpiBusHandle* handle, uint32_t value) {
     uint64_t real_value = (uint64_t)value * CC1101_FDIV / CC1101_QUARTZ;
 
-    // Sanity check
     assert((real_value & CC1101_FMASK) == real_value);
 
     cc1101_write_reg(handle, CC1101_FREQ2, (real_value >> 16) & 0xFF);
@@ -151,7 +150,7 @@ uint32_t cc1101_set_intermediate_frequency(const FuriHalSpiBusHandle* handle, ui
 }
 
 void cc1101_set_pa_table(const FuriHalSpiBusHandle* handle, const uint8_t value[8]) {
-    uint8_t tx[9] = {CC1101_PATABLE | CC1101_BURST}; //-V1009
+    uint8_t tx[9] = {CC1101_PATABLE | CC1101_BURST};
     CC1101Status rx[9] = {0};
     rx[0].CHIP_RDYn = 1;
     rx[8].CHIP_RDYn = 1;
@@ -180,7 +179,6 @@ uint8_t cc1101_read_fifo(const FuriHalSpiBusHandle* handle, uint8_t* data, uint8
 
     cc1101_spi_trx(handle, buff_trx, buff_trx, 2);
 
-    // Check that the packet is placed in the receive buffer
     if(buff_trx[1] > 64) {
         *size = 64;
     } else {

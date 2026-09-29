@@ -28,8 +28,8 @@ static const uint8_t default_config_ntag_i2c[] = {0x01, 0x00, 0xF8, 0x48, 0x08, 
 static void nfc_generate_mf_ul_uid(uint8_t* uid) {
     uid[0] = NXP_MANUFACTURER_ID;
     furi_hal_random_fill_buf(&uid[1], 6);
-    uid[3] |= 0x01; // To avoid forbidden 0x88 value
-    // I'm not sure how this is generated, but the upper nybble always seems to be 8
+    uid[3] |= 0x01;
+
     uid[6] &= 0x0F;
     uid[6] |= 0x80;
 }
@@ -65,10 +65,10 @@ static void nfc_generate_mf_ul_with_config_common(MfUltralightData* mfu_data, ui
     mfu_data->pages_read = num_pages;
 
     uint16_t config_index = (num_pages - 4);
-    mfu_data->page[config_index].data[0] = 0x04; // STRG_MOD_EN
-    mfu_data->page[config_index].data[3] = 0xff; // AUTH0
-    mfu_data->page[config_index + 1].data[1] = 0x05; // VCTID
-    memset(&mfu_data->page[config_index + 2], 0xff, sizeof(MfUltralightPage)); // Default PWD
+    mfu_data->page[config_index].data[0] = 0x04;
+    mfu_data->page[config_index].data[3] = 0xff;
+    mfu_data->page[config_index + 1].data[1] = 0x05;
+    memset(&mfu_data->page[config_index + 2], 0xff, sizeof(MfUltralightPage));
     if(num_pages > 20) {
         mfu_data->page[config_index - 1].data[3] = MF_ULTRALIGHT_TEARING_FLAG_DEFAULT;
     }
@@ -89,7 +89,7 @@ static void nfc_generate_mf_ul_11(NfcDevice* nfc_device) {
     mfu_data->type = MfUltralightTypeUL11;
     mfu_data->version.prod_subtype = 0x01;
     mfu_data->version.storage_size = 0x0B;
-    mfu_data->page[16].data[0] = 0x00; // Low capacitance version does not have STRG_MOD_EN
+    mfu_data->page[16].data[0] = 0x00;
 
     nfc_device_set_data(nfc_device, NfcProtocolMfUltralight, mfu_data);
     mf_ultralight_free(mfu_data);
@@ -114,7 +114,7 @@ static void nfc_generate_mf_ul_21(NfcDevice* nfc_device) {
     mfu_data->type = MfUltralightTypeUL21;
     mfu_data->version.prod_subtype = 0x01;
     mfu_data->version.storage_size = 0x0E;
-    mfu_data->page[37].data[0] = 0x00; // Low capacitance version does not have STRG_MOD_EN
+    mfu_data->page[37].data[0] = 0x00;
 
     nfc_device_set_data(nfc_device, NfcProtocolMfUltralight, mfu_data);
     mf_ultralight_free(mfu_data);
@@ -139,8 +139,8 @@ static void nfc_generate_ntag203(NfcDevice* nfc_device) {
     mfu_data->type = MfUltralightTypeNTAG203;
     mfu_data->pages_total = 42;
     mfu_data->pages_read = 42;
-    mfu_data->page[2].data[1] = 0x48; // Internal byte
-    memcpy(&mfu_data->page[3], default_data_ntag203, sizeof(MfUltralightPage)); //-V1086
+    mfu_data->page[2].data[1] = 0x48;
+    memcpy(&mfu_data->page[3], default_data_ntag203, sizeof(MfUltralightPage));
 
     nfc_device_set_data(nfc_device, NfcProtocolMfUltralight, mfu_data);
     mf_ultralight_free(mfu_data);
@@ -149,8 +149,8 @@ static void nfc_generate_ntag203(NfcDevice* nfc_device) {
 static void nfc_generate_ntag21x_common(MfUltralightData* mfu_data, uint8_t num_pages) {
     nfc_generate_mf_ul_with_config_common(mfu_data, num_pages);
     memcpy(&mfu_data->version, version_bytes_ntag21x, sizeof(MfUltralightVersion));
-    mfu_data->page[2].data[1] = 0x48; // Internal byte
-    // Capability container
+    mfu_data->page[2].data[1] = 0x48;
+
     mfu_data->page[3].data[0] = 0xE1;
     mfu_data->page[3].data[1] = 0x10;
 }
@@ -162,7 +162,7 @@ static void nfc_generate_ntag213(NfcDevice* nfc_device) {
     mfu_data->type = MfUltralightTypeNTAG213;
     mfu_data->version.storage_size = 0x0F;
     mfu_data->page[3].data[2] = 0x12;
-    // Default contents
+
     memcpy(&mfu_data->page[4], default_data_ntag213, sizeof(default_data_ntag213));
 
     nfc_device_set_data(nfc_device, NfcProtocolMfUltralight, mfu_data);
@@ -176,7 +176,7 @@ static void nfc_generate_ntag215(NfcDevice* nfc_device) {
     mfu_data->type = MfUltralightTypeNTAG215;
     mfu_data->version.storage_size = 0x11;
     mfu_data->page[3].data[2] = 0x3E;
-    // Default contents
+
     memcpy(&mfu_data->page[4], default_data_ntag215_216, sizeof(default_data_ntag215_216));
 
     nfc_device_set_data(nfc_device, NfcProtocolMfUltralight, mfu_data);
@@ -190,7 +190,7 @@ static void nfc_generate_ntag216(NfcDevice* nfc_device) {
     mfu_data->type = MfUltralightTypeNTAG216;
     mfu_data->version.storage_size = 0x13;
     mfu_data->page[3].data[2] = 0x6D;
-    // Default contents
+
     memcpy(&mfu_data->page[4], default_data_ntag215_216, sizeof(default_data_ntag215_216));
 
     nfc_device_set_data(nfc_device, NfcProtocolMfUltralight, mfu_data);
@@ -218,7 +218,6 @@ static void nfc_generate_ntag_i2c_common(
     uint16_t config_register_page = 0;
     uint16_t session_register_page = 0;
 
-    // Sync with mifare_ultralight.c
     switch(type) {
     case MfUltralightTypeNTAGI2C1K:
         config_register_page = 227;
@@ -255,7 +254,7 @@ static void nfc_generate_ntag_i2c_1k(NfcDevice* nfc_device) {
     mfu_data->version.prod_ver_minor = 0x01;
     mfu_data->version.storage_size = 0x13;
     memcpy(&mfu_data->page[3], default_data_ntag_i2c, sizeof(default_data_ntag_i2c));
-    mfu_data->page[3].data[2] = 0x6D; // Size of tag in CC
+    mfu_data->page[3].data[2] = 0x6D;
 
     nfc_device_set_data(nfc_device, NfcProtocolMfUltralight, mfu_data);
     mf_ultralight_free(mfu_data);
@@ -268,7 +267,7 @@ static void nfc_generate_ntag_i2c_2k(NfcDevice* nfc_device) {
     mfu_data->version.prod_ver_minor = 0x01;
     mfu_data->version.storage_size = 0x15;
     memcpy(&mfu_data->page[3], default_data_ntag_i2c, sizeof(default_data_ntag_i2c));
-    mfu_data->page[3].data[2] = 0xEA; // Size of tag in CC
+    mfu_data->page[3].data[2] = 0xEA;
 
     nfc_device_set_data(nfc_device, NfcProtocolMfUltralight, mfu_data);
     mf_ultralight_free(mfu_data);
@@ -281,9 +280,9 @@ static void nfc_generate_ntag_i2c_plus_common(
     nfc_generate_ntag_i2c_common(mfu_data, type, num_pages);
 
     uint16_t config_index = 227;
-    mfu_data->page[config_index].data[3] = 0xff; // AUTH0
+    mfu_data->page[config_index].data[3] = 0xff;
 
-    memset(&mfu_data->page[config_index + 2], 0xFF, sizeof(MfUltralightPage)); // Default PWD
+    memset(&mfu_data->page[config_index + 2], 0xFF, sizeof(MfUltralightPage));
 }
 
 static void nfc_generate_ntag_i2c_plus_1k(NfcDevice* nfc_device) {
@@ -311,7 +310,7 @@ static void nfc_generate_ntag_i2c_plus_2k(NfcDevice* nfc_device) {
 static void nfc_generate_mf_classic_uid(uint8_t* uid, uint8_t length) {
     uid[0] = NXP_MANUFACTURER_ID;
     furi_hal_random_fill_buf(&uid[1], length - 1);
-    uid[3] |= 0x01; // To avoid forbidden 0x88 value
+    uid[3] |= 0x01;
 }
 
 static void
@@ -320,7 +319,7 @@ static void
     data->iso14443_3a_data->atqa[0] = 0x00;
     data->iso14443_3a_data->atqa[1] = 0x00;
     data->iso14443_3a_data->sak = 0x00;
-    // Calculate the proper ATQA and SAK
+
     if(uid_len == 7) {
         data->iso14443_3a_data->atqa[0] |= 0x40;
     }
@@ -338,12 +337,12 @@ static void
 }
 
 static void nfc_generate_mf_classic_sector_trailer(MfClassicData* data, uint8_t block) {
-    // All keys are set to FFFF FFFF FFFFh at chip delivery and the bytes 6, 7 and 8 are set to FF0780h.
+
     MfClassicSectorTrailer* sec_tr = (MfClassicSectorTrailer*)data->block[block].data;
     sec_tr->access_bits.data[0] = 0xFF;
     sec_tr->access_bits.data[1] = 0x07;
     sec_tr->access_bits.data[2] = 0x80;
-    sec_tr->access_bits.data[3] = 0x69; // Nice
+    sec_tr->access_bits.data[3] = 0x69;
 
     for(int i = 0; i < 6; i++) {
         sec_tr->key_a.data[i] = 0xFF;
@@ -363,7 +362,7 @@ static void nfc_generate_mf_classic_block_0(
     uint8_t sak,
     uint8_t atqa0,
     uint8_t atqa1) {
-    // Block length is always 16 bytes, and the UID can be either 4 or 7 bytes
+
     furi_assert(uid_len == 4 || uid_len == 7);
     furi_assert(block);
 
@@ -392,7 +391,6 @@ static void nfc_generate_mf_classic(NfcDevice* nfc_device, uint8_t uid_len, MfCl
 
     mf_classic_set_block_read(mfc_data, 0, &mfc_data->block[0]);
 
-    // Set every block to 0x00
     uint16_t block_num = mf_classic_get_total_block_num(type);
     for(uint16_t i = 1; i < block_num; i++) {
         if(mf_classic_is_sector_trailer(i)) {

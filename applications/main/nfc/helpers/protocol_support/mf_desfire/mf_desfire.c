@@ -27,7 +27,7 @@ static void nfc_scene_info_on_enter_mf_desfire(NfcApp* instance) {
 }
 
 static void nfc_scene_more_info_on_enter_mf_desfire(NfcApp* instance) {
-    // Jump to advanced scene right away
+
     scene_manager_next_scene(instance->scene_manager, NfcSceneMfDesfireMoreInfo);
 }
 

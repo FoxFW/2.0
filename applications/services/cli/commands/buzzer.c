@@ -14,7 +14,6 @@ void cli_command_buzzer_print_usage(bool is_freq_subcommand, FuriString* args) {
     }
 }
 
-// Consider volume effectively zero if below this threshold
 #define BUZZER_VOLUME_EPSILON (1e-3f)
 
 float cli_command_buzzer_read_frequency(bool is_freq_subcommand, FuriString* args) {
@@ -24,8 +23,6 @@ float cli_command_buzzer_read_frequency(bool is_freq_subcommand, FuriString* arg
         args_read_float_and_trim(args, &frequency);
         return frequency;
     }
-
-    // Extract note frequency from name
 
     FuriString* note_name_string;
     note_name_string = furi_string_alloc();
@@ -64,7 +61,6 @@ void cli_command_buzzer_play(
             .data.sound.volume = 1.0,
         };
 
-        // Optional duration
         uint32_t duration_ms = 100;
         if(args_read_string_and_trim(args, duration_string)) {
             if(!args_read_duration(duration_string, &duration_ms, NULL)) {
@@ -79,12 +75,10 @@ void cli_command_buzzer_play(
             NULL,
         };
 
-        // Play sound
         notification_message_block(notification, &sound_on_sequence);
 
         cli_sleep(pipe, duration_ms);
 
-        // Stop sound
         const NotificationSequence sound_off_sequence = {
             &message_sound_off,
             NULL,
@@ -110,7 +104,6 @@ void execute(PipeSide* pipe, FuriString* args, void* context) {
             break;
         }
 
-        // Check volume
         if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagStealthMode)) {
             printf("Flipper is in stealth mode. Unmute the device to control buzzer.");
             break;

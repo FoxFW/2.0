@@ -1,6 +1,5 @@
 #include "../nfc_app_i.h"
 #include "nfc_icons.h"
-#include <dolphin/dolphin.h>
 
 void nfc_scene_detect_scan_callback(NfcScannerEvent event, void* context) {
     furi_assert(context);
@@ -21,7 +20,6 @@ void nfc_scene_detect_on_enter(void* context) {
     nfc_supported_cards_load_cache(instance->nfc_supported_cards);
     nfc_show_loading_popup(instance, false);
 
-    // Setup view
     popup_reset(instance->popup);
     popup_set_header(instance->popup, "Reading", 97, 15, AlignCenter, AlignTop);
     popup_set_text(

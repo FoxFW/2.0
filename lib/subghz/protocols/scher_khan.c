@@ -153,9 +153,6 @@ static uint8_t scher_khan_btn_to_custom(uint8_t btn) {
     }
 }
 
-// Page 0: Lock(1), Unlock(2), Trunk(4), Start(8)
-// Page 1: Lock+Unlock(3), Lock+Trunk(5), Unlock+Trunk(6), Lk+Ul+Tr(7)
-// Page 2: Lock+Start(9), Unlock+Start(A), Trunk+Start(C), All/Panic(F)
 static uint8_t scher_khan_custom_to_btn(uint8_t custom, uint8_t original_btn) {
     if(custom == SUBGHZ_CUSTOM_BTN_OK) return original_btn;
 
@@ -166,24 +163,24 @@ static uint8_t scher_khan_custom_to_btn(uint8_t custom, uint8_t original_btn) {
 
     if(page == 0) {
         switch(custom) {
-        case SUBGHZ_CUSTOM_BTN_UP:    return 0x1; // Lock
-        case SUBGHZ_CUSTOM_BTN_DOWN:  return 0x2; // Unlock
-        case SUBGHZ_CUSTOM_BTN_LEFT:  return 0x4; // Trunk
-        case SUBGHZ_CUSTOM_BTN_RIGHT: return 0x8; // Start
+        case SUBGHZ_CUSTOM_BTN_UP:    return 0x1;
+        case SUBGHZ_CUSTOM_BTN_DOWN:  return 0x2;
+        case SUBGHZ_CUSTOM_BTN_LEFT:  return 0x4;
+        case SUBGHZ_CUSTOM_BTN_RIGHT: return 0x8;
         }
     } else if(page == 1) {
         switch(custom) {
-        case SUBGHZ_CUSTOM_BTN_UP:    return 0x3; // Lock+Unlock
-        case SUBGHZ_CUSTOM_BTN_DOWN:  return 0x5; // Lock+Trunk
-        case SUBGHZ_CUSTOM_BTN_LEFT:  return 0x6; // Unlock+Trunk
-        case SUBGHZ_CUSTOM_BTN_RIGHT: return 0x7; // Lk+Ul+Tr
+        case SUBGHZ_CUSTOM_BTN_UP:    return 0x3;
+        case SUBGHZ_CUSTOM_BTN_DOWN:  return 0x5;
+        case SUBGHZ_CUSTOM_BTN_LEFT:  return 0x6;
+        case SUBGHZ_CUSTOM_BTN_RIGHT: return 0x7;
         }
     } else {
         switch(custom) {
-        case SUBGHZ_CUSTOM_BTN_UP:    return 0x9; // Lock+Start
-        case SUBGHZ_CUSTOM_BTN_DOWN:  return 0xA; // Unlock+Start
-        case SUBGHZ_CUSTOM_BTN_LEFT:  return 0xC; // Trunk+Start
-        case SUBGHZ_CUSTOM_BTN_RIGHT: return 0xF; // All/Panic
+        case SUBGHZ_CUSTOM_BTN_UP:    return 0x9;
+        case SUBGHZ_CUSTOM_BTN_DOWN:  return 0xA;
+        case SUBGHZ_CUSTOM_BTN_LEFT:  return 0xC;
+        case SUBGHZ_CUSTOM_BTN_RIGHT: return 0xF;
         }
     }
     return original_btn;
@@ -263,8 +260,6 @@ const SubGhzProtocol subghz_protocol_scher_khan = {
     .encoder = &subghz_protocol_scher_khan_encoder,
 };
 
-// ======================== ENCODER ========================
-
 void* subghz_protocol_encoder_scher_khan_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderScherKhan* instance = malloc(sizeof(SubGhzProtocolEncoderScherKhan));
@@ -288,24 +283,11 @@ void subghz_protocol_encoder_scher_khan_free(void* context) {
     free(instance);
 }
 
-/**
- * Build the RF upload buffer matching the real Scher-Khan waveform.
- *
- * Real signal structure (from Boot_sh5.sub / Trunk_sh5.sub analysis):
- *
- *   Preamble:  6x pairs of ~750µs high / ~750µs low
- *   Header:    3x pairs of ~1500µs high / ~1500µs low
- *   Start bit: 1x pair  of ~750µs high / ~750µs low
- *   Data:      bit 0 = ~750µs  high / ~750µs  low
- *              bit 1 = ~1100µs high / ~1100µs low
- *   End:       ~1500µs high (marks frame end for decoder)
- */
 static bool subghz_protocol_encoder_scher_khan_get_upload(
     SubGhzProtocolEncoderScherKhan* instance,
     uint8_t btn) {
     furi_check(instance);
 
-    // For 51-bit dynamic: rebuild data with new button and incremented counter
     if(instance->generic.data_count_bit == 51) {
         uint32_t override_cnt = 0;
         if(subghz_block_generic_global_counter_override_get(&override_cnt)) {
@@ -641,8 +623,6 @@ LevelDuration subghz_protocol_encoder_scher_khan_yield(void* context) {
 
     return ret;
 }
-
-// ======================== DECODER ========================
 
 void* subghz_protocol_decoder_scher_khan_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

@@ -649,13 +649,30 @@ SubGhzProtocolStatus subghz_protocol_decoder_ford_v0_deserialize(void* context, 
         instance->generic.serial = instance->serial;
         instance->generic.btn = instance->button;
         instance->generic.cnt = instance->count;
-        instance->crc_valid = ford_v0_verify_crc(instance->key1, instance->key2);
         
         uint8_t custom_btn = ford_v0_btn_to_custom(instance->button);
         if(subghz_custom_btn_get_original() == 0) {
             subghz_custom_btn_set_original(custom_btn);
         }
         subghz_custom_btn_set_max(3);
+
+        uint8_t selected_custom = subghz_custom_btn_get() == SUBGHZ_CUSTOM_BTN_OK ?
+                                       subghz_custom_btn_get_original() :
+                                       subghz_custom_btn_get();
+        instance->button = ford_v0_get_button_code(selected_custom);
+        instance->generic.btn = instance->button;
+
+        uint8_t new_chk = 0;
+        encode_ford_v0(
+            instance->generic.data,
+            instance->serial,
+            instance->button,
+            instance->count,
+            &new_chk,
+            &instance->key1);
+        uint8_t new_crc = ford_v0_calculate_crc_for_tx(instance->key1, new_chk);
+        instance->key2 = ((uint16_t)new_chk << 8) | new_crc;
+        instance->crc_valid = ford_v0_verify_crc(instance->key1, instance->key2);
     }
     return ret;
 }

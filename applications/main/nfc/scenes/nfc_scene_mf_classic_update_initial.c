@@ -73,7 +73,6 @@ static void nfc_scene_mf_classic_update_initial_setup_view(NfcApp* instance) {
 
 void nfc_scene_mf_classic_update_initial_on_enter(void* context) {
     NfcApp* instance = context;
-    dolphin_deed(DolphinDeedNfcEmulate);
 
     const MfClassicData* mfc_data =
         nfc_device_get_data(instance->nfc_device, NfcProtocolMfClassic);
@@ -85,7 +84,6 @@ void nfc_scene_mf_classic_update_initial_on_enter(void* context) {
         NfcSceneMfClassicUpdateInitialStateCardSearch);
     nfc_scene_mf_classic_update_initial_setup_view(instance);
 
-    // Setup and start worker
     instance->poller = nfc_poller_alloc(instance->nfc, NfcProtocolMfClassic);
     nfc_poller_start(instance->poller, nfc_mf_classic_update_initial_worker_callback, instance);
     nfc_blink_emulate_start(instance);
@@ -136,7 +134,7 @@ void nfc_scene_mf_classic_update_initial_on_exit(void* context) {
         instance->scene_manager,
         NfcSceneMfClassicUpdateInitial,
         NfcSceneMfClassicUpdateInitialStateCardSearch);
-    // Clear view
+
     popup_reset(instance->popup);
 
     nfc_blink_stop(instance);

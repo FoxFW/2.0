@@ -8,7 +8,7 @@
 #include <gui/canvas_i.h>
 
 void flipper_boot_dfu_show_splash(void) {
-    // Initialize
+
     Canvas* canvas = canvas_init();
 
     canvas_set_color(canvas, ColorBlack);
@@ -23,17 +23,14 @@ void flipper_boot_dfu_show_splash(void) {
 }
 
 void flipper_boot_dfu_exec(void) {
-    // Show DFU splashscreen
+
     flipper_boot_dfu_show_splash();
 
-    // Errata 2.2.9, Flash OPTVERR flag is always set after system reset
     WRITE_REG(FLASH->SR, FLASH_SR_OPTVERR);
 
-    // Cleanup before jumping to DFU
     furi_hal_deinit_early();
 
-    // Remap memory to system bootloader
     LL_SYSCFG_SetRemapMemory(LL_SYSCFG_REMAP_SYSTEMFLASH);
-    // Jump
+
     furi_hal_switch(0x0);
 }

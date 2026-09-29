@@ -37,16 +37,7 @@ static void esp_at_emit_line(EspAt* esp_at, const char* text, size_t length) {
     size_t copy_len = length < (ESP_AT_LINE_MAX - 1) ? length : (ESP_AT_LINE_MAX - 1);
     memcpy(s_emit_msg.line, text, copy_len);
     s_emit_msg.line[copy_len] = '\0';
-    // Never block forever here. If nobody's actively calling
-    // esp_at_receive() - e.g. the app is idle at a menu and the ESP32
-    // sends a burst of unsolicited lines, such as its own boot chatter
-    // after someone presses its physical reset button - a full queue
-    // would otherwise stall this worker thread permanently, since
-    // nothing else can ever drain it. Drop the line instead. (Queue depth
-    // stays at 2, not deeper - each slot is ESP_AT_LINE_MAX=6200 bytes to
-    // hold a full release-check JSON line, so a deeper queue here costs
-    // real KBs the Flipper doesn't have to spare - this is what caused an
-    // out-of-memory crash when it was briefly bumped to 8.)
+
     furi_message_queue_put(esp_at->msg_queue, &s_emit_msg, 0);
 }
 
@@ -134,9 +125,11 @@ void esp_at_free(EspAt* esp_at) {
     expansion_enable(esp_at->expansion);
     furi_record_close(RECORD_EXPANSION);
 
+    furi_kernel_lock();
     furi_stream_buffer_free(esp_at->rx_stream);
     furi_message_queue_free(esp_at->msg_queue);
     free(esp_at);
+    furi_kernel_unlock();
 }
 
 void esp_at_send(EspAt* esp_at, const char* command) {

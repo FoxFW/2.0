@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 
 #define TAG "PicopassSceneEmulate"
 
@@ -111,7 +110,6 @@ void picopass_scene_emulate_update_ui(void* context) {
 void picopass_scene_emulate_on_enter(void* context) {
     Picopass* picopass = context;
 
-    dolphin_deed(DolphinDeedNfcEmulate);
     picopass_scene_emulate_update_ui(picopass);
 
     picopass_scene_emulate_start(picopass);

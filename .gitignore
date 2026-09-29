@@ -119,3 +119,15 @@ scripts/deploy_flipper_docs.py
 build_fox_apps_suite.bat
 clean_build_output.tmp.log
 fbt_build_output.tmp.log
+
+# Claude comment-removal working notes (2026-09-22) - never committed
+/CLAUDE_COMMENTS/
+/_to_delete
+UNLEASHED_ARF_GAP_ANALYSIS.md
+verify_garage_plugin_paths.log
+verify_garage_plugin_paths.py
+UNLEASHED_ARF_GAP_ANALYSIS.md
+/Claude outputs
+diff_stat.txt
+diff_full.txt
+assets/OUTPUT.txt

@@ -66,11 +66,11 @@ void furi_hal_power_init(void) {
     LL_C2_PWR_SetPowerMode(FURI_HAL_POWER_STOP_MODE);
 
 #if FURI_HAL_POWER_STOP_MODE == LL_PWR_MODE_STOP0
-    LL_RCC_HSI_EnableInStopMode(); // Ensure that MR is capable of work in STOP0
+    LL_RCC_HSI_EnableInStopMode();
 #endif
 
     furi_hal_i2c_acquire(&furi_hal_i2c_handle_power);
-    // Find and init gauge
+
     size_t retry = 2;
     while(retry > 0) {
         furi_hal_power.gauge_ok =
@@ -78,22 +78,19 @@ void furi_hal_power_init(void) {
         if(furi_hal_power.gauge_ok) {
             break;
         } else {
-            // Gauge need some time to think about it's behavior
-            // We must wait, otherwise next init cycle will fail at unseal stage
+
             furi_delay_us(4000000);
         }
         retry--;
     }
-    // Find and init charger
+
     retry = 2;
     while(retry > 0) {
         furi_hal_power.charger_ok = bq25896_init(&furi_hal_i2c_handle_power);
         if(furi_hal_power.charger_ok) {
             break;
         } else {
-            // Most likely I2C communication error
-            // 2 seconds should be enough for all chips on the line to timeout
-            // Also timing out here is very abnormal
+
             furi_delay_us(2020202);
         }
         retry--;
@@ -179,12 +176,12 @@ static inline void furi_hal_power_light_sleep(void) {
 }
 
 static inline void furi_hal_power_suspend_aux_periphs(void) {
-    // Disable USART
+
     furi_hal_serial_control_suspend();
 }
 
 static inline void furi_hal_power_resume_aux_periphs(void) {
-    // Re-enable USART
+
     furi_hal_serial_control_resume();
 }
 
@@ -192,7 +189,7 @@ static inline void furi_hal_power_deep_sleep(void) {
     furi_hal_power_suspend_aux_periphs();
 
     if(!furi_hal_clock_switch_pll2hse()) {
-        // Hello core2 my old friend
+
         return;
     }
 
@@ -201,27 +198,22 @@ static inline void furi_hal_power_deep_sleep(void) {
 
     if(!LL_HSEM_1StepLock(HSEM, CFG_HW_ENTRY_STOP_MODE_SEMID)) {
         if(LL_PWR_IsActiveFlag_C2DS() || LL_PWR_IsActiveFlag_C2SB()) {
-            // Release ENTRY_STOP_MODE semaphore
+
             LL_HSEM_ReleaseLock(HSEM, CFG_HW_ENTRY_STOP_MODE_SEMID, 0);
 
-            // The switch on HSI before entering Stop Mode is required
             furi_hal_clock_switch_hse2hsi();
         }
     } else {
-        /**
-         * The switch on HSI before entering Stop Mode is required 
-         */
+
         furi_hal_clock_switch_hse2hsi();
     }
 
-    /* Release RCC semaphore */
     LL_HSEM_ReleaseLock(HSEM, CFG_HW_RCC_SEMID, 0);
 
-    // Prepare deep sleep
     LL_LPM_EnableDeepSleep();
 
 #if defined(__CC_ARM)
-    // Force store operations
+
     __force_stores();
 #endif
 
@@ -235,7 +227,6 @@ static inline void furi_hal_power_deep_sleep(void) {
 
     LL_LPM_EnableSleep();
 
-    /* Release ENTRY_STOP_MODE semaphore */
     LL_HSEM_ReleaseLock(HSEM, CFG_HW_ENTRY_STOP_MODE_SEMID, 0);
 
     while(LL_HSEM_1StepLock(HSEM, CFG_HW_RCC_SEMID))
@@ -244,7 +235,7 @@ static inline void furi_hal_power_deep_sleep(void) {
     if(LL_RCC_GetSysClkSource() == LL_RCC_SYS_CLKSOURCE_STATUS_HSI) {
         furi_hal_clock_switch_hsi2hse();
     } else {
-        // Ensure that we are already on HSE
+
         furi_check(LL_RCC_GetSysClkSource() == LL_RCC_SYS_CLKSOURCE_STATUS_HSE);
     }
 
@@ -302,17 +293,15 @@ void furi_hal_power_shutdown(void) {
 
     if(!LL_HSEM_1StepLock(HSEM, CFG_HW_ENTRY_STOP_MODE_SEMID)) {
         if(LL_PWR_IsActiveFlag_C2DS() || LL_PWR_IsActiveFlag_C2SB()) {
-            // Release ENTRY_STOP_MODE semaphore
+
             LL_HSEM_ReleaseLock(HSEM, CFG_HW_ENTRY_STOP_MODE_SEMID, 0);
         }
     }
 
-    // Prepare Wakeup pin
     LL_PWR_SetWakeUpPinPolarityLow(LL_PWR_WAKEUP_PIN2);
     LL_PWR_EnableWakeUpPin(LL_PWR_WAKEUP_PIN2);
     LL_C2_PWR_EnableWakeUpPin(LL_PWR_WAKEUP_PIN2);
 
-    /* Release RCC semaphore */
     LL_HSEM_ReleaseLock(HSEM, CFG_HW_RCC_SEMID, 0);
 
     LL_PWR_DisableBootC2();
@@ -325,12 +314,12 @@ void furi_hal_power_shutdown(void) {
 }
 
 void furi_hal_power_off(void) {
-    // Crutch: shutting down with ext 3V3 off is causing LSE to stop
+
     furi_hal_rtc_prepare_for_shutdown();
     furi_hal_power_enable_external_3_3v();
     furi_hal_vibro_on(true);
     furi_delay_us(50000);
-    // Send poweroff to charger
+
     furi_hal_i2c_acquire(&furi_hal_i2c_handle_power);
     bq25896_poweroff(&furi_hal_i2c_handle_power);
     furi_hal_i2c_release(&furi_hal_i2c_handle_power);
@@ -374,7 +363,7 @@ float furi_hal_power_get_battery_charge_voltage_limit(void) {
 
 void furi_hal_power_set_battery_charge_voltage_limit(float voltage) {
     furi_hal_i2c_acquire(&furi_hal_i2c_handle_power);
-    // Adding 0.0005 is necessary because 4.016f is 4.015999794000, which gets truncated
+
     bq25896_set_vreg_voltage(&furi_hal_i2c_handle_power, (uint16_t)(voltage * 1000.0f + 0.0005f));
     furi_hal_i2c_release(&furi_hal_i2c_handle_power);
 }
@@ -450,7 +439,7 @@ static float furi_hal_power_get_battery_temperature_internal(FuriHalPowerIC ic) 
     float ret = 0.0f;
 
     if(ic == FuriHalPowerICCharger) {
-        // Linear approximation, +/- 5 C
+
         ret = (71.0f - (float)bq25896_get_ntc_mpct(&furi_hal_i2c_handle_power) / 1000) / 0.6f;
     } else if(ic == FuriHalPowerICFuelGauge) {
         ret = ((float)bq27220_get_temperature(&furi_hal_i2c_handle_power) - 2731.0f) / 10.0f;
@@ -595,7 +584,6 @@ void furi_hal_power_debug_get(PropertyValueCallback out, void* context) {
 
     furi_hal_i2c_acquire(&furi_hal_i2c_handle_power);
 
-    // Power Debug version
     property_value_out(&property_context, NULL, 2, "format", "major", "1");
     property_value_out(&property_context, NULL, 2, "format", "minor", "0");
 
@@ -651,7 +639,6 @@ void furi_hal_power_debug_get(PropertyValueCallback out, void* context) {
         property_value_out(
             &property_context, "%d", 2, "gauge", "cfgupdate", operation_status.CFGUPDATE);
 
-        // Battery status register, part 1
         property_value_out(&property_context, "%d", 2, "gauge", "chginh", battery_status.CHGINH);
         property_value_out(&property_context, "%d", 2, "gauge", "fc", battery_status.FC);
         property_value_out(&property_context, "%d", 2, "gauge", "otd", battery_status.OTD);
@@ -661,7 +648,6 @@ void furi_hal_power_debug_get(PropertyValueCallback out, void* context) {
         property_value_out(&property_context, "%d", 2, "gauge", "ocvcomp", battery_status.OCVCOMP);
         property_value_out(&property_context, "%d", 2, "gauge", "fd", battery_status.FD);
 
-        // Battery status register, part 2
         property_value_out(&property_context, "%d", 2, "gauge", "dsg", battery_status.DSG);
         property_value_out(&property_context, "%d", 2, "gauge", "sysdwn", battery_status.SYSDWN);
         property_value_out(&property_context, "%d", 2, "gauge", "tda", battery_status.TDA);
@@ -672,7 +658,6 @@ void furi_hal_power_debug_get(PropertyValueCallback out, void* context) {
         property_value_out(&property_context, "%d", 2, "gauge", "tca", battery_status.TCA);
         property_value_out(&property_context, "%d", 2, "gauge", "rsvd", battery_status.RSVD);
 
-        // Voltage and current info
         property_value_out(
             &property_context,
             "%d",

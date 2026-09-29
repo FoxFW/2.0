@@ -40,13 +40,11 @@ typedef struct {
     FuriMessageQueue* queue;
     FuriThread* thread;
 
-    // Logging
     FuriHalSerialId log_config_serial_id;
     uint32_t log_config_serial_baud_rate;
     FuriLogHandler log_handler;
     FuriHalSerialHandle* log_serial;
 
-    // Expansion detection
     FuriHalSerialHandle* expansion_serial;
     FuriHalSerialControlExpansionCallback expansion_cb;
     void* expansion_ctx;
@@ -83,7 +81,7 @@ static void
 }
 
 static void furi_hal_serial_control_log_set_handle(FuriHalSerialHandle* handle) {
-    // Disable expansion module detection before reconfiguring UARTs
+
     if(furi_hal_serial_control->expansion_serial) {
         furi_hal_serial_control_enable_expansion_irq(
             furi_hal_serial_control->expansion_serial, false);
@@ -105,7 +103,6 @@ static void furi_hal_serial_control_log_set_handle(FuriHalSerialHandle* handle) 
         furi_log_add_handler(furi_hal_serial_control->log_handler);
     }
 
-    // Re-enable expansion module detection (if applicable)
     if(furi_hal_serial_control->expansion_serial) {
         furi_hal_serial_control_enable_expansion_irq(
             furi_hal_serial_control->expansion_serial, true);
@@ -125,14 +122,14 @@ static bool furi_hal_serial_control_handler_acquire(void* input, void* output) {
     if(handle->in_use) {
         *(FuriHalSerialHandle**)output = NULL;
     } else {
-        // Logging
+
         if(furi_hal_serial_control->log_config_serial_id == serial_id) {
             furi_hal_serial_control_log_set_handle(NULL);
-            // Expansion
+
         } else if(furi_hal_serial_control->expansion_serial == handle) {
             furi_hal_serial_control_enable_expansion_irq(handle, false);
         }
-        // Return handle
+
         handle->in_use = true;
         *(FuriHalSerialHandle**)output = handle;
     }
@@ -149,10 +146,10 @@ static bool furi_hal_serial_control_handler_release(void* input, void* output) {
     handle->in_use = false;
 
     if(furi_hal_serial_control->log_config_serial_id == handle->id) {
-        // Return back logging
+
         furi_hal_serial_control_log_set_handle(handle);
     } else if(furi_hal_serial_control->expansion_serial == handle) {
-        // Re-enable expansion
+
         furi_hal_serial_control_enable_expansion_irq(handle, true);
     }
 
@@ -169,11 +166,10 @@ static bool furi_hal_serial_control_handler_is_busy(void* input, void* output) {
 static bool furi_hal_serial_control_handler_logging(void* input, void* output) {
     UNUSED(output);
 
-    // Set new configuration
     FuriHalSerialControlMessageInputLogging* message_input = input;
     furi_hal_serial_control->log_config_serial_id = message_input->id;
     furi_hal_serial_control->log_config_serial_baud_rate = message_input->baud_rate;
-    // Apply new configuration
+
     FuriHalSerialHandle* handle = NULL;
     if(furi_hal_serial_control->log_config_serial_id < FuriHalSerialIdMax) {
         if(!furi_hal_serial_control->handles[furi_hal_serial_control->log_config_serial_id].in_use) {
@@ -262,7 +258,7 @@ static int32_t furi_hal_serial_control_thread(void* args) {
 
 void furi_hal_serial_control_init(void) {
     furi_check(furi_hal_serial_control == NULL);
-    // Allocate resources
+
     furi_hal_serial_control = malloc(sizeof(FuriHalSerialControl));
     furi_hal_serial_control->handles[FuriHalSerialIdUsart].id = FuriHalSerialIdUsart;
     furi_hal_serial_control->handles[FuriHalSerialIdLpuart].id = FuriHalSerialIdLpuart;
@@ -272,22 +268,24 @@ void furi_hal_serial_control_init(void) {
         "SerialControlDriver", 512, furi_hal_serial_control_thread, NULL);
     furi_thread_set_priority(furi_hal_serial_control->thread, FuriThreadPriorityHighest);
     furi_hal_serial_control->log_config_serial_id = FuriHalSerialIdMax;
-    // Start control plane thread
+
     furi_thread_start(furi_hal_serial_control->thread);
 }
 
 void furi_hal_serial_control_deinit(void) {
     furi_check(furi_hal_serial_control);
-    // Stop control plane thread
+
     FuriHalSerialControlMessage message;
     message.type = FuriHalSerialControlMessageTypeStop;
     message.api_lock = NULL;
     furi_message_queue_put(furi_hal_serial_control->queue, &message, FuriWaitForever);
     furi_thread_join(furi_hal_serial_control->thread);
-    // Release resources
+    furi_kernel_lock();
+
     furi_thread_free(furi_hal_serial_control->thread);
     furi_message_queue_free(furi_hal_serial_control->queue);
     free(furi_hal_serial_control);
+    furi_kernel_unlock();
 }
 
 void furi_hal_serial_control_suspend(void) {
@@ -355,7 +353,6 @@ void furi_hal_serial_control_set_logging_config(FuriHalSerialId serial_id, uint3
     furi_check(serial_id <= FuriHalSerialIdMax);
     furi_check(baud_rate >= 9600 && baud_rate <= 4000000);
 
-    // Very special case of updater, where RTC initialized before kernel start
     if(!furi_hal_serial_control) return;
 
     furi_check(furi_hal_serial_is_baud_rate_supported(

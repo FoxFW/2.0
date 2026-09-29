@@ -68,7 +68,7 @@ void view_holder_set_view(ViewHolder* view_holder, View* view) {
         furi_assert(orientation < ViewPortOrientationMAX);
         if(view_port_get_orientation(view_holder->view_port) != orientation) {
             view_port_set_orientation(view_holder->view_port, orientation);
-            // we just rotated input keys, now it's time to sacrifice some input
+
             view_holder->ongoing_input = 0;
         }
 

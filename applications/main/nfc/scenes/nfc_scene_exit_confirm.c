@@ -49,6 +49,5 @@ bool nfc_scene_exit_confirm_on_event(void* context, SceneManagerEvent event) {
 void nfc_scene_exit_confirm_on_exit(void* context) {
     NfcApp* nfc = context;
 
-    // Clean view
     dialog_ex_reset(nfc->dialog_ex);
 }

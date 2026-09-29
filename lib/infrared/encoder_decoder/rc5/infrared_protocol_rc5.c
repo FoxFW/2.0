@@ -12,7 +12,7 @@ const InfraredCommonProtocolSpec infrared_protocol_rc5 = {
             .min_split_time = INFRARED_RC5_MIN_SPLIT_TIME,
         },
     .databit_len[0] = 1 + 1 + 1 + 5 +
-                      6, // start_bit + start_bit/command_bit + toggle_bit + 5 address + 6 command
+                      6,
     .manchester_start_from_space = true,
     .decode = infrared_common_decode_manchester,
     .encode = infrared_common_encode_manchester,

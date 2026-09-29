@@ -12,8 +12,6 @@
 #include <lib/toolbox/level_duration.h>
 #include <lib/toolbox/manchester_decoder.h>
 
-//#include "../defines.h"
-
 #define MAZDA_PROTOCOL_V0_NAME "Mazda V0"
 
 extern const SubGhzProtocol subghz_protocol_mazda_v0;

@@ -34,7 +34,7 @@ WidgetElement* widget_element_rect_create(
     uint8_t height,
     uint8_t radius,
     bool fill) {
-    // Allocate and init model
+
     GuiRectModel* model = malloc(sizeof(GuiRectModel));
     model->x = x;
     model->y = y;
@@ -43,7 +43,6 @@ WidgetElement* widget_element_rect_create(
     model->radius = radius;
     model->fill = fill;
 
-    // Allocate and init Element
     WidgetElement* gui_rect = malloc(sizeof(WidgetElement));
     gui_rect->parent = NULL;
     gui_rect->input = NULL;

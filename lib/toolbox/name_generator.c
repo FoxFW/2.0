@@ -59,7 +59,6 @@ void name_generator_make_random_prefixed(char* name, size_t max_name_size, const
         name_generator_left[name_generator_left_i],
         name_generator_right[name_generator_right_i]);
 
-    // Set first symbol to upper case
     if(islower((int)name[0])) name[0] = name[0] - 0x20;
 }
 
@@ -94,7 +93,6 @@ void name_generator_make_detailed_datetime(
         dateTime.minute,
         dateTime.second);
 
-    // Set first symbol to upper case
     if(islower((int)name[0])) name[0] = name[0] - 0x20;
 }
 

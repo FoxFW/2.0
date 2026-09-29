@@ -26,19 +26,16 @@ static const SubGhzBlockConst subghz_protocol_land_rover_v0_const = {
 #define LAND_ROVER_V0_SIG_UNLOCK 0xA285E3UL
 #define LAND_ROVER_V0_SIG_LOCK   0xC20363UL
 
-/* Extra FlipperFormat field names specific to this protocol */
 #define LAND_ROVER_V0_FF_BTNSIG    "BtnSig"
 #define LAND_ROVER_V0_FF_CHECK     "Check"
 #define LAND_ROVER_V0_FF_TAIL      "Tail"
 #define LAND_ROVER_V0_FF_EXTRA_BIT "ExtraBit"
 
-/* FlipperFormat field name aliases (replacing the external pp library's FF_* macros) */
 #define LR_FF_KEY    "Key"
 #define LR_FF_SERIAL "Serial"
 #define LR_FF_BTN    "Btn"
 #define LR_FF_CNT    "Cnt"
 
-/* ── Decoder struct ──────────────────────────────────────────────────────── */
 typedef struct SubGhzProtocolDecoderLandRoverV0 {
     SubGhzProtocolDecoderBase base;
     SubGhzBlockDecoder        decoder;
@@ -63,7 +60,6 @@ typedef struct SubGhzProtocolDecoderLandRoverV0 {
     bool     tail_ok;
 } SubGhzProtocolDecoderLandRoverV0;
 
-/* ── Encoder struct ──────────────────────────────────────────────────────── */
 typedef struct SubGhzProtocolEncoderLandRoverV0 {
     SubGhzProtocolEncoderBase  base;
     SubGhzProtocolBlockEncoder encoder;
@@ -78,7 +74,6 @@ typedef struct SubGhzProtocolEncoderLandRoverV0 {
     uint8_t  check;
 } SubGhzProtocolEncoderLandRoverV0;
 
-/* ── Decoder state machine steps ─────────────────────────────────────────── */
 typedef enum {
     LandRoverV0DecoderStepReset = 0,
     LandRoverV0DecoderStepPreambleLow,
@@ -87,11 +82,6 @@ typedef enum {
     LandRoverV0DecoderStepData,
 } LandRoverV0DecoderStep;
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * Internal helpers replacing pp_* functions from the external app library
- * ═════════════════════════════════════════════════════════════════════════*/
-
-/** Write a uint64_t into 8 bytes in big-endian order. */
 static inline void lr_u64_to_bytes_be(uint64_t val, uint8_t out[8]) {
     for(int i = 7; i >= 0; i--) {
         out[i] = (uint8_t)(val & 0xFFU);
@@ -99,7 +89,6 @@ static inline void lr_u64_to_bytes_be(uint64_t val, uint8_t out[8]) {
     }
 }
 
-/** Read 8 big-endian bytes and return a uint64_t. */
 static inline uint64_t lr_bytes_to_u64_be(const uint8_t in[8]) {
     uint64_t val = 0;
     for(int i = 0; i < 8; i++) {
@@ -108,32 +97,24 @@ static inline uint64_t lr_bytes_to_u64_be(const uint8_t in[8]) {
     return val;
 }
 
-/** Returns true when duration matches te_short within te_delta. */
 static inline bool lr_is_short(uint32_t duration) {
     return DURATION_DIFF(duration, subghz_protocol_land_rover_v0_const.te_short) <
            subghz_protocol_land_rover_v0_const.te_delta;
 }
 
-/** Returns true when duration matches te_long within te_delta. */
 static inline bool lr_is_long(uint32_t duration) {
     return DURATION_DIFF(duration, subghz_protocol_land_rover_v0_const.te_long) <
            subghz_protocol_land_rover_v0_const.te_delta;
 }
 
-/** Insert-or-update a single uint32 field in a FlipperFormat file. */
 static void lr_ff_write_u32(FlipperFormat* ff, const char* key, uint32_t val) {
     flipper_format_insert_or_update_uint32(ff, key, &val, 1);
 }
 
-/** Read a single uint32 field from a FlipperFormat file. */
 static bool lr_ff_read_u32(FlipperFormat* ff, const char* key, uint32_t* out) {
     return flipper_format_read_uint32(ff, key, out, 1);
 }
 
-/**
- * Verify that the "Protocol" field in the FlipperFormat file matches the
- * expected protocol name.  Returns SubGhzProtocolStatusOk on match.
- */
 static SubGhzProtocolStatus lr_verify_protocol_name(
     FlipperFormat* ff,
     const char*    expected_name) {
@@ -146,10 +127,6 @@ static SubGhzProtocolStatus lr_verify_protocol_name(
     return ok ? SubGhzProtocolStatusOk : SubGhzProtocolStatusErrorProtocolNotFound;
 }
 
-/**
- * Read the "Repeat" field from a FlipperFormat file.
- * Falls back to default_val when the field is absent.
- */
 static uint16_t lr_encoder_read_repeat(FlipperFormat* ff, uint16_t default_val) {
     uint32_t repeat = default_val;
     flipper_format_rewind(ff);
@@ -159,9 +136,6 @@ static uint16_t lr_encoder_read_repeat(FlipperFormat* ff, uint16_t default_val) 
     return (uint16_t)repeat;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * Forward declarations for internal (static) helpers
- * ═════════════════════════════════════════════════════════════════════════*/
 static uint8_t     land_rover_v0_button_from_signature(uint32_t signature);
 static const char* land_rover_v0_button_name(uint8_t button);
 static uint8_t     land_rover_v0_calculate_check(uint32_t count);
@@ -201,9 +175,6 @@ static bool land_rover_v0_encoder_add_bit(
     bool                              bit);
 static bool land_rover_v0_build_upload(SubGhzProtocolEncoderLandRoverV0* instance);
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * Protocol descriptor tables
- * ═════════════════════════════════════════════════════════════════════════*/
 const SubGhzProtocolDecoder subghz_protocol_land_rover_v0_decoder = {
     .alloc         = subghz_protocol_decoder_land_rover_v0_alloc,
     .free          = subghz_protocol_decoder_land_rover_v0_free,
@@ -232,10 +203,6 @@ const SubGhzProtocol subghz_protocol_land_rover_v0 = {
     .decoder = &subghz_protocol_land_rover_v0_decoder,
     .encoder = &subghz_protocol_land_rover_v0_encoder,
 };
-
-/* ═══════════════════════════════════════════════════════════════════════════
- * Protocol logic helpers
- * ═════════════════════════════════════════════════════════════════════════*/
 
 static bool land_rover_v0_is_sync(uint32_t duration) {
     return DURATION_DIFF(duration, LAND_ROVER_V0_SYNC_US) < LAND_ROVER_V0_SYNC_DELTA_US;
@@ -421,10 +388,6 @@ static bool land_rover_v0_process_transition(
     return false;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * Encoder waveform helpers
- * ═════════════════════════════════════════════════════════════════════════*/
-
 static bool land_rover_v0_encoder_add_level(
     SubGhzProtocolEncoderLandRoverV0* instance,
     size_t*                           index,
@@ -446,20 +409,20 @@ static bool land_rover_v0_encoder_add_bit(
     const uint32_t te_long  = subghz_protocol_land_rover_v0_const.te_long;
 
     if(!*previous_bit && !bit) {
-        /* 0→0: two short pulses low-high */
+
         if(!land_rover_v0_encoder_add_level(instance, index, true,  te_short) ||
            !land_rover_v0_encoder_add_level(instance, index, false, te_short))
             return false;
     } else if(!*previous_bit && bit) {
-        /* 0→1: one long high */
+
         if(!land_rover_v0_encoder_add_level(instance, index, true, te_long))
             return false;
     } else if(*previous_bit && !bit) {
-        /* 1→0: one long low */
+
         if(!land_rover_v0_encoder_add_level(instance, index, false, te_long))
             return false;
     } else {
-        /* 1→1: two short pulses high-low */
+
         if(!land_rover_v0_encoder_add_level(instance, index, false, te_short) ||
            !land_rover_v0_encoder_add_level(instance, index, true,  te_short))
             return false;
@@ -478,25 +441,21 @@ static bool land_rover_v0_build_upload(SubGhzProtocolEncoderLandRoverV0* instanc
     uint8_t key_bytes[8];
     lr_u64_to_bytes_be(instance->key, key_bytes);
 
-    /* Preamble: alternating short high/low pairs */
     for(uint16_t i = 0; i < LAND_ROVER_V0_PREAMBLE_PAIRS; i++) {
         if(!land_rover_v0_encoder_add_level(instance, &index, true,  te_short) ||
            !land_rover_v0_encoder_add_level(instance, &index, false, te_short))
             return false;
     }
 
-    /* Sync: long high, long low, short high (boundary pulse) */
     if(!land_rover_v0_encoder_add_level(instance, &index, true,  LAND_ROVER_V0_SYNC_US) ||
        !land_rover_v0_encoder_add_level(instance, &index, false, LAND_ROVER_V0_SYNC_US) ||
        !land_rover_v0_encoder_add_level(instance, &index, true,  te_short))
         return false;
 
-    /* First encoded bit: always 0, previous state is 1 (the boundary pulse) */
     bool previous_bit = true;
     if(!land_rover_v0_encoder_add_bit(instance, &index, &previous_bit, false))
         return false;
 
-    /* Data bits 2..63 from the 64-bit key */
     for(uint8_t bit_index = 2; bit_index < 64; bit_index++) {
         const uint8_t byte_index  = bit_index / 8U;
         const uint8_t bit_in_byte = 7U - (bit_index % 8U);
@@ -505,7 +464,6 @@ static bool land_rover_v0_build_upload(SubGhzProtocolEncoderLandRoverV0* instanc
             return false;
     }
 
-    /* 16-bit tail */
     instance->tail = land_rover_v0_calculate_tail(instance->count);
     for(uint8_t bit_index = 0; bit_index < 16; bit_index++) {
         const bool bit = (instance->tail >> (15U - bit_index)) & 1U;
@@ -513,11 +471,9 @@ static bool land_rover_v0_build_upload(SubGhzProtocolEncoderLandRoverV0* instanc
             return false;
     }
 
-    /* Extra bit (always 1) */
     if(!land_rover_v0_encoder_add_bit(instance, &index, &previous_bit, true))
         return false;
 
-    /* Inter-frame gap */
     if(!land_rover_v0_encoder_add_level(instance, &index, false, LAND_ROVER_V0_GAP_US))
         return false;
 
@@ -525,10 +481,6 @@ static bool land_rover_v0_build_upload(SubGhzProtocolEncoderLandRoverV0* instanc
     instance->encoder.size_upload = index;
     return true;
 }
-
-/* ═══════════════════════════════════════════════════════════════════════════
- * Decoder – public API
- * ═════════════════════════════════════════════════════════════════════════*/
 
 void* subghz_protocol_decoder_land_rover_v0_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -740,7 +692,6 @@ SubGhzProtocolStatus subghz_protocol_decoder_land_rover_v0_deserialize(
         instance->generic.btn    = instance->button;
         instance->generic.cnt    = instance->count;
 
-        // Land Rover V0 mapping: Up=0x02 (Lock), OK=0x04 (Unlock). 2 buttons.
         if(subghz_custom_btn_get_original() == 0) {
             subghz_custom_btn_set_original(instance->generic.btn);
         }
@@ -775,10 +726,6 @@ void subghz_protocol_decoder_land_rover_v0_get_string(void* context, FuriString*
         instance->tail_ok ? "OK" : "BAD");
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * Encoder – helpers
- * ═════════════════════════════════════════════════════════════════════════*/
-
 static uint32_t land_rover_v0_signature_from_button(uint8_t button) {
     switch(button) {
     case LAND_ROVER_V0_BTN_LOCK:   return LAND_ROVER_V0_SIG_LOCK;
@@ -808,10 +755,6 @@ static uint64_t land_rover_v0_build_key(
     return lr_bytes_to_u64_be(key_bytes);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * Encoder – public API
- * ═════════════════════════════════════════════════════════════════════════*/
-
 void* subghz_protocol_encoder_land_rover_v0_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderLandRoverV0* instance =
@@ -821,7 +764,6 @@ void* subghz_protocol_encoder_land_rover_v0_alloc(SubGhzEnvironment* environment
     instance->base.protocol         = &subghz_protocol_land_rover_v0;
     instance->generic.protocol_name = instance->base.protocol->name;
 
-    /* Allocate the waveform upload buffer */
     instance->encoder.upload =
         malloc(LAND_ROVER_V0_UPLOAD_CAPACITY * sizeof(LevelDuration));
     furi_check(instance->encoder.upload);
@@ -910,7 +852,6 @@ SubGhzProtocolStatus subghz_protocol_encoder_land_rover_v0_deserialize(
         if(lr_ff_read_u32(flipper_format, LAND_ROVER_V0_FF_BTNSIG, &u32))
             instance->command_signature = u32 & 0xFFFFFFU;
 
-        // Land Rover V0 mapping: Up=0x02 (Lock), OK=0x04 (Unlock).
         {
             const uint8_t original_btn = instance->button;
             if(subghz_custom_btn_get_original() == 0) {
@@ -965,7 +906,6 @@ SubGhzProtocolStatus subghz_protocol_encoder_land_rover_v0_deserialize(
            instance->encoder.size_upload == 0U)
             break;
 
-        /* Update the file with all recalculated fields */
         flipper_format_rewind(flipper_format);
         flipper_format_insert_or_update_hex(
             flipper_format, LR_FF_KEY, key_bytes, sizeof(key_bytes));
@@ -995,7 +935,7 @@ LevelDuration subghz_protocol_encoder_land_rover_v0_yield(void* context) {
     SubGhzProtocolEncoderLandRoverV0* instance = context;
 
     if(instance->encoder.front >= instance->encoder.size_upload) {
-        /* One full repetition done; count it down */
+
         if(instance->encoder.repeat > 0 && !subghz_block_generic_global.endless_tx) {
             instance->encoder.repeat--;
         }

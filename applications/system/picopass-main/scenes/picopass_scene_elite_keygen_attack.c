@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 #include "../picopass_elite_keygen.h"
 
 #define PICOPASS_SCENE_DICT_ATTACK_KEYS_BATCH_UPDATE (10)
@@ -76,7 +75,6 @@ static void picopass_scene_elite_keygen_attack_callback(void* context) {
 
 void picopass_scene_elite_keygen_attack_on_enter(void* context) {
     Picopass* picopass = context;
-    dolphin_deed(DolphinDeedNfcRead);
 
     // Setup dict attack context
     uint32_t state = PicopassSceneEliteKeygenAttack;

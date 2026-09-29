@@ -384,7 +384,7 @@ SubGhzProtocolStatus
 
     return res;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_jarolift_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderJarolift* instance = malloc(sizeof(SubGhzProtocolDecoderJarolift));
@@ -699,7 +699,7 @@ static uint8_t subghz_protocol_jarolift_get_btn_code(void) {
 
     return btn;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void subghz_protocol_decoder_jarolift_get_string(void* context, FuriString* output) {
     furi_assert(context);

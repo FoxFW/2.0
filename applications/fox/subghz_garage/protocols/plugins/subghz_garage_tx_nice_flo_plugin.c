@@ -1,10 +1,5 @@
 #include "../subghz_garage_protocol_plugin.h"
 
-/* No gen_ function here - Nice Flo has no "Add Manually" entry, but a
- * captured/saved signal still needs a real encoder to be replayed with
- * "Send". This plugin exists purely so subghz_txrx_tx_start() can find
- * one without it having to be resident in the RX group plugin - see
- * subghz_garage_tx_protocol_for_name() in protocol_groups.c. */
 static const SubGhzProtocol* const subghz_garage_tx_nice_flo_registry_items[] = {
     &subghz_protocol_nice_flo,
 };

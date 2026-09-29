@@ -44,16 +44,13 @@ ClockSettings* clock_settings_alloc() {
 void clock_settings_free(ClockSettings* app) {
     furi_assert(app);
 
-    // Views
     view_dispatcher_remove_view(app->view_dispatcher, ClockSettingsViewPwm);
 
     clock_settings_module_free(app->pwm_view);
 
-    // View dispatcher
     view_dispatcher_free(app->view_dispatcher);
     scene_manager_free(app->scene_manager);
 
-    // Close records
     furi_record_close(RECORD_GUI);
 
     free(app);

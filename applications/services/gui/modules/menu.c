@@ -23,14 +23,14 @@ typedef struct {
     void* callback_context;
 } MenuItem;
 
-ARRAY_DEF(MenuItemArray, MenuItem, M_POD_OPLIST); //-V658
+ARRAY_DEF(MenuItemArray, MenuItem, M_POD_OPLIST);
 #define M_OPL_MenuItemArray_t() ARRAY_OPLIST(MenuItemArray, M_POD_OPLIST)
 
 typedef struct {
     MenuItemArray_t items;
     size_t position;
-    uint8_t cached_theme; // loaded once at alloc, updated via menu_set_theme
-    size_t scroll_counter; // drives the Carousel style's selected-label marquee
+    uint8_t cached_theme;
+    size_t scroll_counter;
 } MenuModel;
 
 #define FOX_CELL_W   40
@@ -38,14 +38,14 @@ typedef struct {
 #define FOX_CELL_GAP  3
 #define FOX_COLS      3
 #define FOX_ROWS      2
-#define FOX_VISIBLE  (FOX_COLS * FOX_ROWS)   // 6 cells shown at once
+#define FOX_VISIBLE  (FOX_COLS * FOX_ROWS)
 
 #define TINY_CELL_W    24
 #define TINY_CELL_H    16
 #define TINY_GAP        2
 #define TINY_COLS       5
 #define TINY_ROWS       3
-#define TINY_VISIBLE  (TINY_COLS * TINY_ROWS) // 15 cells shown at once
+#define TINY_VISIBLE  (TINY_COLS * TINY_ROWS)
 #define TINY_HEADER_H  10
 
 static void menu_process_up(Menu* menu);
@@ -66,7 +66,6 @@ static size_t fox_shift(size_t position, size_t count) {
     return (col - 1) * FOX_ROWS;
 }
 
-// Same windowing scheme as fox_shift(), sized for the Tiny 5x3 grid.
 static size_t tiny_shift(size_t position, size_t count) {
     if(count <= TINY_VISIBLE) return 0;
     size_t col = position / TINY_ROWS;
@@ -79,8 +78,6 @@ static size_t tiny_shift(size_t position, size_t count) {
     return (col - 1) * TINY_ROWS;
 }
 
-// Last valid row index within a Tiny-grid column, accounting for a
-// partially-filled final column.
 static size_t tiny_last_row_in_col(size_t col, size_t count) {
     size_t remaining = count - col * TINY_ROWS;
     size_t rows_here = (remaining < TINY_ROWS) ? remaining : TINY_ROWS;
@@ -96,10 +93,6 @@ static const char* menu_fox_label(const char* label) {
     return label;
 }
 
-// Ported from Momentum's real MenuStylePs4 implementation (applications/
-// services/gui/modules/menu.c, called Carousel here) - draws the current
-// animation frame of an item's icon centered in the given box, regardless
-// of the box's own size.
 static void menu_centered_icon(
     Canvas* canvas, MenuItem* item, size_t x, size_t y, size_t width, size_t height) {
     canvas_draw_icon_animation(
@@ -109,8 +102,6 @@ static void menu_centered_icon(
         item->icon);
 }
 
-// Momentum's marquee: counts down to 0 then holds, only for the selected
-// item - side cells never scroll since they show icon only.
 static size_t menu_scroll_counter(MenuModel* model, bool selected) {
     if(!selected) return 0;
     size_t scroll_counter = model->scroll_counter;
@@ -132,8 +123,7 @@ static void menu_draw_callback(Canvas* canvas, void* _model) {
     }
 
     uint8_t theme = fox_theme_get_style();
-    /* If the theme changed since last draw (e.g. user changed it in Fox Settings),
-     * sync cached_theme so enter/exit animation logic stays consistent. */
+
     model->cached_theme = theme;
 
     if(theme == 1) {
@@ -152,24 +142,13 @@ static void menu_draw_callback(Canvas* canvas, void* _model) {
             elements_fox_horizontal_menu_item(
                 canvas, x, y, FOX_CELL_W, FOX_CELL_H,
                 menu_fox_label(item->label),
-                item->icon,            // IconAnimation* — draws current animated frame
+                item->icon,
                 item_idx == position);
         }
     } else if(theme == 2) {
-        // Full port of Momentum's real MenuStylePs4 draw case (called
-        // Carousel here) - asymmetric sliding window (1 item left, current,
-        // 4 items right of it), bigger frame + "Start" banner on the
-        // selected item, everyone else icon-only, dotted scrollbar along
-        // the bottom edge. Momentum also shows a "Level N" dolphin readout
-        // next to the device name here - dropped, since FoxFW's own
-        // Dolphin service is a minimal stub that always reports level 1
-        // (see dolphin.h), so a real port of that piece would just be
-        // permanently frozen text. Only this main Apps menu ever applies
-        // this style - see menu_alloc()/menu_set_theme() - and it has no
-        // settings of its own beyond the Menu Style picker itself.
+
         {
-            // Device name centered + bold, with a bottom-rounded border (no
-            // top line - the two verticals just end flush/square at the top).
+
             const char* name = furi_hal_version_get_name_ptr();
             canvas_set_font(canvas, FontPrimary);
             size_t name_w = canvas_string_width(canvas, name);
@@ -231,13 +210,7 @@ static void menu_draw_callback(Canvas* canvas, void* _model) {
         }
         elements_scrollbar_horizontal(canvas, 0, 64, 128, position, items_count);
     } else if(theme == 3) {
-        // Full port of Momentum's real MenuStyleDsi draw case (called
-        // Slider here) - 5-item wraparound window (2 either side of the
-        // selected item, wrapping past both ends of the list). The
-        // selected item sits in a bold frame with a notch cut into the top
-        // edge and "START" printed beneath it; everyone else gets a plain
-        // rounded frame. Dotted scrollbar along the bottom edge, same as
-        // Carousel.
+
         for(int8_t i = -2; i <= 2; i++) {
             size_t shift_position = (position + items_count + (size_t)i) % items_count;
             MenuItem* item = MenuItemArray_get(model->items, shift_position);
@@ -287,10 +260,7 @@ static void menu_draw_callback(Canvas* canvas, void* _model) {
         }
         elements_scrollbar_horizontal(canvas, 0, 64, 128, position, items_count);
     } else if(theme == 4) {
-        // "Tiny" - 5x3 icon-only grid (15 cells visible at once). The
-        // selected item's name is shown as a scrolling line top-left
-        // instead of per-cell labels; everything else is icon-only, with
-        // a plain frame marking the selected cell.
+
         MenuItem* selected = MenuItemArray_get(model->items, position);
         canvas_set_font(canvas, FontSecondary);
         size_t scroll_counter = menu_scroll_counter(model, true);
@@ -375,10 +345,6 @@ static bool menu_input_callback(InputEvent* event, void* context) {
     return consumed;
 }
 
-// Drives the Carousel style's selected-label marquee (Momentum's real
-// menu.c runs this unconditionally for every style, not just this one -
-// it's a single periodic timer incrementing a counter, cheap enough not to
-// bother gating).
 static void menu_scroll_timer_callback(void* context) {
     Menu* menu = context;
     with_view_model(menu->view, MenuModel* model, { model->scroll_counter++; }, true);
@@ -390,12 +356,12 @@ static void menu_enter(void* context) {
         size_t count = MenuItemArray_size(model->items);
         if(count) {
             if(model->cached_theme == 1 || model->cached_theme == 4) {
-                // Fox/Tiny grids: all cells are visible simultaneously — start every animation
+
                 for(size_t i = 0; i < count; i++) {
                     icon_animation_start(MenuItemArray_get(model->items, i)->icon);
                 }
             } else {
-                // Classic/Carousel/Slider: only the selected item is shown/animated
+
                 icon_animation_start(MenuItemArray_get(model->items, model->position)->icon);
             }
         }
@@ -410,7 +376,7 @@ static void menu_exit(void* context) {
         size_t count = MenuItemArray_size(model->items);
         if(count) {
             if(model->cached_theme == 1 || model->cached_theme == 4) {
-                // Fox/Tiny grids: all were started, stop all
+
                 for(size_t i = 0; i < count; i++) {
                     icon_animation_stop(MenuItemArray_get(model->items, i)->icon);
                 }
@@ -434,11 +400,6 @@ Menu* menu_alloc(void) {
 
     menu->scroll_timer = furi_timer_alloc(menu_scroll_timer_callback, FuriTimerTypePeriodic, menu);
 
-    // Defaults to Classic - only the loader's primary Apps menu applies the
-    // user's Fox Theme/Carousel choice (via menu_set_theme(), called from
-    // loader_menu.c after alloc). Any other app that pulls in this shared
-    // Menu widget for its own internal menu stays plain Classic regardless
-    // of that global setting.
     with_view_model(menu->view, MenuModel* model, {
         MenuItemArray_init(model->items);
         model->position = 0;
@@ -518,10 +479,10 @@ static void menu_change_position(Menu* menu, size_t new_pos) {
         if(count > 0) {
             bool grid_theme = (model->cached_theme == 1 || model->cached_theme == 4);
             if(!grid_theme) {
-                // Classic/Carousel/Slider: only one animation runs at a time — swap selected item
+
                 icon_animation_stop(MenuItemArray_get(model->items, model->position)->icon);
             }
-            // Fox/Tiny: all animations are already running, just update selection
+
             model->position = new_pos % count;
             if(!grid_theme) {
                 icon_animation_start(MenuItemArray_get(model->items, model->position)->icon);
@@ -539,12 +500,12 @@ static void menu_process_up(Menu* menu) {
         theme = model->cached_theme;
     }, false);
     if(!count) return;
-    // Carousel and Slider are single rows - Up/Down don't apply, only Left/Right.
+
     if(theme == 2 || theme == 3) return;
 
     size_t new_pos;
     if(theme == 1) {
-        // Toggle row within column (even = top, odd = bottom)
+
         new_pos = (pos % FOX_ROWS == 0) ?
             ((pos + 1 < count) ? pos + 1 : pos) : pos - 1;
     } else if(theme == 4) {
@@ -570,7 +531,7 @@ static void menu_process_down(Menu* menu) {
         theme = model->cached_theme;
     }, false);
     if(!count) return;
-    // Carousel and Slider are single rows - Up/Down don't apply, only Left/Right.
+
     if(theme == 2 || theme == 3) return;
 
     size_t new_pos;

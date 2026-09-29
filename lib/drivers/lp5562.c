@@ -24,7 +24,7 @@ void lp5562_configure(const FuriHalI2cBusHandle* handle) {
 void lp5562_enable(const FuriHalI2cBusHandle* handle) {
     Reg00_Enable reg = {.CHIP_EN = true, .LOG_EN = true};
     furi_hal_i2c_write_reg_8(handle, LP5562_ADDRESS, 0x00, *(uint8_t*)&reg, LP5562_I2C_TIMEOUT);
-    //>488μs delay is required after writing to 0x00 register, otherwise program engine will not work
+
     furi_delay_us(500);
 }
 
@@ -125,20 +125,17 @@ void lp5562_execute_program(
     uint8_t bit_offset = 0;
     uint8_t enable_reg = 0;
 
-    // Read old value of enable register
     furi_hal_i2c_read_reg_8(handle, LP5562_ADDRESS, 0x00, &enable_reg, LP5562_I2C_TIMEOUT);
 
-    // Engine configuration
     bit_offset = (3 - eng) * 2;
     furi_hal_i2c_read_reg_8(handle, LP5562_ADDRESS, 0x01, &reg_val, LP5562_I2C_TIMEOUT);
     reg_val &= ~(0x3 << bit_offset);
-    reg_val |= (0x01 << bit_offset); // load
+    reg_val |= (0x01 << bit_offset);
     furi_hal_i2c_write_reg_8(handle, LP5562_ADDRESS, 0x01, reg_val, LP5562_I2C_TIMEOUT);
     furi_delay_us(100);
 
-    // Program load
     for(uint8_t i = 0; i < 16; i++) {
-        // Program words are big-endian, so reverse byte order before loading
+
         program[i] = __REV16(program[i]);
     }
     furi_hal_i2c_write_mem(
@@ -149,18 +146,16 @@ void lp5562_execute_program(
         16 * 2,
         LP5562_I2C_TIMEOUT);
 
-    // Program start
     bit_offset = (3 - eng) * 2;
     furi_hal_i2c_read_reg_8(handle, LP5562_ADDRESS, 0x01, &reg_val, LP5562_I2C_TIMEOUT);
     reg_val &= ~(0x3 << bit_offset);
-    reg_val |= (0x02 << bit_offset); // run
+    reg_val |= (0x02 << bit_offset);
     furi_hal_i2c_write_reg_8(handle, LP5562_ADDRESS, 0x01, reg_val, LP5562_I2C_TIMEOUT);
 
-    // Switch output to Execution Engine
     lp5562_set_channel_src(handle, ch, eng);
 
     enable_reg &= ~(0x3 << bit_offset);
-    enable_reg |= (0x02 << bit_offset); // run
+    enable_reg |= (0x02 << bit_offset);
     furi_hal_i2c_write_reg_8(handle, LP5562_ADDRESS, 0x00, enable_reg, LP5562_I2C_TIMEOUT);
 }
 
@@ -169,11 +164,10 @@ void lp5562_stop_program(const FuriHalI2cBusHandle* handle, LP5562Engine eng) {
     uint8_t reg_val = 0;
     uint8_t bit_offset = 0;
 
-    // Engine configuration
     bit_offset = (3 - eng) * 2;
     furi_hal_i2c_read_reg_8(handle, LP5562_ADDRESS, 0x01, &reg_val, LP5562_I2C_TIMEOUT);
     reg_val &= ~(0x3 << bit_offset);
-    // Not setting lowest 2 bits here
+
     furi_hal_i2c_write_reg_8(handle, LP5562_ADDRESS, 0x01, reg_val, LP5562_I2C_TIMEOUT);
 }
 
@@ -186,13 +180,11 @@ void lp5562_execute_ramp(
     uint16_t time) {
     if(val_start == val_end) return;
 
-    // Temporary switch to constant value from register
     lp5562_set_channel_src(handle, ch, LP5562Direct);
 
-    // Prepare command sequence
     uint16_t program[16];
     uint8_t diff = (val_end > val_start) ? (val_end - val_start) : (val_start - val_end);
-    if(diff == 0) { // Making division below safer
+    if(diff == 0) {
         diff = 1;
     }
     uint16_t time_step = time * 2 / diff;
@@ -207,20 +199,18 @@ void lp5562_execute_ramp(
     } else if(time_step > 0x3F)
         time_step = 0x3F;
 
-    program[0] = 0x4000 | val_start; // Set PWM
+    program[0] = 0x4000 | val_start;
     if(val_end > val_start) {
-        program[1] = (prescaller << 14) | (time_step << 8) | ((diff / 2) & 0x7F); // Ramp Up
+        program[1] = (prescaller << 14) | (time_step << 8) | ((diff / 2) & 0x7F);
     } else {
         program[1] = (prescaller << 14) | (time_step << 8) | 0x80 |
-                     ((diff / 2) & 0x7F); // Ramp Down
+                     ((diff / 2) & 0x7F);
     }
-    program[2] = 0xA001 | ((2 - 1) << 7); // Loop to step 1, repeat twice to get full 8-bit scale
-    program[3] = 0xC000; // End
+    program[2] = 0xA001 | ((2 - 1) << 7);
+    program[3] = 0xC000;
 
-    // Execute program
     lp5562_execute_program(handle, eng, LP5562ChannelWhite, program);
 
-    // Write end value to register
     lp5562_set_channel_value(handle, ch, val_end);
 }
 
@@ -231,15 +221,14 @@ void lp5562_execute_blink(
     uint16_t on_time,
     uint16_t period,
     uint8_t brightness) {
-    // Temporary switch to constant value from register
+
     lp5562_set_channel_src(handle, ch, LP5562Direct);
 
-    // Prepare command sequence
     uint16_t program[16];
     uint16_t time_step = 0;
     uint8_t prescaller = 0;
 
-    program[0] = 0x4000 | brightness; // Set PWM
+    program[0] = 0x4000 | brightness;
 
     time_step = on_time * 2;
     if(time_step > 0x3F) {
@@ -252,9 +241,9 @@ void lp5562_execute_blink(
         time_step = 1;
     } else if(time_step > 0x3F)
         time_step = 0x3F;
-    program[1] = (prescaller << 14) | (time_step << 8); // Delay
+    program[1] = (prescaller << 14) | (time_step << 8);
 
-    program[2] = 0x4000 | 0; // Set PWM
+    program[2] = 0x4000 | 0;
 
     time_step = (period - on_time) * 2;
     if(time_step > 0x3F) {
@@ -267,10 +256,9 @@ void lp5562_execute_blink(
         time_step = 1;
     } else if(time_step > 0x3F)
         time_step = 0x3F;
-    program[3] = (prescaller << 14) | (time_step << 8); // Delay
+    program[3] = (prescaller << 14) | (time_step << 8);
 
-    program[4] = 0x0000; // Go to start
+    program[4] = 0x0000;
 
-    // Execute program
     lp5562_execute_program(handle, eng, ch, program);
 }

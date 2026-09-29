@@ -10,7 +10,6 @@
 
 #define UPDATE_ROOT_DIR EXT_PATH("update")
 
-/* Need at least 4 free LFS pages before update */
 #define UPDATE_MIN_INT_FREE_SPACE (2 * 4 * 1024)
 
 static const char* update_prepare_result_descr[] = {
@@ -98,7 +97,7 @@ bool update_operation_get_current_package_manifest_path(Storage* storage, FuriSt
         free(manifest_name_buffer);
         storage_file_free(upd_file);
     } else {
-        /* legacy, will be deprecated */
+
         FuriString* rtcpath;
         rtcpath = furi_string_alloc();
         do {
@@ -166,7 +165,7 @@ UpdatePrepareResult update_operation_prepare(const char* manifest_file_path) {
             result = UpdatePrepareResultOutdatedManifestVersion;
             break;
         }
-        /* Only compare hardware target if it is set - pre-production devices accept any firmware*/
+
         if(furi_hal_version_get_hw_target() &&
            (furi_hal_version_get_hw_target() != manifest->target)) {
             result = UpdatePrepareResultTargetMismatch;

@@ -27,42 +27,14 @@
 
 static FuriHalSerialHandle* s_locked_gpio_usart  = NULL;
 static FuriHalSerialHandle* s_locked_gpio_lpuart = NULL;
-static FuriHalUsbInterface* s_locked_usb_config  = NULL; // saved USB config, restored on unlock
-/* Gates the PIN lock's combined CLI-session-lock + hard-USB-teardown pair
- * as one unit (see desktop_cli_vcp_session_lock_acquire/release below) -
- * independent of s_locked_usb_config's own NULL-ness, since
- * furi_hal_usb_get_config() can legitimately already read NULL at lock
- * time (e.g. the RAM watchdog got there first - see below), in which case
- * s_locked_usb_config staying NULL must not be mistaken for "nothing to
- * release" on unlock. */
-static bool s_locked_usb_disconnected = false;
-static bool s_animation_was_stalled = false;
+static FuriHalUsbInterface* s_locked_usb_config  = NULL;
 
-/* Low-RAM watchdog: separate saved-config slot from s_locked_usb_config
- * above so a RAM trip and a PIN lock can never clobber each other's saved
- * state if both happen to be active at once - see
- * desktop_ram_watchdog_timer_callback() below. */
+static bool s_locked_usb_disconnected = false;
+
 static FuriHalUsbInterface* s_ram_watchdog_usb_config = NULL;
-/* Same reasoning as s_locked_usb_disconnected above, for the RAM watchdog's
- * own combined lock/unlock pair. */
+
 static bool s_ram_watchdog_usb_disconnected = false;
 
-/* Both the PIN lock and the RAM watchdog now pair their hard USB teardown
- * with cli_vcp_session_lock()/_unlock() (see either call site's own
- * comment for why: a hard USB-only teardown doesn't tell CLI VCP's state
- * machine a disconnect happened, so any session active at that exact
- * moment gets orphaned rather than freed - confirmed by reading cdc_deinit()
- * in targets/f7/furi_hal/furi_hal_usb_cdc.c, the same root cause diagnosed
- * and fixed for Garage/Gate/Other's own CLI soft-lock - repeated lock/
- * unlock or trip/recover cycles would otherwise ratchet free heap down a
- * little further each time). Unlike Garage (a single app instance with one
- * call site), these two subsystems can genuinely be active at once (the
- * device can be PIN-locked when a RAM trip fires, or vice versa), and
- * cli_vcp_session_lock()/_unlock() toggle one plain shared bool in CliVcp,
- * not a refcount - a naive lock/unlock pair in each subsystem could let
- * one's recovery prematurely unlock CLI while the other still needs it
- * held. This refcount is the fix: the real cli_vcp_session_unlock() only
- * fires once every acquirer has released. */
 static uint8_t s_cli_vcp_session_lock_refcount = 0;
 
 static void desktop_cli_vcp_session_lock_acquire(void) {
@@ -89,62 +61,26 @@ static void desktop_cli_vcp_session_lock_release(void) {
 #define WALLPAPER_SIZE 1024
 #define WALLPAPER_CHECK_POLL_MS 2000
 
-// Fox Alarm Clock - a 15s scan cadence is plenty precise for a minute-
-// resolution alarm and matches the existing wifi-status poll interval below.
 #define ALARM_CHECK_POLL_MS 15000
 
-// Low-RAM watchdog (last-resort, system-wide - see subghz_garage's own,
-// higher-threshold watchdog for the app-level first line of defense).
-// 1s poll is cheap (a single memmgr call) and responsive enough that a
-// fast RAM drain still gets caught before a furi_check OOM crash.
 #define RAM_WATCHDOG_POLL_MS 1000
-// Trip at 1% of total heap free. Recovered/reset at 2% - simple 2x
-// hysteresis so a reading that's just barely over the trip line doesn't
-// immediately flap the popup/USB back off.
+
 #define RAM_WATCHDOG_TRIP_HEAP_PERCENT      1
 #define RAM_WATCHDOG_RECOVER_HEAP_PERCENT   2
 
+#define DESKTOP_STORAGE_WATCHDOG_TIMEOUT_MS 4000
+
+#define DESKTOP_STORAGE_WATCHDOG_MAX_AUTO_RESETS 3
+
 #define FOX_SETUP_FLAG_PATH      "/int/fox_setup.done"
-#define FOX_SETUP_FLAG_EXT_PATH  "/ext/System/.fox_setup.done"  /* EXT mirror — both must be absent to bypass */
+#define FOX_SETUP_FLAG_EXT_PATH  "/ext/System/.fox_setup.done"
 #define FOX_SETUP_AUTO_ARG   "auto"
 
-/* Fox ESP32 companion apps (foxhub etc.) write "1" or "0"
- * here whenever they confirm the ESP32's WiFi connect state changes -
- * see foxhub's wifi_menu.c. Unrelated to the FOX_SETUP_*
- * flags above (different "Fox" subsystem, same project prefix). The
- * icon itself only ever reads this file (see
- * desktop_wifi_status_timer_callback() below) - it never touches the
- * UART directly, because only one thing can own the ESP32's serial
- * connection at a time and that's whichever Fox app the user
- * currently has open; the icon polling the UART itself on every tick
- * would fight whatever app is running.
- *
- * That used to mean this file could go stale forever with nobody
- * around to correct it - e.g. reflash the ESP32 (or unplug it) while
- * every Fox app is closed, and the icon would just keep showing
- * whatever it last said, since nothing was left to write "0". See
- * desktop_wifi_recheck_thread() further down for the fix: a slow
- * background probe that only touches the UART when nothing else is
- * using it, and rewrites this same file when it gets a real answer.
- * See desktop_wifi_icon_draw_callback()'s header comment for the rest
- * of the icon-drawing reasoning. */
 #define FOX_ESP32_WIFI_STATUS_PATH EXT_PATH("apps_data/fox_esp32/wifi_status.txt")
 #define FOX_ESP32_WIFI_POLL_MS 2000
 
-/* Written by SubGhz_Garage_cc1101_check (applications/fox/SubGhz_Garage_
- * cc1101_check) every time it probes for an external CC1101 module - '1'
- * or '0'. Same read-only-flag-file relationship as FOX_ESP32_WIFI_STATUS_
- * PATH above: the icon (desktop_wifi_icon_draw_callback()) only ever reads
- * this, never probes the hardware itself - see desktop_cc1101_ext_check()
- * further down for what actually keeps it fresh. */
 #define CC1101_EXT_STATUS_PATH EXT_PATH("subghz/.cc1101_ext_status")
 
-/* Written once desktop_wifi_recheck_thread() gets a genuine reply (not just
- * silence) from an ESP32 over the probe UART - its existence means this
- * device has actually had a Fox ESP32 board attached at some point, and is
- * what lets the recheck thread back off to a slow discovery cadence for
- * everyone else instead of probing the UART and cycling a heap buffer every
- * 15 seconds forever regardless of whether there's any ESP32 to find. */
 #define FOX_ESP32_SEEN_PATH EXT_PATH("apps_data/fox_esp32/esp32_seen")
 
 static void desktop_auto_lock_arm(Desktop*);
@@ -153,6 +89,7 @@ static void desktop_start_auto_lock_timer(Desktop*);
 static void desktop_apply_settings(Desktop*);
 static void desktop_load_wallpaper(Desktop*);
 static void desktop_check_wallpaper_updates(Desktop*);
+static void desktop_init_settings(Desktop*);
 
 static void fox_no_sd_draw_callback(Canvas* canvas, void* context);
 
@@ -228,8 +165,6 @@ static void fox_desktop_show_lockout_blocking(Desktop* desktop) {
     }
 }
 
-/* SD-format blocking screen — shown when wipe_method=1 wiped the SD card.
- * No recovery loop: the device must be re-flashed via DFU. */
 static void fox_format_draw_callback(Canvas* canvas, void* context) {
     UNUSED(context);
     canvas_clear(canvas);
@@ -280,7 +215,7 @@ static void fox_desktop_show_corrupt_blocking(Desktop* desktop) {
         furi_hal_usb_set_config(NULL, NULL);
     }
     while(true) {
-        furi_delay_ms(60000);  // No escape — re-flash via DFU required
+        furi_delay_ms(60000);
     }
 }
 
@@ -300,50 +235,50 @@ static const uint8_t s_sample_wallpaper_xbm[WALLPAPER_SIZE] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x60, 0xcc, 0xc7, 0xdc, 0x07, 0x0c, 0x3c, 0xf8, 0xf0, 0x80, 0x19, 0xcf, 0x8f, 0x0f, 0x00,
-    0x00, 0x60, 0xcc, 0xc7, 0xdc, 0x07, 0x0c, 0x3c, 0xf8, 0xf0, 0x80, 0x19, 0xcf, 0x8f, 0x0f, 0x00,
-    0x00, 0x60, 0xec, 0xcf, 0xdc, 0x0f, 0x0c, 0x7e, 0xfc, 0xfc, 0x81, 0x19, 0xcf, 0x9f, 0x0f, 0x00,
-    0x00, 0x60, 0x6c, 0xce, 0xdc, 0x0c, 0x0c, 0xe6, 0x0c, 0x9c, 0x81, 0x19, 0xc3, 0x98, 0x01, 0x00,
-    0x00, 0x60, 0x6c, 0xce, 0xdc, 0x0c, 0x0c, 0xe6, 0x0c, 0x9c, 0x81, 0x19, 0xc3, 0x98, 0x01, 0x00,
-    0x00, 0xe0, 0x6f, 0xce, 0xdc, 0x07, 0x0c, 0xe6, 0x0c, 0x9c, 0x81, 0x1f, 0xcf, 0x8f, 0x0f, 0x00,
-    0x00, 0xc0, 0x67, 0xce, 0xdc, 0x0f, 0x0c, 0xe6, 0xcc, 0x9c, 0x81, 0x1f, 0xcf, 0x9f, 0x0f, 0x00,
-    0x00, 0xc0, 0x67, 0xce, 0xdc, 0x0f, 0x0c, 0xe6, 0xcc, 0x9c, 0x81, 0x1f, 0xcf, 0x9f, 0x0f, 0x00,
-    0x00, 0x80, 0x63, 0xce, 0xdc, 0x0c, 0x0c, 0xe6, 0xcc, 0x9c, 0x81, 0x19, 0xc3, 0x98, 0x01, 0x00,
-    0x00, 0x80, 0x63, 0xce, 0xdc, 0x0c, 0x0c, 0xe6, 0xcc, 0x9c, 0x81, 0x19, 0xc3, 0x98, 0x01, 0x00,
-    0x00, 0x80, 0xe3, 0xcf, 0xdf, 0x0c, 0x7c, 0x7e, 0xfc, 0xfc, 0x81, 0x19, 0xcf, 0x98, 0x0f, 0x00,
-    0x00, 0x80, 0xc3, 0x87, 0xc7, 0x0c, 0x7c, 0x3c, 0xf8, 0xf0, 0x80, 0x19, 0xcf, 0x98, 0x0f, 0x00,
-    0x00, 0x80, 0xc3, 0x87, 0xc7, 0x0c, 0x7c, 0x3c, 0xf8, 0xf0, 0x80, 0x19, 0xcf, 0x98, 0x0f, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xc0, 0x0f, 0x00, 0x00, 0x80, 0xff, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xc0, 0x7f, 0x00, 0x00, 0xc0, 0xff, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x80, 0xff, 0x0f, 0x00, 0xe0, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xf9, 0xff, 0x00, 0xf0, 0xff, 0xdf, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xf2, 0xff, 0xff, 0x7f, 0xff, 0xbf, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x62, 0xff, 0xff, 0x6f, 0xfe, 0x7f, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xc4, 0xfc, 0xff, 0x37, 0xfe, 0x7f, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x18, 0xf3, 0x1f, 0x18, 0xfe, 0x7f, 0x76, 0x02, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x20, 0xcf, 0x01, 0x9c, 0xff, 0xff, 0xae, 0x07, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x60, 0xce, 0x00, 0x1e, 0xfe, 0xff, 0x36, 0x3f, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x60, 0x0e, 0x00, 0x3f, 0xfd, 0x3f, 0x37, 0x7c, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x40, 0x06, 0x00, 0xfe, 0xff, 0x0e, 0x77, 0xf8, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x80, 0x03, 0x00, 0xc0, 0x7f, 0x8c, 0x77, 0xe0, 0x07, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x80, 0x01, 0x00, 0x00, 0x7f, 0xc8, 0x5f, 0xc0, 0x03, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0xf8, 0xc0, 0x47, 0x30, 0x07, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x80, 0xc0, 0x63, 0xc0, 0x1f, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0xf0, 0x07, 0x70, 0x00, 0xc1, 0x00, 0xfe, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x10, 0x04, 0x00, 0x3c, 0xc0, 0x01, 0x00, 0x01, 0xf9, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x58, 0xc4, 0x00, 0xe0, 0x00, 0x0f, 0x00, 0x60, 0xfe, 0x03, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x70, 0x74, 0x00, 0x00, 0x07, 0x3c, 0x00, 0x80, 0xf1, 0x07, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x60, 0xf4, 0xff, 0x7f, 0xfc, 0xf7, 0x03, 0x1c, 0xc7, 0x05, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x40, 0xe6, 0x3f, 0x80, 0xff, 0xff, 0x03, 0xf0, 0x0f, 0x03, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x20, 0xe6, 0x1f, 0xe0, 0x0f, 0xe0, 0x01, 0x8c, 0x1f, 0x06, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x04, 0x7e, 0x80, 0x7f, 0x00, 0xc0, 0x03, 0xc0, 0x33, 0x0d, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x01, 0xff, 0xff, 0x3f, 0x00, 0xb0, 0x3f, 0x80, 0x7f, 0x0e, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xc0, 0x00, 0xff, 0x01, 0x00, 0x00, 0xc0, 0xff, 0x07, 0x7b, 0x0e, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x30, 0xc0, 0x07, 0x00, 0x00, 0xc0, 0x03, 0xff, 0x1f, 0x7a, 0x0e, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x08, 0xf8, 0x03, 0x0c, 0x00, 0x00, 0x3e, 0xfc, 0x7f, 0x7a, 0x0e, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x0f, 0xff, 0xc3, 0x03, 0x80, 0x0f, 0xc0, 0xff, 0x7f, 0x79, 0x0c, 0x00, 0x00,
+    0x00, 0x00, 0xc0, 0x3f, 0x00, 0x7e, 0xe0, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7d, 0x0c, 0x00, 0x00,
+    0x00, 0x00, 0xc0, 0x3f, 0x00, 0x06, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xfe, 0x0d, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0xf1, 0xff, 0xff, 0xff, 0x7f, 0xfe, 0x03, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x70, 0xfc, 0xff, 0xff, 0xff, 0x9f, 0xff, 0x03, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0xff, 0xff, 0xff, 0xff, 0xe7, 0xff, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xfe, 0xff, 0xfb, 0xff, 0xff, 0xff, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0xc1, 0x3f, 0xfe, 0xff, 0xff, 0x3f, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x70, 0xf8, 0x07, 0xff, 0xff, 0xff, 0x0f, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0xff, 0x80, 0xff, 0xff, 0xef, 0x07, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x1f, 0xe0, 0xc7, 0xff, 0xe7, 0x07, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe0, 0x01, 0xfc, 0xe0, 0xff, 0xf1, 0x03, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x00, 0xf0, 0x7f, 0x78, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0xfc, 0x0f, 0x1c, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0xff, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -351,8 +286,6 @@ static const uint8_t s_sample_wallpaper_xbm[WALLPAPER_SIZE] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-// Writes raw XBM bytes out as the text format desktop_load_wallpaper() (and
-// every other Fox tool) expects: "#define ... static unsigned char [] = {0x..,};"
 static void desktop_write_xbm_text(File* f, const uint8_t* raw, size_t len) {
     static const char header[] =
         "#define wallpaper_width 128\n"
@@ -373,11 +306,6 @@ static void desktop_write_xbm_text(File* f, const uint8_t* raw, size_t len) {
     storage_file_write(f, footer, strlen(footer));
 }
 
-// Mirrors the currently-active wallpaper's exact bytes out to a fixed,
-// well-known path so FOX_WEB's Wallpaper Painter can pull "what's actually
-// on screen right now" over RPC with a single file read - no need to also
-// resolve desktop_settings.wallpaper_filename (internal flash, binary,
-// version-migrated) from the browser side.
 static void desktop_write_current_wallpaper_marker(Desktop* desktop, const uint8_t* bits) {
     File* f = storage_file_alloc(desktop->storage);
     if(storage_file_open(f, WALLPAPER_CURRENT_MARKER, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
@@ -404,13 +332,9 @@ static void desktop_ensure_wallpaper(Desktop* desktop) {
         }
         storage_file_free(f);
     }
-    // Default filename is seeded into desktop->settings in desktop_init_settings(),
-    // after desktop_settings_load() runs — desktop->settings isn't loaded yet here.
+
 }
 
-
-// Boot-time SD card required blocking screen.
-// Pubsub callback fires the moment storage mounts the card — restart is instant.
 static volatile bool s_sd_mounted_event = false;
 
 static void fox_sd_pubsub_callback(const void* message, void* context) {
@@ -454,6 +378,120 @@ static void fox_desktop_show_no_sd_blocking(Desktop* desktop) {
     }
 }
 
+static int32_t desktop_boot_init_settings_thread(void* context) {
+    Desktop* desktop = context;
+    desktop_init_settings(desktop);
+    return 0;
+}
+
+#define STORAGE_WATCHDOG_TEXT_CENTER_X 81
+
+static void fox_storage_watchdog_draw_recovering(Canvas* canvas, void* context) {
+    uint32_t attempt = (uint32_t)(uintptr_t)context;
+    canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
+    canvas_draw_icon(canvas, 2, 6, &I_fox_32x32);
+
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str_aligned(
+        canvas, STORAGE_WATCHDOG_TEXT_CENTER_X, 6, AlignCenter, AlignTop, "SD Card Stuck");
+
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str_aligned(
+        canvas, STORAGE_WATCHDOG_TEXT_CENTER_X, 18, AlignCenter, AlignTop, "Recovering...");
+
+    char buf[24];
+    snprintf(
+        buf,
+        sizeof(buf),
+        "Attempt %lu of %d",
+        (unsigned long)attempt,
+        DESKTOP_STORAGE_WATCHDOG_MAX_AUTO_RESETS);
+    canvas_draw_str_aligned(
+        canvas, STORAGE_WATCHDOG_TEXT_CENTER_X, 29, AlignCenter, AlignTop, buf);
+}
+
+static void fox_storage_watchdog_draw_stuck(Canvas* canvas, void* context) {
+    UNUSED(context);
+    canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
+    canvas_draw_icon(canvas, 2, 6, &I_fox_32x32);
+
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str_aligned(
+        canvas, STORAGE_WATCHDOG_TEXT_CENTER_X, 6, AlignCenter, AlignTop, "SD Card Problem");
+
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str_aligned(
+        canvas, STORAGE_WATCHDOG_TEXT_CENTER_X, 18, AlignCenter, AlignTop, "Recovery gave up");
+    canvas_draw_str_aligned(
+        canvas, STORAGE_WATCHDOG_TEXT_CENTER_X, 29, AlignCenter, AlignTop, "Remove/reseat SD,");
+    canvas_draw_str_aligned(
+        canvas, STORAGE_WATCHDOG_TEXT_CENTER_X, 40, AlignCenter, AlignTop, "reformat it, then");
+    canvas_draw_str_aligned(
+        canvas, STORAGE_WATCHDOG_TEXT_CENTER_X, 51, AlignCenter, AlignTop, "resetting Flipper");
+}
+
+static void desktop_storage_watchdog_usb_disconnect_and_reset(void) {
+    furi_hal_usb_unlock();
+    furi_hal_usb_disable();
+    furi_delay_ms(500);
+    furi_hal_power_reset();
+}
+
+static void desktop_storage_watchdog_trigger(Desktop* desktop) {
+    uint32_t trips = furi_hal_rtc_get_register(FuriHalRtcRegisterStorageWatchdogTrips) + 1;
+    furi_hal_rtc_set_register(FuriHalRtcRegisterStorageWatchdogTrips, trips);
+
+    FURI_LOG_E(
+        TAG,
+        "Boot-time storage watchdog tripped (attempt %lu/%d): wallpaper/settings load "
+        "didn't return within %dms",
+        (unsigned long)trips,
+        DESKTOP_STORAGE_WATCHDOG_MAX_AUTO_RESETS,
+        DESKTOP_STORAGE_WATCHDOG_TIMEOUT_MS);
+
+    ViewPort* vp = view_port_alloc();
+    view_port_input_callback_set(vp, fox_lockout_input_callback, NULL);
+
+    if(trips <= DESKTOP_STORAGE_WATCHDOG_MAX_AUTO_RESETS) {
+        view_port_draw_callback_set(
+            vp, fox_storage_watchdog_draw_recovering, (void*)(uintptr_t)trips);
+        gui_add_view_port(desktop->gui, vp, GuiLayerFullscreen);
+        furi_delay_ms(1500);
+        desktop_storage_watchdog_usb_disconnect_and_reset();
+    } else {
+        view_port_draw_callback_set(vp, fox_storage_watchdog_draw_stuck, NULL);
+        gui_add_view_port(desktop->gui, vp, GuiLayerFullscreen);
+        while(true) {
+            furi_delay_ms(1000);
+        }
+    }
+}
+
+static void desktop_init_settings_with_watchdog(Desktop* desktop) {
+    FuriThread* thread = furi_thread_alloc();
+    furi_thread_set_name(thread, "DesktopBootInit");
+    furi_thread_set_stack_size(thread, 2048);
+    furi_thread_set_context(thread, desktop);
+    furi_thread_set_callback(thread, desktop_boot_init_settings_thread);
+    furi_thread_start(thread);
+
+    uint32_t waited_ms = 0;
+    while(furi_thread_get_state(thread) != FuriThreadStateStopped) {
+        if(waited_ms >= DESKTOP_STORAGE_WATCHDOG_TIMEOUT_MS) {
+            desktop_storage_watchdog_trigger(desktop);
+        }
+        furi_delay_ms(50);
+        waited_ms += 50;
+    }
+
+    furi_thread_join(thread);
+    furi_thread_free(thread);
+
+    furi_hal_rtc_set_register(FuriHalRtcRegisterStorageWatchdogTrips, 0);
+}
+
 #define FOX_SETUP_FAP_PATH EXT_PATH("apps/Fox/fox_setup.fap")
 
 static FuriThread* s_fox_setup_launch_thread = NULL;
@@ -470,8 +508,7 @@ static int32_t desktop_fox_setup_launch_thread_fn(void* context) {
     if(!storage_file_exists(desktop->storage, FOX_SETUP_FAP_PATH)) {
         FURI_LOG_E("FoxSetup", "fox_setup.fap not found at %s — wizard cannot launch",
                    FOX_SETUP_FAP_PATH);
-        /* If a slideshow was deferred waiting for fox_setup to exit, unblock
-           it now — otherwise it stays stuck until the next app happens to run. */
+
         if(desktop->pending_slideshow) {
             view_dispatcher_send_custom_event(
                 desktop->view_dispatcher, DesktopGlobalAfterAppFinished);
@@ -498,7 +535,6 @@ static void desktop_loader_callback(const void* message, void* context) {
 
     if(event->type == LoaderEventTypeApplicationBeforeLoad) {
         view_dispatcher_send_custom_event(desktop->view_dispatcher, DesktopGlobalBeforeAppStarted);
-        furi_check(furi_semaphore_acquire(desktop->animation_semaphore, 3000) == FuriStatusOk);
     } else if(event->type == LoaderEventTypeNoMoreAppsInQueue) {
         view_dispatcher_send_custom_event(desktop->view_dispatcher, DesktopGlobalAfterAppFinished);
     }
@@ -509,17 +545,19 @@ static void desktop_storage_callback(const void* message, void* context) {
     Desktop* desktop = context;
     const StorageEvent* event = message;
 
+    if(desktop->usb_msc_active) {
+        return;
+    }
+
     if(event->type == StorageEventTypeCardMount) {
-        // If the "no SD" overlay is showing (mid-session ejection), request a safe
-        // reboot via the view dispatcher thread rather than calling reset directly
-        // from this storage callback context.
+
         if(desktop->no_sd_viewport != NULL) {
             view_dispatcher_send_custom_event(
                 desktop->view_dispatcher, DesktopGlobalSdCardMounted);
         }
         view_dispatcher_send_custom_event(desktop->view_dispatcher, DesktopGlobalReloadSettings);
     } else if(event->type == StorageEventTypeCardUnmount) {
-        // SD card was ejected mid-session — show blocking overlay immediately
+
         view_dispatcher_send_custom_event(desktop->view_dispatcher, DesktopGlobalSdCardRemoved);
     }
 }
@@ -591,12 +629,6 @@ static void desktop_stealth_mode_icon_draw_callback(Canvas* canvas, void* contex
     canvas_draw_icon(canvas, 0, 0, &I_Muted_8x8);
 }
 
-/* Three states, checked in this priority order: WiFi connected always wins
- * (it's the more commonly-used indicator and the one users are already
- * used to checking here), then CC1101 external module connected, then
- * neither - reusing the existing "disconnected" glyph for that last case
- * rather than a fourth icon, same as before this icon meant two different
- * things. */
 static void desktop_wifi_icon_draw_callback(Canvas* canvas, void* context) {
     Desktop* desktop = context;
     furi_assert(canvas);
@@ -627,17 +659,6 @@ static void desktop_wifi_status_timer_callback(void* context) {
     }
     storage_file_close(f);
 
-    /* Root cause of the bootloop (found and fixed here): this used to call
-     * storage_file_free(f) right above, then reuse the same (now-freed) f
-     * for the CC1101_EXT_STATUS_PATH open below, then free it a second
-     * time at the end - a use-after-free followed by a double-free on
-     * every single boot (this callback runs synchronously inside
-     * desktop_alloc() before anything else, then every
-     * FOX_ESP32_WIFI_POLL_MS after that), corrupting the heap allocator.
-     * storage_file_close() (not free) is enough to reuse the same handle
-     * for a second open - only storage_file_free() actually releases the
-     * File struct, and that must happen exactly once, after both opens are
-     * done. */
     bool cc1101_connected = false;
     if(storage_file_open(f, CC1101_EXT_STATUS_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
         char buf[1] = {0};
@@ -664,16 +685,11 @@ static void desktop_wifi_status_timer_callback(void* context) {
     gui_view_port_send_to_front(desktop->gui, desktop->wifi_icon_viewport);
 }
 
-
 #define FOX_ESP32_WIFI_RECHECK_MS        15000
 #define FOX_ESP32_WIFI_DISCOVERY_MS      (1 * 60 * 1000)
 #define FOX_ESP32_WIFI_PROBE_TIMEOUT_MS  500
 #define FOX_ESP32_WIFI_PROBE_BAUD        115200
-/* The CC1101 probe used to run on its own flat 30-minute timer, completely
- * independent of boot - it never got anywhere near boot timing before. Now
- * that it shares this thread's cadence, block it from running at all until
- * this much uptime has passed, so it can't land in the same narrow
- * post-boot window that timer never exposed it to. */
+
 #define FOX_CC1101_BOOT_SETTLE_MS        5000
 
 typedef struct {
@@ -691,35 +707,13 @@ static void fox_wifi_probe_rx_callback(
     }
 }
 
-/* Returns 1 for a confirmed "true" reply, 0 for a confirmed "false"
-   reply, -1 if the UART was already owned by another app (port busy -
-   a Fox app is running and managing wifi_status.txt itself; the caller
-   must NOT overwrite the file this cycle), or -2 if we acquired the
-   port ourselves but got no usable reply before the timeout (nothing
-   wired to this pin pair, or whatever's out there didn't answer). The
-   -1 vs -2 distinction matters to desktop_wifi_recheck_thread() below:
-   -1 = skip the write, -2 = write "0" (genuinely nothing here). */
 static int fox_wifi_probe_pins(FuriHalSerialId serial_id) {
     Expansion* expansion = furi_record_open(RECORD_EXPANSION);
     expansion_disable(expansion);
 
     FuriHalSerialHandle* handle = furi_hal_serial_control_acquire(serial_id);
     if(handle == NULL) {
-        /* Already owned by a running Fox app - back off, don't contend.
-         *
-         * Do NOT call expansion_enable() here. We only land in this branch
-         * when something else currently owns the port, which means that
-         * something already called expansion_disable() itself and expects
-         * it to stay disabled for the rest of its own session (fox_esp32_flasher
-         * disables it once at open and doesn't re-enable until close). Our
-         * own expansion_disable() call just above was therefore already a
-         * no-op (state was Disabled already) -- calling expansion_enable()
-         * here would flip shared global expansion state back on and
-         * re-register the module hot-plug-detect callback on whatever port
-         * the user's Expansion settings point at, out from under whatever
-         * app currently owns the serial port, mid-session. This was likely
-         * corrupting active ESP32 flashes once a minute regardless of which
-         * app was running. */
+
         furi_record_close(RECORD_EXPANSION);
         return -1;
     }
@@ -740,7 +734,7 @@ static int fox_wifi_probe_pins(FuriHalSerialId serial_id) {
 
     char line[32];
     size_t line_len = 0;
-    int result = -2; /* -2 = acquired port but no response yet */
+    int result = -2;
     uint32_t deadline = furi_get_tick() + furi_ms_to_ticks(FOX_ESP32_WIFI_PROBE_TIMEOUT_MS);
     while(furi_get_tick() < deadline) {
         uint8_t byte;
@@ -750,20 +744,6 @@ static int fox_wifi_probe_pins(FuriHalSerialId serial_id) {
             if(line_len > 0 && line[line_len - 1] == '\r') line_len--;
             line[line_len] = '\0';
 
-            /* Our own firmware's [WIFI/STATUS] handler
-               (http_bridge.cpp) replies with the tag and value
-               concatenated on one line - "[WIFI/STATUS/SUCCESS]true",
-               not a bare "true" on its own line. Comparing the raw
-               line against "true"/"false" therefore never matched,
-               this probe silently timed out (-2) every single cycle
-               regardless of the real WiFi state, and the recheck
-               thread below wrote "0" once a minute even while
-               genuinely connected - exactly the "icon flips to
-               disconnected after a while" bug. Strip a leading
-               "[...]" tag, if present, before comparing so this
-               works against both our own tagged reply and a bare
-               "true"/"false" (what a real FlipperHTTP-spec device
-               would send for this same query). */
             const char* val = line;
             if(val[0] == '[') {
                 const char* close = strchr(val, ']');
@@ -777,13 +757,12 @@ static int fox_wifi_probe_pins(FuriHalSerialId serial_id) {
                 result = 0;
                 break;
             }
-            /* Some other line (banner text, an echoed prompt, whatever) -
-               keep listening instead of giving up on the first miss. */
+
             line_len = 0;
         } else if(line_len < sizeof(line) - 1) {
             line[line_len++] = (char)byte;
         } else {
-            line_len = 0; /* overlong line - drop it, resync on the next \n */
+            line_len = 0;
         }
     }
 
@@ -799,15 +778,6 @@ static int fox_wifi_probe_pins(FuriHalSerialId serial_id) {
     return result;
 }
 
-/* Fire-and-forget nudge telling the ESP32 to re-check its timezone offset
-   (see FoxTz::refreshOffset() / the new [TZ/REFRESH] command in
-   Fox_ESP32_FW's http_bridge.cpp). Piggybacks on the exact same
-   acquire/release safety dance as fox_wifi_probe_pins() above - it must
-   never contend with whatever Fox app the user currently has open, so it
-   silently gives up if the port is busy (result -1 there) and just tries
-   again on the next scheduled half-hour slot instead. No reply is read
-   back; this is purely a maintenance ping, not something the desktop
-   service needs to block on. */
 static void fox_tz_refresh_send(FuriHalSerialId serial_id) {
     Expansion* expansion = furi_record_open(RECORD_EXPANSION);
     expansion_disable(expansion);
@@ -860,38 +830,8 @@ static void fox_wifi_mark_esp32_seen(Storage* storage) {
     storage_file_free(file);
 }
 
-/* Garage/Gate/Other is hardcoded to the internal CC1101 - the code path
- * that lets it use an external module was disconnected along with Radio
- * Settings (see subghz_txrx_radio_device_set() in that app's helpers/
- * subghz_txrx.c, now unreachable) because actually checking "is an
- * external module present" costs ~25KB (subghz_devices_load_external()
- * loads a real .fal plugin) - not affordable to pay on every launch just
- * to learn the answer is usually "no".
- *
- * Called from desktop_wifi_recheck_thread() below, behind the same idle
- * gate and boot-settle guard as the WiFi UART probe (see
- * FOX_CC1101_BOOT_SETTLE_MS above). Runs the same load/query/unload
- * sequence SubGhz_Garage_cc1101_check.fap used to run as a separate
- * launched app - inlined directly here instead of going through
- * loader_start() so this background check no longer has to launch a whole
- * external app from a service thread just to answer one yes/no question;
- * the transient ~25KB plugin-load cost is freed again by
- * subghz_devices_deinit() below either way. Also launched, separately,
- * every time the user opens Garage/Gate/Other via core subghz's Mode
- * Picker (see subghz_scene_mode_picker_launch_garage_and_exit() in
- * applications/main/subghz/scenes/subghz_scene_mode_picker.c - that path
- * still launches SubGhz_Garage_cc1101_check.fap itself, unrelated to this
- * background check). Garage/Gate/Other itself just reads whichever flag is
- * cached (see subghz_txrx_ensure_radio_init() in that app) instead of
- * probing itself. */
 static void desktop_cc1101_ext_check(Desktop* desktop) {
-    // Caller already confirmed nothing else is running/the device isn't
-    // locked - see desktop_wifi_recheck_thread() below. That matters here
-    // more than it used to: the subghz device registry below is a global
-    // singleton (lib/subghz/devices/devices.c) that hard-crashes via
-    // furi_check() if something else already has it initialized, and
-    // there's no Loader arbitration protecting us from that anymore now
-    // that this runs inline instead of as a separate launched app.
+
     bool connected = false;
 
     subghz_devices_init_internal_only();
@@ -913,14 +853,6 @@ static void desktop_cc1101_ext_check(Desktop* desktop) {
     }
     storage_file_free(file);
 
-    /* Update the live icon state directly instead of only writing the flag
-     * file and waiting for desktop_wifi_status_timer_callback()'s own
-     * separate FOX_ESP32_WIFI_POLL_MS poll to notice it - this is the only
-     * caller that ever has a fresh, just-measured answer in hand, so there's
-     * no reason to make the icon wait up to another 2s for it.
-     * view_port_update() is safe to call from any thread (same pattern
-     * desktop_wifi_status_timer_callback() already uses from its own,
-     * different thread context). */
     if(connected != desktop->cc1101_connected) {
         desktop->cc1101_connected = connected;
         view_port_update(desktop->wifi_icon_viewport);
@@ -930,35 +862,10 @@ static void desktop_cc1101_ext_check(Desktop* desktop) {
 static int32_t desktop_wifi_recheck_thread(void* context) {
     Desktop* desktop = context;
 
-    /* Until an ESP32 has genuinely answered at least once on this device,
-     * probe on the slow FOX_ESP32_WIFI_DISCOVERY_MS cadence instead of every
-     * FOX_ESP32_WIFI_RECHECK_MS - most FoxFW users don't have an ESP32
-     * companion board attached, and there's no reason to cycle a UART probe
-     * plus a heap alloc/free every 15 seconds forever just in case one shows
-     * up. Once fox_wifi_probe_pins() gets a real reply (not just silence),
-     * this switches to the fast cadence for the rest of this boot and stays
-     * that way on every future boot via the FOX_ESP32_SEEN_PATH marker. This
-     * same cadence now also governs desktop_cc1101_ext_check() below - see
-     * its own comment for why the two were merged into one thread. */
     bool esp32_seen = storage_file_exists(desktop->storage, FOX_ESP32_SEEN_PATH);
 
-    /* Probe immediately on the first pass, THEN settle into the normal
-       once-a-minute cadence below - previously this slept a full
-       FOX_ESP32_WIFI_RECHECK_MS before ever checking once, so on a
-       fresh boot the icon just showed whatever the flag file happened
-       to already say (stale from before the reset, or the default
-       "disconnected" if the file didn't exist yet) for up to a minute
-       even when the ESP32 was already connected the whole time. This
-       is a rare-but-real case: Flipper resets/reflashes while the
-       ESP32 stays powered and associated. Wanting the icon right "from
-       the start" means this first check can't wait for the delay at
-       the bottom of the loop. */
     bool first_pass = true;
-    /* Tracks which half-hour "slot" (hour*2 + 0-or-1) we last sent
-       [TZ/REFRESH] for, so the check below fires at most once per slot
-       even though this loop runs every FOX_ESP32_WIFI_RECHECK_MS (15s) -
-       several iterations will land inside the same "just past xx:00 or
-       xx:30" window. -1 means "haven't sent one yet this boot". */
+
     int last_tz_refresh_slot = -1;
     uint32_t thread_start_tick = furi_get_tick();
     while(true) {
@@ -967,13 +874,6 @@ static int32_t desktop_wifi_recheck_thread(void* context) {
         }
         first_pass = false;
 
-        /* Both the WiFi UART probe and the CC1101 probe below only make
-         * sense, and only stay unobtrusive, while nothing else has the
-         * screen - same "genuinely idle" gate desktop_lock's auto-lock
-         * decision and the clock-lock scene already use elsewhere in this
-         * file. Skip this whole cycle if not idle right now; the next
-         * scheduled cycle checks again rather than trying to catch the
-         * exact moment idle starts. */
         if(desktop->app_running || desktop->locked) {
             continue;
         }
@@ -982,14 +882,7 @@ static int32_t desktop_wifi_recheck_thread(void* context) {
         int result_usart = fox_wifi_probe_pins(FuriHalSerialIdUsart);
         int result = result_usart;
         if(result_usart == -2) {
-            /* Only fall back to the alt pin pair when USART genuinely had
-             * nothing answer (-2) -- NOT when it was busy (-1). -1 means a
-             * running app currently owns the serial port and we must back
-             * off completely this cycle; trying LPUART next would still run
-             * a full expansion_disable()/acquire()/expansion_enable() cycle
-             * (see fox_wifi_probe_pins) while that app is mid-session, for
-             * no benefit, since the whole point of probing at all is to
-             * self-correct the icon while nothing else is using the UART. */
+
             result = fox_wifi_probe_pins(FuriHalSerialIdLpuart);
             working_id = FuriHalSerialIdLpuart;
         }
@@ -1003,14 +896,6 @@ static int32_t desktop_wifi_recheck_thread(void* context) {
                 fox_wifi_mark_esp32_seen(desktop->storage);
             }
 
-            /* Re-check the ESP32's timezone offset shortly after every
-               xx:00 and xx:30, so a DST shift gets picked up within half
-               an hour instead of staying wrong until the next manual WiFi
-               reconnect (see FoxTz::refreshOffset() - it's otherwise only
-               ever called once, right after a successful [WIFI/CONNECT]).
-               Only makes sense to bother if we just confirmed the ESP32 is
-               actually connected - matches the same serial pin pair that
-               just answered us, so no extra port-hunting. */
             if(connected) {
                 DateTime now;
                 furi_hal_rtc_get_datetime(&now);
@@ -1024,22 +909,8 @@ static int32_t desktop_wifi_recheck_thread(void* context) {
             }
         }
 
-        /* Skip the CC1101 probe entirely until FOX_CC1101_BOOT_SETTLE_MS of
-         * uptime has passed - see that define's comment. On first_pass this
-         * is always true (thread just started), so the very first CC1101
-         * check is deferred to a later loop iteration instead of running
-         * within ~1-2s of Desktop starting, which is what this thread's
-         * skip-the-delay-on-first_pass behavior (added for the WiFi icon,
-         * above) was letting happen every single boot after the CC1101
-         * check got merged onto this thread. */
         if(furi_get_tick() - thread_start_tick >= furi_ms_to_ticks(FOX_CC1101_BOOT_SETTLE_MS)) {
-            /* Give the UART/Expansion teardown above (furi_hal_serial_deinit(),
-             * expansion_enable() - see fox_wifi_probe_pins()'s own cleanup) a
-             * moment to fully settle before the CC1101 probe app below starts
-             * touching its own GPIO/SPI peripherals. These probes ran on
-             * completely independent timers before this session merged them
-             * onto one thread/cadence, so they never used to land back-to-back
-             * like this. */
+
             furi_delay_ms(300);
 
             desktop_cc1101_ext_check(desktop);
@@ -1053,11 +924,8 @@ static void desktop_wallpaper_draw_callback(Canvas* canvas, void* model) {
     if(!model) return;
     Desktop* desktop = *(Desktop**)model;
 
-    // wallpaper_data is freed/reassigned from other threads (the periodic
-    // check timer, the settings-save event handler) - must not read it
-    // without the lock, or a free() racing this draw is a use-after-free.
     furi_mutex_acquire(desktop->wallpaper_mutex, FuriWaitForever);
-    if(desktop->wallpaper_data && desktop->settings.wallpaper_enabled) {
+    if(desktop->wallpaper_data) {
         canvas_clear(canvas);
         canvas_draw_xbm(canvas, 0, 0, 128, 64, desktop->wallpaper_data);
     }
@@ -1069,24 +937,11 @@ static bool desktop_custom_event_callback(void* context, uint32_t event) {
     Desktop* desktop = (Desktop*)context;
 
     if(event == DesktopGlobalBeforeAppStarted) {
-        s_animation_was_stalled = animation_manager_is_animation_loaded(desktop->animation_manager);
-        if(s_animation_was_stalled) {
-            animation_manager_unload_and_stall_animation(desktop->animation_manager);
-        }
         desktop_auto_lock_inhibit(desktop);
         desktop->app_running = true;
-        furi_semaphore_release(desktop->animation_semaphore);
 
     } else if(event == DesktopGlobalAfterAppFinished) {
-        /* Do NOT call animation_manager_load_and_continue_animation here.
-         * Fox Theme does not install Dolphin animation files on the SD card,
-         * so the animation loader returns NULL → null-pointer crash inside
-         * the animation manager even when the stall flag guard is correct.
-         * The animation manager stays in FreezedIdle which is invisible on
-         * the Fox Theme home screen. Classic Theme users lose the Dolphin
-         * animation between app sessions but this is an acceptable trade-off
-         * for a stable exit path on all hardware. */
-        s_animation_was_stalled = false;
+
         desktop_auto_lock_arm(desktop);
         desktop->app_running = false;
         desktop_check_wallpaper_updates(desktop);
@@ -1098,8 +953,6 @@ static bool desktop_custom_event_callback(void* context, uint32_t event) {
             }
         }
 
-        // A Fox Alarm Clock alarm fired while an app was running - couldn't
-        // interrupt it safely, but we're back at idle now.
         if(desktop->alarm_ringing) {
             scene_manager_next_scene(desktop->scene_manager, DesktopSceneClockLock);
         }
@@ -1151,7 +1004,6 @@ static void desktop_tick_event_callback(void* context) {
     Desktop* app = context;
     scene_manager_handle_tick_event(app->scene_manager);
 
-    // Run storage-intensive checks only every 2 s (tick fires every 500 ms).
     static uint32_t s_last_integrity_ms = 0;
     uint32_t now = furi_get_tick();
     if(now - s_last_integrity_ms < furi_ms_to_ticks(2000)) return;
@@ -1166,7 +1018,7 @@ static void desktop_tick_event_callback(void* context) {
 
         if(!int_ok && !ext_ok) {
             if(storage_file_exists(s, FOX_SETUP_FLAG_PATH)) {
-                furi_hal_power_reset();  // boot will show Firmware Corrupt screen
+                furi_hal_power_reset();
             }
         } else if(!int_ok && ext_ok) {
             fox_settings_sync_sd_to_int();
@@ -1254,7 +1106,6 @@ static void desktop_clock_timer_callback(void* context) {
     desktop_clock_update(desktop);
 }
 
-// Convert two ASCII hex characters to a byte value.
 static uint8_t desktop_hex2byte(char hi, char lo) {
     uint8_t h = (hi >= 'a') ? (uint8_t)(hi - 'a' + 10) :
                 (hi >= 'A') ? (uint8_t)(hi - 'A' + 10) : (uint8_t)(hi - '0');
@@ -1263,9 +1114,6 @@ static uint8_t desktop_hex2byte(char hi, char lo) {
     return (h << 4) | l;
 }
 
-// Parses XBM text into a raw 1024-byte bitmap (scans for '{', pulls every 0xNN value).
-// Returns true and fills `out` (must be WALLPAPER_SIZE bytes) only on a full,
-// exact-size parse - any short/garbled file is treated as invalid.
 static bool desktop_parse_xbm_file(Storage* storage, const char* path, uint8_t* out) {
     File* file = storage_file_alloc(storage);
     if(!storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING)) {
@@ -1275,7 +1123,6 @@ static bool desktop_parse_xbm_file(Storage* storage, const char* path, uint8_t* 
 
     size_t count = 0;
 
-    // State machine: 0=scan '{', 1=scan '0', 2=expect 'x', 3=first hex digit, 4=second hex digit
     uint8_t state = 0;
     char    hi_digit = 0;
     bool    finished = false;
@@ -1316,8 +1163,6 @@ static bool desktop_parse_xbm_file(Storage* storage, const char* path, uint8_t* 
     return count == WALLPAPER_SIZE;
 }
 
-// Checks a candidate file's XBM text header for exactly 128x64, same
-// validation FOX_WEB's tools and the settings scene's wallpaper list use.
 static bool desktop_wallpaper_header_is_128x64(Storage* storage, const char* path) {
     File* file = storage_file_alloc(storage);
     bool ok = false;
@@ -1340,11 +1185,6 @@ static bool desktop_wallpaper_header_is_128x64(Storage* storage, const char* pat
 #define WALLPAPER_CYCLE_NAME_MAX 64
 #define WALLPAPER_CYCLE_LIST_MAX 64
 
-// Scans WALLPAPER_DIR for valid 128x64 *.xbm files, alphabetically sorted -
-// same filter/order as FOX_WEB's Wallpaper Painter and the Fox Settings
-// wallpaper scene use, duplicated here since this needs to run from the
-// always-on Desktop service rather than a foreground app. `names` must hold
-// max_count * WALLPAPER_CYCLE_NAME_MAX bytes.
 static uint8_t desktop_list_wallpapers(
     Desktop* desktop,
     char (*names)[WALLPAPER_CYCLE_NAME_MAX],
@@ -1356,7 +1196,7 @@ static uint8_t desktop_list_wallpapers(
         char name[128];
         while(count < max_count && storage_dir_read(dir, &info, name, sizeof(name))) {
             if(info.flags & FSF_DIRECTORY) continue;
-            if(name[0] == '.') continue; // skip .activate / .current markers
+            if(name[0] == '.') continue;
 
             size_t len = strlen(name);
             if(len < 4 || strcasecmp(name + len - 4, ".xbm") != 0) continue;
@@ -1387,11 +1227,6 @@ static uint8_t desktop_list_wallpapers(
     return count;
 }
 
-// Long-press Right on the idle desktop - a quick way to switch wallpapers
-// without going into Fox Settings. Off -> on (keeps the previous selection
-// if it still exists, else picks the first file alphabetically). On with
-// only one file -> off (back to the default Fox background). On with 2+
-// files -> advances to the next one alphabetically, wrapping around.
 void desktop_cycle_wallpaper(Desktop* desktop) {
     furi_assert(desktop);
 
@@ -1441,32 +1276,34 @@ void desktop_cycle_wallpaper(Desktop* desktop) {
     desktop_load_wallpaper(desktop);
 }
 
-// Loads (or reloads) the currently-selected wallpaper. Parses into a scratch
-// buffer first and only swaps it in if the content actually changed, so a
-// no-op reload (the common case on every periodic check) never blanks the
-// screen for a frame.
 static void desktop_load_wallpaper(Desktop* desktop) {
     furi_assert(desktop);
 
-    if(!desktop->settings.wallpaper_enabled || desktop->settings.wallpaper_filename[0] == '\0') {
-        furi_mutex_acquire(desktop->wallpaper_mutex, FuriWaitForever);
-        if(desktop->wallpaper_data) {
-            free(desktop->wallpaper_data);
-            desktop->wallpaper_data = NULL;
-        }
-        furi_mutex_release(desktop->wallpaper_mutex);
-        storage_simply_remove(desktop->storage, WALLPAPER_CURRENT_MARKER);
-        return;
-    }
+    // wallpaper_enabled now only decides WHICH file gets loaded -- the user's chosen custom
+    // file when enabled, the compiled-in default (fox logo) file otherwise -- never whether
+    // anything gets loaded at all. desktop_wallpaper_draw_callback draws unconditionally
+    // whenever wallpaper_data is non-NULL, so this must always resolve to a real file.
+    const char* filename = (desktop->settings.wallpaper_enabled &&
+                             desktop->settings.wallpaper_filename[0] != '\0') ?
+                                desktop->settings.wallpaper_filename :
+                                DEFAULT_WALLPAPER_NAME;
 
     char path[96];
-    snprintf(
-        path, sizeof(path), "%s/%s", WALLPAPER_DIR, desktop->settings.wallpaper_filename);
+    snprintf(path, sizeof(path), "%s/%s", WALLPAPER_DIR, filename);
 
-    // Parsing/file I/O happens outside the lock - only the pointer swap
-    // itself (below) needs to be exclusive with the draw callback.
     uint8_t* out = malloc(WALLPAPER_SIZE);
-    if(!desktop_parse_xbm_file(desktop->storage, path, out)) {
+    bool ok = desktop_parse_xbm_file(desktop->storage, path, out);
+
+    if(!ok && strcmp(filename, DEFAULT_WALLPAPER_NAME) != 0) {
+        // Chosen custom file missing or unreadable: fall back to the default picture rather
+        // than leaving the idle screen with nothing to draw.
+        char default_path[96];
+        snprintf(
+            default_path, sizeof(default_path), "%s/%s", WALLPAPER_DIR, DEFAULT_WALLPAPER_NAME);
+        ok = desktop_parse_xbm_file(desktop->storage, default_path, out);
+    }
+
+    if(!ok) {
         free(out);
         furi_mutex_acquire(desktop->wallpaper_mutex, FuriWaitForever);
         if(desktop->wallpaper_data) {
@@ -1481,7 +1318,7 @@ static void desktop_load_wallpaper(Desktop* desktop) {
     furi_mutex_acquire(desktop->wallpaper_mutex, FuriWaitForever);
     if(desktop->wallpaper_data && memcmp(desktop->wallpaper_data, out, WALLPAPER_SIZE) == 0) {
         furi_mutex_release(desktop->wallpaper_mutex);
-        free(out); // unchanged - keep the buffer already on screen
+        free(out);
         return;
     }
     uint8_t* old_data = desktop->wallpaper_data;
@@ -1491,12 +1328,6 @@ static void desktop_load_wallpaper(Desktop* desktop) {
     desktop_write_current_wallpaper_marker(desktop, out);
 }
 
-// Consumes a pending "activate this wallpaper" request left by the Wallpaper
-// Painter/Showcase web pages after they write a new file over RPC (see
-// WALLPAPER_ACTIVATE_MARKER), then re-checks the currently selected file for
-// content changes (e.g. overwritten via qFlipper while an app was open).
-// Called both from a periodic timer and whenever the user returns to the
-// desktop, so a pending change is picked up promptly either way.
 static void desktop_check_wallpaper_updates(Desktop* desktop) {
     if(storage_sd_status(desktop->storage) != FSE_OK) return;
 
@@ -1510,7 +1341,6 @@ static void desktop_check_wallpaper_updates(Desktop* desktop) {
         }
         storage_file_free(f);
 
-        // Trim any trailing newline/whitespace the web client's write left behind.
         size_t len = strlen(name);
         while(len > 0 && (name[len - 1] == '\n' || name[len - 1] == '\r' || name[len - 1] == ' ')) {
             name[--len] = '\0';
@@ -1541,11 +1371,6 @@ static void desktop_wallpaper_check_timer_callback(void* context) {
     desktop_check_wallpaper_updates(desktop);
 }
 
-// --- FOX ALARM CLOCK ---
-
-// DateTime.weekday is 1=Monday..7=Sunday (see lib/datetime/datetime.c);
-// FOX_ALARM_DAY_* bits are Sunday-first for a natural on-screen Sun..Sat
-// layout, so this just maps one numbering onto the other.
 static uint8_t desktop_alarm_weekday_mask(uint8_t weekday) {
     switch(weekday) {
     case 1: return FOX_ALARM_DAY_MON;
@@ -1559,12 +1384,6 @@ static uint8_t desktop_alarm_weekday_mask(uint8_t weekday) {
     }
 }
 
-// Makes the alarm audible/tactile/visible right away regardless of what's
-// currently on screen, and shows the ringing Fox Clock screen immediately
-// if we're free to (idle desktop, not mid-PIN-entry, no app running). If we
-// can't safely interrupt right now, desktop_scene_main_on_enter() and the
-// DesktopGlobalAfterAppFinished handler below pick it up the moment we're
-// back at idle.
 static void desktop_trigger_alarm_ring(Desktop* desktop, uint8_t alarm_index) {
     desktop->alarm_ringing = true;
     desktop->alarm_ringing_index = alarm_index;
@@ -1589,10 +1408,6 @@ void desktop_alarm_dismiss(Desktop* desktop) {
     desktop_clock_lock_set_ringing(desktop->clock_lock_view, false);
 }
 
-// Scans for a due alarm at most once per real minute (guarded by
-// alarm_last_checked_stamp), regardless of how often the timer itself
-// ticks - a coarse ALARM_CHECK_POLL_MS poll is what keeps this cheap while
-// still catching every minute boundary.
 static void desktop_check_alarms(Desktop* desktop) {
     if(desktop->settings.alarm_count == 0) return;
 
@@ -1612,8 +1427,7 @@ static void desktop_check_alarms(Desktop* desktop) {
         if(alarm->recurring && !(alarm->days_mask & today_mask)) continue;
 
         if(!alarm->recurring) {
-            // One-time: this occurrence is it - consume it so it doesn't
-            // fire again at the same time tomorrow.
+
             alarm->active = 0;
             settings_changed = true;
         }
@@ -1631,20 +1445,6 @@ static void desktop_alarm_check_timer_callback(void* context) {
     desktop_check_alarms(desktop);
 }
 
-// --- FOX ALARM CLOCK END ---
-
-// --- LOW RAM WATCHDOG (system-wide, last resort) ---
-// See subghz_garage's own app-level watchdog (higher threshold, fires
-// first while that app is in the foreground) for the first line of
-// defense - this one is deliberately the last resort, catching any app
-// (or Desktop itself) that gets free heap down to RAM_WATCHDOG_TRIP_HEAP_
-// PERCENT of total. Best-effort, not a reboot: closes whatever app is
-// running via loader_signal(FuriSignalExit) - the same mechanism `loader
-// close`/`fbt launch` already use, which works for any app built on the
-// standard ViewDispatcher/FuriEventLoop run loop (FuriEventLoop installs
-// that handler by default - effectively every app in this firmware) -
-// soft-disables USB/CLI, and resets every exposed GPIO pin to a safe idle
-// state. All of it is reversible; none of it requires a reboot.
 static void desktop_ram_watchdog_trigger(Desktop* desktop) {
     FURI_LOG_W(
         TAG,
@@ -1652,16 +1452,8 @@ static void desktop_ram_watchdog_trigger(Desktop* desktop) {
         memmgr_get_free_heap(),
         memmgr_get_total_heap());
 
-    // Best-effort close of whatever's running. Safe no-op if nothing is
-    // running, or if the running app doesn't use the standard event loop
-    // (loader_signal just returns false either way).
     loader_signal(desktop->loader, FuriSignalExit, NULL);
 
-    // Soft-disable USB/CLI - kills qFlipper/CDC without needing a physical
-    // replug to bring it back (own saved-config slot, separate from PIN
-    // lock's s_locked_usb_config, so the two features can't clobber each
-    // other if both happen to be active at once). Session-locked first via
-    // the shared refcount - see s_cli_vcp_session_lock_refcount's comment.
     desktop_cli_vcp_session_lock_acquire();
 
     s_ram_watchdog_usb_config = furi_hal_usb_get_config();
@@ -1669,11 +1461,6 @@ static void desktop_ram_watchdog_trigger(Desktop* desktop) {
     furi_hal_usb_set_config(NULL, NULL);
     s_ram_watchdog_usb_disconnected = true;
 
-    // Reset every exposed GPIO pin (except debug-reserved ones) to a safe
-    // high-impedance idle state - the same primitive applications/main/
-    // gpio's GPIOItems uses internally (gpio_items_configure_all_pins),
-    // inlined here to avoid a cross-app header dependency from a system
-    // service.
     for(size_t i = 0; i < gpio_pins_count; i++) {
         if(gpio_pins[i].debug) continue;
         furi_hal_gpio_write(gpio_pins[i].pin, false);
@@ -1692,13 +1479,10 @@ static void desktop_ram_watchdog_timer_callback(void* context) {
     size_t free_heap = memmgr_get_free_heap();
 
     if(desktop->ram_watchdog_tripped) {
-        // Already tripped this episode - only watch for recovery, don't
-        // re-trigger (re-entering the scene while it's already showing
-        // would just push a duplicate onto the stack).
+
         if(free_heap > (total * RAM_WATCHDOG_RECOVER_HEAP_PERCENT) / 100 &&
            s_ram_watchdog_usb_disconnected) {
-            /* Reverse order from trigger - see desktop_unlock()'s matching
-             * comment. */
+
             furi_hal_usb_set_config(s_ram_watchdog_usb_config, NULL);
             s_ram_watchdog_usb_config = NULL;
 
@@ -1715,8 +1499,6 @@ static void desktop_ram_watchdog_timer_callback(void* context) {
         desktop_ram_watchdog_trigger(desktop);
     }
 }
-// --- LOW RAM WATCHDOG END ---
-
 
 static void desktop_apply_settings(Desktop* desktop) {
     desktop->in_transition = true;
@@ -1756,18 +1538,11 @@ static void desktop_init_settings(Desktop* desktop) {
             desktop->settings.wallpaper_filename,
             DEFAULT_WALLPAPER_NAME,
             sizeof(desktop->settings.wallpaper_filename));
-        // No filename means either a genuinely fresh install, or an update
-        // from a firmware version old enough not to have this field at all
-        // (see the migration cases in desktop_settings.c). Either way,
-        // whatever wallpaper_enabled carried forward from before doesn't
-        // mean anything here - force it off so users don't suddenly see
-        // the generic placeholder wallpaper appear after an update.
+
         desktop->settings.wallpaper_enabled = 0;
         desktop_settings_save(&desktop->settings);
     }
 
-    /* Sync Fox.cfg to match the loaded settings so the theme is correct
-     * from first paint — also fixes stale Fox.cfg values after firmware update. */
     fox_theme_set_style(desktop->settings.menu_theme);
     desktop_apply_settings(desktop);
 }
@@ -1780,28 +1555,15 @@ static Desktop* desktop_alloc(void) {
     desktop->no_sd_viewport  = NULL;
     desktop->pending_slideshow = false;
     desktop->ram_watchdog_tripped = false;
-    /* desktop->locked is otherwise ONLY ever written inside desktop_lock()/
-     * desktop_unlock() - both purely runtime, event-driven, never called
-     * during boot - so without this explicit init it stays whatever
-     * malloc() (not calloc) left in this heap slot until the very first
-     * real lock/unlock happens, however long into the session that is.
-     * Multiple call sites read it as an idle gate before then (this
-     * thread's own loop below, desktop_apply_settings()'s auto-lock arm
-     * decision, the clock-lock scene entry) - previously harmless either
-     * way (worst case: one skipped/extra background probe cycle), but
-     * desktop_wifi_recheck_thread() below now also gates a real app launch
-     * (desktop_cc1101_ext_check()) on this same read, so a garbage "not
-     * locked" here is no longer a no-op. */
+
     desktop->locked = false;
 
     desktop->alarm_ringing = false;
     desktop->alarm_ringing_index = 0;
     desktop->on_clock_lock_scene = false;
     desktop->clock_lock_backlight_manually_off = false;
-    desktop->alarm_last_checked_stamp = 0xFFFF; // never a real hour*60+minute value
+    desktop->alarm_last_checked_stamp = 0xFFFF;
 
-    desktop->animation_semaphore = furi_semaphore_alloc(1, 0);
-    desktop->animation_manager = animation_manager_alloc();
     desktop->gui = furi_record_open(RECORD_GUI);
     desktop->scene_thread = furi_thread_alloc();
     desktop->view_dispatcher = view_dispatcher_alloc();
@@ -1829,7 +1591,6 @@ static Desktop* desktop_alloc(void) {
 
     desktop->main_view_stack = view_stack_alloc();
     desktop->main_view = desktop_main_alloc();
-    View* dolphin_view = animation_manager_get_animation_view(desktop->animation_manager);
 
     desktop->wallpaper_view = view_alloc();
     view_allocate_model(desktop->wallpaper_view, ViewModelTypeLocking, sizeof(Desktop*));
@@ -1841,13 +1602,9 @@ static Desktop* desktop_alloc(void) {
     view_set_draw_callback(desktop->wallpaper_view, desktop_wallpaper_draw_callback);
 
     view_stack_add_view(desktop->main_view_stack, desktop_main_get_view(desktop->main_view));
-    view_stack_add_view(desktop->main_view_stack, dolphin_view);
     view_stack_add_view(desktop->main_view_stack, desktop->wallpaper_view);
-    view_stack_add_view(
-        desktop->main_view_stack, desktop_view_locked_get_view(desktop->locked_view));
 
     desktop->locked_view_stack = view_stack_alloc();
-    view_stack_add_view(desktop->locked_view_stack, dolphin_view);
     view_stack_add_view(
         desktop->locked_view_stack, desktop_view_locked_get_view(desktop->locked_view));
 
@@ -1932,7 +1689,7 @@ static Desktop* desktop_alloc(void) {
 
     desktop->update_wifi_timer =
         furi_timer_alloc(desktop_wifi_status_timer_callback, FuriTimerTypePeriodic, desktop);
-    desktop_wifi_status_timer_callback(desktop); /* first read now, don't wait a full period */
+    desktop_wifi_status_timer_callback(desktop);
     furi_timer_start(desktop->update_wifi_timer, furi_ms_to_ticks(FOX_ESP32_WIFI_POLL_MS));
 
     desktop->wallpaper_check_timer = furi_timer_alloc(
@@ -1945,13 +1702,7 @@ static Desktop* desktop_alloc(void) {
 
     desktop->ram_watchdog_timer =
         furi_timer_alloc(desktop_ram_watchdog_timer_callback, FuriTimerTypePeriodic, desktop);
-    furi_timer_start(desktop->ram_watchdog_timer, furi_ms_to_ticks(RAM_WATCHDOG_POLL_MS));
 
-    /* Must be set before the thread below starts, not after - that thread's
-     * very first loop iteration runs immediately once furi_thread_start()
-     * returns and can preempt this one, so assigning app_running afterward
-     * left a real window where its own idle-gate check read this field
-     * uninitialized (same class of bug as desktop->locked above). */
     desktop->app_running = loader_is_locked(desktop->loader);
 
     desktop->wifi_recheck_thread =
@@ -1982,20 +1733,17 @@ void desktop_lock(Desktop* desktop) {
 
     }
 
-    // USB disconnect on lock — force-kills qFlipper session if PIN is set or USB level requires it.
     {
         bool should_disconnect_usb =
             desktop_pin_code_is_set() ||
             (desktop->settings.lock_usb_level >= LockUsbLevelSessionBlock);
 
         if(should_disconnect_usb) {
-            /* Session-lock before the hard teardown - see
-             * s_cli_vcp_session_lock_refcount's comment above for why both
-             * steps are needed and in this order. */
+
             desktop_cli_vcp_session_lock_acquire();
 
             s_locked_usb_config = furi_hal_usb_get_config();
-            furi_hal_usb_unlock(); // force-release VCP service lock → set_config works
+            furi_hal_usb_unlock();
             furi_hal_usb_set_config(NULL, NULL);
             s_locked_usb_disconnected = true;
         }
@@ -2055,9 +1803,7 @@ void desktop_unlock(Desktop* desktop) {
     }
 
     if(s_locked_usb_disconnected) {
-        /* Reverse order from lock: USB hardware back up first, so the DTR
-         * read inside cli_vcp_session_unlock() reflects reality rather than
-         * a still-torn-down interface. */
+
         furi_hal_usb_set_config(s_locked_usb_config, NULL);
         s_locked_usb_config = NULL;
 
@@ -2129,6 +1875,16 @@ void desktop_api_clear_pin(Desktop* instance) {
     desktop_pin_code_reset();
 }
 
+DesktopUsbMode desktop_api_get_usb_mode(Desktop* instance) {
+    furi_assert(instance);
+    return instance->usb_msc_active ? DesktopUsbModeMassStorage : DesktopUsbModeQflipper;
+}
+
+void desktop_api_set_usb_mode(Desktop* instance, DesktopUsbMode mode) {
+    furi_assert(instance);
+    instance->usb_msc_active = (mode == DesktopUsbModeMassStorage);
+}
+
 int32_t desktop_srv(void* p) {
     UNUSED(p);
 
@@ -2149,11 +1905,29 @@ int32_t desktop_srv(void* p) {
         }
         if(!sd_ok) {
             fox_desktop_show_no_sd_blocking(desktop);
-            // Never returns — reboots when SD is inserted
+
         }
     }
 
-    // Seed default wallpaper if user doesn't have one yet
+    {
+
+        FileInfo file_info;
+        bool sd_settled = false;
+        for(uint8_t i = 0; i < 10 && !sd_settled; i++) {
+            sd_settled =
+                (storage_common_stat(desktop->storage, STORAGE_EXT_PATH_PREFIX, &file_info) ==
+                 FSE_OK);
+            if(!sd_settled) furi_delay_ms(100);
+        }
+        if(!sd_settled) {
+            FURI_LOG_W(
+                TAG,
+                "SD card mounted but not answering a real stat() yet after %dms - "
+                "proceeding anyway, boot-time storage watchdog will catch a real hang",
+                200 + 10 * 100);
+        }
+    }
+
     desktop_ensure_wallpaper(desktop);
 
     {
@@ -2161,17 +1935,16 @@ int32_t desktop_srv(void* p) {
         bool lock_flagged   = storage_file_exists(desktop->storage, FOX_LOCKOUT_FLAG_PATH);
         if(format_flagged) {
             fox_desktop_show_format_blocking(desktop);
-            /* never returns */
+
         }
         if(lock_flagged) {
             fox_desktop_show_lockout_blocking(desktop);
-            /* never returns */
+
         }
     }
 
-    desktop_init_settings(desktop);
+    desktop_init_settings_with_watchdog(desktop);
 
-    // Restore PIN from internal storage — survives soft resets unlike RAM variables
     desktop_pin_code_load_from_storage();
 
     if(!desktop_pin_code_is_set() && desktop->settings.auto_lock_delay_ms != 0) {
@@ -2185,7 +1958,7 @@ int32_t desktop_srv(void* p) {
     }
 
     if(fox_recovery_check_and_reset()) {
-        // Valid tech-support recovery token — clear PIN, lockout file, RTC bit, and fail count
+
         desktop_pin_code_reset();
         storage_common_remove(desktop->storage, FOX_LOCKOUT_FLAG_PATH);
         FoxEscrowData recovery_escrow;
@@ -2194,7 +1967,7 @@ int32_t desktop_srv(void* p) {
             recovery_escrow.active_fail_count = 0;
             fox_escrow_save_state(&recovery_escrow);
         }
-        furi_hal_power_reset();  // Clean reboot — device starts fresh
+        furi_hal_power_reset();
     }
 
     if(storage_file_exists(desktop->storage, SLIDESHOW_FS_PATH)) {
@@ -2202,7 +1975,7 @@ int32_t desktop_srv(void* p) {
         storage_common_remove(desktop->storage, FOX_FORMAT_FLAG_PATH);
         desktop_pin_code_reset();
         storage_common_remove(desktop->storage, FOX_SETUP_FLAG_PATH);
-        storage_common_remove(desktop->storage, FOX_SETUP_FLAG_EXT_PATH);  /* Also clear EXT mirror */
+        storage_common_remove(desktop->storage, FOX_SETUP_FLAG_EXT_PATH);
         storage_common_remove(desktop->storage,
                               EXT_PATH("apps_data/fox_setup/completed.flag"));
     }
@@ -2213,17 +1986,17 @@ int32_t desktop_srv(void* p) {
         bool ext_ok = storage_file_exists(desktop->storage, FOX_SETTINGS_EXT_PATH);
 
         if(!int_ok && !ext_ok && setup_done) {
-            // Both copies deleted after initial setup — security breach
+
             fox_desktop_show_corrupt_blocking(desktop);
-            // Never returns
+
         } else if(!int_ok && ext_ok) {
-            // INT missing — restore from SD
+
             fox_settings_sync_sd_to_int();
         } else if(int_ok && !ext_ok) {
-            // SD missing — restore from INT
+
             fox_settings_sync_int_to_sd();
         }
-        // Both missing + no setup_done: genuine fresh install, proceed normally.
+
     }
 
     {
@@ -2231,17 +2004,18 @@ int32_t desktop_srv(void* p) {
         bool flag_ext = storage_file_exists(desktop->storage, FOX_SETUP_FLAG_EXT_PATH);
 
         if(flag_int && !flag_ext) {
-            /* INT flag exists but EXT mirror missing — create mirror */
+
             storage_common_copy(desktop->storage, FOX_SETUP_FLAG_PATH, FOX_SETUP_FLAG_EXT_PATH);
         } else if(!flag_int && flag_ext) {
-            /* EXT mirror exists but INT flag missing — restore INT */
+
             storage_common_copy(desktop->storage, FOX_SETUP_FLAG_EXT_PATH, FOX_SETUP_FLAG_PATH);
         }
-        /* Both missing: wizard will run. fox_setup_already_ran() also checks
-         * desktop_pin_code_is_set() so the wizard cannot change an existing PIN. */
+
     }
 
     scene_manager_next_scene(desktop->scene_manager, DesktopSceneMain);
+
+    furi_timer_start(desktop->ram_watchdog_timer, furi_ms_to_ticks(RAM_WATCHDOG_POLL_MS));
 
     bool wiper_screen_active = false;
     if(desktop_pin_code_is_set()) {
@@ -2286,10 +2060,6 @@ int32_t desktop_srv(void* p) {
             keys_total,
             keys_valid);
         scene_manager_next_scene(desktop->scene_manager, DesktopSceneSecureEnclave);
-    }
-
-    if(desktop->app_running && animation_manager_is_animation_loaded(desktop->animation_manager)) {
-        animation_manager_unload_and_stall_animation(desktop->animation_manager);
     }
 
     view_dispatcher_run(desktop->view_dispatcher);

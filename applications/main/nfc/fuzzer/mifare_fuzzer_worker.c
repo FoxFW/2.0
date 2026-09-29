@@ -1,16 +1,11 @@
 #include "mifare_fuzzer_worker.h"
 #include "mifare_fuzzer_i.h"
 
-/// @brief mifare_fuzzer_worker_alloc()
-/// @param nfc Nfc instance already owned by the parent NFC app - the NFC
-/// hardware only allows a single owner at a time (see nfc_alloc()), so the
-/// fuzzer must reuse it rather than allocating a second, conflicting one.
-/// @return
 MifareFuzzerWorker* mifare_fuzzer_worker_alloc(Nfc* nfc) {
     furi_assert(nfc);
 
     MifareFuzzerWorker* mifare_fuzzer_worker = malloc(sizeof(MifareFuzzerWorker));
-    // Worker thread attributes
+
     mifare_fuzzer_worker->thread = furi_thread_alloc_ex(
         "MifareFuzzerWorker", 8192, mifare_fuzzer_worker_task, mifare_fuzzer_worker);
     mifare_fuzzer_worker->state = MifareFuzzerWorkerStateStop;
@@ -21,20 +16,15 @@ MifareFuzzerWorker* mifare_fuzzer_worker_alloc(Nfc* nfc) {
     return mifare_fuzzer_worker;
 }
 
-/// @brief mifare_fuzzer_worker_free()
-/// @param mifare_fuzzer_worker
 void mifare_fuzzer_worker_free(MifareFuzzerWorker* mifare_fuzzer_worker) {
     furi_assert(mifare_fuzzer_worker);
     furi_thread_free(mifare_fuzzer_worker->thread);
 
-    // nfc is owned by the parent NFC app - do not free it here.
     nfc_device_free(mifare_fuzzer_worker->nfc_device);
 
     free(mifare_fuzzer_worker);
 }
 
-/// @brief mifare_fuzzer_worker_stop()
-/// @param mifare_fuzzer_worker
 void mifare_fuzzer_worker_stop(MifareFuzzerWorker* mifare_fuzzer_worker) {
     furi_assert(mifare_fuzzer_worker);
     if(mifare_fuzzer_worker->state != MifareFuzzerWorkerStateStop) {
@@ -43,17 +33,12 @@ void mifare_fuzzer_worker_stop(MifareFuzzerWorker* mifare_fuzzer_worker) {
     }
 }
 
-/// @brief mifare_fuzzer_worker_start()
-/// @param mifare_fuzzer_worker
 void mifare_fuzzer_worker_start(MifareFuzzerWorker* mifare_fuzzer_worker) {
     furi_assert(mifare_fuzzer_worker);
     mifare_fuzzer_worker->state = MifareFuzzerWorkerStateEmulate;
     furi_thread_start(mifare_fuzzer_worker->thread);
 }
 
-/// @brief mifare_fuzzer_worker_task()
-/// @param context
-/// @return
 int32_t mifare_fuzzer_worker_task(void* context) {
     MifareFuzzerWorker* mifare_fuzzer_worker = context;
     FURI_LOG_D(TAG, "mifare_fuzzer_worker_task()");
@@ -86,9 +71,6 @@ int32_t mifare_fuzzer_worker_task(void* context) {
     return 0;
 }
 
-/// @brief mifare_fuzzer_worker_is_emulating()
-/// @param mifare_fuzzer_worker
-/// @return
 bool mifare_fuzzer_worker_is_emulating(MifareFuzzerWorker* mifare_fuzzer_worker) {
     if(mifare_fuzzer_worker->state == MifareFuzzerWorkerStateEmulate) {
         return true;
@@ -96,9 +78,6 @@ bool mifare_fuzzer_worker_is_emulating(MifareFuzzerWorker* mifare_fuzzer_worker)
     return false;
 }
 
-/// @brief mifare_fuzzer_worker_set_nfc_device()
-/// @param mifare_fuzzer_worker
-/// @param nfc_device
 void mifare_fuzzer_worker_set_nfc_device(
     MifareFuzzerWorker* mifare_fuzzer_worker,
     NfcDevice* nfc_device) {
@@ -109,16 +88,10 @@ void mifare_fuzzer_worker_set_nfc_device(
     mifare_fuzzer_worker->nfc_device = nfc_device;
 }
 
-/// @brief mifare_fuzzer_worker_get_nfc_device()
-/// @param mifare_fuzzer_worker
-/// @return
 NfcDevice* mifare_fuzzer_worker_get_nfc_device(MifareFuzzerWorker* mifare_fuzzer_worker) {
     return mifare_fuzzer_worker->nfc_device;
 }
 
-/// @brief mifare_fuzzer_worker_set_nfc_data()
-/// @param mifare_fuzzer_worker
-/// @param nfc_data
 void mifare_fuzzer_worker_set_nfc_data(
     MifareFuzzerWorker* mifare_fuzzer_worker,
     Iso14443_3aData nfc_data) {
@@ -140,9 +113,6 @@ void mifare_fuzzer_worker_set_nfc_data(
     iso14443_3a_free(nfc_14a_data);
 }
 
-/// @brief mifare_fuzzer_worker_get_nfc_data()
-/// @param mifare_fuzzer_worker
-/// @return
 Iso14443_3aData mifare_fuzzer_worker_get_nfc_data(MifareFuzzerWorker* mifare_fuzzer_worker) {
     return mifare_fuzzer_worker->nfc_data;
 }

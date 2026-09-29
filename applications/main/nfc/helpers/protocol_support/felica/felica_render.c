@@ -187,7 +187,7 @@ void nfc_more_info_render_felica_blocks(
         for(size_t i = 0; i < public_blocks_count; i++) {
             FelicaPublicBlock* public_block = simple_array_get(system->public_blocks, i);
             if(public_block->service_code != service_code_key) {
-                continue; // Skip blocks not matching the requested service code
+                continue;
             }
             furi_string_cat_printf(str, "-----Block 0x%02X-----\n", public_block->block_idx);
             nfc_render_felica_block_data_simple(&public_block->block, str);

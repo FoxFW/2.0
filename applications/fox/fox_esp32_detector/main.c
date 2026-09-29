@@ -628,10 +628,7 @@ static bool result_table_input_cb(InputEvent* event, void* context) {
     if(event->type != InputTypeShort) return false;
     switch(event->key) {
     case InputKeyOk:
-        // Single OK-style "Rescan" button drawn below the result table, with
-        // no left/right focus toggle - Right used to also fire it, an
-        // undocumented extra binding flagged by the 2026-09-13 footer-button
-        // audit (FOOTER_BUTTON_AUDIT.md project doc). Only OK activates it now.
+
         start_scan(app);
         return true;
     default:
@@ -778,8 +775,10 @@ static void app_free(App* app) {
     view_dispatcher_free(app->view_dispatcher);
     furi_record_close(RECORD_GUI);
 
+    furi_kernel_lock();
     furi_mutex_free(app->mutex);
     free(app);
+    furi_kernel_unlock();
 }
 
 int32_t fox_esp32_detector_main(void* p) {

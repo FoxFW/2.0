@@ -27,7 +27,6 @@ struct HidConfigDescriptor {
     struct HidIadDescriptor iad_0;
 } FURI_PACKED;
 
-/* HID report: FIDO U2F */
 static const uint8_t hid_u2f_report_desc[] = {
     HID_RI_USAGE_PAGE(16, HID_PAGE_FIDO),
     HID_USAGE(HID_FIDO_U2F),
@@ -50,7 +49,6 @@ static const uint8_t hid_u2f_report_desc[] = {
 static const struct usb_string_descriptor dev_manuf_desc = USB_STRING_DESC("Flipper Devices Inc.");
 static const struct usb_string_descriptor dev_prod_desc = USB_STRING_DESC("U2F Token");
 
-/* Device descriptor */
 static const struct usb_device_descriptor hid_u2f_device_desc = {
     .bLength = sizeof(struct usb_device_descriptor),
     .bDescriptorType = USB_DTYPE_DEVICE,
@@ -68,7 +66,6 @@ static const struct usb_device_descriptor hid_u2f_device_desc = {
     .bNumConfigurations = 1,
 };
 
-/* Device configuration descriptor */
 static const struct HidConfigDescriptor hid_u2f_cfg_desc = {
     .config =
         {
@@ -142,7 +139,6 @@ static void hid_u2f_deinit(usbd_device* dev);
 static void hid_u2f_on_wakeup(usbd_device* dev);
 static void hid_u2f_on_suspend(usbd_device* dev);
 
-//static bool hid_u2f_send_report(uint8_t report_id);
 static usbd_respond hid_u2f_ep_config(usbd_device* dev, uint8_t cfg);
 static usbd_respond
     hid_u2f_control(usbd_device* dev, usbd_ctlreq* req, usbd_rqc_callback* callback);
@@ -264,18 +260,17 @@ static void hid_u2f_txrx_ep_callback(usbd_device* dev, uint8_t event, uint8_t ep
     }
 }
 
-/* Configure endpoints */
 static usbd_respond hid_u2f_ep_config(usbd_device* dev, uint8_t cfg) {
     switch(cfg) {
     case 0:
-        /* deconfiguring device */
+
         usbd_ep_deconfig(dev, HID_EP_OUT);
         usbd_ep_deconfig(dev, HID_EP_IN);
         usbd_reg_endpoint(dev, HID_EP_OUT, 0);
         usbd_reg_endpoint(dev, HID_EP_IN, 0);
         return usbd_ack;
     case 1:
-        /* configuring device */
+
         usbd_ep_config(dev, HID_EP_IN, USB_EPTYPE_INTERRUPT, HID_U2F_PACKET_LEN);
         usbd_ep_config(dev, HID_EP_OUT, USB_EPTYPE_INTERRUPT, HID_U2F_PACKET_LEN);
         usbd_reg_endpoint(dev, HID_EP_IN, hid_u2f_txrx_ep_callback);
@@ -287,11 +282,10 @@ static usbd_respond hid_u2f_ep_config(usbd_device* dev, uint8_t cfg) {
     }
 }
 
-/* Control requests handler */
 static usbd_respond
     hid_u2f_control(usbd_device* dev, usbd_ctlreq* req, usbd_rqc_callback* callback) {
     UNUSED(callback);
-    /* HID control requests */
+
     if(((USB_REQ_RECIPIENT | USB_REQ_TYPE) & req->bmRequestType) ==
            (USB_REQ_INTERFACE | USB_REQ_CLASS) &&
        req->wIndex == 0) {

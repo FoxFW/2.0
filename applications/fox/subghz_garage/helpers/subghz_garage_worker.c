@@ -5,11 +5,6 @@
 
 #define TAG "SubGhzGarageWorker"
 
-/* Half the stock 4096-entry depth (16KB -> 8KB) - Garage loads a ~19KB
- * protocol group .fal at RX start on top of this buffer, unlike Automotive
- * whose protocols are compiled directly into its .fap. This is the
- * dedicated lever for that: still comfortable burst headroom for garage/
- * gate protocols' timing, but frees up the heap group loading needs. */
 #define SUBGHZ_GARAGE_WORKER_STREAM_DEPTH 2048
 
 struct SubGhzGarageWorker {
@@ -85,7 +80,6 @@ SubGhzGarageWorker* subghz_garage_worker_alloc(void) {
     instance->stream = furi_stream_buffer_alloc(
         sizeof(LevelDuration) * SUBGHZ_GARAGE_WORKER_STREAM_DEPTH, sizeof(LevelDuration));
 
-    //setting default filter in us
     instance->filter_duration = 30;
 
     return instance;
@@ -94,10 +88,12 @@ SubGhzGarageWorker* subghz_garage_worker_alloc(void) {
 void subghz_garage_worker_free(SubGhzGarageWorker* instance) {
     furi_check(instance);
 
+    furi_kernel_lock();
     furi_stream_buffer_free(instance->stream);
     furi_thread_free(instance->thread);
 
     free(instance);
+    furi_kernel_unlock();
 }
 
 void subghz_garage_worker_set_overrun_callback(

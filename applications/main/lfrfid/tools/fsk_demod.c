@@ -53,12 +53,11 @@ void fsk_demod_feed(FSKDemod* demod, bool polarity, uint32_t time, bool* value, 
     *count = 0;
 
     if(polarity) {
-        // accumulate time
+
         demod->time = time;
     } else {
         demod->time += time;
 
-        // check for valid pulse
         if(demod->time >= demod->low_time && demod->time < demod->hi_time) {
             bool pulse;
 
@@ -70,7 +69,6 @@ void fsk_demod_feed(FSKDemod* demod, bool polarity, uint32_t time, bool* value, 
 
             demod->count++;
 
-            // check for edge transition
             if(demod->last_pulse != pulse) {
                 uint32_t data_count = demod->count + 1;
 

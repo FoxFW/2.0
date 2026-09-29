@@ -197,13 +197,11 @@ static MfUltralightCommand
             break;
         }
 
-        // PATCHED: For Ultralight-C, allow writes to pages 44-47 (3DES key area)
-        // This enables "magic card" emulation for key grabbing
         bool is_ulc_key_page = (instance->data->type == MfUltralightTypeMfulC) &&
                                (start_page >= 44 && start_page <= 47);
 
         if(!is_ulc_key_page) {
-            // Normal access check for all other pages
+
             if(!mf_ultralight_listener_check_access(
                    instance, start_page, MfUltralightListenerAccessTypeWrite))
                 break;
@@ -237,8 +235,6 @@ static MfUltralightCommand
             command = MfUltralightCommandNotProcessedNAK;
             break;
         }
-
-        // No SRAM emulation support
 
         command = MfUltralightCommandProcessedACK;
     } while(false);

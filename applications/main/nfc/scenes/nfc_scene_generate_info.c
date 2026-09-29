@@ -19,12 +19,10 @@ void nfc_scene_generate_info_on_enter(void* context) {
     const Iso14443_3aData* iso14443_3a_data =
         nfc_device_get_data(instance->nfc_device, NfcProtocolIso14443_3a);
 
-    // Setup dialog view
     Widget* widget = instance->widget;
     widget_add_button_element(
         widget, GuiButtonTypeRight, "More", nfc_scene_generate_info_widget_callback, instance);
 
-    // Create info text
     NfcDataGeneratorType type =
         scene_manager_get_scene_state(instance->scene_manager, NfcSceneGenerateInfo);
     const char* name = nfc_data_generator_get_name(type);
@@ -32,7 +30,7 @@ void nfc_scene_generate_info_on_enter(void* context) {
     widget_add_string_element(widget, 0, 13, AlignLeft, AlignTop, FontSecondary, "NFC-A");
 
     FuriString* temp_str = furi_string_alloc_printf("UID:");
-    // Append UID
+
     for(int i = 0; i < iso14443_3a_data->uid_len; i++) {
         furi_string_cat_printf(temp_str, " %02X", iso14443_3a_data->uid[i]);
     }
@@ -60,6 +58,5 @@ bool nfc_scene_generate_info_on_event(void* context, SceneManagerEvent event) {
 void nfc_scene_generate_info_on_exit(void* context) {
     NfcApp* instance = context;
 
-    // Clean views
     widget_reset(instance->widget);
 }

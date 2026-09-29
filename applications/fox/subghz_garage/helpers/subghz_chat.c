@@ -1,4 +1,5 @@
 #include "subghz_chat.h"
+#include <core/kernel.h>
 #include <lib/subghz/subghz_tx_rx_worker.h>
 #include <toolbox/pipe.h>
 
@@ -18,11 +19,6 @@ struct SubGhzChatWorker {
     PipeSide* pipe;
 };
 
-/** Worker thread
- * 
- * @param context 
- * @return exit code 
- */
 static int32_t subghz_chat_worker_thread(void* context) {
     SubGhzChatWorker* instance = context;
     FURI_LOG_I(TAG, "Worker start");
@@ -71,11 +67,14 @@ SubGhzChatWorker* subghz_chat_worker_alloc(PipeSide* pipe) {
 void subghz_chat_worker_free(SubGhzChatWorker* instance) {
     furi_assert(instance);
     furi_assert(!instance->worker_running);
+
+    furi_kernel_lock();
     furi_message_queue_free(instance->event_queue);
     subghz_tx_rx_worker_free(instance->subghz_txrx);
     furi_thread_free(instance->thread);
 
     free(instance);
+    furi_kernel_unlock();
 }
 
 bool subghz_chat_worker_start(

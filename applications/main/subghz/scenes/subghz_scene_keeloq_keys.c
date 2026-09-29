@@ -4,11 +4,10 @@
 #define KEELOQ_KEY_OPT_EDIT   100u
 #define KEELOQ_KEY_OPT_DELETE 101u
 
-// File-scope state
 static bool kl_opts_mode = false;
 static bool kl_info_mode = false;
 static char kl_info_text[48];
-// Set true just before navigating forward to KeeloqKeyEdit so on_exit doesn't free the manager
+
 static bool kl_going_to_edit = false;
 
 static void keeloq_keys_submenu_callback(void* context, uint32_t index) {
@@ -109,7 +108,7 @@ bool subghz_scene_keeloq_keys_on_event(void* context, SceneManagerEvent event) {
             size_t idx = (size_t)(event.event - 1);
             size_t n_user = subghz_keeloq_keys_user_count(subghz->keeloq_keys_manager);
             if(idx >= n_user) {
-                // System key: read-only, show info popup
+
                 keeloq_keys_show_info(subghz, idx);
                 return true;
             }
@@ -123,7 +122,7 @@ bool subghz_scene_keeloq_keys_on_event(void* context, SceneManagerEvent event) {
             subghz->keeloq_edit.edit_step = 0;
             SubGhzKey* k = subghz_keeloq_keys_get(
                 subghz->keeloq_keys_manager, subghz->keeloq_edit.edit_index);
-            // Pre-fill key bytes (big-endian)
+
             uint64_t kv = k->key;
             for(int b = 7; b >= 0; b--) {
                 subghz->keeloq_edit.key_bytes[b] = (uint8_t)(kv & 0xFF);

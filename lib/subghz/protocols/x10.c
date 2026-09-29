@@ -8,39 +8,6 @@
 
 #define TAG "SubGhzProtocolX10"
 
-// @CodeAllNight - X10 Packet decoder...
-//
-// Do a Sub-GHz read at 310MHz, with 650KHz AM modulation.
-//
-// Pulses are as follows...
-// + 9600 [16*te_short] ~ [te_delta*3]                            | 9025  [te_delta*7]
-// - 4875 [8*te_short]  ~ [te_delta*3]                            | 4488  [te_delta*5]
-//
-// 32 bits of data (see below)...
-// + 600 [te_short]                                               | 550
-// - 600 [te_short] (for 0) or 1800 [te_long] (for 1)             | 550 (for 0)  or 1700 (for 1)   [te_delta*2]
-//
-// + 600 [te_short]
-// -43200 [72*te_short] ~ [te_delta*2]
-//
-// Data simplification of 32 bits can the thought of as:
-//   first 8 bits are device id (technically first 4 bits sent are channel #).
-//   second 8 bits are inverted from previous 8 bits.
-//   next 8 bits are command.
-//   last 8 bits are inverted from previous 8 bits.
-//
-// Format: SSSSXBXX ssssxbxx DBOQBXXX dboqbxxx
-// S - The serial number (Channel) is encoded in the first four bits that were sent.
-// x - Unused bits
-// B - Bit 6 is set if the button should be button 9-16, instead of buttons 1-8.
-// DQ - The 1st bit of byte 3 is 1 if DIMMER. (bit 4=0 for BRIGHT, bit 4=1 for DIM)
-// B - The 2nd bit of byte 3 is the button number.
-// Q - 3rd bit of byte 3 are 1 for OFF and 0 for ON (unless DIMMER).
-// B - 4th and 5th bit of byte 3 is  the rest of the button number.
-//
-// Actual protocol can be found at http://kbase.x10.com/wiki/CM17A_Protocol
-
-
 static const SubGhzBlockConst subghz_protocol_x10_const = {
     .te_short = 600,
     .te_long = 1800,
@@ -89,7 +56,7 @@ const SubGhzProtocolEncoder subghz_protocol_x10_encoder = {
 const SubGhzProtocol subghz_protocol_x10 = {
     .name = SUBGHZ_PROTOCOL_X10_NAME,
     .type = SubGhzProtocolTypeDynamic,
-    .flag = SubGhzProtocolFlag_315 /* Technically it is 310MHz only */ | SubGhzProtocolFlag_AM |
+    .flag = SubGhzProtocolFlag_315  | SubGhzProtocolFlag_AM |
             SubGhzProtocolFlag_Decodable,
     .decoder = &subghz_protocol_x10_decoder,
     .encoder = &subghz_protocol_x10_encoder,
@@ -202,10 +169,6 @@ void subghz_protocol_decoder_x10_feed(void* context, bool level, uint32_t durati
     }
 }
 
-/** 
- * Set the serial and btn values based on the data and data_count_bit.
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_x10_check_remote_controller(SubGhzBlockGeneric* instance) {
     instance->serial = (instance->data & 0xF0000000) >> (24+4);
     instance->btn = (((instance->data & 0x07000000) >> 24) | ((instance->data & 0xF800) >> 8));

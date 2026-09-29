@@ -163,7 +163,7 @@ typedef struct FURI_PACKED {
             uint8_t authlim       : 3;
             bool nfc_cnt_pwd_prot : 1;
             bool nfc_cnt_en       : 1;
-            bool nfc_dis_sec1     : 1; // NTAG I2C Plus only
+            bool nfc_dis_sec1     : 1;
             bool cfglck           : 1;
             bool prot             : 1;
         };

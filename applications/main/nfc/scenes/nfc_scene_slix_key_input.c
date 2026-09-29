@@ -14,7 +14,6 @@ void nfc_scene_slix_key_input_byte_input_callback(void* context) {
 void nfc_scene_slix_key_input_on_enter(void* context) {
     NfcApp* instance = context;
 
-    // Setup view
     ByteInput* byte_input = instance->byte_input;
     byte_input_set_header_text(byte_input, "Enter the password in hex");
     byte_input_set_result_callback(
@@ -43,7 +42,6 @@ bool nfc_scene_slix_key_input_on_event(void* context, SceneManagerEvent event) {
 void nfc_scene_slix_key_input_on_exit(void* context) {
     NfcApp* instance = context;
 
-    // Clear view
     byte_input_set_result_callback(instance->byte_input, NULL, NULL, NULL, NULL, 0);
     byte_input_set_header_text(instance->byte_input, "");
 }

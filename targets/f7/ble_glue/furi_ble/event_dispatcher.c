@@ -26,19 +26,16 @@ BleEventFlowStatus ble_event_dispatcher_process_event(void* payload) {
         const GapSvcEventHandler* item = GapSvcEventHandlerList_cref(it);
         ack_status = item->callback(payload, item->context);
         if(ack_status == BleEventNotAck) {
-            /* Keep going */
+
             continue;
         } else if((ack_status == BleEventAckFlowEnable) || (ack_status == BleEventAckFlowDisable)) {
             break;
         }
     }
 
-    /* Handlers for client-mode events are also to be implemented here. But not today. */
-
-    /* Now, decide on a flow control action based on results of all handlers */
     switch(ack_status) {
     case BleEventNotAck:
-        /* The event has NOT been managed yet. Pass to app for processing */
+
         return ble_event_app_notification(payload);
     case BleEventAckFlowEnable:
         return BleEventFlowEnable;

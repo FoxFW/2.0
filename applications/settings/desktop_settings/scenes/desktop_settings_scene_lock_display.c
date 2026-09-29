@@ -71,7 +71,7 @@ static void ld_unlock_prompt_changed(VariableItem* item) {
 static void ld_enter_callback(void* context, uint32_t index) {
     UNUSED(context);
     UNUSED(index);
-    // No navigation items in this scene — all are variable items.
+
 }
 
 void desktop_settings_scene_lock_display_on_enter(void* context) {

@@ -4,8 +4,8 @@
  * Copyright 2023 Leptoptilos <leptoptilos@icloud.com>
  * Thanks https://github.com/krolchonok for the provided dumps and their analysis
  *
- * Note: All meaningful data is stored in sectors 0, 8 and 12, reading data 
- * from which is possible only with the B key. The key B for these sectors 
+ * Note: All meaningful data is stored in sectors 0, 8 and 12, reading data
+ * from which is possible only with the B key. The key B for these sectors
  * is unique for each card. To get it, you should use a nested attack.
  * More info about Umarsh cards: https://github.com/metrodroid/metrodroid/wiki/Umarsh
  *
@@ -49,7 +49,7 @@ static bool umarsh_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // Verify card type
+
         if(data->type != MfClassicType1k) break;
 
         const uint8_t ticket_sector = 8;
@@ -57,14 +57,12 @@ static bool umarsh_parse(const NfcDevice* device, FuriString* parsed_data) {
         const uint8_t ticket_sector_start_block_number =
             mf_classic_get_first_block_num_of_sector(ticket_sector);
 
-        // Validate specific for Umarsh ticket sector header
         const uint8_t* block_start_ptr = &data->block[ticket_sector_start_block_number].data[0];
 
         const uint32_t header_part_0 = bit_lib_bytes_to_num_be(block_start_ptr, 4);
         const uint32_t header_part_1 = bit_lib_bytes_to_num_be(block_start_ptr + 4, 4);
         if((header_part_0 + header_part_1) != 0xFFFFFFFF) break;
 
-        // Data parsing from block 1
         block_start_ptr = &data->block[ticket_sector_start_block_number + 1].data[0];
         const uint16_t expiry_date = bit_lib_bytes_to_num_be(block_start_ptr + 1, 2);
         const uint8_t region_number = (((block_start_ptr[8] >> 5) & 0x07) << 4) |
@@ -74,7 +72,6 @@ static bool umarsh_parse(const NfcDevice* device, FuriString* parsed_data) {
 
         if(card_number == 0) break;
 
-        // Data parsing from block 2
         block_start_ptr = &data->block[ticket_sector_start_block_number + 2].data[0];
         const uint16_t valid_to = bit_lib_bytes_to_num_be(block_start_ptr, 2);
         const uint32_t terminal_number = bit_lib_bytes_to_num_be(block_start_ptr + 3, 3);
@@ -135,7 +132,6 @@ static bool umarsh_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin umarsh_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = NULL,
@@ -143,14 +139,12 @@ static const NfcSupportedCardsPlugin umarsh_plugin = {
     .parse = umarsh_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor umarsh_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &umarsh_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* umarsh_plugin_ep(void) {
     return &umarsh_plugin_descriptor;
 }

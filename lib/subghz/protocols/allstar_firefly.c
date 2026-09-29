@@ -9,9 +9,9 @@
 
 #define ALLSTAR_FIREFLY_UPLOAD_SIZE 256
 
-#define DIP_P 0b11 //(+)
-#define DIP_O 0b10 //(0)
-#define DIP_N 0b00 //(-)
+#define DIP_P 0b11
+#define DIP_O 0b10
+#define DIP_N 0b00
 
 #define DIP_PATTERN "%c%c%c%c%c%c%c%c%c"
 
@@ -85,8 +85,6 @@ const SubGhzProtocol subghz_protocol_allstar_firefly = {
     .encoder = &subghz_protocol_allstar_firefly_encoder,
 };
 
-/* ------------------------------- encoder -------------------------------- */
-
 void* subghz_protocol_encoder_allstar_firefly_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderAllstarFirefly* instance =
@@ -110,12 +108,6 @@ void subghz_protocol_encoder_allstar_firefly_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data. Bit 1 is te_long HIGH / te_short LOW, bit 0
- * is te_short HIGH / te_long LOW; the last bit's LOW half is replaced with
- * the inter-frame gap (te_short*50 + 400).
- * @param instance Pointer to a SubGhzProtocolEncoderAllstarFirefly instance
- */
 static bool
     subghz_protocol_encoder_allstar_firefly_get_upload(SubGhzProtocolEncoderAllstarFirefly* instance) {
     furi_assert(instance);
@@ -187,8 +179,6 @@ LevelDuration subghz_protocol_encoder_allstar_firefly_yield(void* context) {
     return ret;
 }
 
-/* ------------------------------- decoder -------------------------------- */
-
 void* subghz_protocol_decoder_allstar_firefly_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderAllstarFirefly* instance =
@@ -257,8 +247,7 @@ void subghz_protocol_decoder_allstar_firefly_feed(
             } else if(
                 DURATION_DIFF(duration, subghz_protocol_allstar_firefly_const.te_short * 50) <
                 subghz_protocol_allstar_firefly_const.te_delta * 5) {
-                /* End of key: te_last is the final bit's HIGH half, followed
-                 * by the gap instead of its usual LOW half. */
+
                 if(DURATION_DIFF(
                        instance->decoder.te_last, subghz_protocol_allstar_firefly_const.te_long) <
                    subghz_protocol_allstar_firefly_const.te_delta) {

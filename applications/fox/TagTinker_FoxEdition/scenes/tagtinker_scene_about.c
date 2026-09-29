@@ -1,7 +1,3 @@
-/*
- * About and phone sync scene.
- */
-
 #include "../tagtinker_app.h"
 #include <gui/elements.h>
 
@@ -24,7 +20,6 @@ typedef struct {
     uint8_t last_bytes[3];
 } AboutViewModel;
 
-/* Prototypes */
 static uint16_t ble_rx_callback(SerialServiceEvent event, void* context);
 static void bt_status_cb(BtStatus status, void* context);
 
@@ -53,7 +48,7 @@ static void ble_configure_serial(TagTinkerApp* app) {
 
 static void ble_sync_start(TagTinkerApp* app) {
     if(!app || !app->bt || app->ble_sync_active) return;
-    
+
     app->ble_total_rx = 0;
     memset(app->ble_last_bytes, 0, 3);
     app->ble_rx_len = 0;
@@ -64,7 +59,7 @@ static void ble_sync_start(TagTinkerApp* app) {
     bt_disconnect(app->bt);
     bt_set_status_changed_callback(app->bt, bt_status_cb, app);
     app->ble_serial = bt_profile_start(app->bt, ble_profile_serial, NULL);
-    
+
     if(!app->ble_serial) {
         ble_set_status(app, "Serial Start Fail");
     } else {
@@ -114,7 +109,7 @@ static void bt_status_cb(BtStatus status, void* context) {
     TagTinkerApp* app = context;
     app->ble_status = status;
     if(status == BtStatusConnected) {
-        /* Configure the serial callback immediately on connection */
+
         ble_configure_serial(app);
         ble_set_status(app, "Connected");
         ble_send_line(app, "TT_HELLO");
@@ -304,7 +299,7 @@ static bool sync_begin_job(
         job_id);
     storage_common_remove(storage, app->ble_sync_temp_path);
     storage_common_remove(storage, app->ble_sync_final_path);
-    
+
     app->ble_sync_file = storage_file_alloc(storage);
     bool ok = storage_file_open(app->ble_sync_file, app->ble_sync_temp_path, FSAM_WRITE, FSOM_CREATE_ALWAYS);
     furi_record_close(RECORD_STORAGE);
@@ -313,7 +308,7 @@ static bool sync_begin_job(
         app->ble_sync_file = NULL;
         return false;
     }
-    
+
     strncpy(app->ble_sync_job_id, job_id, TAGTINKER_SYNC_JOB_ID_LEN);
     app->ble_sync_job_id[TAGTINKER_SYNC_JOB_ID_LEN] = '\0';
     if(barcode && *barcode) {
@@ -350,7 +345,7 @@ static bool sync_append_chunk(TagTinkerApp* app, uint16_t sequence, const char* 
     size_t decoded_len = 0;
     if(!sync_decode_base64(payload, decoded, sizeof(decoded), &decoded_len)) return false;
     if((app->ble_sync_received_bytes + decoded_len) > app->ble_sync_expected_bytes) return false;
-    
+
     if(storage_file_write(app->ble_sync_file, decoded, decoded_len) != decoded_len) return false;
 
     app->ble_sync_received_bytes += decoded_len;
@@ -408,9 +403,9 @@ static bool sync_finish_job(TagTinkerApp* app, const char* job_id) {
     app->ble_sync_last_job_id[TAGTINKER_SYNC_JOB_ID_LEN] = '\0';
     app->ble_sync_last_completed_chunks = app->ble_sync_last_chunk;
     app->ble_sync_last_compact_protocol = app->ble_sync_compact_protocol;
-    
+
     ble_send_line(app, "TT_ACK|END");
-    
+
     int8_t target_index = tagtinker_ensure_target(app, app->ble_sync_barcode);
     if(target_index >= 0) {
         tagtinker_select_target(app, (uint8_t)target_index);
@@ -555,12 +550,11 @@ void tagtinker_scene_about_on_enter(void* ctx) {
     model->total_rx = 0;
     memset(model->last_bytes, 0, 3);
     strncpy(model->status_text, "Init...", 31);
-    
-    app->ble_sync_ready_target = -1; // RESET STATE
-    
+
+    app->ble_sync_ready_target = -1;
+
     view_commit_model(app->about_view, true);
 
-    /* Delay BLE start until GUI settles */
     app->ble_sync_start_pending = (mode == 1U);
     view_dispatcher_switch_to_view(app->view_dispatcher, TagTinkerViewAbout);
 }
@@ -580,7 +574,7 @@ bool tagtinker_scene_about_on_event(void* ctx, SceneManagerEvent event) {
                 tagtinker_prepare_bmp_tx(app, target->plid, image.image_path, image.width, image.height, image.page);
                 app->tx_spam = false;
                 app->ble_sync_ready_target = -1;
-                /* Tear down BLE before IR transmission to prevent timing interference */
+
                 app->ble_sync_start_pending = false;
                 ble_sync_stop(app);
                 scene_manager_next_scene(app->scene_manager, TagTinkerSceneTransmit);
@@ -592,8 +586,7 @@ bool tagtinker_scene_about_on_event(void* ctx, SceneManagerEvent event) {
     if(event.type == SceneManagerEventTypeTick) {
         AboutViewModel* model = view_get_model(app->about_view);
         model->tick++;
-        
-        /* Delayed start: Wait until 5th tick (250ms) */
+
         if(app->ble_sync_start_pending && model->tick >= 5) {
             app->ble_sync_start_pending = false;
             ble_sync_start(app);
@@ -601,33 +594,28 @@ bool tagtinker_scene_about_on_event(void* ctx, SceneManagerEvent event) {
 
         if(app->ble_sync_active) {
             if(app->ble_status == BtStatusConnected) {
-                /* Serial is configured in bt_status_cb, but ensure it on tick too
-                 * in case connection fired before bt_status_cb was set up */
+
                 ble_configure_serial(app);
             }
-            
+
             if(app->ble_rx_pending_ready) {
                 char safe_line[1024];
                 strncpy(safe_line, app->ble_rx_pending_line, 1023);
                 safe_line[1023] = '\0';
                 app->ble_rx_pending_line[0] = '\0';
                 app->ble_rx_pending_ready = false;
-                
-                /* Process the line FIRST (SD card write + send ACK) */
+
                 sync_apply_line(app, safe_line);
-                
-                /* THEN tell BLE stack we're ready for next packet.
-                 * Order matters: phone waits for ACK before sending next chunk,
-                 * so notify_buffer_is_empty here is just belt-and-suspenders. */
+
                 if(app->ble_serial) ble_profile_serial_notify_buffer_is_empty(app->ble_serial);
             }
-            
+
             model->total_rx = app->ble_total_rx;
             memcpy(model->last_bytes, app->ble_last_bytes, 3);
             model->can_send_latest = (app->ble_sync_ready_target >= 0);
             strncpy(model->status_text, app->ble_status_text, 31);
         }
-        
+
         view_commit_model(app->about_view, true);
         return true;
     }

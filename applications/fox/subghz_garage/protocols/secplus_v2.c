@@ -113,7 +113,7 @@ void subghz_protocol_encoder_secplus_v2_free(void* context) {
     free(instance->encoder.upload);
     free(instance);
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static bool subghz_protocol_secplus_v2_mix_invet(uint8_t invert, uint16_t p[]) {
     switch(invert) {
@@ -243,7 +243,7 @@ static bool subghz_protocol_secplus_v2_mix_order_encode(uint8_t order, uint16_t 
     p[2] = c;
     return true;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static bool
     subghz_protocol_secplus_v2_decode_half(uint64_t data, uint8_t roll_array[], uint32_t* fixed) {
@@ -628,7 +628,7 @@ bool subghz_protocol_secplus_v2_create_data(
     }
     return res == SubGhzProtocolStatusOk;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_secplus_v2_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -918,7 +918,7 @@ static uint8_t subghz_protocol_secplus_v2_get_btn_code(void) {
 
     return btn;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void subghz_protocol_decoder_secplus_v2_get_string(void* context, FuriString* output) {
     furi_assert(context);

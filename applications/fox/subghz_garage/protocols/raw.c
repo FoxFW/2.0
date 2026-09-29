@@ -177,17 +177,7 @@ bool subghz_protocol_raw_save_to_file_init(
     furi_string_free(temp_str);
 
     if(!init) {
-        /* Every break above happens after storage/flipper_file were
-         * already allocated a few lines up - without this, a failed
-         * attempt (no SD card, but also just plain low RAM - see
-         * subghz_scene_receiver.c's caller) permanently leaked the
-         * RECORD_STORAGE reference and the FlipperFormat/file handle,
-         * since file_is_open never reaches RAWFileIsOpenWrite on this
-         * path and save_to_file_stop() gates its own cleanup on that
-         * flag - it would never run for a failed init. Repeated failed
-         * attempts (e.g. retrying Read after a low-RAM warning) leaked
-         * one of these every single time, on top of whatever the actual
-         * failure reason was. */
+
         flipper_format_file_close(instance->flipper_file);
         flipper_format_free(instance->flipper_file);
         instance->flipper_file = NULL;
@@ -279,8 +269,7 @@ void subghz_protocol_decoder_raw_feed(void* context, bool level, uint32_t durati
         if(duration > subghz_protocol_raw_const.te_short) {
             if(instance->last_level != level) {
                 instance->last_level = (level ? true : false);
-                /* Guards against a heap overflow if a prior flush failed
-                 * and left ind_write un-reset - see save_to_file_write(). */
+
                 if(instance->ind_write < SUBGHZ_DOWNLOAD_MAX_SIZE) {
                     instance->upload_raw[instance->ind_write++] = (level ? duration : -duration);
                 }

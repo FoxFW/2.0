@@ -13,17 +13,13 @@
 #define INFRARED_SAMSUNG_REPEAT_PAUSE1      46000
 #define INFRARED_SAMSUNG_REPEAT_PAUSE2      97000
 #define INFRARED_SAMSUNG_REPEAT_COUNT_MIN   1
-/* Samsung silence have to be greater than REPEAT MAX
- * otherwise there can be problems during unit tests parsing
- * of some data. Real tolerances we don't know, but in real life
- * silence time should be greater than max repeat time. This is
- * because of similar preambule timings for repeat and first messages. */
+
 #define INFRARED_SAMSUNG_MIN_SPLIT_TIME     5000
 #define INFRARED_SAMSUNG_SILENCE            145000
 #define INFRARED_SAMSUNG_REPEAT_MARK        4500
 #define INFRARED_SAMSUNG_REPEAT_SPACE       4500
-#define INFRARED_SAMSUNG_PREAMBLE_TOLERANCE 200 // us
-#define INFRARED_SAMSUNG_BIT_TOLERANCE      120 // us
+#define INFRARED_SAMSUNG_PREAMBLE_TOLERANCE 200
+#define INFRARED_SAMSUNG_BIT_TOLERANCE      120
 
 bool infrared_decoder_samsung32_interpret(InfraredCommonDecoder* decoder);
 InfraredStatus infrared_decoder_samsung32_decode_repeat(InfraredCommonDecoder* decoder);

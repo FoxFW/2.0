@@ -18,7 +18,7 @@ bool infrared_decoder_rc6_interpret(InfraredCommonDecoder* decoder) {
 
     bool result = false;
     uint32_t* data = (void*)&decoder->data[0];
-    // MSB first
+
     uint8_t address = reverse((uint8_t)(*data >> 5));
     uint8_t command = reverse((uint8_t)(*data >> 13));
     bool start_bit = *data & 0x01;
@@ -45,17 +45,11 @@ bool infrared_decoder_rc6_interpret(InfraredCommonDecoder* decoder) {
     return result;
 }
 
-/*
- * RC6 Uses manchester encoding, but it has twice longer
- * 4-th bit (toggle bit) time quant, so we need to decode
- * it separately and than pass decoding for other bits to
- * common manchester decode function.
- */
 InfraredStatus infrared_decoder_rc6_decode_manchester(
     InfraredCommonDecoder* decoder,
     bool level,
     uint32_t timing) {
-    // 4th bit lasts 2x times more
+
     InfraredStatus status = InfraredStatusError;
     uint32_t bit = decoder->protocol->timings.bit1_mark;
     uint32_t tolerance = decoder->protocol->timings.bit_tolerance;

@@ -5,7 +5,7 @@ void lfrfid_scene_raw_info_on_enter(void* context) {
     Widget* widget = app->widget;
 
     if(storage_sd_status(app->storage) != FSE_OK) {
-        // [NO_DOLPHIN] widget_add_icon_element(widget, 83, 22, &I_WarningDolphinFlip_45x42);
+
         widget_add_string_element(
             widget, 64, 0, AlignCenter, AlignTop, FontPrimary, "No SD Card!");
         widget_add_string_multiline_element(

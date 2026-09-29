@@ -85,7 +85,7 @@ bool infrared_scene_edit_rename_on_event(void* context, SceneManagerEvent event)
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == InfraredCustomEventTypeTextEditDone) {
-            // Rename a button or a remote in a separate thread
+
             infrared_blocking_task_start(infrared, infrared_scene_edit_rename_task_callback);
 
         } else if(event.event == InfraredCustomEventTypeTaskFinished) {

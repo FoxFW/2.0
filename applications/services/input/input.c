@@ -17,10 +17,9 @@
 
 #define TAG "Input"
 
-/** Input pin state */
 typedef struct {
     const InputPin* pin;
-    // State
+
     volatile bool state;
     volatile uint8_t debounce;
     FuriTimer* press_timer;
@@ -29,10 +28,7 @@ typedef struct {
     volatile uint32_t counter;
 } InputPinState;
 
-/** Input CLI command handler */
 void input_cli(PipeSide* pipe, FuriString* args, void* context);
-
-// #define INPUT_DEBUG
 
 #define GPIO_Read(input_pin) (furi_hal_gpio_read(input_pin.pin->gpio) ^ (input_pin.pin->inverted))
 
@@ -92,7 +88,6 @@ int32_t input_srv(void* p) {
     uint32_t counter = 1;
     furi_record_create(RECORD_INPUT_EVENTS, event_pubsub);
 
-    //define object input_settings, take memory load (or init) settings and create record for access to settings structure from outside
     InputSettings* settings = malloc(sizeof(InputSettings));
     furi_record_create(RECORD_INPUT_SETTINGS, settings);
     input_settings_load(settings);
@@ -136,12 +131,10 @@ int32_t input_srv(void* p) {
             } else if(pin_states[i].state != state) {
                 pin_states[i].state = state;
 
-                // Common state info
                 InputEvent event;
                 event.sequence_source = INPUT_SEQUENCE_SOURCE_HARDWARE;
                 event.key = pin_states[i].pin->key;
 
-                // Short / Long / Repeat timer routine
                 if(state) {
                     pin_states[i].counter = counter++;
                     event.sequence_counter = pin_states[i].counter;
@@ -158,13 +151,12 @@ int32_t input_srv(void* p) {
                     pin_states[i].press_counter = 0;
                 }
 
-                // Send Press/Release event
                 event.type = pin_states[i].state ? InputTypePress : InputTypeRelease;
                 furi_pubsub_publish(event_pubsub, &event);
-                // vibro signal if user setup vibro touch level in Settings-Input.
+
                 if(settings->vibro_touch_level &&
                    ((1 << event.type) & settings->vibro_touch_trigger_mask)) {
-                    //delay 1 ticks for compatibility with rgb_backlight_mod
+
                     furi_delay_tick(1);
                     furi_hal_vibro_on(true);
                     furi_delay_tick(settings->vibro_touch_level);

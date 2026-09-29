@@ -2,12 +2,6 @@
 
 #include "base.h"
 
-/*
- * Nord ICE fixed-code gate/garage remote. 300us short / 800us long timing,
- * 33-bit frame with a ~25*te_short inter-frame gap. Serial packs bits
- * [32:15] and [8:0] (26 bits total), button is bits [14:9] (6 bits).
- * Not rolling - identical value on every press of a given button.
- */
 #define SUBGHZ_PROTOCOL_NORD_ICE_NAME "Nord ICE"
 
 typedef struct SubGhzProtocolDecoderNordIce SubGhzProtocolDecoderNordIce;

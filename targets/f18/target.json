@@ -24,7 +24,6 @@
         "usb_stm32",
         "assets",
         "one_wire",
-        "music_worker",
         "mbedtls",
         "flipper_application",
         "u8g2",

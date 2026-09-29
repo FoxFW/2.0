@@ -7,11 +7,6 @@
 extern "C" {
 #endif
 
-/*
- * Additinal non-connetable beacon API.
- * Not to be used directly, but through furi_hal_bt_extra_beacon_* APIs.
- */
-
 #define EXTRA_BEACON_MAX_DATA_SIZE (31)
 #define EXTRA_BEACON_MAC_ADDR_SIZE (6)
 
@@ -90,7 +85,6 @@ const GapExtraBeaconConfig* gap_extra_beacon_get_config(void);
 
 bool gap_extra_beacon_set_data(const uint8_t* data, uint8_t length);
 
-// Fill "data" with last configured extra beacon data and return its length
 uint8_t gap_extra_beacon_get_data(uint8_t* data);
 
 #ifdef __cplusplus

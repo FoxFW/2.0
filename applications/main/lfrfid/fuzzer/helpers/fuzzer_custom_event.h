@@ -2,7 +2,6 @@
 
 typedef enum {
 
-    // FuzzerCustomEvent
     FuzzerCustomEventViewMainBack = 100,
     FuzzerCustomEventViewMainOk,
     FuzzerCustomEventViewMainPopupErr,
@@ -12,7 +11,7 @@ typedef enum {
     FuzzerCustomEventViewAttackExit,
     FuzzerCustomEventViewAttackRunAttack,
     FuzzerCustomEventViewAttackPause,
-    FuzzerCustomEventViewAttackIdle, // Setup
+    FuzzerCustomEventViewAttackIdle,
     FuzzerCustomEventViewAttackEmulateCurrent,
     FuzzerCustomEventViewAttackSave,
     FuzzerCustomEventViewAttackNextUid,

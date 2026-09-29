@@ -21,7 +21,7 @@ uint8_t subghz_protocol_blocks_crc4(
     size_t size,
     uint8_t polynomial,
     uint8_t init) {
-    uint8_t remainder = init << 4; // LSBs are unused
+    uint8_t remainder = init << 4;
     uint8_t poly = polynomial << 4;
     uint8_t bit;
 
@@ -35,7 +35,7 @@ uint8_t subghz_protocol_blocks_crc4(
             }
         }
     }
-    return remainder >> 4 & 0x0f; // discard the LSBs
+    return remainder >> 4 & 0x0f;
 }
 
 uint8_t subghz_protocol_blocks_crc7(
@@ -43,7 +43,7 @@ uint8_t subghz_protocol_blocks_crc7(
     size_t size,
     uint8_t polynomial,
     uint8_t init) {
-    uint8_t remainder = init << 1; // LSB is unused
+    uint8_t remainder = init << 1;
     uint8_t poly = polynomial << 1;
 
     for(size_t byte = 0; byte < size; ++byte) {
@@ -56,7 +56,7 @@ uint8_t subghz_protocol_blocks_crc7(
             }
         }
     }
-    return remainder >> 1 & 0x7f; // discard the LSB
+    return remainder >> 1 & 0x7f;
 }
 
 uint8_t subghz_protocol_blocks_crc8(
@@ -149,11 +149,9 @@ uint8_t subghz_protocol_blocks_lfsr_digest8(
     for(size_t byte = 0; byte < size; ++byte) {
         uint8_t data = message[byte];
         for(int i = 7; i >= 0; --i) {
-            // XOR key into sum if data bit is set
+
             if((data >> i) & 1) sum ^= key;
 
-            // roll the key right (actually the LSB is dropped here)
-            // and apply the gen (needs to include the dropped LSB as MSB)
             if(key & 1)
                 key = (key >> 1) ^ gen;
             else
@@ -169,18 +167,16 @@ uint8_t subghz_protocol_blocks_lfsr_digest8_reflect(
     uint8_t gen,
     uint8_t key) {
     uint8_t sum = 0;
-    // Process message from last byte to first byte (reflected)
+
     for(int byte = size - 1; byte >= 0; --byte) {
         uint8_t data = message[byte];
-        // Process individual bits of each byte (reflected)
+
         for(uint8_t i = 0; i < 8; ++i) {
-            // XOR key into sum if data bit is set
+
             if((data >> i) & 1) {
                 sum ^= key;
             }
 
-            // roll the key left (actually the LSB is dropped here)
-            // and apply the gen (needs to include the dropped lsb as MSB)
             if(key & 0x80)
                 key = (key << 1) ^ gen;
             else
@@ -199,11 +195,9 @@ uint16_t subghz_protocol_blocks_lfsr_digest16(
     for(size_t byte = 0; byte < size; ++byte) {
         uint8_t data = message[byte];
         for(int8_t i = 7; i >= 0; --i) {
-            // if data bit is set then xor with key
+
             if((data >> i) & 1) sum ^= key;
 
-            // roll the key right (actually the LSB is dropped here)
-            // and apply the gen (needs to include the dropped LSB as MSB)
             if(key & 1)
                 key = (key >> 1) ^ gen;
             else

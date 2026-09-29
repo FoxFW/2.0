@@ -5,23 +5,6 @@
 
 #define TAG "TPMSCitroen"
 
-// Port of rtl_433/src/devices/tpms_citroen.c (Christian W. Zuckschwerdt 2017, GPL-2+)
-//
-// FSK 433 MHz, Manchester-encoded, 10 byte payload.
-// Also Peugeot and likely Fiat, Mitsubishi, VDO-types.
-//
-// Wire format (after Manchester-decoding):
-//   UU IIIIIIII FR PP TT BB CC          (10 bytes total)
-//   b[0]     = state (not covered by CRC)
-//   b[1..4]  = 32-bit ID
-//   b[5]     = flags (high nibble) + repeat (low nibble)
-//   b[6]     = pressure raw, 1.364 kPa per step
-//   b[7]     = temperature in °C + 50
-//   b[8]     = battery (or other)
-//   b[9]     = XOR(b[1..9]) == 0
-//
-// Preamble raw 0x55 0x55 0x55 0x56 → trailing 16-bit pattern 0x5556.
-
 #define CITROEN_PREAMBLE 0x5556U
 #define CITROEN_DATA_BITS 80
 
@@ -117,8 +100,7 @@ static ManchesterEvent citroen_evt(bool level, uint32_t duration) {
 }
 
 static void citroen_get_bytes(TPMSProtocolDecoderCitroen* instance, uint8_t b[10]) {
-    // 80 bits total: head_64_bit lower 16 bits = b[0..1] (MSB-first),
-    // decode_data 64 bits = b[2..9].
+
     b[0] = (uint8_t)((instance->head_64_bit >> 8) & 0xFF);
     b[1] = (uint8_t)(instance->head_64_bit & 0xFF);
     for(int i = 0; i < 8; i++) {
@@ -139,11 +121,10 @@ static void citroen_analyze(TPMSProtocolDecoderCitroen* instance) {
     citroen_get_bytes(instance, b);
     instance->generic.id =
         ((uint32_t)b[1] << 24) | ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 8) | b[4];
-    // Pressure raw → kPa → bar
+
     instance->generic.pressure = ((float)b[6] * 1.364f) * 0.01f;
     instance->generic.temperature = (float)((int)b[7] - 50);
-    // b[8] is suspected battery byte — without a confirmed bit mapping just keep
-    // the raw byte in battery_low for now; the view can show it.
+
     instance->generic.battery_low = b[8];
 }
 
@@ -172,7 +153,8 @@ void tpms_protocol_decoder_citroen_feed(void* context, bool level, uint32_t dura
         instance->header_shift = 0;
         instance->manchester_saved_state = ManchesterStateStart1;
         instance->decoder.parser_step = CitroenDecoderStepFindPreamble;
-        /* fallthrough */
+        __attribute__((fallthrough));
+
     case CitroenDecoderStepFindPreamble:
         instance->header_shift = (uint16_t)((instance->header_shift << 1) | (bit ? 1 : 0));
         if(instance->header_shift == CITROEN_PREAMBLE) {
@@ -228,7 +210,6 @@ SubGhzProtocolStatus
 void tpms_protocol_citroen_pack(TPMSBlockGeneric* generic) {
     furi_assert(generic);
 
-    // Inverse of citroen_analyze(): engineering units back to raw bytes.
     int32_t pressure_raw = (int32_t)((generic->pressure * 100.0f) / 1.364f + 0.5f);
     if(pressure_raw < 0) pressure_raw = 0;
     if(pressure_raw > 0xFF) pressure_raw = 0xFF;
@@ -237,21 +218,19 @@ void tpms_protocol_citroen_pack(TPMSBlockGeneric* generic) {
     if(temperature_raw < 0) temperature_raw = 0;
     if(temperature_raw > 0xFF) temperature_raw = 0xFF;
 
-    // b[1] (top ID byte) is outside data's 64 bits (see citroen_get_bytes),
-    // but is recoverable from id, so it's recomputed here just for parity.
     uint8_t b[10] = {0};
     b[1] = (generic->id >> 24) & 0xFF;
     b[2] = (generic->id >> 16) & 0xFF;
     b[3] = (generic->id >> 8) & 0xFF;
     b[4] = (generic->id >> 0) & 0xFF;
-    b[5] = 0x00; // flags/repeat nibble, not decoded into any generic field
+    b[5] = 0x00;
     b[6] = (uint8_t)pressure_raw;
     b[7] = (uint8_t)temperature_raw;
     b[8] = generic->battery_low;
 
     uint8_t x = 0;
     for(int i = 1; i <= 8; i++) x ^= b[i];
-    b[9] = x; // XOR(b[1..9]) == 0
+    b[9] = x;
 
     uint64_t data = 0;
     for(int i = 2; i < 10; i++) {

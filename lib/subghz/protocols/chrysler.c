@@ -10,8 +10,6 @@
 
 #define TAG "ChryslerV0"
 
-
-
 #define CHRYSLER_V0_TE_SHORT         0x12C
 #define CHRYSLER_V0_TE_DELTA         0x96
 #define CHRYSLER_V0_TE_LONG_A        0xD48
@@ -221,7 +219,6 @@ static void chrysler_v0_decode_packet(SubGhzProtocolDecoderChrysler* instance) {
 
     instance->generic.btn = instance->decoded_button;
 
-    // Chrysler supports 2 buttons: Up=0x1 (Lock), OK=0x2 (Unlock)
     if(subghz_custom_btn_get_original() == 0) {
         subghz_custom_btn_set_original(instance->generic.btn);
     }
@@ -485,8 +482,6 @@ SubGhzProtocolStatus
         tx_button = (uint8_t)btn_u32;
     }
 
-    // Chrysler mapping: Up=0x1 (Lock), OK=0x2 (Unlock).
-    // custom_btn_id=OK returns original; UP overrides tx_button.
     {
         if(subghz_custom_btn_get_original() == 0) {
             subghz_custom_btn_set_original(original_button);
@@ -516,6 +511,12 @@ SubGhzProtocolStatus
         uint32_t repeat_val = 0;
         instance->encoder.repeat =
             flipper_format_read_uint32(flipper_format, "Repeat", &repeat_val, 1) ? repeat_val : 2;
+    }
+
+    {
+        uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
+        if(mult == 0U) mult = 1U;
+        cnt_u32 = (cnt_u32 + (2U * mult)) & 0x3FU;
     }
 
     uint32_t counter = cnt_u32 & 0x3FU;
@@ -855,11 +856,25 @@ void subghz_protocol_decoder_chrysler_get_string(void* context, FuriString* outp
         furi_string_cat_printf(output, "SnB:%08lX\r\n", chrysler_v0_get_sn_b(instance));
     }
 
+    subghz_custom_btn_set_max(2);
+    uint8_t display_btn = instance->decoded_button;
+    switch(subghz_custom_btn_get()) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        display_btn = 0x1U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        display_btn = 0x2U;
+        break;
+    case SUBGHZ_CUSTOM_BTN_OK:
+    default:
+        break;
+    }
+
     furi_string_cat_printf(
         output,
         "Btn:%02X [%s] Cnt:%02X\r\nChk:%s",
-        instance->decoded_button,
-        chrysler_v0_get_button_name(instance->decoded_button),
+        display_btn,
+        chrysler_v0_get_button_name(display_btn),
         instance->seed,
         instance->check_ok ? "OK" : "ERR");
 }

@@ -7,8 +7,16 @@
 #include <notification/notification_messages.h>
 #include <flipper_format/flipper_format.h>
 #include <flipper_format/flipper_format_i.h>
+#include <loader/loader.h>
+#include <storage/storage.h>
 
 #define TAG "SubGhz"
+
+#define CC1101_EXT_PROBE_FAP_PATH EXT_PATH("apps/Sub-GHz/subghz_garage_cc1101_check.fap")
+#define CC1101_PROBE_RELAUNCH_PATH EXT_PATH("subghz/.cc1101_probe_relaunch")
+#define SUBGHZ_GARAGE_FAP_PATH EXT_PATH("apps/Sub-GHz/subghz_garage.fap")
+
+void subghz_blank_transition_draw_cb(Canvas* canvas, void* ctx);
 
 void subghz_blink_start(SubGhz* subghz) {
     furi_assert(subghz);
@@ -52,8 +60,6 @@ void subghz_dialog_message_freq_error(SubGhz* subghz, bool only_rx) {
     dialog_message_set_header(message, header_text, 63, 3, AlignCenter, AlignTop);
     dialog_message_set_text(message, message_text, 0, 17, AlignLeft, AlignTop);
 
-    // [NO_DOLPHIN] dialog_message_set_icon(message, &I_WarningDolphinFlip_45x42, 83, 22);
-
     dialog_message_show(dialogs, message);
     dialog_message_free(message);
 }
@@ -91,7 +97,6 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
             break;
         }
 
-        //Load frequency
         if(!flipper_format_read_uint32(fff_data_file, "Frequency", &temp_data32, 1)) {
             FURI_LOG_E(TAG, "Missing Frequency");
             break;
@@ -103,7 +108,6 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
             break;
         }
 
-        // TODO: use different frequency allowed lists for differnet modules (non cc1101)
         if(!furi_hal_subghz_is_tx_allowed(temp_data32)) {
             FURI_LOG_E(TAG, "This frequency can only be used for RX");
 
@@ -111,7 +115,6 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
             break;
         }
 
-        //Load preset
         if(!flipper_format_read_string(fff_data_file, "Preset", temp_str)) {
             FURI_LOG_E(TAG, "Missing Preset");
             break;
@@ -125,10 +128,9 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
         SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
 
         if(!strcmp(furi_string_get_cstr(temp_str), "CUSTOM")) {
-            //TODO FL-3551: add Custom_preset_module
-            //delete preset if it already exists
+
             subghz_setting_delete_custom_preset(setting, furi_string_get_cstr(temp_str));
-            //load custom preset from file
+
             if(!subghz_setting_load_custom_preset(
                    setting, furi_string_get_cstr(temp_str), fff_data_file)) {
                 FURI_LOG_E(TAG, "Missing Custom preset");
@@ -138,12 +140,10 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
         size_t preset_index =
             subghz_setting_get_inx_preset_by_name(setting, furi_string_get_cstr(temp_str));
 
-        //Edit TX power, if necessary.
         uint8_t* preset_data = subghz_setting_get_preset_data(setting, preset_index);
         size_t preset_data_size = subghz_setting_get_preset_data_size(setting, preset_index);
         subghz_txrx_set_tx_power(preset_data, preset_data_size, subghz->tx_power);
 
-        //Set the Updated Preset.
         subghz_txrx_set_preset(
             subghz->txrx,
             furi_string_get_cstr(temp_str),
@@ -151,7 +151,6 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
             preset_data,
             preset_data_size);
 
-        //Load protocol
         if(!flipper_format_read_string(fff_data_file, "Protocol", temp_str)) {
             FURI_LOG_E(TAG, "Missing Protocol");
             break;
@@ -159,7 +158,7 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
 
         FlipperFormat* fff_data = subghz_txrx_get_fff_data(subghz->txrx);
         if(!strcmp(furi_string_get_cstr(temp_str), "RAW")) {
-            //if RAW
+
             subghz->load_type_file = SubGhzLoadTypeFileRaw;
             subghz_protocol_raw_gen_fff_data(
                 fff_data, file_path, subghz_txrx_radio_device_get_name(subghz->txrx));
@@ -240,7 +239,7 @@ bool subghz_get_next_name_file(SubGhz* subghz, uint8_t max_len) {
     bool res = false;
 
     if(subghz_path_is_file(subghz->file_path)) {
-        //get the name of the next free file
+
         path_extract_filename(subghz->file_path, file_name, true);
         path_extract_dirname(furi_string_get_cstr(subghz->file_path), file_path);
 
@@ -286,10 +285,9 @@ bool subghz_save_protocol_to_file(
 
     path_extract_dirname(dev_file_name, file_dir);
     do {
-        //removing additional fields
+
         flipper_format_delete_key(flipper_format, "Repeat");
 
-        // Create subghz folder directory if necessary
         if(!storage_simply_mkdir(storage, furi_string_get_cstr(file_dir))) {
             dialog_message_show_storage_error(subghz->dialogs, "Cannot create\nfolder");
             break;
@@ -322,29 +320,6 @@ void subghz_save_to_file(void* context) {
             subghz_txrx_get_fff_data(subghz->txrx),
             furi_string_get_cstr(subghz->file_path));
     }
-}
-
-bool subghz_load_protocol_from_file(SubGhz* subghz) {
-    furi_assert(subghz);
-
-    FuriString* file_path = furi_string_alloc();
-
-    DialogsFileBrowserOptions browser_options;
-    dialog_file_browser_set_basic_options(
-        &browser_options, SUBGHZ_APP_FILENAME_EXTENSION, &I_sub1_10px);
-    browser_options.base_path = SUBGHZ_APP_FOLDER;
-
-    // Input events and views are managed by file_select
-    bool res = dialog_file_browser_show(
-        subghz->dialogs, subghz->file_path, subghz->file_path, &browser_options);
-
-    if(res) {
-        res = subghz_key_load(subghz, furi_string_get_cstr(subghz->file_path), true);
-    }
-
-    furi_string_free(file_path);
-
-    return res;
 }
 
 bool subghz_rename_file(SubGhz* subghz) {
@@ -431,4 +406,37 @@ void subghz_rx_key_state_set(SubGhz* subghz, SubGhzRxKeyState state) {
 SubGhzRxKeyState subghz_rx_key_state_get(SubGhz* subghz) {
     furi_assert(subghz);
     return subghz->rx_key_state;
+}
+
+void subghz_launch_garage_via_probe(SubGhz* subghz, const char* args) {
+    if(!subghz->blank_transition_viewport) {
+        subghz->blank_transition_viewport = view_port_alloc();
+        view_port_draw_callback_set(
+            subghz->blank_transition_viewport, subghz_blank_transition_draw_cb, NULL);
+        gui_add_view_port(subghz->gui, subghz->blank_transition_viewport, GuiLayerFullscreen);
+        view_port_update(subghz->blank_transition_viewport);
+    }
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    bool probe_installed = storage_file_exists(storage, CC1101_EXT_PROBE_FAP_PATH);
+
+    Loader* loader = furi_record_open(RECORD_LOADER);
+    if(probe_installed) {
+        File* f = storage_file_alloc(storage);
+        if(storage_file_open(f, CC1101_PROBE_RELAUNCH_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+            storage_file_write(f, args, strlen(args));
+        }
+        storage_file_close(f);
+        storage_file_free(f);
+        loader_enqueue_launch(
+            loader, CC1101_EXT_PROBE_FAP_PATH, NULL, LoaderDeferredLaunchFlagNone);
+    } else {
+        FURI_LOG_W(TAG, "CC1101 probe .fap not found, launching Garage directly");
+        loader_enqueue_launch(loader, SUBGHZ_GARAGE_FAP_PATH, args, LoaderDeferredLaunchFlagNone);
+    }
+    furi_record_close(RECORD_LOADER);
+    furi_record_close(RECORD_STORAGE);
+
+    scene_manager_stop(subghz->scene_manager);
+    view_dispatcher_stop(subghz->view_dispatcher);
 }

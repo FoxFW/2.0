@@ -18,7 +18,7 @@ struct InfraredMoveView {
     void* callback_context;
 };
 
-ARRAY_DEF(InfraredMoveViewItemArray, const char*, M_CSTR_DUP_OPLIST); //-V575
+ARRAY_DEF(InfraredMoveViewItemArray, const char*, M_CSTR_DUP_OPLIST);
 
 typedef struct {
     InfraredMoveViewItemArray_t labels;
@@ -161,7 +161,6 @@ static bool infrared_move_view_input_callback(InputEvent* event, void* context) 
             },
             false);
 
-        // Not consuming, Back event is passed thru
     }
 
     return consumed;

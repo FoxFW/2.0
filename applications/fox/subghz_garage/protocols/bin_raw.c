@@ -16,11 +16,6 @@
 
 #define TAG "SubGhzProtocolBinRaw"
 
-/* Halved from the stock 2048 - trades some max capture length for an
- * unidentified/unknown signal for ~4KB less resident heap per group load
- * (this buffer is allocated fresh every time any protocol group loads,
- * since BinRAW is the always-included fallback decoder). Still comfortably
- * covers real gate/garage remote frame lengths. */
 #define BIN_RAW_BUF_RAW_SIZE  1024
 #define BIN_RAW_BUF_DATA_SIZE 512
 
@@ -366,9 +361,7 @@ void* subghz_protocol_decoder_bin_raw_alloc(SubGhzEnvironment* environment) {
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->data_raw_ind = 0;
     instance->data_raw = malloc(BIN_RAW_BUF_RAW_SIZE * sizeof(int32_t));
-    /* data (2KB) is lazy - only touched once a real signal burst is being
-     * analyzed (see ensure_data below) or a saved BinRAW signal is loaded
-     * (deserialize), not on every group load/switch like data_raw is. */
+
     instance->data = NULL;
     memset(instance->data_markup, 0x00, BIN_RAW_MAX_MARKUP_COUNT * sizeof(BinRAW_Markup));
     instance->adaptive_threshold_rssi = BIN_RAW_THRESHOLD_RSSI;
@@ -377,9 +370,7 @@ void* subghz_protocol_decoder_bin_raw_alloc(SubGhzEnvironment* environment) {
 
 static void subghz_protocol_bin_raw_ensure_data(SubGhzProtocolDecoderBinRAW* instance) {
     if(!instance->data) {
-        /* Every bit-packing/bounds check throughout this file caps at
-         * BIN_RAW_BUF_DATA_SIZE (512), never BIN_RAW_BUF_RAW_SIZE - this
-         * buffer only ever needed to be sized off the former. */
+
         instance->data = malloc(BIN_RAW_BUF_DATA_SIZE * sizeof(uint8_t));
     }
 }

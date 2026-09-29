@@ -35,7 +35,7 @@ void infrared_encoder_nec_reset(void* encoder_ptr, const InfraredMessage* messag
         *data1 |= (message->command & 0xFFFF) << 16;
         encoder->bits_to_encode = 32;
     } else if(message->protocol == InfraredProtocolNEC42) {
-        /* 13 address + 13 inverse address + 8 command + 8 inv command */
+
         *data1 = message->address & 0x1FFFUL;
         *data1 |= (~message->address & 0x1FFFUL) << 13;
         *data1 |= ((message->command & 0x3FUL) << 26);
@@ -58,7 +58,6 @@ InfraredStatus infrared_encoder_nec_encode_repeat(
     bool* level) {
     furi_assert(encoder);
 
-    /* space + 2 timings preambule + payload + stop bit */
     uint32_t timings_encoded_up_to_repeat = 1 + 2 + encoder->bits_to_encode * 2 + 1;
     uint32_t repeat_cnt = encoder->timings_encoded - timings_encoded_up_to_repeat;
 

@@ -1,7 +1,3 @@
-/*
- * Barcode input view.
- */
-
 #include "numlock_input.h"
 #include <gui/elements.h>
 #include <furi.h>
@@ -25,7 +21,7 @@ static uint8_t prefix_x(void) {
 
 static uint8_t digit_x(uint8_t i) {
     uint8_t groups = i / GROUP_SIZE;
-    /* Keep the full code centered across the 128 px canvas. */
+
     return 4 + 8 + i * CHAR_W + groups * GROUP_GAP;
 }
 

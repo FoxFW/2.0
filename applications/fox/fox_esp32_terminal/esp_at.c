@@ -178,10 +178,12 @@ void esp_at_free(EspAt* esp_at) {
         furi_record_close(RECORD_EXPANSION);
     }
 
+    furi_kernel_lock();
     if(esp_at->rx_stream != NULL) furi_stream_buffer_free(esp_at->rx_stream);
     if(esp_at->raw_capture_stream != NULL) furi_stream_buffer_free(esp_at->raw_capture_stream);
     if(esp_at->msg_queue != NULL) furi_message_queue_free(esp_at->msg_queue);
     free(esp_at);
+    furi_kernel_unlock();
 }
 
 void esp_at_raw_capture_start(EspAt* esp_at) {

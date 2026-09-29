@@ -139,15 +139,12 @@ static void em4100_decode(
     uint8_t decoded_data_index = 0;
     EM4100DecodedData card_data = *((EM4100DecodedData*)(encoded_data));
 
-    // clean result
     memset(decoded_data, 0, decoded_data_size);
 
-    // header
     for(uint8_t i = 0; i < 9; i++) {
         card_data = card_data << 1;
     }
 
-    // nibbles
     uint8_t value = 0;
     for(uint8_t r = 0; r < EM_ROW_COUNT; r++) {
         uint8_t nibble = 0;
@@ -172,13 +169,10 @@ static bool em4100_can_be_decoded(
     const EM4100DecodedData* card_data = (EM4100DecodedData*)encoded_data;
     const EM4100Epilogue* epilogue = (EM4100Epilogue*)encoded_epilogue;
 
-    // check first 9 bytes on epilogue (to prevent conflict with Electra protocol)
     if((*epilogue & EM_ENCODED_DATA_HEADER) != EM_ENCODED_DATA_HEADER) return false;
 
-    // check header and stop bit
     if((*card_data & EM_HEADER_AND_STOP_MASK) != EM_HEADER_AND_STOP_DATA) return false;
 
-    // check row parity
     for(uint8_t i = 0; i < EM_ROW_COUNT; i++) {
         uint8_t parity_sum = 0;
 
@@ -191,7 +185,6 @@ static bool em4100_can_be_decoded(
         }
     }
 
-    // check columns parity
     for(uint8_t i = 0; i < EM_COLUMN_COUNT; i++) {
         uint8_t parity_sum = 0;
 
@@ -281,16 +274,14 @@ static void em4100_write_nibble(bool low_nibble, uint8_t data, EM4100DecodedData
 }
 
 bool protocol_em4100_encoder_start(ProtocolEM4100* proto) {
-    // header
+
     proto->encoded_data = 0b111111111;
 
-    // data
     for(uint8_t i = 0; i < EM4100_DECODED_DATA_SIZE; i++) {
         em4100_write_nibble(false, proto->data[i], &proto->encoded_data);
         em4100_write_nibble(true, proto->data[i], &proto->encoded_data);
     }
 
-    // column parity and stop bit
     uint8_t parity_sum;
 
     for(uint8_t c = 0; c < EM_COLUMN_COUNT; c++) {
@@ -302,7 +293,6 @@ bool protocol_em4100_encoder_start(ProtocolEM4100* proto) {
         proto->encoded_data = (proto->encoded_data << 1) | ((parity_sum % 2) & 1);
     }
 
-    // stop bit
     proto->encoded_data = (proto->encoded_data << 1) | 0;
 
     proto->encoded_data_index = 0;
@@ -334,7 +324,6 @@ bool protocol_em4100_write_data(ProtocolEM4100* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_em4100_encoder_start(protocol);
     em4100_decode(
         (uint8_t*)&protocol->encoded_data,
@@ -379,7 +368,7 @@ bool protocol_em4100_write_data(ProtocolEM4100* protocol, void* data) {
         case 16:
             config_byte0 = 0x45;
             break;
-        default: // clock 64
+        default:
             config_byte0 = 0x05;
             break;
         }

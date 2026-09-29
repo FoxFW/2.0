@@ -32,5 +32,5 @@ const NfcPollerBase* const nfc_pollers_api[NfcProtocolNum] = {
     [NfcProtocolNtag4xx] = &ntag4xx_poller,
     [NfcProtocolType4Tag] = &type_4_tag_poller,
     [NfcProtocolEmv] = &emv_poller,
-    /* Add new pollers here */
+
 };

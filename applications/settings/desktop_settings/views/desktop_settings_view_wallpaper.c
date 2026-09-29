@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 #define WALLPAPER_DIR       EXT_PATH("wallpapers")
-#define WALLPAPER_NAME_MAX  64 /* matches DesktopSettings.wallpaper_filename */
+#define WALLPAPER_NAME_MAX  64
 #define WALLPAPER_LIST_MAX  64
 
 #define ROW_X 4
@@ -181,9 +181,6 @@ void desktop_settings_view_wallpaper_load(
     Storage* storage = furi_record_open(RECORD_STORAGE);
     storage_simply_mkdir(storage, WALLPAPER_DIR);
 
-    // names[][] is WALLPAPER_LIST_MAX * WALLPAPER_NAME_MAX = 4096 bytes -
-    // this app's thread only has a 2KB stack (see application.fam), so a
-    // local array this size overflows it outright. Heap-allocate instead.
     char(*names)[WALLPAPER_NAME_MAX] = malloc(WALLPAPER_LIST_MAX * WALLPAPER_NAME_MAX);
     uint8_t count = 0;
 
@@ -193,7 +190,7 @@ void desktop_settings_view_wallpaper_load(
         char name[128];
         while(count < WALLPAPER_LIST_MAX && storage_dir_read(dir, &info, name, sizeof(name))) {
             if(info.flags & FSF_DIRECTORY) continue;
-            if(name[0] == '.') continue; // skip the .activate marker and any other dotfiles
+            if(name[0] == '.') continue;
             if(!ends_with_xbm(name)) continue;
 
             char full[160];
@@ -208,8 +205,6 @@ void desktop_settings_view_wallpaper_load(
     storage_file_free(dir);
     furi_record_close(RECORD_STORAGE);
 
-    // Simple alphabetical (case-insensitive) selection sort - list sizes here
-    // are small enough that this is plenty fast.
     for(uint8_t i = 0; i + 1 < count; i++) {
         uint8_t smallest = i;
         for(uint8_t j = i + 1; j < count; j++) {

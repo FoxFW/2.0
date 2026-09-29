@@ -8,16 +8,6 @@
 extern "C" {
 #endif
 
-/**
- * Check if the buffer contains an error frame and if it does, determine
- * the error type.
- * NOTE: No changes are done to the result if no error is present.
- *
- * @param [out] data Pointer to the resulting error value.
- * @param [in] buf Data buffer to be checked
- *
- * @return True if data contains an error frame or is empty, false otherwise
- */
 bool iso15693_3_error_response_parse(Iso15693_3Error* error, const BitBuffer* buf);
 
 Iso15693_3Error iso15693_3_inventory_response_parse(uint8_t* data, const BitBuffer* buf);
@@ -50,7 +40,6 @@ void iso15693_3_append_block_security(
     uint8_t block_num,
     BitBuffer* buf);
 
-// NOTE: the uid parameter has reversed byte order with respect to data
 bool iso15693_3_is_equal_uid(const Iso15693_3Data* data, const uint8_t* uid);
 
 #ifdef __cplusplus

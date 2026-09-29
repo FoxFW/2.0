@@ -6,7 +6,6 @@
 #include "../worker/protocol.h"
 
 #define PROTOCOL_NAME_Y 12
-// #define PROTOCOL_CAROUSEL
 
 struct FuzzerViewMain {
     View* view;
@@ -193,7 +192,6 @@ void fuzzer_view_main_exit(void* context) {
 FuzzerViewMain* fuzzer_view_main_alloc() {
     FuzzerViewMain* view = malloc(sizeof(FuzzerViewMain));
 
-    // View allocation and configuration
     view->view = view_alloc();
     view_allocate_model(view->view, ViewModelTypeLocking, sizeof(FuzzerViewMainModel));
     view_set_context(view->view, view);
@@ -218,13 +216,6 @@ FuzzerViewMain* fuzzer_view_main_alloc() {
 void fuzzer_view_main_free(FuzzerViewMain* view) {
     furi_assert(view);
 
-    // with_view_model(
-    //     view->view,
-    //     FuzzerViewMainModel * model,
-    //     {
-
-    //     },
-    //     true);
     view_free(view->view);
     free(view);
 }

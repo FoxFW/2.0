@@ -109,41 +109,27 @@ static bool two_cities_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // Verify key
+
         MfClassicSectorTrailer* sec_tr = mf_classic_get_sector_trailer_by_sector(data, 4);
         uint64_t key = bit_lib_bytes_to_num_be(sec_tr->key_a.data, 6);
         if(key != two_cities_4k_keys[4].a) break;
 
-        // =====
-        // PLANTAIN
-        // =====
-
-        // Point to block 0 of sector 4, value 0
         const uint8_t* temp_ptr = data->block[16].data;
-        // Read first 4 bytes of block 0 of sector 4 from last to first and convert them to uint32_t
-        // 38 18 00 00 becomes 00 00 18 38, and equals to 6200 decimal
+
         uint32_t balance =
             ((temp_ptr[3] << 24) | (temp_ptr[2] << 16) | (temp_ptr[1] << 8) | temp_ptr[0]) / 100;
-        // Read card number
-        // Point to block 0 of sector 0, value 0
+
         temp_ptr = data->block[0].data;
-        // Read first 7 bytes of block 0 of sector 0 from last to first and convert them to uint64_t
-        // 04 31 16 8A 23 5C 80 becomes 80 5C 23 8A 16 31 04, and equals to 36130104729284868 decimal
+
         uint8_t card_number_arr[7];
         for(size_t i = 0; i < 7; i++) {
             card_number_arr[i] = temp_ptr[6 - i];
         }
-        // Copy card number to uint64_t
+
         uint64_t card_number = 0;
         for(size_t i = 0; i < 7; i++) {
             card_number = (card_number << 8) | card_number_arr[i];
         }
-
-        // =====
-        // --PLANTAIN--
-        // =====
-        // TROIKA
-        // =====
 
         const uint8_t* troika_temp_ptr = &data->block[33].data[5];
         uint16_t troika_balance = ((troika_temp_ptr[0] << 8) | troika_temp_ptr[1]) / 25;
@@ -169,7 +155,6 @@ static bool two_cities_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin two_cities_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = two_cities_verify,
@@ -177,14 +162,12 @@ static const NfcSupportedCardsPlugin two_cities_plugin = {
     .parse = two_cities_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor two_cities_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &two_cities_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* two_cities_plugin_ep(void) {
     return &two_cities_plugin_descriptor;
 }

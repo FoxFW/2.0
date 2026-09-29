@@ -8,13 +8,13 @@
 #define KEY_ROWS 3
 #define KEY_COLS 4
 
-#define KEY_WIDTH 25     
-#define KEY_HEIGHT 13    
+#define KEY_WIDTH 25
+#define KEY_HEIGHT 13
 #define GRID_START_X 5
 #define GRID_START_Y 16
 #define X_GAP 2
-#define Y_GAP 2          
-#define SIDEBAR_GAP_X 12 
+#define Y_GAP 2
+#define SIDEBAR_GAP_X 12
 
 static const char* const main_text_map[9] = {
     "1", "2", "3",
@@ -26,9 +26,9 @@ typedef struct {
     uint8_t selected_row;
     uint8_t selected_col;
     uint8_t pin_length;
-    uint8_t pin_buffer[8]; 
+    uint8_t pin_buffer[8];
     bool is_confirm_mode;
-    bool show_error;  
+    bool show_error;
 } NumericPinModel;
 
 struct DesktopSettingsViewNumericPin {
@@ -62,7 +62,7 @@ static void desktop_settings_view_numeric_pin_draw_callback(Canvas* canvas, void
 
         for(uint8_t i = 0; i < total_dots; i++) {
             int16_t dot_x = dot_start_x + (i * 7);
-            canvas_draw_disc(canvas, dot_x, 7, 2); 
+            canvas_draw_disc(canvas, dot_x, 7, 2);
         }
     }
 
@@ -88,11 +88,11 @@ static void desktop_settings_view_numeric_pin_draw_callback(Canvas* canvas, void
                 uint8_t idx = (row * 3) + col;
                 canvas_set_font(canvas, FontPrimary);
                 canvas_draw_str_aligned(
-                    canvas, 
-                    box_x + (KEY_WIDTH / 2), 
-                    box_y + (KEY_HEIGHT / 2) + 1, 
-                    AlignCenter, 
-                    AlignCenter, 
+                    canvas,
+                    box_x + (KEY_WIDTH / 2),
+                    box_y + (KEY_HEIGHT / 2) + 1,
+                    AlignCenter,
+                    AlignCenter,
                     main_text_map[idx]
                 );
             } else {
@@ -105,7 +105,7 @@ static void desktop_settings_view_numeric_pin_draw_callback(Canvas* canvas, void
 
                     canvas_draw_line(canvas, x, y + 4, x + 4, y);
                     canvas_draw_line(canvas, x, y + 4, x + 4, y + 8);
-                    
+
                     canvas_draw_line(canvas, x + 4, y, x + 12, y);
                     canvas_draw_line(canvas, x + 4, y + 8, x + 12, y + 8);
                     canvas_draw_line(canvas, x + 12, y, x + 12, y + 8);
@@ -113,7 +113,7 @@ static void desktop_settings_view_numeric_pin_draw_callback(Canvas* canvas, void
                     canvas_draw_line(canvas, x + 6, y + 2, x + 10, y + 6);
                     canvas_draw_line(canvas, x + 10, y + 2, x + 6, y + 6);
                 } else if(row == 1) {
-                    canvas_set_font(canvas, FontPrimary); 
+                    canvas_set_font(canvas, FontPrimary);
                     canvas_draw_str_aligned(canvas, text_x, text_y, AlignCenter, AlignCenter, "0");
                 } else if(row == 2) {
                     canvas_set_font(canvas, FontKeyboard);
@@ -133,7 +133,7 @@ static bool desktop_settings_view_numeric_pin_input_callback(InputEvent* event, 
     bool trigger_callback = false;
 
     if(event->type == InputTypeShort || event->type == InputTypeRepeat) {
-        // Safe atomic lock: with_view_model automatically commits and releases locks safely
+
         with_view_model(
 
             instance->view,
@@ -157,24 +157,24 @@ static bool desktop_settings_view_numeric_pin_input_callback(InputEvent* event, 
                     consumed = true;
                 } else if(event->key == InputKeyOk) {
                     if(model->selected_col < 3) {
-                        if(model->pin_length < 8) { 
+                        if(model->pin_length < 8) {
                             uint8_t idx = (model->selected_row * 3) + model->selected_col;
                             model->pin_buffer[model->pin_length] = idx + 1;
                             model->pin_length++;
                         }
                     } else {
-                        if(model->selected_row == 0) { 
+                        if(model->selected_row == 0) {
                             if(model->pin_length > 0) {
                                 model->pin_length--;
                             }
-                        } else if(model->selected_row == 1) { 
-                            if(model->pin_length < 8) { 
+                        } else if(model->selected_row == 1) {
+                            if(model->pin_length < 8) {
                                 model->pin_buffer[model->pin_length] = 0;
                                 model->pin_length++;
                             }
-                        } else if(model->selected_row == 2) { 
+                        } else if(model->selected_row == 2) {
                             if(model->pin_length > 0 && instance->callback) {
-                                trigger_callback = true; 
+                                trigger_callback = true;
                             }
                         }
                     }
@@ -202,7 +202,6 @@ DesktopSettingsViewNumericPin* desktop_settings_view_numeric_pin_alloc(void) {
     instance->callback = NULL;
     instance->context = NULL;
 
-    // Correctly restore ViewModelTypeLocking to map with SDK requirements
     view_allocate_model(instance->view, ViewModelTypeLocking, sizeof(NumericPinModel));
     view_set_context(instance->view, instance);
     view_set_draw_callback(instance->view, desktop_settings_view_numeric_pin_draw_callback);

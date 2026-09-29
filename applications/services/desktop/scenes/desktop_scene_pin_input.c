@@ -57,8 +57,7 @@ static void desktop_scene_pin_input_done_callback(const DesktopPinCode* pin_code
         FoxEscrowData escrow;
         memset(&escrow, 0, sizeof(FoxEscrowData));
         if(fox_escrow_load_and_verify(&escrow)) {
-            // Always clear the fail count on correct PIN — the sentinel must
-            // never lock out the legitimate owner.
+
             escrow.active_fail_count = 0;
             fox_escrow_save_state(&escrow);
         }
@@ -87,10 +86,10 @@ static void desktop_scene_pin_input_done_callback(const DesktopPinCode* pin_code
 
         uint8_t limit = desktop->settings.pin_max_attempts;
         if(limit > 0 && fail_count >= limit) {
-            // Trigger Wiper Screen: set sentinel, format SD, reboot.
+
             fox_escrow_trigger_wiper_screen();
             desktop_view_pin_input_lock_input(desktop->pin_input_view);
-            fox_escrow_execute_wipe(); // formats SD card then calls furi_hal_power_reset()
+            fox_escrow_execute_wipe();
         } else {
             view_dispatcher_send_custom_event(
                 desktop->view_dispatcher, DesktopPinInputEventUnlockFailed);
@@ -139,12 +138,8 @@ void desktop_scene_pin_input_on_enter(void* context) {
        startup_check.active_fail_count == WIPER_SENTINEL) {
         desktop_view_pin_input_lock_input(desktop->pin_input_view);
 
-        // Full hardware lockout — cut every remote-access surface so the
-        // device cannot be reached via qFlipper, BLE, CLI, or GPIO while
-        // the wiper screen is showing.
-        furi_hal_usb_set_config(NULL, NULL);  // Disconnect USB (kills qFlipper + USB-CDC CLI)
-        // TODO: add BLE stop here using the same call Fox settings uses to disable BLE.
-        // e.g. furi_hal_bt_stop_advertising() or the BT service record equivalent.
+        furi_hal_usb_set_config(NULL, NULL);
+
     } else {
         desktop_view_pin_input_unlock_input(desktop->pin_input_view);
         desktop_view_pin_input_hide_pin(desktop->pin_input_view, true);
@@ -183,13 +178,11 @@ bool desktop_scene_pin_input_on_event(void* context, SceneManagerEvent event) {
                 if(fox_escrow_load_and_verify(&check)) cur_fails = check.active_fail_count;
                 bool final_warning = (limit > 0 && cur_fails > 0 && (cur_fails + 1) >= limit);
 
-                // Brief overlay — view's internal timer clears it and resets digit entry
                 desktop_view_pin_input_show_wrong_pin_feedback(
                     desktop->pin_input_view,
                     final_warning ? "WIPE ON NEXT!" : "Incorrect PIN",
                     WRONG_PIN_HEADER_TIMEOUT);
 
-                // Red light stays on until ResetWrongPinLabel fires
                 if(!final_warning) {
                     desktop_scene_pin_input_set_timer(desktop, true, WRONG_PIN_HEADER_TIMEOUT);
                 }

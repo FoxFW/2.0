@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Based on FlipDeFlock by ReconGrunt (https://github.com/ReconGrunt/FlipDeFlock).
+
 #include "foxdeflock_app.h"
 #include "foxdeflock_scan.h"
 
@@ -72,15 +72,6 @@ static void draw_esp32_check(Canvas* c, FoxDeFlockApp* app) {
 #define FOXDEFLOCK_BUTTON_GAP 6
 #define FOXDEFLOCK_BUTTON_R 3
 
-/* Focus-then-confirm two-button bar (Left/Right toggles focus, OK
- * confirms) - was drawn as plain sharp-cornered canvas_draw_box()/frame()
- * rectangles with text manually offset by a fixed (+4,+9), inconsistent
- * with the suite's established rounded-pill button look (same
- * canvas_draw_rbox()/canvas_draw_rframe() + centered-text pattern already
- * used by restart_confirm_view.c and the TPMS box list, per the
- * 2026-09-13 footer-button audit). Geometry (position/size/gap) is
- * unchanged - only the corner style and text centering were brought in
- * line with the rest of the Fox suite. */
 static void draw_two_buttons(Canvas* c, bool left_focused, const char* left, const char* right) {
     int y = 48, h = FOXDEFLOCK_BUTTON_H;
     int lw = canvas_string_width(c, left) + FOXDEFLOCK_BUTTON_PAD_X * 2;
@@ -124,12 +115,6 @@ static void draw_esp32_not_found(Canvas* c, FoxDeFlockApp* app) {
     draw_two_buttons(c, app->esp32_check_focus_settings, "Settings", "Retry");
 }
 
-/* Manual USART/LPUART override + re-probe - reached only from the
- * Esp32NotFound gate's "Settings" button, same role and same on-screen
- * layout as CSIght_FoxEdition's csight_draw_connect_settings() (this
- * app has no post-connect Settings menu of its own to reach it from a
- * second way, unlike CSight). Left/Right flips the channel immediately
- * (and saves it), OK commits + retries, Back returns to Esp32NotFound. */
 static void draw_connect_settings(Canvas* c, FoxDeFlockApp* app) {
     canvas_set_font(c, FontPrimary);
     draw_centered_str(c, 10, "Connection");
@@ -319,7 +304,7 @@ static void handle_input(FoxDeFlockApp* app, InputKey key, InputType type) {
             if(app->esp32_check_focus_settings) {
                 app->state = FoxDeFlockStateConnectSettings;
             } else {
-                app->esp32_probe_tried_alt = false; // fresh two-channel sweep
+                app->esp32_probe_tried_alt = false;
                 start_esp32_check(app);
             }
         }
@@ -334,7 +319,7 @@ static void handle_input(FoxDeFlockApp* app, InputKey key, InputType type) {
             };
             gpio_remap_settings_save(&remap);
         } else if(key == InputKeyOk && type == InputTypeShort) {
-            app->esp32_probe_tried_alt = false; // fresh two-channel sweep
+            app->esp32_probe_tried_alt = false;
             start_esp32_check(app);
         } else if(key == InputKeyBack && type == InputTypeShort) {
             app->state = FoxDeFlockStateEsp32NotFound;
@@ -377,13 +362,7 @@ static void timer_cb(void* ctx) {
             start_scanning(app);
         } else if(furi_get_tick() - app->esp32_check_start_tick > furi_ms_to_ticks(ESP32_CHECK_TIMEOUT_MS)) {
             if(!app->esp32_probe_tried_alt) {
-                // Fox ESP32 FW only ever answers on one of the Flipper's two
-                // UART peripherals (the shared gpio_remap setting every Fox
-                // ESP32 app reads/writes) - auto-flip to the other channel
-                // and try once more before asking the user, matching
-                // CSIght_FoxEdition's own two-channel sweep (csight_app.c's
-                // AppStateEsp32Check handling, itself modeled on
-                // fox_esp32_terminal's action_check_esp32()).
+
                 app->esp32_probe_tried_alt = true;
                 app->pin_option_index = (app->pin_option_index + 1) % PIN_OPTION_COUNT;
                 app->serial_id = PIN_OPTIONS[app->pin_option_index].serial_id;
@@ -391,7 +370,7 @@ static void timer_cb(void* ctx) {
                     .esp32_uart_channel = (uint8_t)app->pin_option_index,
                 };
                 gpio_remap_settings_save(&remap);
-                start_esp32_check(app); // re-allocates esp_at on the new channel
+                start_esp32_check(app);
             } else {
                 app->state = FoxDeFlockStateEsp32NotFound;
                 app->esp32_check_focus_settings = false;

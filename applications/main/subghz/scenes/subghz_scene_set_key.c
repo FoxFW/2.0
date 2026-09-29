@@ -27,9 +27,8 @@ void subghz_scene_set_key_on_enter(void* context) {
     furi_assert(byte_ptr);
     furi_assert(byte_count > 0);
 
-    *((uint64_t*)byte_ptr) = __bswap64(*((uint64_t*)byte_ptr)); // Convert
+    *((uint64_t*)byte_ptr) = __bswap64(*((uint64_t*)byte_ptr));
 
-    // Setup view
     ByteInput* byte_input = subghz->byte_input;
     byte_input_set_header_text(byte_input, "Enter KEY in hex");
     byte_input_set_result_callback(
@@ -88,7 +87,6 @@ bool subghz_scene_set_key_on_event(void* context, SceneManagerEvent event) {
 void subghz_scene_set_key_on_exit(void* context) {
     SubGhz* subghz = context;
 
-    // Clear view
     byte_input_set_result_callback(subghz->byte_input, NULL, NULL, NULL, NULL, 0);
     byte_input_set_header_text(subghz->byte_input, "");
 }

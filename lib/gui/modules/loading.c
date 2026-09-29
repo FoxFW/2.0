@@ -1,30 +1,8 @@
-/**
- * @file loading.c
- * @brief FoxFW custom loading animation — comet tail spinner.
- *
- * HOW REDRAWS WORK IN THE VIEWHOLDER CONTEXT
- * -------------------------------------------
- * The Loader uses a ViewHolder (not a ViewDispatcher) to show this view.
- * ViewHolder listens for the View's update_callback and calls view_port_update
- * on its internal viewport when it fires — that's what actually repaints.
- *
- * view_commit_model(view, false)  — does NOT fire update_callback → no repaint
- * view_commit_model(view, true)   — fires update_callback → ViewHolder repaints
- *
- * The timer therefore calls view_commit_model(view, true) every 50ms, which
- * fires the update_callback, which triggers the ViewHolder to repaint, which
- * calls our draw callback with the new frame. The comet-tail animates.
- *
- * This is also the same mechanism that icon_animation uses internally:
- * view_icon_animation_callback fires the view's update_callback.
- */
-
 #include <gui/modules/loading.h>
 #include <furi.h>
 
 #define LOADING_INTERVAL_MS 50u
 
-/* Comet-tail: 8 positions at radius 11, clockwise from top */
 static const int8_t spin_dx[8] = {  0,  8, 11,  8,  0, -8,-11, -8};
 static const int8_t spin_dy[8] = {-11, -8,  0,  8, 11,  8,  0, -8};
 
@@ -55,10 +33,7 @@ static void loading_draw_callback(Canvas* canvas, void* _model) {
 
 static void loading_timer_callback(void* ctx) {
     Loading* loading = ctx;
-    /* view_commit_model with true fires the update_callback, which the
-     * ViewHolder listens for to call view_port_update on its internal
-     * viewport. This is the correct way to drive animation from a timer
-     * in both ViewHolder and ViewDispatcher contexts. */
+
     with_view_model(
         loading->view,
         LoadingModel* model,

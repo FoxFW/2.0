@@ -1,10 +1,3 @@
-/*
- * IR transmitter.
- *
- * TIM1 CH3N drives the built-in IR LED carrier.
- * DWT->CYCCCNT handles the symbol timing so we do not need another timer.
- */
-
 #include "tagtinker_ir.h"
 
 #include <furi.h>
@@ -16,22 +9,16 @@
 
 #include <stm32wbxx_ll_tim.h>
 
-/* Carrier setup for the built-in IR LED on TIM1 CH3N. */
 #define CARRIER_TIM       TIM1
 #define CARRIER_ARR       (51 - 1)
 #define CARRIER_CCR       25
 
-/*
- * PP4 sends two bits per symbol. The gap selects the symbol value.
- * These are pre-computed CPU cycle counts at 64 MHz to avoid any
- * per-call overhead in the tight timing loop.
- */
 #define PP4_BURST_CYCLES  2581
 static const uint32_t pp4_gap_cycles[4] = {
-    3871,   /* symbol 0 ~60 us  */
-    15483,  /* symbol 3 ~242 us */
-    7741,   /* symbol 2 ~121 us */
-    11612,  /* symbol 1 ~181 us */
+    3871,
+    15483,
+    7741,
+    11612,
 };
 
 static bool ir_initialized = false;
@@ -40,14 +27,14 @@ static volatile bool ir_stop_requested = false;
 static inline void carrier_on(void) {
     uint32_t ccmr2 = CARRIER_TIM->CCMR2;
     ccmr2 &= ~(TIM_CCMR2_OC3M);
-    ccmr2 |= (TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0); /* PWM2 */
+    ccmr2 |= (TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0);
     CARRIER_TIM->CCMR2 = ccmr2;
 }
 
 static inline void carrier_off(void) {
     uint32_t ccmr2 = CARRIER_TIM->CCMR2;
     ccmr2 &= ~(TIM_CCMR2_OC3M);
-    ccmr2 |= TIM_CCMR2_OC3M_2; /* Force inactive */
+    ccmr2 |= TIM_CCMR2_OC3M_2;
     CARRIER_TIM->CCMR2 = ccmr2;
 }
 
@@ -71,7 +58,7 @@ static void send_frame_pp4(const uint8_t* data, size_t len) {
             delay_cycles(pp4_gap_cycles[symbol]);
         }
     }
-    /* Final closing burst */
+
     carrier_on();
     delay_cycles(PP4_BURST_CYCLES);
     carrier_off();
@@ -142,25 +129,17 @@ bool tagtinker_ir_transmit(const uint8_t* data, size_t len, uint16_t repeats_raw
             return false;
         }
 
-        /*
-         * FURI_CRITICAL_ENTER/EXIT wraps each individual frame to prevent
-         * OS interrupts from breaking the microsecond-level IR symbol timing.
-         * The critical section is short (~1-2ms per frame) so it won't stall
-         * the OS noticeably, and we yield via furi_delay_ms between repeats.
-         */
         FURI_CRITICAL_ENTER();
         send_frame_pp4(data, len);
         FURI_CRITICAL_EXIT();
 
         if(rep < repeats) {
-            /* Short gap between repeats using cycle-accurate delay.
-             * delay parameter = gap in units of 500µs.
-             * Always yield to OS every 5 repeats to prevent watchdog starvation. */
+
             if(delay > 0) {
-                uint32_t gap_cycles = (uint32_t)delay * 32000U; /* 500µs per unit at 64MHz */
+                uint32_t gap_cycles = (uint32_t)delay * 32000U;
                 delay_cycles(gap_cycles);
             }
-            /* Yield to OS periodically */
+
             if((rep % 5U) == 4U) furi_delay_ms(1);
         }
     }

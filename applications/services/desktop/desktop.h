@@ -17,6 +17,11 @@ typedef struct {
     bool locked;
 } DesktopStatus;
 
+typedef enum {
+    DesktopUsbModeQflipper,
+    DesktopUsbModeMassStorage,
+} DesktopUsbMode;
+
 bool desktop_api_is_locked(Desktop* instance);
 
 void desktop_api_unlock(Desktop* instance);
@@ -27,13 +32,13 @@ void desktop_api_get_settings(Desktop* instance, DesktopSettings* settings);
 
 void desktop_api_set_settings(Desktop* instance, const DesktopSettings* settings);
 
-// Set the active PIN through the desktop service.
-// This updates both the in-memory PIN state and persists it to /int/.fox_pin.bin,
-// so the change takes effect immediately without requiring a reboot.
 void desktop_api_set_pin(Desktop* instance, const DesktopPinCode* pin_code);
 
-// Clear the active PIN through the desktop service.
 void desktop_api_clear_pin(Desktop* instance);
+
+DesktopUsbMode desktop_api_get_usb_mode(Desktop* instance);
+
+void desktop_api_set_usb_mode(Desktop* instance, DesktopUsbMode mode);
 
 #ifdef __cplusplus
 }

@@ -9,8 +9,6 @@
 #include <string.h>
 #include <stdio.h>
 
-// Shared with download_progress_view.c, which fills the Connecting
-// screen's bar based on elapsed-vs-this-budget - see app.h.
 #define DL_TIMEOUT_MS            FOX_DOWNLOAD_CONNECT_TIMEOUT_MS
 #define DL_CHUNK_POLL_SLICE_MS   150
 #define DL_STREAM_FRAME_MAX      1024
@@ -18,13 +16,6 @@
 
 typedef enum { WaitOk, WaitError, WaitTimeout, WaitCancelled } WaitResult;
 
-// cancel_flag is checked every ~300ms (the same cadence esp_at_receive
-// already polls at) instead of only being noticed between whole attempts
-// in download_attempt_retrying - previously a Cancel press during a long
-// wait (up to DL_TIMEOUT_MS, times however many retries were left) just
-// sat there unacknowledged until the current wait resolved on its own.
-// Pass NULL when the wait itself is part of already-cancelling cleanup,
-// where a further cancel check doesn't mean anything.
 static WaitResult wait_for_line_prefix(
     EspAt* esp_at,
     const char* tag,
@@ -125,11 +116,6 @@ void download_work_path(const char* final_path, char* out, size_t out_size) {
     snprintf(out, out_size, "%s.download", final_path);
 }
 
-// Reads exactly `len` raw bytes, polling in DL_CHUNK_POLL_SLICE_MS slices
-// so a cancel request lands within one slice instead of waiting out the
-// whole chunk_timeout_ms budget. Returns bytes actually read - short of
-// `len` means either cancelled or the idle budget ran out with nothing
-// (more) arriving.
 static size_t
     read_raw_exact(App* app, uint8_t* out, size_t len, uint32_t chunk_timeout_ms) {
     size_t got = 0;
@@ -150,13 +136,6 @@ static bool download_attempt(App* app, char* error_msg, size_t error_msg_size) {
     drain_stray_messages(app->esp_at);
     app->download_connect_attempt_tick = furi_get_tick();
 
-    // A brand new download doesn't know its own destination filename/path
-    // until the very first successful connect tells us the URL is real
-    // (download_derive_found_info below) - and by definition there's
-    // nothing to resume yet on that first attempt. Once a path exists -
-    // this same download's later retries, or a resumed interrupted
-    // download that already has one from before - the usual on-disk
-    // resume-offset detection applies as normal.
     bool have_path = (app->download_found_name[0] != '\0');
 
     char work_path[FOX_DOWNLOAD_PATH_MAX + 10];
@@ -227,7 +206,7 @@ static bool download_attempt(App* app, char* error_msg, size_t error_msg_size) {
         json_mini_get_string(rest, "type", type, sizeof(type));
         download_derive_found_info(app, live_size, type);
         download_work_path(app->download_path, work_path, sizeof(work_path));
-        // A brand new download, by definition, has nothing to resume yet.
+
         resume_offset = 0;
     }
 
@@ -285,17 +264,6 @@ static bool download_attempt(App* app, char* error_msg, size_t error_msg_size) {
     uint32_t chunk_timeout_ms = (uint32_t)app->download_settings.timeout_sec * 1000;
     snprintf(error_msg, error_msg_size, "Download failed");
 
-    // Every chunk on the wire from here is a 4-byte little-endian length
-    // prefix followed by that many payload bytes, ending in a 4-byte
-    // terminator (0 = finished cleanly, all-ones = the ESP32 gave up
-    // mid-transfer - see DOWNLOAD_STREAM_END_MARKER/ERROR_MARKER in
-    // http_bridge.cpp). Previously this side just counted bytes against
-    // the size the ESP32 reported up front and had no way to tell a
-    // stalled transfer from a slow one - a stall just looked like more
-    // waiting, right up until this side's own separate, much longer
-    // timeout finally gave up, and any diagnostic text the ESP32 tried to
-    // print in the meantime got swallowed into the saved file as garbage
-    // since this side was still treating everything as raw payload.
     while(true) {
         if(app->download_cancel_requested && !cancelled) {
             esp_at_send(app->esp_at, "[DOWNLOAD/CANCEL]");
@@ -326,10 +294,7 @@ static bool download_attempt(App* app, char* error_msg, size_t error_msg_size) {
             break;
         }
         if(frame_len > sizeof(stream_buf)) {
-            // The ESP32 never frames more than DL_STREAM_FRAME_MAX bytes
-            // at a time - a corrupted/desynced length prefix reading as
-            // something huge here would otherwise wait forever for bytes
-            // that don't exist.
+
             snprintf(error_msg, error_msg_size, "Stream protocol error");
             stream_ok = false;
             break;
@@ -356,27 +321,20 @@ static bool download_attempt(App* app, char* error_msg, size_t error_msg_size) {
         furi_delay_ms(ESP32_CANCEL_SETTLE_MS);
     } else if(!stream_ok) {
         if(got_terminator) {
-            // The ESP32 already knows it's over and is printing its own
-            // [ERROR] line right behind the terminator - read that
-            // instead of a generic message so the real reason (e.g.
-            // "stream incomplete") reaches the user.
+
             if(esp_at_receive(app->esp_at, &s_msg, 3000) && strncmp(s_msg.line, "[ERROR]", 7) == 0) {
                 str_copy(error_msg, error_msg_size, s_msg.line + 7);
                 str_capitalize_first(error_msg);
             }
         } else {
-            // Never got a terminator at all (protocol desync, or the
-            // ESP32 itself is wedged) - tell it to give up rather than
-            // leaving it mid-stream for the next attempt to trip over.
+
             esp_at_send(app->esp_at, "[DOWNLOAD/CANCEL]");
             wait_for_line_prefix(app->esp_at, "[DOWNLOAD/CANCEL/SUCCESS]", NULL, 0, 2000, NULL);
         }
         drain_stray_messages(app->esp_at);
         furi_delay_ms(ESP32_CANCEL_SETTLE_MS);
     } else if(esp_at_receive(app->esp_at, &s_msg, 3000) && strncmp(s_msg.line, "[ERROR]", 7) == 0) {
-        // The clean-finish terminator raced an error the ESP32 only
-        // detected after sending it (rare, but the trailing line is the
-        // tie-breaker) - trust the line over the terminator.
+
         str_copy(error_msg, error_msg_size, s_msg.line + 7);
         str_capitalize_first(error_msg);
         success = false;
@@ -460,13 +418,7 @@ int32_t download_worker_thread(void* context) {
     if(!success) {
         set_progress_error(app, error_msg);
     } else {
-        // Every attempt opens and writes a file now (there's no more
-        // check-only path that skips straight to a cancel) - always
-        // rename the finished .download file into place on success. If
-        // this was never confirmed by the user, download_unconfirmed_finished
-        // (download.c, called from main.c) still owns the decision of
-        // whether to keep it or delete it - it just does that at the
-        // final path instead of the .download one.
+
         char work_path[FOX_DOWNLOAD_PATH_MAX + 10];
         download_work_path(app->download_path, work_path, sizeof(work_path));
         Storage* storage = furi_record_open(RECORD_STORAGE);

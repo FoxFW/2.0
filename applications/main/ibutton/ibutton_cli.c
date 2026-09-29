@@ -26,10 +26,9 @@ static bool ibutton_cli_parse_key(iButtonProtocols* protocols, iButtonKey* key, 
     FuriString* name = furi_string_alloc();
 
     do {
-        // Read protocol name
+
         if(!args_read_string_and_trim(args, name)) break;
 
-        // Make the protocol name uppercase
         const char first = furi_string_get_char(name, 0);
         furi_string_set_char(name, 0, toupper((int)first));
 
@@ -39,11 +38,9 @@ static bool ibutton_cli_parse_key(iButtonProtocols* protocols, iButtonKey* key, 
 
         ibutton_key_set_protocol_id(key, id);
 
-        // Get the data pointer
         iButtonEditableData data;
         ibutton_protocols_get_editable_data(protocols, key, &data);
 
-        // Read data
         if(!args_read_hex_bytes(args, data.ptr, data.size)) break;
 
         result = true;

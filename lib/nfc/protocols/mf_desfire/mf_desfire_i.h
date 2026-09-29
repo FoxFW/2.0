@@ -7,16 +7,12 @@
 #define MF_DESFIRE_FFF_PICC_PREFIX "PICC"
 #define MF_DESFIRE_FFF_APP_PREFIX  "Application"
 
-// SimpleArray configurations
-
 extern const SimpleArrayConfig mf_desfire_key_version_array_config;
 extern const SimpleArrayConfig mf_desfire_app_id_array_config;
 extern const SimpleArrayConfig mf_desfire_file_id_array_config;
 extern const SimpleArrayConfig mf_desfire_file_settings_array_config;
 extern const SimpleArrayConfig mf_desfire_file_data_array_config;
 extern const SimpleArrayConfig mf_desfire_application_array_config;
-
-// Parse internal MfDesfire structures
 
 bool mf_desfire_version_parse(MfDesfireVersion* data, const BitBuffer* buf);
 
@@ -39,25 +35,17 @@ bool mf_desfire_file_settings_parse(MfDesfireFileSettings* data, const BitBuffer
 
 bool mf_desfire_file_data_parse(MfDesfireFileData* data, const BitBuffer* buf);
 
-// Init internal MfDesfire structures
-
 void mf_desfire_file_data_init(MfDesfireFileData* data);
 
 void mf_desfire_application_init(MfDesfireApplication* data);
-
-// Reset internal MfDesfire structures
 
 void mf_desfire_file_data_reset(MfDesfireFileData* data);
 
 void mf_desfire_application_reset(MfDesfireApplication* data);
 
-// Copy internal MfDesfire structures
-
 void mf_desfire_file_data_copy(MfDesfireFileData* data, const MfDesfireFileData* other);
 
 void mf_desfire_application_copy(MfDesfireApplication* data, const MfDesfireApplication* other);
-
-// Load internal MfDesfire structures
 
 bool mf_desfire_version_load(MfDesfireVersion* data, FlipperFormat* ff);
 
@@ -97,8 +85,6 @@ bool mf_desfire_application_ids_load(
     FlipperFormat* ff);
 
 bool mf_desfire_application_load(MfDesfireApplication* data, const char* prefix, FlipperFormat* ff);
-
-// Save internal MFDesfire structures
 
 bool mf_desfire_version_save(const MfDesfireVersion* data, FlipperFormat* ff);
 

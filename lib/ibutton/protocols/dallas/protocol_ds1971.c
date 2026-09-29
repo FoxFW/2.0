@@ -88,13 +88,12 @@ bool dallas_ds1971_write_copy(OneWireHost* host, iButtonProtocolData* protocol_d
 
     onewire_host_reset(host);
     onewire_host_write(host, DALLAS_COMMON_CMD_SKIP_ROM);
-    // Starting writing from address 0x0000
+
     onewire_host_write(host, DALLAS_COMMON_CMD_WRITE_SCRATCH);
     onewire_host_write(host, 0x00);
-    // Write data to scratchpad
+
     onewire_host_write_bytes(host, data->eeprom_data, DS1971_EEPROM_DATA_SIZE);
 
-    // Read data from scratchpad and verify
     bool pad_valid = false;
     if(onewire_host_reset(host)) {
         pad_valid = true;
@@ -111,7 +110,6 @@ bool dallas_ds1971_write_copy(OneWireHost* host, iButtonProtocolData* protocol_d
         }
     }
 
-    // Copy scratchpad to memory and confirm
     if(pad_valid) {
         if(onewire_host_reset(host)) {
             onewire_host_write(host, DALLAS_COMMON_CMD_SKIP_ROM);

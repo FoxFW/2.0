@@ -1,12 +1,3 @@
-// KDF from: https://gitee.com/jadenwu/Saflok_KDF/blob/master/saflok.c
-// KDF published and reverse engineered by Jaden Wu
-// FZ plugin by @noproto
-
-// Decryption and parsing from: https://gitee.com/wangshuoyue/unsaflok
-// Decryption algorithm and parsing published by Shuoyue Wang
-// Parsing also inspired by Lennert Wouters and Ian Carroll's DEFCON 32 talk
-// https://defcon.org/html/defcon-32/dc-32-speakers.html
-// FZ parser by @Torron, with help from @xtruan, @zacharyweiss, @evilmog and kara (@Arkwin)
 #include "nfc_supported_card_plugin.h"
 #include <flipper_application.h>
 
@@ -77,22 +68,22 @@ const char* weekdays[] =
     {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
 
 static MfClassicKeyPair saflok_1k_keys[] = {
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 000
-    {.a = 0x2a2c13cc242a, .b = 0xffffffffffff}, // 001
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 002
-    {.a = 0xffffffffffff, .b = 0xffffffffffff}, // 003
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 004
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 005
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 006
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 007
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 008
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 009
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 010
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 011
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 012
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 013
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 014
-    {.a = 0x000000000000, .b = 0xffffffffffff}, // 015
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x2a2c13cc242a, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0xffffffffffff, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
+    {.a = 0x000000000000, .b = 0xffffffffffff},
 };
 
 void generate_saflok_key(const uint8_t* uid, uint8_t* key) {
@@ -126,7 +117,6 @@ void generate_saflok_key(const uint8_t* uid, uint8_t* key) {
     memcpy(key, temp_key, KEY_LENGTH);
 }
 
-// Lookup table
 static const uint8_t c_aDecode[256] = {
     0xEA, 0x0D, 0xD9, 0x74, 0x4E, 0x28, 0xFD, 0xBA, 0x7B, 0x98, 0x87, 0x78, 0xDD, 0x8D, 0xB5,
     0x1A, 0x0E, 0x30, 0xF3, 0x2F, 0x6A, 0x3B, 0xAC, 0x09, 0xB9, 0x20, 0x6E, 0x5B, 0x2B, 0xB6,
@@ -281,22 +271,22 @@ bool saflok_parse(const NfcDevice* device, FuriString* parsed_data) {
 
     do {
 #if SL_PROTO == SL_PROTO_MFC
-        // Check card type
+
         if(data->type != MfClassicType1k) break;
-        // Verify key
+
         const MfClassicSectorTrailer* sec_tr =
             mf_classic_get_sector_trailer_by_sector(data, CHECK_SECTOR);
         const uint64_t key_a =
             bit_lib_bytes_to_num_be(sec_tr->key_a.data, COUNT_OF(sec_tr->key_a.data));
         if(key_a != saflok_1k_keys[CHECK_SECTOR].a) break;
-        // Init basic access
+
         uint8_t basicAccess[BASIC_ACCESS_BYTE_NUM];
         memcpy(&basicAccess, &data->block[1].data, 16);
         memcpy(&basicAccess[16], &data->block[2].data[0], 1);
 #elif SL_PROTO == SL_PROTO_UL
-        // Check card type
+
         if(data->type != MfUltralightTypeMfulC) break;
-        // Init basic access
+
         uint8_t basicAccess[BASIC_ACCESS_BYTE_NUM];
         memcpy(&basicAccess[0 * 4], &data->page[34].data, 4);
         memcpy(&basicAccess[1 * 4], &data->page[35].data, 4);
@@ -305,50 +295,35 @@ bool saflok_parse(const NfcDevice* device, FuriString* parsed_data) {
         memcpy(&basicAccess[4 * 4], &data->page[38].data[0], 1);
 #endif
 
-        // Decrypt basic access
         uint8_t decodedBA[BASIC_ACCESS_BYTE_NUM];
         DecryptCard(basicAccess, BASIC_ACCESS_BYTE_NUM, decodedBA);
 
-        // Byte 0: Key level, LED warning bit, and subgroup functions
         uint8_t key_level = (decodedBA[0] & 0xF0) >> 4;
         uint8_t led_warning = (decodedBA[0] & 0x08) >> 3;
 
-        // Byte 1: Key ID
         uint8_t key_id = decodedBA[1];
 
-        // Byte 2 & 3: KeyRecord, including OpeningKey flag
         uint8_t key_record_high = decodedBA[2] & 0x7F;
         uint8_t opening_key = (decodedBA[2] & 0x80) >> 7;
         uint16_t key_record = (key_record_high << 8) | decodedBA[3];
 
-        // Byte 4 & 5: Pass level in reversed binary
         uint16_t pass_level = ((decodedBA[4] & 0xFF) << 8) | decodedBA[5];
-        // uint8_t pass_levels[12];
-        // int pass_levels_count = 0;
 
-        // for (int i = 0; i < 12; i++) {
-        //     if ((pass_level >> i) & 1) {
-        //         pass_levels[pass_levels_count++] = i + 1;
-        //     }
-        // }
-
-        // Byte 5 & 6: EncryptSequence + Combination
         uint16_t sequence_combination_number = ((decodedBA[5] & 0x0F) << 8) | decodedBA[6];
-        // Bytes 14-15: Property number and year
+
         uint8_t creation_year_bits = (decodedBA[14] & 0xF0);
         uint16_t property_id = ((decodedBA[14] & 0x0F) << 8) | decodedBA[15];
 
-        // Byte 7: OverrideDeadbolt and Days
         uint8_t override_deadbolt = (decodedBA[7] & 0x80) >> 7;
         uint8_t restricted_weekday = decodedBA[7] & 0x7F;
-        // Counter to keep track of the number of restricted days
+
         int restricted_count = 0;
-        // Buffer to store the resulting string
+
         FuriString* restricted_weekday_string = furi_string_alloc();
-        // Check each bit from Monday to Sunday
+
         for(int i = 0; i < 7; i++) {
             if(restricted_weekday & (0b01000000 >> i)) {
-                // If the bit is set, append the corresponding weekday to the buffer
+
                 if(restricted_count > 0) {
                     furi_string_cat_printf(restricted_weekday_string, ", ");
                 }
@@ -357,27 +332,24 @@ bool saflok_parse(const NfcDevice* device, FuriString* parsed_data) {
             }
         }
 
-        // Determine if all weekdays are restricted
         if(restricted_weekday == 0b01111100) {
             furi_string_printf(restricted_weekday_string, "weekdays");
         }
-        // If there are specific restricted days
+
         else if(restricted_weekday == 0b00000011) {
             furi_string_printf(restricted_weekday_string, "weekends");
         }
-        // If no weekdays are restricted
+
         else if(restricted_weekday == 0) {
             furi_string_printf(restricted_weekday_string, "none");
         }
 
-        // Bytes 8-10: Expiry interval
         uint16_t interval_year = (decodedBA[8] >> 4);
         uint8_t interval_month = decodedBA[8] & 0x0F;
         uint8_t interval_day = (decodedBA[9] >> 3) & 0x1F;
         uint8_t interval_hour = ((decodedBA[9] & 0x07) << 2) | (decodedBA[10] >> 6);
         uint8_t interval_minute = decodedBA[10] & 0x3F;
 
-        // Bytes 11-13: Creation date since 1980 Jan 1st
         uint16_t creation_year =
             (creation_year_bits | ((decodedBA[11] & 0xF0) >> 4)) + SAFLOK_YEAR_OFFSET;
         uint8_t creation_month = decodedBA[11] & 0x0F;
@@ -391,17 +363,15 @@ bool saflok_parse(const NfcDevice* device, FuriString* parsed_data) {
         uint8_t expire_hour = interval_hour;
         uint8_t expire_minute = interval_minute;
 
-        // Handle month rollover
         while(expire_month > 12) {
             expire_month -= 12;
             expire_year++;
         }
 
-        // Handle day rollover
         static const uint8_t days_in_month[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
         while(true) {
             uint8_t max_days = days_in_month[expire_month - 1];
-            // Adjust for leap years
+
             if(expire_month == 2 &&
                (expire_year % 4 == 0 && (expire_year % 100 != 0 || expire_year % 400 == 0))) {
                 max_days = 29;
@@ -417,7 +387,6 @@ bool saflok_parse(const NfcDevice* device, FuriString* parsed_data) {
             }
         }
 
-        // Byte 16: Checksum
         uint8_t checksum = decodedBA[16];
         uint8_t checksum_calculated = CalculateCheckSum(decodedBA);
         bool checksum_valid = (checksum_calculated == checksum);
@@ -468,11 +437,10 @@ bool saflok_parse(const NfcDevice* device, FuriString* parsed_data) {
             expire_minute);
         furi_string_cat_printf(parsed_data, "Checksum Valid: %s", checksum_valid ? "Yes" : "No");
 #if SL_PROTO == SL_PROTO_MFC
-        // MFC returns parsed = true since we have proper verify and read functions
+
         parsed = true;
 #elif SL_PROTO == SL_PROTO_UL
-        // UL returns parsed = checksum_valid since we don't have proper verify and read functions
-        // TODO: change to true after verify and read are implemented
+
         parsed = checksum_valid;
 #endif
 
@@ -480,7 +448,6 @@ bool saflok_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin saflok_plugin = {
 #if SL_PROTO == SL_PROTO_MFC
     .protocol = NfcProtocolMfClassic,
@@ -495,14 +462,12 @@ static const NfcSupportedCardsPlugin saflok_plugin = {
 #endif
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor saflok_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &saflok_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* saflok_plugin_ep(void) {
     return &saflok_plugin_descriptor;
 }

@@ -103,14 +103,12 @@ struct LfRfid {
     RpcAppSystem* rpc_ctx;
     LfRfidRpcState rpc_state;
 
-    // Common Views
     Submenu* submenu;
     DialogEx* dialog_ex;
     Popup* popup;
     TextInput* text_input;
     ByteInput* byte_input;
 
-    // Custom views
     LfRfidReadView* read_view;
 };
 

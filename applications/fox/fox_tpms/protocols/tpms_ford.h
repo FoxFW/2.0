@@ -29,6 +29,4 @@ SubGhzProtocolStatus
 
 void tpms_protocol_decoder_ford_get_string(void* context, FuriString* output);
 
-/** Re-pack generic's data word from its id/pressure/temperature (battery_low
- * isn't part of the payload) and recompute the checksum. */
 void tpms_protocol_ford_pack(TPMSBlockGeneric* generic);

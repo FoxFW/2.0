@@ -36,15 +36,13 @@ typedef struct {
 static FuriHalIterrupt furi_hal_interrupt = {};
 
 const IRQn_Type furi_hal_interrupt_irqn[FuriHalInterruptIdMax] = {
-    // TIM1, TIM16, TIM17
+
     [FuriHalInterruptIdTim1TrgComTim17] = TIM1_TRG_COM_TIM17_IRQn,
     [FuriHalInterruptIdTim1Cc] = TIM1_CC_IRQn,
     [FuriHalInterruptIdTim1UpTim16] = TIM1_UP_TIM16_IRQn,
 
-    // TIM2
     [FuriHalInterruptIdTIM2] = TIM2_IRQn,
 
-    // DMA1
     [FuriHalInterruptIdDma1Ch1] = DMA1_Channel1_IRQn,
     [FuriHalInterruptIdDma1Ch2] = DMA1_Channel2_IRQn,
     [FuriHalInterruptIdDma1Ch3] = DMA1_Channel3_IRQn,
@@ -53,7 +51,6 @@ const IRQn_Type furi_hal_interrupt_irqn[FuriHalInterruptIdMax] = {
     [FuriHalInterruptIdDma1Ch6] = DMA1_Channel6_IRQn,
     [FuriHalInterruptIdDma1Ch7] = DMA1_Channel7_IRQn,
 
-    // DMA2
     [FuriHalInterruptIdDma2Ch1] = DMA2_Channel1_IRQn,
     [FuriHalInterruptIdDma2Ch2] = DMA2_Channel2_IRQn,
     [FuriHalInterruptIdDma2Ch3] = DMA2_Channel3_IRQn,
@@ -62,26 +59,19 @@ const IRQn_Type furi_hal_interrupt_irqn[FuriHalInterruptIdMax] = {
     [FuriHalInterruptIdDma2Ch6] = DMA2_Channel6_IRQn,
     [FuriHalInterruptIdDma2Ch7] = DMA2_Channel7_IRQn,
 
-    // RCC
     [FuriHalInterruptIdRcc] = RCC_IRQn,
 
-    // COMP
     [FuriHalInterruptIdCOMP] = COMP_IRQn,
 
-    // RTC
     [FuriHalInterruptIdRtcAlarm] = RTC_Alarm_IRQn,
 
-    // HSEM
     [FuriHalInterruptIdHsem] = HSEM_IRQn,
 
-    // LPTIMx
     [FuriHalInterruptIdLpTim1] = LPTIM1_IRQn,
     [FuriHalInterruptIdLpTim2] = LPTIM2_IRQn,
 
-    // UARTx
     [FuriHalInterruptIdUart1] = USART1_IRQn,
 
-    // LPUARTx
     [FuriHalInterruptIdLpUart1] = LPUART1_IRQn,
 };
 
@@ -162,10 +152,10 @@ void furi_hal_interrupt_set_isr_ex(
 
     FuriHalInterruptISRPair* isr_descr = &furi_hal_interrupt.isr[index];
     if(isr) {
-        // Pre ISR set
+
         furi_check(isr_descr->isr == NULL);
     } else {
-        // Pre ISR clear
+
         furi_hal_interrupt_disable(index);
         furi_hal_interrupt_clear_pending(index);
     }
@@ -175,20 +165,18 @@ void furi_hal_interrupt_set_isr_ex(
     __DMB();
 
     if(isr) {
-        // Post ISR set
+
         furi_hal_interrupt_clear_pending(index);
         furi_hal_interrupt_enable(index, real_priority);
     } else {
-        // Post ISR clear
+
     }
 }
 
-/* Timer 2 */
 void TIM2_IRQHandler(void) {
     furi_hal_interrupt_call(FuriHalInterruptIdTIM2);
 }
 
-/* Timer 1 Update */
 void TIM1_UP_TIM16_IRQHandler(void) {
     furi_hal_interrupt_call(FuriHalInterruptIdTim1UpTim16);
 }
@@ -201,7 +189,6 @@ void TIM1_CC_IRQHandler(void) {
     furi_hal_interrupt_call(FuriHalInterruptIdTim1Cc);
 }
 
-/* DMA 1 */
 void DMA1_Channel1_IRQHandler(void) {
     furi_hal_interrupt_call(FuriHalInterruptIdDma1Ch1);
 }
@@ -230,7 +217,6 @@ void DMA1_Channel7_IRQHandler(void) {
     furi_hal_interrupt_call(FuriHalInterruptIdDma1Ch7);
 }
 
-/* DMA 2 */
 void DMA2_Channel1_IRQHandler(void) {
     furi_hal_interrupt_call(FuriHalInterruptIdDma2Ch1);
 }
@@ -299,14 +285,14 @@ void MemManage_Handler(void) {
     if(FURI_BIT(SCB->CFSR, SCB_CFSR_MMARVALID_Pos)) {
         uint32_t memfault_address = SCB->MMFAR;
         if(memfault_address < (1024 * 1024)) {
-            // from 0x00 to 1MB, see FuriHalMpuRegionNULL
+
             furi_crash("NULL pointer dereference");
         } else {
-            // write or read of MPU region 1 (FuriHalMpuRegionThreadStack)
+
             furi_crash("MPU fault, possibly stack overflow");
         }
     } else if(FURI_BIT(SCB->CFSR, SCB_CFSR_MSTKERR_Pos)) {
-        // push to stack on MPU region 1 (FuriHalMpuRegionThreadStack)
+
         furi_crash("MemManage fault, possibly stack overflow");
     }
 
@@ -345,7 +331,7 @@ void USB_LP_IRQHandler(void) {
 #endif
 }
 
-void USB_HP_IRQHandler(void) { //-V524
+void USB_HP_IRQHandler(void) {
 #ifndef FURI_RAM_EXEC
     FURI_HAL_INTERRUPT_ACCOUNT_START();
     usbd_poll(&udev);
@@ -385,7 +371,6 @@ void LPUART1_IRQHandler(void) {
     furi_hal_interrupt_call(FuriHalInterruptIdLpUart1);
 }
 
-// Potential space-saver for updater build
 const char* furi_hal_interrupt_get_name(uint8_t exception_number) {
     int32_t id = (int32_t)exception_number - 16;
 

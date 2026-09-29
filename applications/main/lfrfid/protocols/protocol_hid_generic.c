@@ -60,12 +60,11 @@ void protocol_hid_generic_decoder_start(ProtocolHID* protocol) {
 }
 
 static bool protocol_hid_generic_can_be_decoded(const uint8_t* data) {
-    // check preamble
+
     if(data[0] != HID_PREAMBLE || data[HID_PREAMBLE_SIZE + HID_DATA_SIZE] != HID_PREAMBLE) {
         return false;
     }
 
-    // check for manchester encoding
     for(size_t i = HID_PREAMBLE_SIZE; i < (HID_PREAMBLE_SIZE + HID_DATA_SIZE); i++) {
         for(size_t n = 0; n < 4; n++) {
             uint8_t bit_pair = (data[i] >> (n * 2)) & 0b11;
@@ -93,18 +92,6 @@ static void protocol_hid_generic_decode(const uint8_t* from, uint8_t* to) {
     }
 }
 
-/**
- * Decodes size from the HID Proximity header:
- * - If any of the first six bits is 1, the key is composed of the bits
- *   following the first 1
- * - Otherwise, if the first six bits are 0:
- *   - If the seventh bit is 0, the key is composed of the remaining 37 bits.
- *   - If the seventh bit is 1, the size header continues until the next 1 bit,
- *     and the key is composed of however many bits remain.
- *
- * HID Proximity keys are 26 bits at minimum. If the header implies a key size
- * under 26 bits, this function returns HID_PROTOCOL_SIZE_UNKNOWN.
- */
 static uint8_t protocol_hid_generic_decode_protocol_size(ProtocolHID* protocol) {
     for(size_t bit_index = 0; bit_index < 6; bit_index++) {
         if(bit_lib_get_bit(protocol->data, bit_index)) {
@@ -173,24 +160,21 @@ LevelDuration protocol_hid_generic_encoder_yield(ProtocolHID* protocol) {
     bool level = 0;
     uint32_t duration = 0;
 
-    // if pulse is zero, we need to output high, otherwise we need to output low
     if(protocol->encoder.pulse == 0) {
-        // get bit
+
         uint8_t bit = bit_lib_get_bit(protocol->encoded_data, protocol->encoder.encoded_index);
 
-        // get pulse from oscillator
         bool advance = fsk_osc_next(protocol->encoder.fsk_osc, bit, &duration);
 
         if(advance) {
             bit_lib_increment_index(protocol->encoder.encoded_index, HID_ENCODED_BIT_SIZE);
         }
 
-        // duration diveded by 2 because we need to output high and low
         duration = duration / 2;
         protocol->encoder.pulse = duration;
         level = true;
     } else {
-        // output low half and reset pulse
+
         duration = protocol->encoder.pulse;
         protocol->encoder.pulse = 0;
         level = false;
@@ -203,7 +187,6 @@ bool protocol_hid_generic_write_data(ProtocolHID* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_hid_generic_encoder_start(protocol);
     protocol_hid_generic_decode(protocol->encoded_data, protocol->data);
 
@@ -225,7 +208,7 @@ static void protocol_hid_generic_string_cat_protocol_bits(
     ProtocolHID* protocol,
     uint8_t protocol_size,
     FuriString* result) {
-    // round up to the nearest nibble
+
     const uint8_t hex_character_count = (protocol_size + 3) / 4;
     const uint8_t protocol_bit_index = HID_DECODED_BIT_SIZE - protocol_size;
 

@@ -1,7 +1,3 @@
-/*
- * NFC Scan scene — scan an ESL NFC tag to fill barcode
- */
-
 #include "../tagtinker_app.h"
 
 enum {

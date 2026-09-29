@@ -75,17 +75,14 @@ void elements_scrollbar_pos(
     size_t total) {
     furi_check(canvas);
 
-    // prevent overflows
     canvas_set_color(canvas, ColorWhite);
     canvas_draw_box(canvas, x - 3, y, 3, height);
 
-    // dot line
     canvas_set_color(canvas, ColorBlack);
     for(int32_t i = y; i < (int32_t)height + y; i += 2) {
         canvas_draw_dot(canvas, x - 2, i);
     }
 
-    // Position block
     if(total) {
         float block_h = ((float)height) / total;
         canvas_draw_box(canvas, x - 3, y + (block_h * pos), 3, MAX(block_h, 1));
@@ -121,17 +118,14 @@ void elements_scrollbar(Canvas* canvas, size_t pos, size_t total) {
     size_t width = canvas_width(canvas);
     size_t height = canvas_height(canvas);
 
-    // prevent overflows
     canvas_set_color(canvas, ColorWhite);
     canvas_draw_box(canvas, width - 3, 0, 3, height);
 
-    // dot line
     canvas_set_color(canvas, ColorBlack);
     for(size_t i = 0; i < height; i += 2) {
         canvas_draw_dot(canvas, width - 2, i);
     }
 
-    // Position block
     if(total) {
         float block_h = ((float)height) / total;
         canvas_draw_box(canvas, width - 3, block_h * pos, 3, MAX(block_h, 1));
@@ -336,7 +330,7 @@ static size_t
     if(len_px > px_left) {
         size_t excess_symbols_approximately =
             ceilf((float)(len_px - px_left) / ((float)len_px / (float)text_size));
-        // reduce to 5 to be sure dash fit, and next line will be at least 5 symbols long
+
         if(excess_symbols_approximately > 0) {
             excess_symbols_approximately = MAX(excess_symbols_approximately, 5u);
             result = text_size - excess_symbols_approximately - 1;
@@ -365,7 +359,6 @@ void elements_multiline_text_aligned(
     size_t font_height = canvas_current_font_height(canvas);
     FuriString* line;
 
-    /* go through text line by line and count lines */
     for(const char* start = text; start[0];) {
         size_t chars_fit = elements_get_max_chars_to_fit(canvas, horizontal, start, x);
         ++lines_count;
@@ -379,7 +372,6 @@ void elements_multiline_text_aligned(
         y -= (font_height * (lines_count - 1)) / 2;
     }
 
-    /* go through text line by line and print them */
     for(const char* start = text; start[0];) {
         size_t chars_fit = elements_get_max_chars_to_fit(canvas, horizontal, start, x);
 
@@ -388,7 +380,7 @@ void elements_multiline_text_aligned(
         } else if((y + font_height) > canvas_height(canvas)) {
             line = furi_string_alloc_printf("%.*s...\n", chars_fit, start);
         } else {
-            chars_fit -= 1; // account for the dash
+            chars_fit -= 1;
             line = furi_string_alloc_printf("%.*s-\n", chars_fit, start);
         }
         canvas_draw_str_aligned(canvas, x, y, horizontal, vertical, furi_string_get_cstr(line));
@@ -433,7 +425,6 @@ void elements_multiline_text_framed(Canvas* canvas, int32_t x, int32_t y, const 
     size_t font_height = canvas_current_font_height(canvas);
     size_t str_width = canvas_string_width(canvas, text);
 
-    // count \n's
     size_t lines = 1;
     const char* t = text;
     while(*t != '\0') {
@@ -532,7 +523,6 @@ void elements_bubble_str(
     size_t font_height = canvas_current_font_height(canvas);
     size_t str_width = canvas_string_width(canvas, text);
 
-    // count \n's
     size_t lines = 1;
     const char* t = text;
     while(*t != '\0') {
@@ -709,7 +699,7 @@ void elements_scrollable_text_line_str(
             }
             furi_string_cat(line, "...");
         } else {
-            /* Bounce scroll: slides left to end, pauses, slides back, pauses, repeats. */
+
             size_t scroll_size = furi_string_size(line);
             size_t right_width = 0;
             for(size_t i = scroll_size - 1; i > 0; i--) {
@@ -766,7 +756,7 @@ void elements_scrollable_text_line(
     size_t len_px = canvas_string_width(canvas, furi_string_get_cstr(line));
     if(len_px > width) {
         if(ellipsis) {
-            /* One-direction scroll + "..." for non-selected items */
+
             size_t ew = width - canvas_string_width(canvas, "...");
             size_t scroll_size = furi_string_size(line);
             size_t right_width = 0;
@@ -788,7 +778,7 @@ void elements_scrollable_text_line(
             }
             furi_string_cat(line, "...");
         } else {
-            /* Fox Exclusive: bounce scroll */
+
             size_t scroll_size = furi_string_size(line);
             size_t right_width = 0;
             for(size_t i = scroll_size; i > 0; i--) {
@@ -845,7 +835,6 @@ void elements_text_box(
     Font prev_font = FontSecondary;
     const CanvasFontParameters* font_params = canvas_get_font_params(canvas, current_font);
 
-    // Fill line parameters
     size_t line_leading_min = font_params->leading_min;
     size_t line_leading_default = font_params->leading_default;
     size_t line_height = font_params->height;
@@ -861,11 +850,10 @@ void elements_text_box(
 
     canvas_set_font(canvas, FontSecondary);
 
-    // Fill all lines
     line[0].text = text;
     for(i = 0; !full_text_processed; i++) {
         line_len++;
-        // Identify line height
+
         if(prev_font != current_font) {
             font_params = canvas_get_font_params(canvas, current_font);
             line_leading_min = MAX(line_leading_min, font_params->leading_min);
@@ -874,7 +862,7 @@ void elements_text_box(
             line_descender = MAX(line_descender, font_params->descender);
             prev_font = current_font;
         }
-        // Set the font
+
         if(text[i] == '\e' && text[i + 1]) {
             i++;
             line_len++;
@@ -904,7 +892,7 @@ void elements_text_box(
         if(text[i] != '\n') {
             line_width += canvas_glyph_width(canvas, text[i]);
         }
-        // Process new line
+
         if(text[i] == '\n' || text[i] == '\0' || line_width > width) {
             if(line_width > width) {
                 line_width -= canvas_glyph_width(canvas, text[i--]);
@@ -948,7 +936,6 @@ void elements_text_box(
         }
     }
 
-    // Set vertical alignment for all lines
     if(total_height_default < height) {
         if(vertical == AlignTop) {
             line[0].y = y + line[0].height;
@@ -974,15 +961,14 @@ void elements_text_box(
         }
     }
 
-    // Draw line by line
     canvas_set_font(canvas, FontSecondary);
     bold = false;
     mono = false;
     inverse = false;
     for(size_t i = 0; i < line_num; i++) {
         for(size_t j = 0; j < line[i].len; j++) {
-            // Process format symbols
-            if(line[i].text[j] == '\e' && j < line[i].len - 1) { //-V781
+
+            if(line[i].text[j] == '\e' && j < line[i].len - 1) {
                 ++j;
                 if(line[i].text[j] == ELEMENTS_BOLD_MARKER) {
                     if(bold) {
@@ -1057,7 +1043,6 @@ void elements_fox_horizontal_menu_item(
         canvas_draw_rframe(canvas, x, y, width, height, 3);
     }
 
-    // Icon: draw current animation frame, centered horizontally, near top of cell
     if(icon) {
         size_t iw = icon_animation_get_width(icon);
         size_t ih = icon_animation_get_height(icon);
@@ -1067,7 +1052,6 @@ void elements_fox_horizontal_menu_item(
         UNUSED(ih);
     }
 
-    // Label: FontSecondary, centered, near bottom of cell
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(
         canvas,

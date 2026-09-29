@@ -2,7 +2,7 @@
  * Parser for EMV cards.
  *
  * Copyright 2023 Leptoptilos <leptoptilos@icloud.com>
- * 
+ *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -85,7 +85,6 @@ static bool emv_parse(const NfcDevice* device, FuriString* parsed_data) {
                 furi_string_cat_printf(pan, "%02X%02X ", app.pan[i], app.pan[i + 1]);
             }
 
-            // Cut padding 'F' from card number
             size_t end = furi_string_search_rchar(pan, 'F');
             if(end) furi_string_left(pan, end);
             furi_string_cat_printf(pan, "\n");
@@ -183,7 +182,6 @@ static bool emv_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin emv_plugin = {
     .protocol = NfcProtocolEmv,
     .verify = NULL,
@@ -191,14 +189,12 @@ static const NfcSupportedCardsPlugin emv_plugin = {
     .parse = emv_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor emv_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &emv_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* emv_plugin_ep(void) {
     return &emv_plugin_descriptor;
 }

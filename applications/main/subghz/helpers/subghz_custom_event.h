@@ -5,7 +5,6 @@ typedef enum {
     SubGhzCustomEventManagerSet,
     SubGhzCustomEventManagerSetRAW,
 
-    //SubGhzCustomEvent
     SubGhzCustomEventSceneDeleteSuccess = 100,
     SubGhzCustomEventSceneDelete,
     SubGhzCustomEventSceneDeleteBack,
@@ -67,28 +66,22 @@ typedef enum {
     SubGhzCustomEventByteInputDone,
     SubGhzCustomEventNumberInputDone,
 
-    /* Signal Visualizer view */
     SubGhzCustomEventViewSignalVisualizerBack,
 
-    /* RAW player — pause/resume during file playback */
     SubGhzCustomEventViewReadRAWTXPause,
     SubGhzCustomEventViewReadRAWTXResume,
     SubGhzCustomEventViewReadRAWZoomIn,
     SubGhzCustomEventViewReadRAWZoomOut,
 
-    /* Decode RAW — nothing found, offer retry or show timed message */
     SubGhzCustomEventDecodeRawFailedRetry,
     SubGhzCustomEventDecodeRawFailedCancel,
 
-    /* Modulation Analyzer */
     SubGhzCustomEventViewModAnalBack,
     SubGhzCustomEventViewModAnalConfig,
     SubGhzCustomEventViewModAnalTune,
 
-    /* File Prefix (Radio Settings) */
     SubGhzCustomEventSceneFilePrefixDone,
 
-    /* Custom Frequencies (Radio Settings) */
     SubGhzCustomEventSceneCustomFreqAdd,
     SubGhzCustomEventSceneCustomFreqRemove,
     SubGhzCustomEventSceneCustomFreqDone,
@@ -165,8 +158,7 @@ typedef enum {
     SetTypeMarantec_868,
     SetTypeRoger_433,
     SetTypeLinear_300_00,
-    // SetTypeNeroSketch, //Deleted in OFW
-    // SetTypeNeroRadio, //Deleted in OFW
+
     SetTypeGateTX,
     SetTypeSecPlus_v1_315_00,
     SetTypeSecPlus_v1_390_00,

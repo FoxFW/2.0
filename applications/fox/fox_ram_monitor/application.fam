@@ -1,0 +1,12 @@
+App(
+    appid="fox_ram_monitor",
+    name="Fox RAM Monitor",
+    apptype=FlipperAppType.EXTERNAL,
+    icon="I_fox_generic_14x14",
+    entry_point="fox_ram_monitor_app",
+    requires=["gui"],
+    stack_size=1 * 1024,
+    fap_icon="icon.png",
+    fap_category="Fox",
+    fap_description="RAM/heap diagnostic display (same numbers as CLI 'free'); Up saves a heap_map snapshot to SD even while qFlipper is connected.",
+)

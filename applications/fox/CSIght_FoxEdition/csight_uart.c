@@ -5,19 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-// This is CSIght's original binary-protocol UART layer rewritten to speak
-// Fox's shared [CSI/...] text-line protocol over esp_at.c — the same
-// transport TagTinker_FoxEdition uses (wifi/esp_at.c, copied verbatim).
-// csight_app.c and csight_draw.c are untouched: this file still exposes the
-// exact same csight_uart_*/csight_send_* API declared in csight.h, it just
-// fills app-> fields from JSON lines instead of checksummed binary packets.
-
 #define TAG              "CSIght_UART"
 #define THREAD_STOP_FLAG  0x1
 
-// ─── Tiny hand-rolled JSON helpers — each Fox module writes its own small
-// version of these rather than sharing a full JSON library; matches the
-// convention already used on the ESP32 side (http_bridge.cpp, fox_csi.cpp). ─
 static bool json_extract_long(const char* json, const char* key, long* out) {
     char needle[32];
     snprintf(needle, sizeof(needle), "\"%s\":", key);
@@ -63,7 +53,6 @@ static size_t hex_decode(const char* hex, uint8_t* out, size_t max_bytes) {
     return n;
 }
 
-// ─── Event line handlers ──────────────────────────────────────────────────────
 static void handle_hello(CSIghtApp* app, const char* body) {
     char role[16] = {0};
     json_extract_string(body, "chip", app->chip_name, sizeof(app->chip_name));
@@ -83,24 +72,8 @@ static void handle_hello(CSIghtApp* app, const char* body) {
     FURI_LOG_I(TAG, "Handshake: %s CSI=%d FW=%d.%d role=%s",
                app->chip_name, app->csi_support, app->fw_major, app->fw_minor, role);
 
-    // Fox's [CSI/...] protocol requires an explicit START — the original
-    // CSIght firmware ran CSI capture continuously from boot, but that's
-    // wasteful on multi-purpose Fox_ESP32_FW boards, so we kick it off here
-    // instead, right after a successful handshake, to preserve the same
-    // "just works" feel from the app's point of view.
     csight_send_start(app);
 
-    // Straight to the main menu on every successful handshake, first run or
-    // not - per the user's 2026-09-13 direction, csight_draw_esp32_check()'s
-    // "Detecting ESP32..." pages (csight_app.c's AppStateEsp32Check, shown
-    // just before this handshake fires) are meant to be the entire connect
-    // experience. This used to gate on app->config_exists and detour
-    // first-run users through a separate ported-from-stock-CSIght "ESP32
-    // DETECTED / Chip: / FW: / CSI: ..." info screen (AppStateCompatCheck,
-    // now removed) before reaching the menu; that screen never actually
-    // blocked anything unfixable (even its own "not compatible" case just
-    // fell through to the main menu on Back), so dropping it loses no real
-    // protection, only an extra tap the very first time the app ever ran.
     app->state = AppStateMainMenu;
 }
 
@@ -236,13 +209,8 @@ static void handle_mesh(CSIghtApp* app, const char* body) {
     }
 }
 
-// ─── Line dispatch ─────────────────────────────────────────────────────────
 static void dispatch_line(CSIghtApp* app, const char* line) {
-    // Plain-text reply to the generic "info" probe — every Fox_ESP32_FW
-    // build answers this the same way regardless of which app is talking to
-    // it, so this is the same detect-gate check fox_file_downloader and the
-    // other Fox apps use. Not bracket-tagged, so it has to be checked before
-    // the [CSI/...] parsing below bails out on it.
+
     if(strcmp(line, "Fox ESP32 Firmware") == 0) {
         app->esp32_probe_ok = true;
         return;
@@ -251,7 +219,7 @@ static void dispatch_line(CSIghtApp* app, const char* line) {
     int close = -1;
     for(int i = 0; line[i] != '\0'; i++) {
         if(line[i] == ']') { close = i; break; }
-        if(i > 60) break; // tags are always short — bail rather than scan garbage
+        if(i > 60) break;
     }
     if(line[0] != '[' || close < 0) return;
 
@@ -278,12 +246,9 @@ static void dispatch_line(CSIghtApp* app, const char* line) {
     } else if(strcmp(tag, "CSI/EVENT/MESH") == 0) {
         handle_mesh(app, body);
     }
-    // Unrecognised tags (plain command ACKs like [CSI/MODE/SUCCESS], or
-    // anything from another Fox module) are ignored — matches the original
-    // "unknown byte, skip and keep parsing" behavior.
+
 }
 
-// ─── RX thread ────────────────────────────────────────────────────────────────
 static int32_t uart_rx_thread(void* ctx) {
     CSIghtApp* app = (CSIghtApp*)ctx;
     EspAtMsg   msg;
@@ -301,7 +266,6 @@ static int32_t uart_rx_thread(void* ctx) {
     return 0;
 }
 
-// ─── Init / Deinit ────────────────────────────────────────────────────────────
 void csight_uart_init(CSIghtApp* app) {
     GpioRemapSettings gpio_remap;
     gpio_remap_settings_load(&gpio_remap);
@@ -310,13 +274,6 @@ void csight_uart_init(CSIghtApp* app) {
                                      : FuriHalSerialIdUsart;
     app->esp_at = esp_at_alloc(serial_id, CSIGHT_UART_BAUD);
 
-    // uart_rx_thread keeps an EspAtMsg (char[ESP_AT_LINE_MAX], 6200 bytes) as
-    // a local variable for the life of the thread, so the stack has to be
-    // sized well past that — 1024 bytes here caused an immediate MPU
-    // fault/stack-overflow crash on launch. TagTinker's own worker thread
-    // (wifi/tagtinker_wifi.c) under-sizes this the same way with 3072, so
-    // don't copy that number either; go comfortably above the 6200-byte
-    // struct instead.
     app->uart_thread = furi_thread_alloc_ex("csight_rx", 8192, uart_rx_thread, app);
     furi_thread_start(app->uart_thread);
 }
@@ -333,7 +290,6 @@ void csight_uart_deinit(CSIghtApp* app) {
     app->esp_at = NULL;
 }
 
-// ─── Send helpers ─────────────────────────────────────────────────────────────
 void csight_uart_send(CSIghtApp* app, const uint8_t* data, size_t len) {
     char line[ESP_AT_LINE_MAX];
     size_t n = len < sizeof(line) - 1 ? len : sizeof(line) - 1;
@@ -343,9 +299,7 @@ void csight_uart_send(CSIghtApp* app, const uint8_t* data, size_t len) {
 }
 
 void csight_send_probe(CSIghtApp* app) {
-    // Generic "info" command every Fox_ESP32_FW build answers with a plain
-    // "Fox ESP32 Firmware" line — used only to confirm a Fox ESP32 is on
-    // the wire at all, before ever touching the CSI-specific protocol.
+
     esp_at_send(app->esp_at, "info");
 }
 
@@ -398,7 +352,7 @@ void csight_send_channel(CSIghtApp* app) {
 
 void csight_send_channel_auto(CSIghtApp* app) {
     esp_at_send(app->esp_at, "[CSI/CHANNEL/AUTO]");
-    // wifi_channel is updated when the ESP32 replies with [CSI/CHANNEL/SET]
+
 }
 
 void csight_send_forget_nodes(CSIghtApp* app) {

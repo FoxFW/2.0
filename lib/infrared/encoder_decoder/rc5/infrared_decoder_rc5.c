@@ -18,14 +18,10 @@ bool infrared_decoder_rc5_interpret(InfraredCommonDecoder* decoder) {
 
     bool result = false;
     uint32_t* data = (void*)&decoder->data[0];
-    /* Manchester (inverse):
-     *      0->1 : 1
-     *      1->0 : 0
-     */
+
     decoder->data[0] = ~decoder->data[0];
     decoder->data[1] = ~decoder->data[1];
 
-    // MSB first
     uint8_t address = reverse((uint8_t)decoder->data[0]) & 0x1F;
     uint8_t command = (reverse((uint8_t)decoder->data[1]) >> 2) & 0x3F;
     bool start_bit1 = *data & 0x01;

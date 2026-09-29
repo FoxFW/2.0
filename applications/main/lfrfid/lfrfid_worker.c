@@ -45,8 +45,10 @@ void lfrfid_worker_free(LFRFIDWorker* worker) {
         free(worker->raw_filename);
     }
 
+    furi_kernel_lock();
     furi_thread_free(worker->thread);
     free(worker);
+    furi_kernel_unlock();
 }
 
 void lfrfid_worker_read_start(
@@ -169,10 +171,9 @@ static int32_t lfrfid_worker_thread(void* thread_context) {
     while(true) {
         uint32_t flags = furi_thread_flags_wait(LFRFIDEventAll, FuriFlagWaitAny, FuriWaitForever);
         if(flags != (unsigned)FuriFlagErrorTimeout) {
-            // stop thread
+
             if(flags & LFRFIDEventStopThread) break;
 
-            // switch mode
             if(flags & LFRFIDEventRead) worker->mode_index = LFRFIDWorkerRead;
             if(flags & LFRFIDEventWrite) worker->mode_index = LFRFIDWorkerWrite;
             if(flags & LFRFIDEventWriteAndSetPass)
@@ -181,12 +182,10 @@ static int32_t lfrfid_worker_thread(void* thread_context) {
             if(flags & LFRFIDEventReadRaw) worker->mode_index = LFRFIDWorkerReadRaw;
             if(flags & LFRFIDEventEmulateRaw) worker->mode_index = LFRFIDWorkerEmulateRaw;
 
-            // do mode, if it exists
             if(lfrfid_worker_modes[worker->mode_index].process) {
                 lfrfid_worker_modes[worker->mode_index].process(worker);
             }
 
-            // reset mode
             worker->mode_index = LFRFIDWorkerIdle;
         }
     }

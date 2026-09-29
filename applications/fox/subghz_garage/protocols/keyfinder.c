@@ -135,7 +135,7 @@ static void
     instance->encoder.size_upload = index;
     return;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static void subghz_protocol_keyfinder_check_remote_controller(SubGhzBlockGeneric* instance) {
     instance->serial = instance->data >> 4;
@@ -190,7 +190,7 @@ LevelDuration subghz_protocol_encoder_keyfinder_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_keyfinder_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

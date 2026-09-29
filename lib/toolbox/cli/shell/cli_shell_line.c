@@ -11,10 +11,6 @@ struct CliShellLine {
     bool about_to_exit;
 };
 
-// ==========
-// Public API
-// ==========
-
 CliShellLine* cli_shell_line_alloc(CliShell* shell) {
     CliShellLine* line = malloc(sizeof(CliShellLine));
     line->shell = shell;
@@ -80,10 +76,6 @@ void cli_shell_line_set_line_position(CliShellLine* line, size_t position) {
     line->line_position = position;
 }
 
-// =======
-// Helpers
-// =======
-
 typedef enum {
     CliCharClassWord,
     CliCharClassSpace,
@@ -130,14 +122,10 @@ size_t
     return MAX(0, position);
 }
 
-// ==============
-// Input handlers
-// ==============
-
 static bool cli_shell_line_input_ctrl_c(CliKeyCombo combo, void* context) {
     UNUSED(combo);
     CliShellLine* line = context;
-    // reset input
+
     furi_string_reset(cli_shell_line_get_editing(line));
     line->line_position = 0;
     line->history_position = 0;
@@ -170,7 +158,6 @@ static bool cli_shell_line_input_cr(CliKeyCombo combo, void* context) {
         }
     }
 
-    // move selected command to the front
     if(line->history_position > 0) {
         size_t pos = line->history_position;
         size_t len = line->history_entries;
@@ -180,7 +167,6 @@ static bool cli_shell_line_input_cr(CliKeyCombo combo, void* context) {
         line->history_entries--;
     }
 
-    // insert empty command
     if(line->history_entries == HISTORY_DEPTH) {
         furi_string_free(line->history[HISTORY_DEPTH - 1]);
         line->history_entries--;
@@ -191,7 +177,6 @@ static bool cli_shell_line_input_cr(CliKeyCombo combo, void* context) {
     line->line_position = 0;
     line->history_position = 0;
 
-    // execute command
     printf("\r\n");
     cli_shell_execute_command(line->shell, command_copy);
     furi_string_free(command_copy);
@@ -201,12 +186,11 @@ static bool cli_shell_line_input_cr(CliKeyCombo combo, void* context) {
 
 static bool cli_shell_line_input_up_down(CliKeyCombo combo, void* context) {
     CliShellLine* line = context;
-    // go up and down in history
+
     int increment = (combo.key == CliKeyUp) ? 1 : -1;
     size_t new_pos =
         CLAMP((int)line->history_position + increment, (int)line->history_entries - 1, 0);
 
-    // print prompt with selected command
     if(new_pos != line->history_position) {
         char prompt[64];
         cli_shell_line_format_prompt(line, prompt, sizeof(prompt));
@@ -224,13 +208,12 @@ static bool cli_shell_line_input_up_down(CliKeyCombo combo, void* context) {
 
 static bool cli_shell_line_input_left_right(CliKeyCombo combo, void* context) {
     CliShellLine* line = context;
-    // go left and right in the current line
+
     FuriString* command = cli_shell_line_get_selected(line);
     int increment = (combo.key == CliKeyRight) ? 1 : -1;
     size_t new_pos =
         CLAMP((int)line->line_position + increment, (int)furi_string_size(command), 0);
 
-    // move cursor
     if(new_pos != line->line_position) {
         line->line_position = new_pos;
         printf("%s", (increment == 1) ? ANSI_CURSOR_RIGHT_BY("1") : ANSI_CURSOR_LEFT_BY("1"));
@@ -242,7 +225,7 @@ static bool cli_shell_line_input_left_right(CliKeyCombo combo, void* context) {
 static bool cli_shell_line_input_home(CliKeyCombo combo, void* context) {
     UNUSED(combo);
     CliShellLine* line = context;
-    // go to the start
+
     line->line_position = 0;
     printf(ANSI_CURSOR_HOR_POS("%zu"), cli_shell_line_prompt_length(line) + 1);
     fflush(stdout);
@@ -252,7 +235,7 @@ static bool cli_shell_line_input_home(CliKeyCombo combo, void* context) {
 static bool cli_shell_line_input_end(CliKeyCombo combo, void* context) {
     UNUSED(combo);
     CliShellLine* line = context;
-    // go to the end
+
     line->line_position = furi_string_size(cli_shell_line_get_selected(line));
     printf(
         ANSI_CURSOR_HOR_POS("%zu"), cli_shell_line_prompt_length(line) + line->line_position + 1);
@@ -263,7 +246,7 @@ static bool cli_shell_line_input_end(CliKeyCombo combo, void* context) {
 static bool cli_shell_line_input_bksp(CliKeyCombo combo, void* context) {
     UNUSED(combo);
     CliShellLine* line = context;
-    // erase one character
+
     cli_shell_line_ensure_not_overwriting_history(line);
     FuriString* editing_line = cli_shell_line_get_editing(line);
     if(line->line_position == 0) {
@@ -274,12 +257,11 @@ static bool cli_shell_line_input_bksp(CliKeyCombo combo, void* context) {
     line->line_position--;
     furi_string_replace_at(editing_line, line->line_position, 1, "");
 
-    // move cursor, print the rest of the line, restore cursor
     printf(
         ANSI_CURSOR_LEFT_BY("1") "%s" ANSI_ERASE_LINE(ANSI_ERASE_FROM_CURSOR_TO_END),
         furi_string_get_cstr(editing_line) + line->line_position);
     size_t left_by = furi_string_size(editing_line) - line->line_position;
-    if(left_by) // apparently LEFT_BY("0") still shifts left by one ._ .
+    if(left_by)
         printf(ANSI_CURSOR_LEFT_BY("%zu"), left_by);
     fflush(stdout);
     return true;
@@ -288,7 +270,7 @@ static bool cli_shell_line_input_bksp(CliKeyCombo combo, void* context) {
 static bool cli_shell_line_input_ctrl_l(CliKeyCombo combo, void* context) {
     UNUSED(combo);
     CliShellLine* line = context;
-    // clear screen
+
     FuriString* command = cli_shell_line_get_selected(line);
     char prompt[64];
     cli_shell_line_format_prompt(line, prompt, sizeof(prompt));
@@ -297,14 +279,14 @@ static bool cli_shell_line_input_ctrl_l(CliKeyCombo combo, void* context) {
             "1", "1") "%s%s" ANSI_CURSOR_HOR_POS("%zu"),
         prompt,
         furi_string_get_cstr(command),
-        strlen(prompt) + line->line_position + 1 /* 1-based column indexing */);
+        strlen(prompt) + line->line_position + 1 );
     fflush(stdout);
     return true;
 }
 
 static bool cli_shell_line_input_ctrl_left_right(CliKeyCombo combo, void* context) {
     CliShellLine* line = context;
-    // skip run of similar chars to the left or right
+
     FuriString* selected_line = cli_shell_line_get_selected(line);
     CliSkipDirection direction = (combo.key == CliKeyLeft) ? CliSkipDirectionLeft :
                                                              CliSkipDirectionRight;
@@ -318,7 +300,7 @@ static bool cli_shell_line_input_ctrl_left_right(CliKeyCombo combo, void* contex
 static bool cli_shell_line_input_ctrl_bksp(CliKeyCombo combo, void* context) {
     UNUSED(combo);
     CliShellLine* line = context;
-    // delete run of similar chars to the left
+
     cli_shell_line_ensure_not_overwriting_history(line);
     FuriString* selected_line = cli_shell_line_get_selected(line);
     size_t run_start =
@@ -339,7 +321,7 @@ static bool cli_shell_line_input_normal(CliKeyCombo combo, void* context) {
     CliShellLine* line = context;
     if(combo.modifiers != CliModKeyNo) return false;
     if(combo.key < CliKeySpace || combo.key >= CliKeyDEL) return false;
-    // insert character
+
     cli_shell_line_ensure_not_overwriting_history(line);
     FuriString* editing_line = cli_shell_line_get_editing(line);
     if(line->line_position == furi_string_size(editing_line)) {

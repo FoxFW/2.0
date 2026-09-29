@@ -23,7 +23,6 @@
 
 #define furi_hal_bt_DEFAULT_MAC_ADDR {0x6c, 0x7a, 0xd8, 0xac, 0x57, 0x72}
 
-/* Time, in ms, to wait for mode transition before crashing */
 #define C2_MODE_SWITCH_TIMEOUT 10000
 
 typedef struct {
@@ -52,10 +51,8 @@ void furi_hal_bt_init(void) {
         furi_check(furi_hal_bt.core2_mtx);
     }
 
-    // Explicitly tell that we are in charge of CLK48 domain
     furi_check(LL_HSEM_1StepLock(HSEM, CFG_HW_CLK48_CONFIG_SEMID) == 0);
 
-    // Start Core2
     ble_glue_init();
 }
 
@@ -94,29 +91,26 @@ bool furi_hal_bt_start_radio_stack(void) {
 
     bool res = false;
 
-    // Explicitly tell that we are in charge of CLK48 domain
     furi_check(LL_HSEM_1StepLock(HSEM, CFG_HW_CLK48_CONFIG_SEMID) == 0);
 
     do {
-        // Wait until C2 is started or timeout
+
         if(!ble_glue_wait_for_c2_start(FURI_HAL_BT_C2_START_TIMEOUT)) {
             FURI_LOG_E(TAG, "Core2 start failed");
             break;
         }
 
-        // If C2 is running, start radio stack fw
         if(!furi_hal_bt_ensure_c2_mode(BleGlueC2ModeStack)) {
             break;
         }
 
-        // Check whether we support radio stack
         const BleGlueC2Info* c2_info = ble_glue_get_c2_info();
         if(!furi_hal_bt_radio_stack_is_supported(c2_info)) {
             FURI_LOG_E(TAG, "Unsupported radio stack");
-            // Don't stop SHCI for crypto enclave support
+
             break;
         }
-        // Starting radio stack
+
         if(!ble_glue_start()) {
             FURI_LOG_E(TAG, "Failed to start radio stack");
             ble_app_deinit();
@@ -190,7 +184,7 @@ FuriHalBleProfileBase* furi_hal_bt_start_app(
             FURI_LOG_E(TAG, "Failed to init GAP");
             break;
         }
-        // Start selected profile services
+
         if(furi_hal_bt_is_gatt_gap_supported()) {
             current_profile = profile_template->start(params);
         }
@@ -212,7 +206,6 @@ void furi_hal_bt_reinit(void) {
         current_profile = NULL;
     }
 
-    // Magic happens here
     hci_reset();
 
     FURI_LOG_I(TAG, "Stop BLE related RTOS threads");
@@ -223,7 +216,6 @@ void furi_hal_bt_reinit(void) {
     furi_check(ble_glue_reinit_c2());
     ble_glue_stop();
 
-    // enterprise delay
     furi_delay_ms(100);
 
     furi_hal_bus_disable(FuriHalBusHSEM);
@@ -372,7 +364,6 @@ float furi_hal_bt_get_rssi(void) {
         return 0.0f;
     }
 
-    // Some ST magic with rssi
     uint8_t agc = rssi_raw[2] & 0xFF;
     int rssi = (((int)rssi_raw[1] << 8) & 0xFF00) + (rssi_raw[0] & 0xFF);
     if(rssi == 0 || agc > 11) {
@@ -403,7 +394,7 @@ bool furi_hal_bt_ensure_c2_mode(BleGlueC2Mode mode) {
     if(fw_start_res == BleGlueCommandResultOK) {
         return true;
     } else if(fw_start_res == BleGlueCommandResultRestartPending) {
-        // Do nothing and wait for system reset
+
         furi_delay_ms(C2_MODE_SWITCH_TIMEOUT);
         furi_crash("Waiting for FUS->radio stack transition");
         return true;

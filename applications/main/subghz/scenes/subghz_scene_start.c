@@ -2,14 +2,10 @@
 #include "../views/subghz_view_start_grid.h"
 #include <gui/modules/fox_theme.h>
 #include "subghz_scene_start.h"
-#include <dolphin/dolphin.h>
 #include <loader/loader.h>
 #include <storage/storage.h>
 
 #include <lib/subghz/protocols/raw.h>
-
-/* Uses loader_enqueue_launch() (not loader_start() — locked while any app runs).
- * Passes full FAP path — custom FAPs are not in the loader name catalog. */
 
 #define SUBGHZ_MOD_ANALYZER_FAP_PATH  EXT_PATH("apps/Sub-GHz/subghz_modulation_analyzer.fap")
 #define SUBGHZ_FREQ_ANALYZER_FAP_PATH EXT_PATH("apps/Sub-GHz/subghz_frequency_analyzer.fap")
@@ -26,14 +22,6 @@ static void subghz_scene_start_launch_and_exit(
     loader_enqueue_launch(loader, fap_path, args, LoaderDeferredLaunchFlagNone);
     furi_record_close(RECORD_LOADER);
 
-    /* Cover the screen with a blank page BEFORE tearing down SubGHz's own
-     * GUI presence. view_dispatcher_stop() fully detaches SubGHz's view
-     * from the GUI, which briefly reveals the Desktop/Apps menu
-     * underneath before the next app's own view attaches — this
-     * standalone viewport (independent of the ViewDispatcher being torn
-     * down) gives the screen something of ours to show during that exact
-     * gap instead. Freed in subghz_free(), right before the app's thread
-     * truly ends — see the struct field comment in subghz_i.h. */
     subghz->blank_transition_viewport = view_port_alloc();
     view_port_draw_callback_set(
         subghz->blank_transition_viewport, subghz_blank_transition_draw_cb, NULL);
@@ -52,8 +40,6 @@ void subghz_scene_start_submenu_callback(void* context, uint32_t index) {
 void subghz_scene_start_on_enter(void* context) {
     SubGhz* subghz = context;
 
-    /* Dismiss the startup loading wheel now that the start grid is
-     * ready to display.  SubGhz's own viewport takes over immediately. */
     if(subghz->startup_holder) {
         view_holder_set_view(subghz->startup_holder, NULL);
         view_holder_free(subghz->startup_holder);
@@ -67,37 +53,29 @@ void subghz_scene_start_on_enter(void* context) {
         subghz->state_notifications = SubGhzNotificationStateIDLE;
     }
 
-    /* Check which FAPs are installed — FA/MA/GDR are conditional */
     Storage* storage = furi_record_open(RECORD_STORAGE);
     bool has_freq_analyzer = storage_file_exists(storage, SUBGHZ_FREQ_ANALYZER_FAP_PATH);
     bool has_mod_analyzer  = storage_file_exists(storage, SUBGHZ_MOD_ANALYZER_FAP_PATH);
     bool has_gdr           = storage_file_exists(storage, SUBGHZ_GDR_FAP_PATH);
     furi_record_close(RECORD_STORAGE);
 
-    /* Configure the Fox-theme grid — show/hide conditional buttons */
     subghz_start_grid_set_visible(subghz->start_grid, SGRID_IDX_FREQANA, has_freq_analyzer);
     subghz_start_grid_set_visible(subghz->start_grid, SGRID_IDX_MODANA,  has_mod_analyzer);
     subghz_start_grid_set_visible(subghz->start_grid, SGRID_IDX_GDR,     has_gdr);
-    /* Radio Settings, RF Jammer, and TPMS Reader all moved to the Mode
-     * Picker screen - see subghz_scene_mode_picker.c. Slots kept (not
-     * renumbered) like the dead GDR slot pattern elsewhere in this grid. */
+
     subghz_start_grid_set_visible(subghz->start_grid, SGRID_IDX_RADIOSETTINGS, false);
     subghz_start_grid_set_visible(subghz->start_grid, SGRID_IDX_JAMMER, false);
     subghz_start_grid_set_visible(subghz->start_grid, SGRID_IDX_TPMS, false);
 
-    /* Wire callback so grid button presses fire scene custom events */
     subghz_start_grid_set_callback(
         subghz->start_grid,
         subghz_scene_start_submenu_callback,
         subghz);
 
-    /* Restore focus when returning from FA/MA or other scenes.
-     * scene_manager_get_scene_state returns the SubmenuIndex value that
-     * was last active — map it to the grid button index. */
     {
         uint32_t focus =
             scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneStart);
-        uint8_t grid_btn = 0; /* default: Read */
+        uint8_t grid_btn = 0;
         if     (focus == SubmenuIndexSaved)                grid_btn = SGRID_IDX_SAVED;
         else if(focus == SubmenuIndexReadRAW)              grid_btn = SGRID_IDX_READRAW;
         else if(focus == SubmenuIndexAddManuallyAdvanced)  grid_btn = SGRID_IDX_ADDMAN;
@@ -112,11 +90,10 @@ void subghz_scene_start_on_enter(void* context) {
     }
 
     if(fox_theme_is_active()) {
-        /* Fox Theme: show the custom button grid */
+
         view_dispatcher_switch_to_view(subghz->view_dispatcher, SubGhzViewIdStartGrid);
     } else {
-        /* Classic Theme: fall back to the standard vertical submenu.
-         * Build the classic menu items matching the grid's SubmenuIndex values. */
+
         uint32_t focus =
             scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneStart);
         submenu_reset(subghz->submenu);
@@ -150,8 +127,7 @@ bool subghz_scene_start_on_event(void* context, SceneManagerEvent event) {
     SubGhz* subghz = context;
     if(event.type == SceneManagerEventTypeBack) {
         if(!scene_manager_previous_scene(subghz->scene_manager)) {
-            /* Only reached when Start is the true root scene (launched
-             * directly, not via the Mode Picker). */
+
             scene_manager_stop(subghz->scene_manager);
             view_dispatcher_stop(subghz->view_dispatcher);
         }
@@ -180,20 +156,12 @@ bool subghz_scene_start_on_event(void* context, SceneManagerEvent event) {
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSetType);
             return true;
         } else if(event.event == SubmenuIndexFrequencyAnalyzer) {
-            /* Moved to an external FAP to save firmware .text space — see
-             * applications/main/subghz_frequency_analyzer/. SubGHz exits
-             * cleanly and the Loader launches the FAP right after — see
-             * the comment above subghz_scene_start_launch_and_exit(). The
-             * "core:" prefix tells the FAP which app to relaunch on Back
-             * (it's shared with Garage too); "menu:freq" is what lets it
-             * send us back to this exact menu item instead of the Desktop. */
-            dolphin_deed(DolphinDeedSubGhzFrequencyAnalyzer);
+
             subghz_scene_start_launch_and_exit(
                 subghz, SUBGHZ_FREQ_ANALYZER_FAP_PATH, "core:menu:freq");
             return true;
         } else if(event.event == SubmenuIndexModulationAnalyzer) {
-            /* Moved to an external FAP to save firmware .text space — see
-             * applications/main/subghz_modulation_analyzer/. */
+
             subghz_scene_start_launch_and_exit(
                 subghz, SUBGHZ_MOD_ANALYZER_FAP_PATH, "core:menu:mod");
             return true;
@@ -228,9 +196,6 @@ bool subghz_scene_start_on_event(void* context, SceneManagerEvent event) {
 
 void subghz_scene_start_on_exit(void* context) {
     SubGhz* subghz = context;
-    /* Always reset the shared submenu widget.
-     * Fox Theme uses the grid view (not submenu), but any stale items from
-     * a prior Classic-mode run would otherwise bleed into scenes like
-     * SubGhzSceneSavedMenu that append to the same widget without resetting. */
+
     submenu_reset(subghz->submenu);
 }

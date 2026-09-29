@@ -247,38 +247,34 @@ bool mf_ultralight_load(MfUltralightData* data, FlipperFormat* ff, uint32_t vers
     bool parsed = false;
 
     do {
-        // Read ISO14443_3A data
+
         if(!iso14443_3a_load(data->iso14443_3a_data, ff, version)) break;
 
-        // Read Ultralight specific data
-        // Read Mifare Ultralight format version
         uint32_t data_format_version = 0;
         if(!flipper_format_read_uint32(
                ff, MF_ULTRALIGHT_FORMAT_VERSION_KEY, &data_format_version, 1)) {
             if(!flipper_format_rewind(ff)) break;
         }
 
-        // Read Mifare Ultralight type
         if(data_format_version > 1) {
             if(!flipper_format_read_string(ff, MF_ULTRALIGHT_TYPE_KEY, temp_str)) break;
             if(!mf_ultralight_verify(data, temp_str)) break;
         }
 
-        // Read signature
         if(!flipper_format_read_hex(
                ff,
                MF_ULTRALIGHT_SIGNATURE_KEY,
                data->signature.data,
                sizeof(MfUltralightSignature)))
             break;
-        // Read Mifare version
+
         if(!flipper_format_read_hex(
                ff,
                MF_ULTRALIGHT_MIFARE_VERSION_KEY,
                (uint8_t*)&data->version,
                sizeof(MfUltralightVersion)))
             break;
-        // Read counters and tearing flags
+
         bool counters_parsed = true;
         for(size_t i = 0; i < 3; i++) {
             furi_string_printf(temp_str, "%s %d", MF_ULTRALIGHT_COUNTER_KEY, i);
@@ -295,11 +291,11 @@ bool mf_ultralight_load(MfUltralightData* data, FlipperFormat* ff, uint32_t vers
             }
         }
         if(!counters_parsed) break;
-        // Read pages
+
         uint32_t pages_total = 0;
         if(!flipper_format_read_uint32(ff, MF_ULTRALIGHT_PAGES_TOTAL_KEY, &pages_total, 1)) break;
         uint32_t pages_read = 0;
-        if(data_format_version < mf_ultralight_data_format_version) { //-V547
+        if(data_format_version < mf_ultralight_data_format_version) {
             pages_read = pages_total;
         } else {
             if(!flipper_format_read_uint32(ff, MF_ULTRALIGHT_PAGES_READ_KEY, &pages_read, 1))
@@ -325,7 +321,6 @@ bool mf_ultralight_load(MfUltralightData* data, FlipperFormat* ff, uint32_t vers
         }
         if(!pages_parsed) break;
 
-        // Read authentication counter
         if(!flipper_format_read_uint32(
                ff, MF_ULTRALIGHT_FAILED_ATTEMPTS_KEY, &data->auth_attempts, 1)) {
             data->auth_attempts = 0;
@@ -371,7 +366,6 @@ bool mf_ultralight_save(const MfUltralightData* data, FlipperFormat* ff) {
                sizeof(MfUltralightVersion)))
             break;
 
-        // Write conters and tearing flags data
         bool counters_saved = true;
         for(size_t i = 0; i < 3; i++) {
             furi_string_printf(temp_str, "%s %d", MF_ULTRALIGHT_COUNTER_KEY, i);
@@ -389,7 +383,6 @@ bool mf_ultralight_save(const MfUltralightData* data, FlipperFormat* ff) {
         }
         if(!counters_saved) break;
 
-        // Write pages data
         uint32_t pages_total = data->pages_total;
         uint32_t pages_read = data->pages_read;
         if(!flipper_format_write_uint32(ff, MF_ULTRALIGHT_PAGES_TOTAL_KEY, &pages_total, 1)) break;
@@ -408,7 +401,6 @@ bool mf_ultralight_save(const MfUltralightData* data, FlipperFormat* ff) {
         }
         if(!pages_saved) break;
 
-        // Write authentication counter
         if(!flipper_format_write_uint32(
                ff, MF_ULTRALIGHT_FAILED_ATTEMPTS_KEY, &data->auth_attempts, 1))
             break;
@@ -491,11 +483,10 @@ bool mf_ultralight_set_uid(MfUltralightData* data, const uint8_t* uid, size_t ui
     bool uid_valid = iso14443_3a_set_uid(data->iso14443_3a_data, uid, uid_len);
 
     if(uid_valid) {
-        // Copy UID across first 2 pages
+
         memcpy(data->page[0].data, data->iso14443_3a_data->uid, 3);
         memcpy(data->page[1].data, &data->iso14443_3a_data->uid[3], 4);
 
-        // Calculate BCC bytes
         data->page[0].data[3] = 0x88 ^ uid[0] ^ uid[1] ^ uid[2];
         data->page[2].data[0] = uid[3] ^ uid[4] ^ uid[5] ^ uid[6];
     }
@@ -583,7 +574,7 @@ uint8_t mf_ultralight_get_write_end_page(MfUltralightType type) {
        type == MfUltralightTypeNTAG216) {
         end_page -= 1;
     } else if(type == MfUltralightTypeOrigin || type == MfUltralightTypeMfulC) {
-        // ULC: 48 pages total, write pages 4-47 (includes auth config + 3DES key)
+
         end_page = mf_ultralight_features[type].total_pages;
     }
 
@@ -615,7 +606,7 @@ bool mf_ultralight_get_config_page(const MfUltralightData* data, MfUltralightCon
 
     uint16_t config_page = mf_ultralight_features[data->type].config_page;
     if(config_page != 0) {
-        *config = (MfUltralightConfigPages*)&data->page[config_page]; //-V1027
+        *config = (MfUltralightConfigPages*)&data->page[config_page];
         config_pages_found = true;
     }
 
@@ -636,9 +627,7 @@ bool mf_ultralight_is_all_data_read(const MfUltralightData* data) {
                       feature_set, MfUltralightFeatureSupportPasswordAuth)) {
             all_read = true;
         } else {
-            // Having read all the pages doesn't mean that we've got everything.
-            // By default PWD is 0xFFFFFFFF, but if read back it is always 0x00000000,
-            // so a default read on an auth-supported NTAG is never complete.
+
             MfUltralightConfigPages* config = NULL;
             if(mf_ultralight_get_config_page(data, &config)) {
                 uint32_t pass = bit_lib_bytes_to_num_be(

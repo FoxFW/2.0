@@ -134,7 +134,7 @@ static uint8_t subghz_protocol_beninca_arc_get_btn_code(void) {
 
     return btn;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static void get_subghz_protocol_beninca_arc_aes_key(SubGhzKeystore* keystore, uint8_t* aes_key) {
     uint64_t mfkey = 0;
@@ -474,7 +474,7 @@ LevelDuration subghz_protocol_encoder_beninca_arc_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_beninca_arc_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderBenincaARC* instance = malloc(sizeof(SubGhzProtocolDecoderBenincaARC));

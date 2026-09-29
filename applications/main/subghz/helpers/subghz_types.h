@@ -3,7 +3,6 @@
 #include <furi.h>
 #include <furi_hal.h>
 
-/** SubGhzNotification state */
 typedef enum {
     SubGhzNotificationStateStarting,
     SubGhzNotificationStateIDLE,
@@ -13,7 +12,6 @@ typedef enum {
     SubGhzNotificationStateTxWait,
 } SubGhzNotificationState;
 
-/** SubGhzTxRx state */
 typedef enum {
     SubGhzTxRxStateIDLE,
     SubGhzTxRxStateRx,
@@ -21,7 +19,6 @@ typedef enum {
     SubGhzTxRxStateSleep,
 } SubGhzTxRxState;
 
-/** SubGhzHopperState state */
 typedef enum {
     SubGhzHopperStateOFF,
     SubGhzHopperStateRunning,
@@ -29,7 +26,6 @@ typedef enum {
     SubGhzHopperStateRSSITimeOut,
 } SubGhzHopperState;
 
-/** SubGhzPresetHopperState state */
 typedef enum {
     SubGhzPresetHopperStateOFF,
     SubGhzPresetHopperStateRunning,
@@ -37,21 +33,18 @@ typedef enum {
     SubGhzPresetHopperStateRSSITimeOut,
 } SubGhzPresetHopperState;
 
-/** SubGhzSpeakerState state */
 typedef enum {
     SubGhzSpeakerStateDisable,
     SubGhzSpeakerStateShutdown,
     SubGhzSpeakerStateEnable,
 } SubGhzSpeakerState;
 
-/** SubGhzRadioDeviceType */
 typedef enum {
     SubGhzRadioDeviceTypeAuto,
     SubGhzRadioDeviceTypeInternal,
     SubGhzRadioDeviceTypeExternalCC1101,
 } SubGhzRadioDeviceType;
 
-/** SubGhzRxKeyState state */
 typedef enum {
     SubGhzRxKeyStateIDLE,
     SubGhzRxKeyStateNoSave,
@@ -65,7 +58,6 @@ typedef enum {
     SubGhzRxKeyStateRAWSave,
 } SubGhzRxKeyState;
 
-/** SubGhzLoadKeyState state */
 typedef enum {
     SubGhzLoadKeyStateUnknown,
     SubGhzLoadKeyStateOK,
@@ -75,7 +67,6 @@ typedef enum {
     SubGhzLoadKeyStateProtocolDescriptionErr,
 } SubGhzLoadKeyState;
 
-/** SubGhzLock */
 typedef enum {
     SubGhzLockOff,
     SubGhzLockOn,
@@ -96,12 +87,13 @@ typedef enum {
     SubGhzViewIdFiatV1Recover,
     SubGhzViewIdSignalVisualizer,
     SubGhzViewIdStartGrid,
+    SubGhzViewIdGarageGrid,
+    SubGhzViewIdGarageProtocolGroups,
     SubGhzViewIdModePicker,
     SubGhzViewIdNumberInput,
 
 } SubGhzViewId;
 
-/** SubGhz load type file */
 typedef enum {
     SubGhzLoadTypeFileNoLoad,
     SubGhzLoadTypeFileKey,

@@ -35,11 +35,6 @@ void furi_hal_memory_init(void) {
     uint32_t sbrsa = (FLASH->SRRVR & FLASH_SRRVR_SBRSA_Msk) >> FLASH_SRRVR_SBRSA_Pos;
     uint32_t snbrsa = (FLASH->SRRVR & FLASH_SRRVR_SNBRSA_Msk) >> FLASH_SRRVR_SNBRSA_Pos;
 
-    // STM(TM) Copro(TM) bug(TM): SNBRSA is incorrect if stack version is higher than 1.13 and lower than 1.17.2+
-    // Radio core started, but not yet ready, so we'll try to guess
-    // This will be true only if BLE light radio stack used,
-    // 0x0D is known to be incorrect, 0x0B is known to be correct since 1.17.2+
-    // Lower value by 2 pages to match real memory layout
     if(snbrsa > 0x0B) {
         FURI_LOG_E(TAG, "SNBRSA workaround");
         snbrsa -= 2;

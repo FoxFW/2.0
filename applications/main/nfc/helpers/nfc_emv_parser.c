@@ -15,9 +15,9 @@ static bool nfc_emv_parser_search_data(
     temp_str = furi_string_alloc();
 
     do {
-        // Open file
+
         if(!flipper_format_file_open_existing(file, file_name)) break;
-        // Read file header and version
+
         uint32_t version = 0;
         if(!flipper_format_read_header(file, temp_str, &version)) break;
         if(furi_string_cmp_str(temp_str, nfc_resources_header) ||

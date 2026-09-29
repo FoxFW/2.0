@@ -189,7 +189,7 @@ LevelDuration subghz_protocol_encoder_holtek_yield(void* context) {
 
     return ret;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_holtek_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

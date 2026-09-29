@@ -1,5 +1,5 @@
 #include "../lfrfid_i.h"
-#include <lfrfid_icons.h>  /* FAP-local icons — generated from images/ by fbt, not in lib path */
+#include <lfrfid_icons.h>
 
 void lfrfid_scene_emulate_on_enter(void* context) {
     LfRfid* app = context;
@@ -13,7 +13,6 @@ void lfrfid_scene_emulate_on_enter(void* context) {
         protocol_dict_get_name(app->dict, app->protocol_id),
         furi_string_empty(app->file_name) ? "Unsaved Tag" : furi_string_get_cstr(app->file_name));
 
-    // Fox logo on the left (64px wide), text on the right
     widget_add_icon_element(widget, 0, 0, &I_fox_64x64);
     widget_add_text_box_element(
         widget, 66, 4, 60, 56, AlignCenter, AlignCenter, furi_string_get_cstr(display_text), false);

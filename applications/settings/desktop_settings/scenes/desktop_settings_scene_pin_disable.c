@@ -22,7 +22,7 @@ void desktop_settings_scene_pin_disable_on_enter(void* context) {
 
     popup_set_context(app->popup, app);
     popup_set_callback(app->popup, pin_disable_back_callback);
-    // [NO_DOLPHIN] popup_set_icon(app->popup, 0, 2, NULL);
+
     popup_set_icon(app->popup, 0, 0, &I_fox_64x64);
     popup_set_header(app->popup, "PIN Removed", 93, 10, AlignCenter, AlignTop);
     popup_set_text(

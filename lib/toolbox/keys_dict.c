@@ -19,7 +19,6 @@ static inline void keys_dict_add_ending_new_line(KeysDict* instance) {
     if(stream_seek(instance->stream, -1, StreamOffsetFromEnd)) {
         uint8_t last_char = 0;
 
-        // Check if the last char is new line or add a new line
         if(stream_read(instance->stream, &last_char, 1) == 1 && last_char != '\n') {
             FURI_LOG_D(TAG, "Adding new line ending");
             stream_write_char(instance->stream, '\n');
@@ -76,7 +75,6 @@ KeysDict* keys_dict_alloc(const char* path, KeysDictMode mode, size_t key_size) 
     FS_OpenMode open_mode = (mode == KeysDictModeOpenAlways) ? FSOM_OPEN_ALWAYS :
                                                                FSOM_OPEN_EXISTING;
 
-    // Byte = 2 symbols + 1 end of line
     instance->key_size = key_size;
     instance->key_size_symbols = key_size * 2 + 1;
 
@@ -88,7 +86,7 @@ KeysDict* keys_dict_alloc(const char* path, KeysDictMode mode, size_t key_size) 
     if(!file_exists) {
         buffered_file_stream_close(instance->stream);
     } else {
-        // Eventually add new line character in the last line to avoid skipping keys
+
         keys_dict_add_ending_new_line(instance);
     }
 
@@ -96,8 +94,6 @@ KeysDict* keys_dict_alloc(const char* path, KeysDictMode mode, size_t key_size) 
 
     bool is_endfile = false;
 
-    // In this loop we only count the entries in the file
-    // We prefer not to load the whole file in memory for space reasons
     while(file_exists && !is_endfile) {
         bool read_key = keys_dict_read_key_line(instance, line, &is_endfile);
         if(read_key) {
@@ -142,7 +138,6 @@ static void keys_dict_str_to_int(KeysDict* instance, FuriString* key_str, uint8_
     uint8_t key_byte_tmp;
     char h, l;
 
-    // Process two hex characters at a time to create each byte
     for(size_t i = 0; i < instance->key_size_symbols - 1; i += 2) {
         h = furi_string_get_char(key_str, i);
         l = furi_string_get_char(key_str, i + 1);
@@ -213,13 +208,12 @@ static bool keys_dict_is_key_present_str(KeysDict* instance, FuriString* key) {
     stream_rewind(instance->stream);
 
     while(!line_found && !is_endfile)
-        line_found = // The line is found if the line was read and the key is equal to the line
+        line_found =
             (keys_dict_read_key_line(instance, line, &is_endfile)) &&
             (furi_string_equal(key, line));
 
     furi_string_free(line);
 
-    // Restore the position of the stream
     stream_seek(instance->stream, actual_pos, StreamOffsetFromStart);
 
     return line_found;

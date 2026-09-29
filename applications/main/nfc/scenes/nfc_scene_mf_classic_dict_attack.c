@@ -1,16 +1,11 @@
 #include "../nfc_app_i.h"
 
 #include <bit_lib/bit_lib.h>
-#include <dolphin/dolphin.h>
 #include <toolbox/stream/buffered_file_stream.h>
 
 #define TAG       "NfcMfClassicDictAttack"
 #define BIT(x, n) ((x) >> (n) & 1)
 
-// TODO FL-3926: Fix lag when leaving the dictionary attack view after Hardnested
-// TODO FL-3926: Re-enters backdoor detection between user and system dictionary if no backdoor is found
-
-// KeysDict structure definition for inline CUID dictionary allocation
 struct KeysDict {
     Stream* stream;
     size_t key_size;
@@ -48,7 +43,6 @@ NfcCommand nfc_dict_attack_worker_callback(NfcGenericEvent event, void* context)
         const MfClassicData* mfc_data =
             nfc_device_get_data(instance->nfc_device, NfcProtocolMfClassic);
 
-        // Select mode based on dictionary type
         if(is_cuid_dict) {
             mfc_event->data->poller_mode.mode = MfClassicPollerModeDictAttackCUID;
         } else if(instance->nfc_dict_context.enhanced_dict) {
@@ -75,10 +69,9 @@ NfcCommand nfc_dict_attack_worker_callback(NfcGenericEvent event, void* context)
         bool key_found = false;
 
         if(is_cuid_dict) {
-            // CUID dictionary: read 7 bytes (1 byte key_idx + 6 bytes key) and filter by exact key_idx
+
             uint16_t target_key_idx = instance->nfc_dict_context.current_key_idx;
 
-            // Check if this key index exists in the bitmap (only valid for 0-255)
             if(target_key_idx < 256 &&
                BIT(instance->nfc_dict_context.cuid_key_indices_bitmap[target_key_idx / 8],
                    target_key_idx % 8)) {
@@ -86,14 +79,13 @@ NfcCommand nfc_dict_attack_worker_callback(NfcGenericEvent event, void* context)
 
                 while(keys_dict_get_next_key(
                     instance->nfc_dict_context.dict, key_with_idx, sizeof(MfClassicKey) + 1)) {
-                    // Extract key_idx from first byte
+
                     uint8_t key_idx = key_with_idx[0];
 
                     instance->nfc_dict_context.dict_keys_current++;
 
-                    // Only use key if it matches the exact current key index
                     if(key_idx == (uint8_t)target_key_idx) {
-                        // Copy the actual key (starts at byte 1)
+
                         memcpy(key.data, &key_with_idx[1], sizeof(MfClassicKey));
                         key_found = true;
                         break;
@@ -101,7 +93,7 @@ NfcCommand nfc_dict_attack_worker_callback(NfcGenericEvent event, void* context)
                 }
             }
         } else {
-            // Standard dictionary: read 12 bytes
+
             if(keys_dict_get_next_key(
                    instance->nfc_dict_context.dict, key.data, sizeof(MfClassicKey))) {
                 key_found = true;
@@ -111,7 +103,7 @@ NfcCommand nfc_dict_attack_worker_callback(NfcGenericEvent event, void* context)
 
         if(key_found) {
             mfc_event->data->key_request_data.key = key;
-            // In CUID mode, set key_type based on key_idx (odd = B, even = A)
+
             if(is_cuid_dict) {
                 uint16_t target_key_idx = instance->nfc_dict_context.current_key_idx;
                 mfc_event->data->key_request_data.key_type =
@@ -145,13 +137,12 @@ NfcCommand nfc_dict_attack_worker_callback(NfcGenericEvent event, void* context)
         keys_dict_rewind(instance->nfc_dict_context.dict);
         instance->nfc_dict_context.dict_keys_current = 0;
 
-        // In CUID mode, increment the key index and calculate sector from it
         if(is_cuid_dict) {
             instance->nfc_dict_context.current_key_idx++;
-            // Calculate sector from key_idx (each sector has 2 keys: A and B)
+
             instance->nfc_dict_context.current_sector =
                 instance->nfc_dict_context.current_key_idx / 2;
-            // Write back to event data so poller can read it
+
             mfc_event->data->next_sector_data.current_sector =
                 instance->nfc_dict_context.current_sector;
         } else {
@@ -236,7 +227,6 @@ static void nfc_scene_mf_classic_dict_attack_prepare_view(NfcApp* instance) {
                 break;
             }
 
-            // Manually create KeysDict and scan once to count + populate bitmap
             KeysDict* dict = malloc(sizeof(KeysDict));
             Storage* storage = furi_record_open(RECORD_STORAGE);
             dict->stream = buffered_file_stream_alloc(storage);
@@ -249,21 +239,19 @@ static void nfc_scene_mf_classic_dict_attack_prepare_view(NfcApp* instance) {
                    furi_string_get_cstr(cuid_dict_path),
                    FSAM_READ_WRITE,
                    FSOM_OPEN_EXISTING)) {
-                buffered_file_stream_close(dict->stream);
-                free(dict);
+
+                keys_dict_free(dict);
                 state = DictAttackStateUserDictInProgress;
                 break;
             }
 
-            // Allocate and populate bitmap of key indices present in CUID dictionary
             instance->nfc_dict_context.cuid_key_indices_bitmap = malloc(32);
             memset(instance->nfc_dict_context.cuid_key_indices_bitmap, 0, 32);
 
-            // Scan dictionary once to count keys and populate bitmap
             uint8_t key_with_idx[dict->key_size];
             while(keys_dict_get_next_key(dict, key_with_idx, dict->key_size)) {
                 uint8_t key_idx = key_with_idx[0];
-                // Set bit for this key index
+
                 instance->nfc_dict_context.cuid_key_indices_bitmap[key_idx / 8] |=
                     (1 << (key_idx % 8));
                 dict->total_keys++;
@@ -280,7 +268,7 @@ static void nfc_scene_mf_classic_dict_attack_prepare_view(NfcApp* instance) {
 
             instance->nfc_dict_context.dict = dict;
             dict_attack_set_header(instance->dict_attack, "MF Classic CUID Dictionary");
-            instance->nfc_dict_context.current_key_idx = 0; // Initialize key index for CUID mode
+            instance->nfc_dict_context.current_key_idx = 0;
         } while(false);
 
         furi_string_free(cuid_dict_path);
@@ -386,8 +374,7 @@ static void nfc_scene_mf_classic_dict_attack_save_new_keys(const MfClassicData* 
 static void nfc_scene_mf_classic_dict_attack_notify_read(NfcApp* instance) {
     const MfClassicData* mfc_data = nfc_poller_get_data(instance->poller);
     bool is_card_fully_read = mf_classic_is_card_read(mfc_data);
-    // Close the attack's own dict handle first so the user-dictionary write below
-    // never opens the same file concurrently with an already-open read handle.
+
     if(instance->nfc_dict_context.dict) {
         keys_dict_free(instance->nfc_dict_context.dict);
         instance->nfc_dict_context.dict = NULL;
@@ -441,7 +428,6 @@ bool nfc_scene_mf_classic_dict_attack_on_event(void* context, SceneManagerEvent 
             } else {
                 nfc_scene_mf_classic_dict_attack_notify_read(instance);
                 scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
-                dolphin_deed(DolphinDeedNfcReadSuccess);
                 consumed = true;
             }
         } else if(event.event == NfcCustomEventCardDetected) {
@@ -476,7 +462,6 @@ bool nfc_scene_mf_classic_dict_attack_on_event(void* context, SceneManagerEvent 
                 } else {
                     nfc_scene_mf_classic_dict_attack_notify_read(instance);
                     scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
-                    dolphin_deed(DolphinDeedNfcReadSuccess);
                 }
                 consumed = true;
             } else if(state == DictAttackStateUserDictInProgress && !(ran_nested_dict)) {
@@ -494,13 +479,11 @@ bool nfc_scene_mf_classic_dict_attack_on_event(void* context, SceneManagerEvent 
                 } else {
                     nfc_scene_mf_classic_dict_attack_notify_read(instance);
                     scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
-                    dolphin_deed(DolphinDeedNfcReadSuccess);
                 }
                 consumed = true;
             } else {
                 nfc_scene_mf_classic_dict_attack_notify_read(instance);
                 scene_manager_next_scene(instance->scene_manager, NfcSceneReadSuccess);
-                dolphin_deed(DolphinDeedNfcReadSuccess);
                 consumed = true;
             }
         }
@@ -526,7 +509,6 @@ void nfc_scene_mf_classic_dict_attack_on_exit(void* context) {
         instance->nfc_dict_context.dict = NULL;
     }
 
-    // Free CUID bitmap if allocated
     if(instance->nfc_dict_context.cuid_key_indices_bitmap) {
         free(instance->nfc_dict_context.cuid_key_indices_bitmap);
         instance->nfc_dict_context.cuid_key_indices_bitmap = NULL;
@@ -549,7 +531,6 @@ void nfc_scene_mf_classic_dict_attack_on_exit(void* context) {
     instance->nfc_dict_context.enhanced_dict = false;
     instance->nfc_dict_context.current_key_idx = 0;
 
-    // Clean up temporary files used for nested dictionary attack
     if(keys_dict_check_presence(NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH)) {
         storage_common_remove(instance->storage, NFC_APP_MF_CLASSIC_DICT_USER_NESTED_PATH);
     }

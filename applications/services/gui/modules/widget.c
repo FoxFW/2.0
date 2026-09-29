@@ -3,7 +3,7 @@
 #include <furi.h>
 #include <m-array.h>
 
-ARRAY_DEF(ElementArray, WidgetElement*, M_PTR_OPLIST); // NOLINT
+ARRAY_DEF(ElementArray, WidgetElement*, M_PTR_OPLIST);
 
 struct Widget {
     View* view;
@@ -18,7 +18,6 @@ static void gui_widget_view_draw_callback(Canvas* canvas, void* _model) {
     GuiWidgetModel* model = _model;
     canvas_clear(canvas);
 
-    // Draw all elements
     ElementArray_it_t it;
     ElementArray_it(it, model->element);
     while(!ElementArray_end_p(it)) {
@@ -34,7 +33,6 @@ static bool gui_widget_view_input_callback(InputEvent* event, void* context) {
     Widget* widget = context;
     bool consumed = false;
 
-    // Call all Widget Elements input handlers
     with_view_model(
         widget->view,
         GuiWidgetModel * model,
@@ -90,9 +88,9 @@ void widget_reset(Widget* widget) {
 
 void widget_free(Widget* widget) {
     furi_check(widget);
-    // Free all elements
+
     widget_reset(widget);
-    // Free elements container
+
     with_view_model(
         widget->view, GuiWidgetModel * model, { ElementArray_clear(model->element); }, true);
 

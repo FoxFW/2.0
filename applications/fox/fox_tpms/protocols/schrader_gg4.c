@@ -7,30 +7,13 @@
 
 #define TAG "Schrader"
 
-// https://github.com/merbanan/rtl_433/blob/master/src/devices/schraeder.c
-// https://fccid.io/MRXGG4
-//
-// Schrader 3013/3015 MRX-GG4 (Kia Sportage, Mercedes A0009054100, …)
-//
-// Frequency: 433.92 MHz +-38 kHz
-// Modulation: ASK / OOK (AM650)
-// Data layout (64 bit, Manchester II):
-//   | S | I[32] | P | T | C |
-//   S: 0x30 in relearn state, otherwise vendor-specific
-//   I: 32 bit ID
-//   P: pressure raw, multiply by 2.5 -> PSI
-//   T: temperature raw, offset by 50 -> °C
-//   C: CRC8 (Poly 0x7, Init 0x0) over preceding 6 bytes
-//
-// Preamble: 3x 0 bits after ~480 us start pulse
-
 #define PREAMBLE          0b000
 #define PREAMBLE_BITS_LEN 3
 
 static const SubGhzBlockConst tpms_protocol_schrader_gg4_const = {
     .te_short = 120,
     .te_long = 240,
-    .te_delta = 55, // 50% of te_short due to poor sensitivity
+    .te_delta = 55,
     .min_count_bit_for_found = 64,
 };
 
@@ -128,13 +111,8 @@ static bool tpms_protocol_schrader_gg4_check_crc(TPMSProtocolDecoderSchraderGG4*
 static void tpms_protocol_schrader_gg4_analyze(TPMSBlockGeneric* instance) {
     instance->id = instance->data >> 24;
 
-    // TODO: locate and decode battery-low bit (not yet known)
     instance->battery_low = TPMS_NO_BATT;
 
-    // Narrow to uint8_t before the float math below - left as uint64_t, the
-    // multiply/assign needs a 64-bit-to-float conversion the firmware
-    // doesn't export (__aeabi_ul2f), even though the masked value always
-    // fits a byte.
     instance->temperature = (float)(uint8_t)((instance->data >> 8) & 0xFF) - 50;
     instance->pressure = (float)(uint8_t)((instance->data >> 16) & 0xFF) * 2.5f * 0.069f;
 }
@@ -165,7 +143,6 @@ void tpms_protocol_decoder_schrader_gg4_feed(void* context, bool level, uint32_t
     bool have_bit = false;
     TPMSProtocolDecoderSchraderGG4* instance = context;
 
-    // low-level bit sequence decoding
     if(instance->decoder.parser_step != SchraderGG4DecoderStepReset) {
         ManchesterEvent event = level_and_duration_to_event(level, duration);
 
@@ -185,14 +162,13 @@ void tpms_protocol_decoder_schrader_gg4_feed(void* context, bool level, uint32_t
                 instance->manchester_saved_state, event, &instance->manchester_saved_state, &bit);
             if(!have_bit) return;
 
-            // Invert value, due to signal is Manchester II and decoder is Manchester I
             bit = !bit;
         }
     }
 
     switch(instance->decoder.parser_step) {
     case SchraderGG4DecoderStepReset:
-        // wait for start ~480us pulse
+
         if((level) && (DURATION_DIFF(duration, tpms_protocol_schrader_gg4_const.te_long * 2) <
                        tpms_protocol_schrader_gg4_const.te_delta)) {
             instance->decoder.parser_step = SchraderGG4DecoderStepCheckPreamble;
@@ -200,7 +176,6 @@ void tpms_protocol_decoder_schrader_gg4_feed(void* context, bool level, uint32_t
             instance->decoder.decode_data = 0;
             instance->decoder.decode_count_bit = 0;
 
-            // First will be short space -> initial Manchester state
             instance->manchester_saved_state = ManchesterStateStart1;
         }
         break;
@@ -277,14 +252,6 @@ void tpms_protocol_decoder_schrader_gg4_get_string(void* context, FuriString* ou
         (double)instance->generic.pressure);
 }
 
-// -----------------------------------------------------------------------------
-// Encoder
-// -----------------------------------------------------------------------------
-//
-// Worst-case upload size: every data bit produces two half-symbols of te_short.
-// 64 data bits + 3 preamble bits = 67 bits → 134 half-symbols. With the start
-// pulse and trailing inter-frame gap added, 200 LevelDuration entries is plenty
-// even before run-length merging.
 #define TPMS_SCHRADER_GG4_ENCODER_UPLOAD_SIZE 200
 
 void* tpms_protocol_encoder_schrader_gg4_alloc(SubGhzEnvironment* environment) {
@@ -311,14 +278,6 @@ void tpms_protocol_encoder_schrader_gg4_stop(void* context) {
     instance->encoder.is_running = false;
 }
 
-// Manchester-II convention as decoded by tpms_protocol_decoder_schrader_gg4_feed
-// (the decoder reads Manchester I and inverts the output bit).
-//
-//   bit 0 → first half LOW, second half HIGH
-//   bit 1 → first half HIGH, second half LOW
-//
-// Adjacent identical half-symbols are run-length merged so back-to-back equal
-// bits produce a single te_long entry on the wire.
 static bool tpms_protocol_encoder_schrader_gg4_get_upload(
     TPMSProtocolEncoderSchraderGG4* instance) {
     furi_assert(instance);
@@ -346,19 +305,15 @@ static bool tpms_protocol_encoder_schrader_gg4_get_upload(
         }                                                                             \
     } while(0)
 
-    // Inter-frame gap before the start pulse so consecutive repeats are framed.
     EMIT(false, te_short * 50);
 
-    // ~480 us start pulse
     EMIT(true, te_long * 2);
 
-    // 3-bit preamble (all zeros)
     for(int i = 0; i < PREAMBLE_BITS_LEN; i++) {
         EMIT(false, te_short);
         EMIT(true, te_short);
     }
 
-    // 64 data bits, MSB first
     for(int bit = instance->generic.data_count_bit - 1; bit >= 0; bit--) {
         if((instance->generic.data >> bit) & 0x1) {
             EMIT(true, te_short);
@@ -369,7 +324,6 @@ static bool tpms_protocol_encoder_schrader_gg4_get_upload(
         }
     }
 
-    // Flush trailing entry
     if(last_duration != 0) {
         if(index >= max) return false;
         instance->encoder.upload[index++] = level_duration_make(last_level, last_duration);
@@ -396,11 +350,9 @@ SubGhzProtocolStatus
             break;
         }
 
-        // Optional repeat override
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
-        // Restore allocator-side upload capacity before regenerating the upload
         instance->encoder.size_upload = TPMS_SCHRADER_GG4_ENCODER_UPLOAD_SIZE;
         if(!tpms_protocol_encoder_schrader_gg4_get_upload(instance)) {
             res = SubGhzProtocolStatusErrorEncoderGetUpload;
@@ -415,12 +367,8 @@ SubGhzProtocolStatus
 void tpms_protocol_schrader_gg4_pack(TPMSBlockGeneric* generic) {
     furi_assert(generic);
 
-    // Preserve the original status byte (top 8 bits of the 64-bit word) so we
-    // do not flip a sensor between "normal" (0x00) and "relearn" (0x30) modes
-    // just because the user edited an unrelated field.
     uint64_t status_byte = (generic->data >> 56) & 0xFFULL;
 
-    // Inverse of the decoder's analyze step: engineering units back to raw bytes.
     int32_t pressure_raw = (int32_t)(generic->pressure / (2.5f * 0.069f) + 0.5f);
     if(pressure_raw < 0) pressure_raw = 0;
     if(pressure_raw > 0xFF) pressure_raw = 0xFF;
@@ -438,8 +386,6 @@ void tpms_protocol_schrader_gg4_pack(TPMSBlockGeneric* generic) {
     bytes[5] = (uint8_t)pressure_raw;
     bytes[6] = (uint8_t)temperature_raw;
 
-    // CRC is computed over bytes 1..6 (six bytes, skipping the status byte).
-    // Matches the decoder's tpms_protocol_schrader_gg4_check_crc() input.
     bytes[7] = subghz_protocol_blocks_crc8(&bytes[1], 6, 0x7, 0);
 
     uint64_t data = 0;

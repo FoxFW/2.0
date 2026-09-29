@@ -62,16 +62,16 @@ static void rpc_system_property_get_process(const PB_Main* request, void* contex
         furi_string_right(subkey, sep_idx + 1);
     }
 
-    PB_Main* response = malloc(sizeof(PB_Main));
+    PB_Main response = PB_Main_init_default;
 
-    response->command_id = request->command_id;
-    response->command_status = PB_CommandStatus_OK;
-    response->has_next = true;
-    response->which_content = PB_Main_property_get_response_tag;
+    response.command_id = request->command_id;
+    response.command_status = PB_CommandStatus_OK;
+    response.has_next = true;
+    response.which_content = PB_Main_property_get_response_tag;
 
     RpcPropertyContext property_context = {
         .session = session,
-        .response = response,
+        .response = &response,
         .subkey = subkey,
     };
 
@@ -88,8 +88,6 @@ static void rpc_system_property_get_process(const PB_Main* request, void* contex
 
     furi_string_free(subkey);
     furi_string_free(topkey);
-
-    free(response);
 }
 
 void* rpc_system_property_alloc(RpcSession* session) {

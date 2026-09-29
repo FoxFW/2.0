@@ -21,6 +21,7 @@
 #define MASS_STORAGE_APP_PATH_FOLDER STORAGE_APP_DATA_PATH_PREFIX
 #define MASS_STORAGE_APP_EXTENSION   ".img"
 #define MASS_STORAGE_FILE_NAME_LEN   40
+#define MASS_STORAGE_SD_CARD_ARG     "sdcard"
 
 struct MassStorageApp {
     Gui* gui;
@@ -44,6 +45,9 @@ struct MassStorageApp {
     uint32_t new_file_size;
 
     uint32_t bytes_read, bytes_written;
+    bool sd_card_mode;
+    bool sd_card_session_locked;
+    uint32_t sd_card_block_count;
 };
 
 typedef enum {

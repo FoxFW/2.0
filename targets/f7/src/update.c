@@ -25,7 +25,7 @@ static FATFS* pfs = NULL;
 static bool flipper_update_mount_sd(void) {
     for(int i = 0; i < furi_hal_sd_max_mount_retry_count(); ++i) {
         if(furi_hal_sd_init((i % 2) == 0) != FuriStatusOk) {
-            /* Next attempt will be without card reset, let it settle */
+
             furi_delay_ms(1000);
             continue;
         }
@@ -38,7 +38,7 @@ static bool flipper_update_mount_sd(void) {
 }
 
 static bool flipper_update_init(void) {
-    // TODO FL-3504: Configure missing peripherals properly
+
     furi_hal_bus_enable(FuriHalBusHSEM);
     furi_hal_bus_enable(FuriHalBusIPCC);
     furi_hal_bus_enable(FuriHalBusRNG);
@@ -84,7 +84,7 @@ static bool flipper_update_load_stage(const FuriString* work_dir, UpdateManifest
 
     uint32_t crc = 0;
     do {
-        if(f_read(&file, img + read_total, MAX_READ, &read_current) != FR_OK) { //-V769
+        if(f_read(&file, img + read_total, MAX_READ, &read_current) != FR_OK) {
             break;
         }
         crc = crc32_calc_buffer(crc, img + read_total, read_current);
@@ -96,15 +96,6 @@ static bool flipper_update_load_stage(const FuriString* work_dir, UpdateManifest
             break;
         }
 
-        /* Point of no return. Literally
-         *
-         * NB: we MUST disable IRQ, otherwise handlers from flash
-         * will change global variables (like tick count) 
-         * that are located in .data. And we move staged loader 
-         * to the same memory region. So, IRQ handlers will mess up 
-         * memmove'd .text section and ruin your day. 
-         * We don't want that to happen.
-         */
         __disable_irq();
 
         memmove((void*)(SRAM1_BASE), img, stat.fsize);
@@ -156,7 +147,7 @@ static UpdateManifest* flipper_update_process_manifest(const FuriString* manifes
 
     do {
         uint16_t size_read = 0;
-        if(f_read(&file, manifest_data + bytes_read, MAX_READ, &size_read) != FR_OK) { //-V769
+        if(f_read(&file, manifest_data + bytes_read, MAX_READ, &size_read) != FR_OK) {
             break;
         }
         bytes_read += size_read;

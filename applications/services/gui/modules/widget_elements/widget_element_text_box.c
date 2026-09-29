@@ -51,7 +51,6 @@ WidgetElement* widget_element_text_box_create(
     bool strip_to_dots) {
     furi_assert(text);
 
-    // Allocate and init model
     GuiTextBoxModel* model = malloc(sizeof(GuiTextBoxModel));
     model->x = x;
     model->y = y;
@@ -62,7 +61,6 @@ WidgetElement* widget_element_text_box_create(
     model->text = furi_string_alloc_set(text);
     model->strip_to_dots = strip_to_dots;
 
-    // Allocate and init Element
     WidgetElement* gui_string = malloc(sizeof(WidgetElement));
     gui_string->parent = NULL;
     gui_string->input = NULL;
@@ -71,4 +69,4 @@ WidgetElement* widget_element_text_box_create(
     gui_string->model = model;
 
     return gui_string;
-} //-V773
+}

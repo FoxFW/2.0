@@ -12,22 +12,6 @@
 
 #define TAG "FiatMarelli"
 
-//   Magneti Marelli BSI keyfob protocol (PCF7946)
-//   Found on: Fiat Panda, Grande Punto (and possibly other Fiat/Lancia/Alfa ~2003-2012)
-//
-//   RF: 433.92 MHz, Manchester encoding
-//   Two timing variants with identical frame structure:
-//     Type A (e.g. Panda):        te_short ~260us, te_long ~520us
-//     Type B (e.g. Grande Punto): te_short ~100us, te_long ~200us
-//   TE is auto-detected from preamble pulse averaging.
-//
-//   Frame layout (103-104 bits = 13 bytes):
-//     Bytes 0-1:  0xFFFF/0xFFFC preamble residue
-//     Bytes 2-5:  Serial (32 bits)
-//     Byte 6:     [Button:4 | Epoch:4]
-//     Byte 7:     [Counter:5 | Scramble:2 | Fixed:1]
-//     Bytes 8-12: Encrypted payload (40 bits)
-
 #define FIAT_MARELLI_PREAMBLE_PULSE_MIN 50
 #define FIAT_MARELLI_PREAMBLE_PULSE_MAX 350
 #define FIAT_MARELLI_PREAMBLE_MIN       80
@@ -121,10 +105,6 @@ const SubGhzProtocol subghz_protocol_fiat_marelli = {
     .encoder = &subghz_protocol_fiat_marelli_encoder,
 };
 
-// ============================================================================
-// Encoder
-// ============================================================================
-
 #define FIAT_MARELLI_ENCODER_UPLOAD_MAX 1500
 #define FIAT_MARELLI_ENCODER_REPEAT     3
 #define FIAT_MARELLI_PREAMBLE_PAIRS     100
@@ -150,9 +130,6 @@ void subghz_protocol_encoder_fiat_marelli_free(void* context) {
     free(instance);
 }
 
-// Manchester encoding from decoder FSM:
-//   From Mid1: bit 1 = LOW_TE + HIGH_TE, bit 0 = LOW_2TE
-//   From Mid0: bit 0 = HIGH_TE + LOW_TE, bit 1 = HIGH_2TE
 static bool fiat_marelli_encoder_get_upload(SubGhzProtocolEncoderFiatMarelli* instance) {
     uint32_t te = instance->te_detected;
     if(te == 0) te = subghz_protocol_fiat_marelli_const.te_short;
@@ -314,10 +291,6 @@ LevelDuration subghz_protocol_encoder_fiat_marelli_yield(void* context) {
 
     return ret;
 }
-
-// ============================================================================
-// Decoder
-// ============================================================================
 
 static void fiat_marelli_rebuild_raw_data(SubGhzProtocolDecoderFiatMarelli* instance) {
     memset(instance->raw_data, 0, sizeof(instance->raw_data));

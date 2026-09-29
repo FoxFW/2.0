@@ -1,14 +1,4 @@
 #pragma once
-/* elements_scrollable_text_line_str() (applications/services/gui/
- * elements.h) isn't declared on every fork's copy of that stock, shared
- * GUI service header - unlike the lib/subghz cases elsewhere in this
- * compat layer, its own implementation (elements.c) is fully self-
- * contained (only calls stock furi_string_ and canvas_ primitives), so
- * rather than detect per-fork availability, this is just always our own
- * copy, unconditionally, on every build including FoxFW2.0's own -
- * functionally identical, zero fidelity loss, no ifdef needed. Named
- * differently from the real function to avoid a redefinition clash where
- * both are visible in the same translation unit. */
 
 #include <gui/canvas.h>
 #include <furi/core/string.h>
@@ -53,7 +43,7 @@ static inline void subghz_garage_scrollable_text_line_str(
             }
             furi_string_cat(line, "...");
         } else {
-            /* Bounce scroll: slides left to end, pauses, slides back, pauses, repeats. */
+
             size_t scroll_size = furi_string_size(line);
             size_t right_width = 0;
             for(size_t i = scroll_size - 1; i > 0; i--) {

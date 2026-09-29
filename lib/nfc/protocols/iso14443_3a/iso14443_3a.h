@@ -36,7 +36,7 @@ typedef struct {
 typedef struct {
     uint8_t sel_cmd;
     uint8_t sel_par;
-    uint8_t data[4]; // max data bit is 32
+    uint8_t data[4];
 } Iso14443_3aSddReq;
 
 typedef struct {
@@ -88,15 +88,11 @@ Iso14443_3aData* iso14443_3a_get_base_data(const Iso14443_3aData* data);
 
 uint32_t iso14443_3a_get_cuid(const Iso14443_3aData* data);
 
-// Getters and tests
-
 bool iso14443_3a_supports_iso14443_4(const Iso14443_3aData* data);
 
 uint8_t iso14443_3a_get_sak(const Iso14443_3aData* data);
 
 void iso14443_3a_get_atqa(const Iso14443_3aData* data, uint8_t atqa[2]);
-
-// Setters
 
 void iso14443_3a_set_sak(Iso14443_3aData* data, uint8_t sak);
 

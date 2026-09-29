@@ -146,8 +146,6 @@ bool iso15693_3_set_uid(Iso15693_3Data* data, const uint8_t* uid, size_t uid_len
 
 Iso15693_3Data* iso15693_3_get_base_data(const Iso15693_3Data* data);
 
-// Getters and tests
-
 bool iso15693_3_is_block_locked(const Iso15693_3Data* data, uint8_t block_index);
 
 uint8_t iso15693_3_get_manufacturer_id(const Iso15693_3Data* data);

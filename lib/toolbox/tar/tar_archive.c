@@ -36,7 +36,6 @@ typedef struct TarArchive {
     void* unpack_cb_context;
 } TarArchive;
 
-/* Plain file backend - uncompressed, supports read and write */
 static int mtar_storage_file_write(void* stream, const void* data, unsigned size) {
     uint16_t bytes_written = storage_file_write(stream, data, size);
     return (bytes_written == size) ? bytes_written : MTAR_EWRITEFAIL;
@@ -66,15 +65,12 @@ const struct mtar_ops filesystem_ops = {
     .close = mtar_storage_file_close,
 };
 
-/* Heatshrink stream backend - compressed, read-only */
-
 typedef struct {
     CompressConfigHeatshrink heatshrink_config;
     File* stream;
     CompressStreamDecoder* decoder;
 } HeatshrinkStream;
 
-/* HSDS 'heatshrink data stream' header magic */
 static const uint32_t HEATSHRINK_MAGIC = 0x53445348;
 
 typedef struct {
@@ -117,12 +113,10 @@ static int mtar_heatshrink_file_seek(void* stream, unsigned offset) {
 
 const struct mtar_ops heatshrink_ops = {
     .read = mtar_heatshrink_file_read,
-    .write = NULL, // not supported
+    .write = NULL,
     .seek = mtar_heatshrink_file_seek,
     .close = mtar_heatshrink_file_close,
 };
-
-//////////////////////////////////////////////////////////////////////////
 
 TarArchive* tar_archive_alloc(Storage* storage) {
     furi_check(storage);
@@ -172,7 +166,7 @@ bool tar_archive_open(TarArchive* archive, const char* path, TarOpenMode mode) {
     }
 
     if(compressed) {
-        /* Read and validate stream header */
+
         HeatshrinkStreamHeader header;
         if(storage_file_read(stream, &header, sizeof(HeatshrinkStreamHeader)) !=
                sizeof(HeatshrinkStreamHeader) ||
@@ -346,7 +340,7 @@ static int archive_extract_foreach_cb(mtar_t* tar, const mtar_header_t* header, 
 
     FuriString* full_extracted_fname;
     if(header->type == MTAR_TDIR) {
-        // Skip "/" entry since concat would leave it dangling, also want caller to mkdir destination
+
         if(strcmp(header->name, "/") == 0) {
             return 0;
         }
@@ -424,7 +418,7 @@ bool tar_archive_add_file(
             break;
         }
 
-        success = true; // if file is empty, that's not an error
+        success = true;
         uint16_t bytes_read = 0;
         while((bytes_read = storage_file_read(src_file, file_buffer, FILE_BLOCK_SIZE))) {
             success = tar_archive_file_add_data_block(archive, file_buffer, bytes_read);
@@ -459,7 +453,7 @@ bool tar_archive_add_dir(TarArchive* archive, const char* fs_full_path, const ch
 
         while(true) {
             if(!storage_dir_read(directory, &file_info, name, MAX_NAME_LEN)) {
-                success = true; /* empty dir / no more files */
+                success = true;
                 break;
             }
 

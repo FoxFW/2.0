@@ -31,7 +31,7 @@ static void subghz_scene_rpc_emulation_show(SubGhz* subghz) {
 
     subghz_format_file_name_tmp(subghz);
     popup_set_header(popup, "Sub-GHz", 89, 42, AlignCenter, AlignBottom);
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 12, &I_RFIDDolphinSend_97x61);
+
     popup_set_text(popup, subghz->file_name_tmp, 89, 44, AlignCenter, AlignTop);
 
     view_dispatcher_switch_to_view(subghz->view_dispatcher, SubGhzViewIdPopup);
@@ -56,8 +56,7 @@ bool subghz_scene_rpc_on_event(void* context, SceneManagerEvent event) {
         } else if(event.event == SubGhzCustomEventSceneRpcButtonPress) {
             bool result = false;
             if(state == SubGhzRpcStateLoaded) {
-                // START endless TX until user release button
-                // variable used in protocol yield for endless TX
+
                 subghz_block_generic_global.endless_tx = true;
                 switch(
                     subghz_txrx_tx_start(subghz->txrx, subghz_txrx_get_fff_data(subghz->txrx))) {
@@ -77,7 +76,7 @@ bool subghz_scene_rpc_on_event(void* context, SceneManagerEvent event) {
                         subghz->rpc_ctx, "Error in protocol parameters description");
                     break;
 
-                default: //if(SubGhzTxRxStartTxStateOk)
+                default:
                     result = true;
                     subghz_blink_start(subghz);
                     scene_manager_set_scene_state(
@@ -89,8 +88,7 @@ bool subghz_scene_rpc_on_event(void* context, SceneManagerEvent event) {
         } else if(event.event == SubGhzCustomEventSceneRpcButtonRelease) {
             bool result = false;
             if(state == SubGhzRpcStateTx) {
-                // user release button
-                // set endless TX to OFF and switch off TX in section event.type == SceneManagerEventTypeTick
+
                 subghz_block_generic_global.endless_tx = false;
                 result = true;
             }
@@ -111,7 +109,7 @@ bool subghz_scene_rpc_on_event(void* context, SceneManagerEvent event) {
             rpc_system_app_confirm(subghz->rpc_ctx, result);
         }
     } else if(event.type == SceneManagerEventTypeTick) {
-        // if hardware TX finished then stop TX correctly
+
         if(subghz_devices_is_async_complete_tx(subghz->txrx->radio_device)) {
             bool result = false;
             if(state == SubGhzRpcStateTx) {

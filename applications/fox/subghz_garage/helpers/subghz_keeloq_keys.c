@@ -91,14 +91,14 @@ void subghz_keeloq_keys_delete(SubGhzKeeloqKeysManager* m, size_t i) {
     furi_assert(i < m->user_count);
     SubGhzKeyArray_t* arr = subghz_keystore_get_data(m->user_ks);
     size_t n = m->user_count;
-    // Free the name string of the entry being removed
+
     SubGhzKey* entry = SubGhzKeyArray_get(*arr, i);
     furi_string_free(entry->name);
-    // Shift remaining user entries down
+
     for(size_t j = i; j + 1 < n; j++) {
         *SubGhzKeyArray_get(*arr, j) = *SubGhzKeyArray_get(*arr, j + 1);
     }
-    // Pop last slot; M_POD_OPLIST — no destructor called on the discarded copy
+
     SubGhzKey _disc;
     SubGhzKeyArray_pop_back(&_disc, *arr);
     (void)_disc;
@@ -124,14 +124,14 @@ bool subghz_keeloq_keys_save(SubGhzKeeloqKeysManager* m) {
             FURI_LOG_E(TAG, "Cannot write header");
             break;
         }
-        uint32_t enc = 0; // SubGhzKeystoreEncryptionNone
+        uint32_t enc = 0;
         if(!flipper_format_write_uint32(ff, "Encryption", &enc, 1)) {
             FURI_LOG_E(TAG, "Cannot write Encryption");
             break;
         }
         Stream* stream = flipper_format_get_raw_stream(ff);
         result = true;
-        // Write only user keystore entries
+
         SubGhzKeyArray_t* arr = subghz_keystore_get_data(m->user_ks);
         for(size_t i = 0; i < m->user_count; i++) {
             SubGhzKey* entry = SubGhzKeyArray_get(*arr, i);

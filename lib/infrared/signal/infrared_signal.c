@@ -8,20 +8,16 @@
 
 #define TAG "InfraredSignal"
 
-// Common keys
 #define INFRARED_SIGNAL_NAME_KEY "name"
 #define INFRARED_SIGNAL_TYPE_KEY "type"
 
-// Type key values
 #define INFRARED_SIGNAL_TYPE_RAW    "raw"
 #define INFRARED_SIGNAL_TYPE_PARSED "parsed"
 
-// Raw signal keys
 #define INFRARED_SIGNAL_DATA_KEY       "data"
 #define INFRARED_SIGNAL_FREQUENCY_KEY  "frequency"
 #define INFRARED_SIGNAL_DUTY_CYCLE_KEY "duty_cycle"
 
-// Parsed signal keys
 #define INFRARED_SIGNAL_PROTOCOL_KEY "protocol"
 #define INFRARED_SIGNAL_ADDRESS_KEY  "address"
 #define INFRARED_SIGNAL_COMMAND_KEY  "command"
@@ -316,8 +312,6 @@ void infrared_signal_set_raw_signal(
     float duty_cycle) {
     infrared_signal_clear_timings(signal);
 
-    // If the frequency is out of bounds, set it to the closest bound same for duty cycle
-    // TODO: Should we return error instead? Also infrared_signal_is_valid is used only in CLI for some reason?!
     if(frequency > INFRARED_MAX_FREQUENCY) {
         frequency = INFRARED_MAX_FREQUENCY;
     } else if(frequency < INFRARED_MIN_FREQUENCY) {
@@ -326,7 +320,7 @@ void infrared_signal_set_raw_signal(
     if((duty_cycle <= (float)0) || (duty_cycle > (float)1)) {
         duty_cycle = (float)0.33;
     }
-    // In case of timings out of bounds we just call return
+
     if((timings_size <= 0) || (timings_size > MAX_TIMINGS_AMOUNT)) {
         return;
     }

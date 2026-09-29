@@ -46,7 +46,6 @@ typedef union {
     uint8_t bytes[3];
 } DallasCommonAddressRegs;
 
-/* Standard(ish) iButton commands */
 bool dallas_common_skip_rom(OneWireHost* host);
 
 bool dallas_common_read_rom(OneWireHost* host, DallasCommonRomData* rom_data);
@@ -70,7 +69,6 @@ bool dallas_common_copy_scratchpad(
 
 bool dallas_common_read_mem(OneWireHost* host, uint16_t address, uint8_t* data, size_t data_size);
 
-/* Combined operations */
 bool dallas_common_write_mem(
     OneWireHost* host,
     uint32_t timeout_us,
@@ -78,14 +76,12 @@ bool dallas_common_write_mem(
     const uint8_t* data,
     size_t data_size);
 
-/* Emulation */
 bool dallas_common_emulate_search_rom(OneWireSlave* bus, const DallasCommonRomData* rom_data);
 
 bool dallas_common_emulate_read_rom(OneWireSlave* bus, const DallasCommonRomData* rom_data);
 
 bool dallas_common_emulate_read_mem(OneWireSlave* bus, const uint8_t* data, size_t data_size);
 
-/* Save & Load */
 bool dallas_common_save_rom_data(FlipperFormat* ff, const DallasCommonRomData* rom_data);
 
 bool dallas_common_load_rom_data(
@@ -93,7 +89,6 @@ bool dallas_common_load_rom_data(
     uint32_t format_version,
     DallasCommonRomData* rom_data);
 
-/* Miscellaneous */
 bool dallas_common_is_valid_crc(const DallasCommonRomData* rom_data);
 
 void dallas_common_render_uid(FuriString* result, const DallasCommonRomData* rom_data);

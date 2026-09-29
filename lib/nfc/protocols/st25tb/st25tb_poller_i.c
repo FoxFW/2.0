@@ -55,7 +55,7 @@ St25tbError st25tb_poller_send_frame(
 }
 
 St25tbError st25tb_poller_initiate(St25tbPoller* instance, uint8_t* chip_id_ptr) {
-    // Send Initiate()
+
     furi_check(instance);
     furi_check(instance->nfc);
 
@@ -108,7 +108,6 @@ St25tbError st25tb_poller_select(St25tbPoller* instance, uint8_t* chip_id_ptr) {
         bit_buffer_reset(instance->tx_buffer);
         bit_buffer_reset(instance->rx_buffer);
 
-        // Send Select(Chip_ID), let's just assume that collisions won't ever happen :D
         bit_buffer_append_byte(instance->tx_buffer, 0x0E);
         bit_buffer_append_byte(instance->tx_buffer, chip_id);
 
@@ -226,7 +225,6 @@ St25tbError
     bit_buffer_reset(instance->tx_buffer);
     bit_buffer_reset(instance->rx_buffer);
 
-    // Send Read_block(Addr)
     bit_buffer_append_byte(instance->tx_buffer, 0x08);
     bit_buffer_append_byte(instance->tx_buffer, block_number);
     St25tbError ret;
@@ -259,7 +257,6 @@ St25tbError
     FURI_LOG_T(TAG, "writing block %d", block_number);
     bit_buffer_reset(instance->tx_buffer);
 
-    // Send Write_block(Addr, Data)
     bit_buffer_append_byte(instance->tx_buffer, 0x09);
     bit_buffer_append_byte(instance->tx_buffer, block_number);
     bit_buffer_append_bytes(instance->tx_buffer, (uint8_t*)&block, ST25TB_BLOCK_SIZE);
@@ -267,11 +264,11 @@ St25tbError
     do {
         ret = st25tb_poller_send_frame(
             instance, instance->tx_buffer, instance->rx_buffer, ST25TB_FDT_FC);
-        if(ret != St25tbErrorTimeout) { // tag doesn't ack writes so timeout are expected.
+        if(ret != St25tbErrorTimeout) {
             break;
         }
 
-        furi_delay_ms(7); // 7ms is the max programming time as per datasheet
+        furi_delay_ms(7);
 
         uint32_t block_check;
         ret = st25tb_poller_read_block(instance, &block_check, block_number);
@@ -300,7 +297,6 @@ St25tbError st25tb_poller_halt(St25tbPoller* instance) {
     bit_buffer_reset(instance->tx_buffer);
     bit_buffer_reset(instance->rx_buffer);
 
-    // Send Completion()
     bit_buffer_append_byte(instance->tx_buffer, 0x0F);
 
     St25tbError ret;

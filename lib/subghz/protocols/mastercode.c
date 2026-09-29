@@ -6,12 +6,11 @@
 #include "../blocks/generic.h"
 #include "../blocks/math.h"
 
-// protocol MASTERCODE Clemsa MV1/MV12
 #define TAG "SubGhzProtocolMastercode"
 
-#define DIP_P 0b11 //(+)
-#define DIP_O 0b10 //(0)
-#define DIP_N 0b00 //(-)
+#define DIP_P 0b11
+#define DIP_O 0b10
+#define DIP_N 0b00
 
 #define DIP_PATTERN "%c%c%c%c%c%c%c%c"
 
@@ -103,11 +102,6 @@ void subghz_protocol_encoder_mastercode_free(void* context) {
     free(instance);
 }
 
-/**
- * Generating an upload from data.
- * @param instance Pointer to a SubGhzProtocolEncoderMastercode instance
- * @return true On success
- */
 static bool
     subghz_protocol_encoder_mastercode_get_upload(SubGhzProtocolEncoderMastercode* instance) {
     furi_assert(instance);
@@ -122,13 +116,13 @@ static bool
 
     for(uint8_t i = instance->generic.data_count_bit; i > 1; i--) {
         if(bit_read(instance->generic.data, i - 1)) {
-            //send bit 1
+
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_mastercode_const.te_long);
             instance->encoder.upload[index++] =
                 level_duration_make(false, (uint32_t)subghz_protocol_mastercode_const.te_short);
         } else {
-            //send bit 0
+
             instance->encoder.upload[index++] =
                 level_duration_make(true, (uint32_t)subghz_protocol_mastercode_const.te_short);
             instance->encoder.upload[index++] =
@@ -136,7 +130,7 @@ static bool
         }
     }
     if(bit_read(instance->generic.data, 0)) {
-        //send bit 1
+
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_mastercode_const.te_long);
         instance->encoder.upload[index++] = level_duration_make(
@@ -144,7 +138,7 @@ static bool
             (uint32_t)subghz_protocol_mastercode_const.te_short +
                 subghz_protocol_mastercode_const.te_short * 13);
     } else {
-        //send bit 0
+
         instance->encoder.upload[index++] =
             level_duration_make(true, (uint32_t)subghz_protocol_mastercode_const.te_short);
         instance->encoder.upload[index++] = level_duration_make(
@@ -168,7 +162,7 @@ SubGhzProtocolStatus
         if(ret != SubGhzProtocolStatusOk) {
             break;
         }
-        // Optional value
+
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
@@ -304,10 +298,6 @@ void subghz_protocol_decoder_mastercode_feed(void* context, bool level, uint32_t
     }
 }
 
-/** 
- * Analysis of received data
- * @param instance Pointer to a SubGhzBlockGeneric* instance
- */
 static void subghz_protocol_mastercode_check_remote_controller(SubGhzBlockGeneric* instance) {
     instance->serial = (instance->data >> 4) & 0xFFFF;
     instance->btn = (instance->data >> 2 & 0x03);
@@ -344,11 +334,9 @@ void subghz_protocol_decoder_mastercode_get_string(void* context, FuriString* ou
     SubGhzProtocolDecoderMastercode* instance = context;
     subghz_protocol_mastercode_check_remote_controller(&instance->generic);
 
-    // push protocol data to global variable
     subghz_block_generic_global.btn_is_available = false;
     subghz_block_generic_global.current_btn = instance->generic.btn;
     subghz_block_generic_global.btn_length_bit = 2;
-    //
 
     furi_string_cat_printf(
         output,

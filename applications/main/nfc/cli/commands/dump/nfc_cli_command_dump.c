@@ -312,8 +312,4 @@ const NfcCliActionDescriptor dump_action = {
 
 const NfcCliActionDescriptor* dump_actions_collection[] = {&dump_action};
 
-//Command descriptor
 ADD_NFC_CLI_COMMAND(dump, "", dump_actions_collection);
-
-//Command examples:
-//dump -f ext/nfc/test.nfc

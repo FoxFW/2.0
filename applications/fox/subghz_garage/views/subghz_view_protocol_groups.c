@@ -6,13 +6,8 @@
 #include <gui/icon.h>
 #include <furi.h>
 #include <stdio.h>
+#include <string.h>
 
-/* Full-width double-row boxes, 2 visible per page, one per protocol group -
- * same box geometry as fox_update_downloader/view_menu.c. Up/Down only move
- * the cursor highlight (a filled box) between rows; pressing OK on a row
- * makes IT the active RX group, marked with a filled-in 7x7 OK icon on the
- * left. Cursor and active group are independent - the cursor can be moved
- * around to browse without switching what Read is actually listening for. */
 #define BOX_X          4
 #define BOX_W          120
 #define BOX_H          28
@@ -28,7 +23,7 @@ static const uint8_t k_slot_y[GROUPS_VISIBLE] = {2, 34};
 
 typedef struct {
     uint8_t cursor;
-    uint8_t active;
+    uint8_t enabled[SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT];
     size_t scroll_counter;
 } SubGhzProtocolGroupsModel;
 
@@ -56,7 +51,7 @@ static void protocol_groups_draw_cb(Canvas* canvas, void* model_ptr) {
         uint8_t idx = top + slot;
         if(idx >= SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT) break;
         bool at_cursor = (idx == m->cursor);
-        bool is_active = (idx == m->active);
+        bool is_enabled = m->enabled[idx] != 0;
         uint8_t y = k_slot_y[slot];
 
         canvas_set_color(canvas, ColorBlack);
@@ -72,11 +67,7 @@ static void protocol_groups_draw_cb(Canvas* canvas, void* model_ptr) {
         uint8_t text_x = icon_x + icon_get_width(&I_ButtonCenter_7x7) + ICON_GAP;
         uint8_t text_w = BOX_X + BOX_W - text_x - TEXT_PAD;
 
-        /* Every row shows a radio-button-style indicator: filled OK icon
-         * (a filled circle) for the active RX group, a matching hollow
-         * circle outline otherwise - so it's clear every row is
-         * selectable, not just the active one. */
-        if(is_active) {
+        if(is_enabled) {
             canvas_draw_icon(canvas, icon_x, icon_y, &I_ButtonCenter_7x7);
         } else {
             canvas_draw_circle(
@@ -93,8 +84,7 @@ static void protocol_groups_draw_cb(Canvas* canvas, void* model_ptr) {
         snprintf(
             line2_buf, sizeof(line2_buf), "Protocols: %s",
             subghz_garage_protocol_group_members[idx]);
-        /* Only the cursor row's text scrolls - a static row scrolling
-         * unread text underneath it is just noise. */
+
         subghz_garage_scrollable_text_line_str(
             canvas, text_x, y + 23, text_w, line2_buf,
             at_cursor ? m->scroll_counter : 0, false, false);
@@ -103,9 +93,9 @@ static void protocol_groups_draw_cb(Canvas* canvas, void* model_ptr) {
     }
 }
 
-static void protocol_groups_notify_active(SubGhzProtocolGroups* instance, uint8_t idx) {
+static void protocol_groups_notify_toggle(SubGhzProtocolGroups* instance, uint8_t idx, bool enabled) {
     if(instance->callback) {
-        instance->callback(instance->context, idx);
+        instance->callback(instance->context, idx, enabled);
     }
 }
 
@@ -114,8 +104,9 @@ static bool protocol_groups_input_cb(InputEvent* event, void* context) {
     if(event->type != InputTypeShort) return false;
 
     bool consumed = false;
-    bool activated = false;
-    uint8_t new_active = 0;
+    bool toggled = false;
+    uint8_t toggled_idx = 0;
+    bool toggled_enabled = false;
 
     with_view_model(
         instance->view,
@@ -132,18 +123,29 @@ static bool protocol_groups_input_cb(InputEvent* event, void* context) {
                 m->scroll_counter = 0;
                 consumed = true;
             } else if(event->key == InputKeyOk) {
-                if(m->active != m->cursor) {
-                    m->active = m->cursor;
-                    activated = true;
+                bool turning_off = m->enabled[m->cursor] != 0;
+                bool refuse = false;
+                if(turning_off) {
+
+                    uint8_t enabled_count = 0;
+                    for(uint8_t i = 0; i < SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT; i++) {
+                        if(m->enabled[i]) enabled_count++;
+                    }
+                    refuse = (enabled_count <= 1);
                 }
-                new_active = m->active;
+                if(!refuse) {
+                    m->enabled[m->cursor] = turning_off ? 0 : 1;
+                    toggled_idx = m->cursor;
+                    toggled_enabled = m->enabled[m->cursor] != 0;
+                    toggled = true;
+                }
                 consumed = true;
             }
         },
         consumed);
 
-    if(activated) {
-        protocol_groups_notify_active(instance, new_active);
+    if(toggled) {
+        protocol_groups_notify_toggle(instance, toggled_idx, toggled_enabled);
     }
 
     return consumed;
@@ -170,19 +172,11 @@ SubGhzProtocolGroups* subghz_protocol_groups_alloc(void) {
         SubGhzProtocolGroupsModel* m,
         {
             m->cursor = 0;
-            m->active = 0;
+            memset(m->enabled, 0x01, sizeof(m->enabled));
             m->scroll_counter = 0;
         },
         false);
 
-    /* Not started here - this view is allocated once and kept alive for
-     * the rest of the app's life (see subghz_ensure_protocol_groups()), so
-     * starting the timer at alloc time would leave it ticking in the
-     * background - calling view_port_update() on a view that's no longer
-     * the one on screen - for every scene visited afterward. This was the
-     * cause of a ViewPort lockup warning firing on the way out of the
-     * Protocol List screen. Started/stopped instead from the scene's
-     * on_enter/on_exit via resume/pause below. */
     instance->scroll_timer = furi_timer_alloc(
         protocol_groups_scroll_timer_cb, FuriTimerTypePeriodic, instance);
     instance->scroll_running = false;
@@ -226,16 +220,14 @@ void subghz_protocol_groups_set_callback(
     instance->context = context;
 }
 
-void subghz_protocol_groups_set_selected(SubGhzProtocolGroups* instance, uint8_t group_index) {
+void subghz_protocol_groups_set_enabled_all(
+    SubGhzProtocolGroups* instance,
+    const uint8_t* enabled_groups) {
     furi_assert(instance);
-    if(group_index >= SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT) return;
+    furi_assert(enabled_groups);
     with_view_model(
         instance->view,
         SubGhzProtocolGroupsModel* m,
-        {
-            m->cursor = group_index;
-            m->active = group_index;
-            m->scroll_counter = 0;
-        },
+        { memcpy(m->enabled, enabled_groups, sizeof(m->enabled)); },
         false);
 }

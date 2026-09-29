@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 #include "../picopass_keys.h"
 
 enum {
@@ -72,7 +71,6 @@ NfcCommand picopass_read_card_worker_callback(PicopassPollerEvent event, void* c
 
 void picopass_scene_read_card_on_enter(void* context) {
     Picopass* picopass = context;
-    dolphin_deed(DolphinDeedNfcRead);
 
     picopass->last_error_notify_ticks = 0;
 

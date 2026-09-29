@@ -396,7 +396,7 @@ static void subghz_protocol_nice_one_get_data(uint8_t* p, uint8_t num_parcel, ui
     p[8] |= crc >> 4;
     p[9] = crc << 4;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static uint8_t subghz_protocol_nice_flor_s_get_byte_from_buffer(uint8_t* buffer, uint8_t address) {
     return buffer[address];
@@ -453,7 +453,7 @@ uint64_t subghz_protocol_nice_flor_s_encrypt(uint64_t data, const char* file_nam
 
     return data;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 static uint64_t
     subghz_protocol_nice_flor_s_decrypt(SubGhzGenericCompat* instance, const char* file_name) {
@@ -548,7 +548,7 @@ bool subghz_protocol_nice_flor_s_create_data(
 
     return res == SubGhzProtocolStatusOk;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void* subghz_protocol_decoder_nice_flor_s_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderNiceFlorS* instance = malloc(sizeof(SubGhzProtocolDecoderNiceFlorS));
@@ -846,7 +846,7 @@ static uint8_t subghz_protocol_nice_flor_s_get_btn_code(void) {
 
     return btn;
 }
-#endif /* SUBGHZ_GARAGE_WITH_ENCODER */
+#endif
 
 void subghz_protocol_decoder_nice_flor_s_get_string(void* context, FuriString* output) {
     furi_assert(context);

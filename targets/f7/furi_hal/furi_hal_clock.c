@@ -31,19 +31,17 @@ void furi_hal_clock_deinit_early(void) {
 }
 
 void furi_hal_clock_init(void) {
-    /* HSE and HSI configuration and activation */
+
     LL_RCC_HSE_SetCapacitorTuning(0x26);
     LL_RCC_HSE_Enable();
     LL_RCC_HSI_Enable();
     while(!HS_CLOCK_IS_READY())
         ;
-    /* Select HSI as system clock source after Wake Up from Stop mode
-     * Must be set before enabling CSS */
+
     LL_RCC_SetClkAfterWakeFromStop(LL_RCC_STOP_WAKEUPCLOCK_HSI);
 
     LL_RCC_HSE_EnableCSS();
 
-    /* LSE and LSI1 configuration and activation */
     LL_PWR_EnableBkUpAccess();
     LL_RCC_LSE_SetDriveCapability(LL_RCC_LSEDRIVE_HIGH);
     LL_RCC_LSE_Enable();
@@ -52,15 +50,14 @@ void furi_hal_clock_init(void) {
         ;
 
     LL_EXTI_EnableIT_0_31(
-        LL_EXTI_LINE_18); /* Why? Because that's why. See RM0434, Table 61. CPU1 vector table. */
+        LL_EXTI_LINE_18);
     LL_EXTI_EnableRisingTrig_0_31(LL_EXTI_LINE_18);
     LL_RCC_EnableIT_LSECSS();
-    /* ES0394, extended case of 2.2.2 */
+
     if(!LL_RCC_IsActiveFlag_BORRST()) {
         LL_RCC_LSE_EnableCSS();
     }
 
-    /* Main PLL configuration and activation */
     LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_2, 8, LL_RCC_PLLR_DIV_2);
     LL_RCC_PLL_Enable();
     LL_RCC_PLL_EnableDomain_SYS();
@@ -77,14 +74,10 @@ void furi_hal_clock_init(void) {
     while(LL_RCC_PLLSAI1_IsReady() != 1)
         ;
 
-    /* Sysclk activation on the main PLL */
-    /* Set CPU1 prescaler */
     LL_RCC_SetAHBPrescaler(LL_RCC_SYSCLK_DIV_1);
 
-    /* Set CPU2 prescaler, from this point we are not allowed to touch it. */
     LL_C2_RCC_SetAHBPrescaler(LL_RCC_SYSCLK_DIV_2);
 
-    /* Prepare Flash memory for work on 64MHz system clock */
     LL_FLASH_SetLatency(LL_FLASH_LATENCY_3);
     while(LL_FLASH_GetLatency() != LL_FLASH_LATENCY_3)
         ;
@@ -93,24 +86,18 @@ void furi_hal_clock_init(void) {
     while(LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_PLL)
         ;
 
-    /* Set AHB SHARED prescaler*/
     LL_RCC_SetAHB4Prescaler(LL_RCC_SYSCLK_DIV_1);
 
-    /* Set APB1 prescaler*/
     LL_RCC_SetAPB1Prescaler(LL_RCC_APB1_DIV_1);
 
-    /* Set APB2 prescaler*/
     LL_RCC_SetAPB2Prescaler(LL_RCC_APB2_DIV_1);
 
-    /* Disable MSI */
     LL_RCC_MSI_Disable();
     while(LL_RCC_MSI_IsReady() != 0)
         ;
 
-    /* Update CMSIS variable (which can be updated also through SystemCoreClockUpdate function) */
     LL_SetSystemCoreClock(CPU_CLOCK_PLL_HZ);
 
-    /* Update the time base */
     LL_Init1msTick(SystemCoreClock);
     LL_SYSTICK_EnableIT();
     NVIC_SetPriority(
@@ -180,9 +167,8 @@ bool furi_hal_clock_switch_hse2pll(void) {
     while(!LL_RCC_PLLSAI1_IsReady())
         ;
 
-    // This API returns garbage if stack version < 1.20.0
     SHCI_C2_SetSystemClock(SET_SYSTEM_CLOCK_HSE_TO_PLL);
-    // So we'll check results by asking hardware directly
+
     if(LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_PLL) {
         return false;
     }
@@ -200,9 +186,8 @@ bool furi_hal_clock_switch_pll2hse(void) {
     while(!LL_RCC_HSE_IsReady())
         ;
 
-    // This API returns garbage if stack version < 1.20.0
     SHCI_C2_SetSystemClock(SET_SYSTEM_CLOCK_PLL_ON_TO_HSE);
-    // So we'll check results by asking hardware directly
+
     if(LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_HSE) {
         return false;
     }

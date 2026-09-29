@@ -6,24 +6,22 @@
 #define TAG         "CSIght"
 #define CONFIG_PATH EXT_PATH("apps_data/csight/config.bin")
 
-// ─── Config struct ────────────────────────────────────────────────────────────
 typedef struct {
-    uint8_t  magic;           // CONFIG_MAGIC = struct is valid
+    uint8_t  magic;
     uint8_t  sensitivity;
     uint8_t  display_mode;
-    uint8_t  wifi_channel;    // 0 = auto, 1-13 = manual
-    uint8_t  alert_threshold; // 0-255 motion level that fires alarm
-    int16_t  mesh_x[3];       // node 1-3 position, cm (node 0 always at origin)
+    uint8_t  wifi_channel;
+    uint8_t  alert_threshold;
+    int16_t  mesh_x[3];
     int16_t  mesh_y[3];
-    uint8_t  log_enabled;     // 0/1 — SD card event logging toggle
-    uint8_t  pathloss_gamma_x10; // trilateration tuning, 10-50 (1.0-5.0)
-    uint8_t  schedule_start_hour; // 0-23, start==end means disabled
+    uint8_t  log_enabled;
+    uint8_t  pathloss_gamma_x10;
+    uint8_t  schedule_start_hour;
     uint8_t  schedule_end_hour;
 } CSIghtConfig;
 
-#define CONFIG_MAGIC 0xCC  // bumped: preset_idx/tx_pin/rx_pin dropped, board-preset UI removed (v3.4)
+#define CONFIG_MAGIC 0xCC
 
-// ─── Config I/O ──────────────────────────────────────────────────────────────
 void csight_config_save(CSIghtApp* app) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     storage_simply_mkdir(storage, EXT_PATH("apps_data/csight"));
@@ -50,7 +48,6 @@ void csight_config_save(CSIghtApp* app) {
     furi_record_close(RECORD_STORAGE);
 }
 
-// Returns true if config existed and was loaded successfully
 bool csight_config_load(CSIghtApp* app) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     File* file = storage_file_alloc(storage);
@@ -63,12 +60,9 @@ bool csight_config_load(CSIghtApp* app) {
             app->sensitivity     = cfg.sensitivity <= 10 ? cfg.sensitivity : 5;
             app->display_mode    = cfg.display_mode <= (uint8_t)DisplayModeHeatmap ?
                                    (DisplayMode)cfg.display_mode : DisplayModeRadar;
-            app->wifi_channel    = cfg.wifi_channel;    // 0 = will auto-survey on connect
+            app->wifi_channel    = cfg.wifi_channel;
             app->alert_threshold = cfg.alert_threshold > 0 ? cfg.alert_threshold : 180;
 
-            // Mesh positions — node 0 always at origin, nodes 1-3 loaded from config.
-            // If a loaded position is all-zero, fall back to the default square layout
-            // (distinguishes "never configured" from "user genuinely wants node at 0,0").
             app->mesh_node_x_cm[0] = 0;
             app->mesh_node_y_cm[0] = 0;
             static const int16_t default_x[3] = { 200, 200, 0 };
@@ -88,18 +82,16 @@ bool csight_config_load(CSIghtApp* app) {
     }
 
     if(!loaded) {
-        // First run defaults
+
         app->sensitivity     = 5;
         app->display_mode    = DisplayModeRadar;
-        app->wifi_channel    = 0;   // 0 = not yet auto-selected
+        app->wifi_channel    = 0;
         app->alert_threshold = 180;
         app->log_enabled     = true;
-        app->pathloss_gamma_x10 = 20; // 2.0 default
-        app->schedule_start_hour = 0; // 0==0 means disabled by default
+        app->pathloss_gamma_x10 = 20;
+        app->schedule_start_hour = 0;
         app->schedule_end_hour   = 0;
 
-        // Default mesh layout — matches ESP32 firmware's built-in fallback
-        // (a 2m x 2m square), overridden here once user configures real positions
         app->mesh_node_x_cm[0] = 0;    app->mesh_node_y_cm[0] = 0;
         app->mesh_node_x_cm[1] = 200;  app->mesh_node_y_cm[1] = 0;
         app->mesh_node_x_cm[2] = 200;  app->mesh_node_y_cm[2] = 200;
@@ -112,7 +104,6 @@ bool csight_config_load(CSIghtApp* app) {
     return loaded;
 }
 
-// ─── Blip logic ───────────────────────────────────────────────────────────────
 void csight_add_blip(CSIghtApp* app, uint8_t intensity, uint8_t proximity) {
     int oldest = 0;
     for(int i = 1; i < MAX_BLIPS; i++) {
@@ -129,10 +120,8 @@ void csight_add_blip(CSIghtApp* app, uint8_t intensity, uint8_t proximity) {
     app->blips[oldest].intensity = intensity;
 }
 
-// ─── Heatmap ──────────────────────────────────────────────────────────────────
 void csight_heatmap_add(CSIghtApp* app, int16_t x_cm, int16_t y_cm) {
-    // Same bounding-box logic as csight_draw_mesh, so the heatmap and map
-    // always agree on where things are
+
     int16_t min_x = 0, max_x = 0, min_y = 0, max_y = 0;
     for(int n = 0; n < MESH_MAX_NODES; n++) {
         if(app->mesh_node_x_cm[n] < min_x) min_x = app->mesh_node_x_cm[n];
@@ -150,9 +139,6 @@ void csight_heatmap_add(CSIghtApp* app, int16_t x_cm, int16_t y_cm) {
     if(gy < 0) gy = 0;
     if(gy >= HEATMAP_GRID) gy = HEATMAP_GRID - 1;
 
-    // Add heat, capped at 255. Neighboring cells get a smaller bump too —
-    // avoids a single hard pixel-sized dot and better reflects that the
-    // position estimate itself has some inherent fuzziness (see v2.3 notes).
     for(int dy = -1; dy <= 1; dy++) {
         for(int dx = -1; dx <= 1; dx++) {
             int nx = gx + dx, ny = gy + dy;
@@ -164,7 +150,6 @@ void csight_heatmap_add(CSIghtApp* app, int16_t x_cm, int16_t y_cm) {
     }
 }
 
-// ─── Tick ─────────────────────────────────────────────────────────────────────
 void csight_tick(CSIghtApp* app) {
     app->sweep_angle = (app->sweep_angle + 1) & 63;
 
@@ -172,8 +157,6 @@ void csight_tick(CSIghtApp* app) {
         if(app->blips[i].age > 0) app->blips[i].age -= 2;
     }
 
-    // Heatmap decay — every ~2s, fade all cells slightly so the display
-    // reflects recent activity rather than accumulating forever
     uint32_t now = furi_get_tick();
     if(now - app->heatmap_last_decay_tick > 2 * furi_kernel_get_tick_frequency()) {
         app->heatmap_last_decay_tick = now;
@@ -186,7 +169,6 @@ void csight_tick(CSIghtApp* app) {
         }
     }
 
-    // Clear target flag once flash window has expired
     if(app->target_acquired) {
         uint32_t elapsed = furi_get_tick() - app->target_ts;
         uint32_t flash_ticks = TARGET_FLASH_MS * furi_kernel_get_tick_frequency() / 1000;
@@ -196,9 +178,7 @@ void csight_tick(CSIghtApp* app) {
     if(app->state == AppStateBooting) {
         app->boot_frame++;
         if(app->boot_frame > 40) {
-            // Same detect gate fox_file_downloader/foxhub etc
-            // run at launch: bring up UART and ping the generic "info"
-            // command before ever touching the CSI-specific protocol.
+
             csight_uart_init(app);
             csight_send_probe(app);
             app->esp32_probe_ok         = false;
@@ -215,15 +195,7 @@ void csight_tick(CSIghtApp* app) {
             app->state = AppStateConnecting;
         } else if(furi_get_tick() - app->esp32_check_start_tick > furi_ms_to_ticks(1500)) {
             if(!app->esp32_probe_tried_alt) {
-                // Fox_ESP32_FW only ever answers on one of the Flipper's two
-                // UART peripherals (USART or LPUART - the shared gpio_remap
-                // setting every Fox ESP32 app reads/writes). Rather than
-                // making the user pick their board/pins from a list ("Fox
-                // Edition" only ever talks to Fox's own firmware, so there's
-                // nothing else to identify), automatically flip to the other
-                // channel and try once more before giving up - the same
-                // two-channel sweep fox_esp32_terminal's action_check_esp32()
-                // does at boot.
+
                 app->esp32_probe_tried_alt = true;
                 csight_uart_deinit(app);
                 GpioRemapSettings gpio_remap;
@@ -233,11 +205,11 @@ void csight_tick(CSIghtApp* app) {
                         ? GpioRemapEsp32UartUsart
                         : GpioRemapEsp32UartLpuart;
                 gpio_remap_settings_save(&gpio_remap);
-                csight_uart_init(app); // re-reads gpio_remap, now the alt channel
+                csight_uart_init(app);
                 csight_send_probe(app);
                 app->esp32_check_start_tick = furi_get_tick();
             } else {
-                app->esp32_check_focus_settings = false; // default focus "Retry"
+                app->esp32_check_focus_settings = false;
                 app->state                      = AppStateEsp32NotFound;
             }
         }
@@ -255,12 +227,10 @@ void csight_tick(CSIghtApp* app) {
         app->boot_frame++;
     }
 
-    // Vitals "Measuring..." animation needs boot_frame ticking during scan
     if(app->state == AppStateScanning && app->display_mode == DisplayModeVitals) {
         app->boot_frame++;
     }
 
-    // Auto-reset alert after 5 seconds of no new motion
     if(app->alert_triggered) {
         uint32_t alert_age = furi_get_tick() - app->alert_ts;
         if(alert_age > 5 * furi_kernel_get_tick_frequency()) {
@@ -268,7 +238,6 @@ void csight_tick(CSIghtApp* app) {
         }
     }
 
-    // Auto-dismiss the "Node discovered" banner after 3 seconds
     if(app->node_found_pending) {
         uint32_t banner_age = furi_get_tick() - app->node_found_ts;
         if(banner_age > 3 * furi_kernel_get_tick_frequency()) {
@@ -276,8 +245,6 @@ void csight_tick(CSIghtApp* app) {
         }
     }
 
-    // Scheduled auto-arm — only active while scanning, since that's the only
-    // context where alert_armed is meaningful. start==end means "disabled".
     if(app->state == AppStateScanning && app->schedule_start_hour != app->schedule_end_hour) {
         DateTime dt;
         furi_hal_rtc_get_datetime(&dt);
@@ -285,10 +252,10 @@ void csight_tick(CSIghtApp* app) {
 
         bool in_window;
         if(app->schedule_start_hour < app->schedule_end_hour) {
-            // Same-day window, e.g. 09-17
+
             in_window = (hour >= app->schedule_start_hour && hour < app->schedule_end_hour);
         } else {
-            // Overnight wraparound, e.g. 22-06
+
             in_window = (hour >= app->schedule_start_hour || hour < app->schedule_end_hour);
         }
 
@@ -299,19 +266,11 @@ void csight_tick(CSIghtApp* app) {
     }
 }
 
-// AppStateConnectSettings is reached from two different places: the initial
-// ESP32-not-found gate (no connection yet — committing should re-run the
-// probe) and the mid-session Settings menu (already connected — committing
-// should just return to the main menu without interrupting anything).
 static void settings_committed(CSIghtApp* app) {
     if(app->esp32_probe_ok) {
         app->state = AppStateMainMenu;
     } else {
-        // Not connected yet - the UART channel may have just been changed on
-        // the Connection screen, so reopen it (csight_uart_init re-reads the
-        // shared gpio_remap setting) before probing again, and let the
-        // two-channel auto-sweep run fresh in case the newly picked channel
-        // isn't it either.
+
         csight_uart_deinit(app);
         csight_uart_init(app);
         csight_send_probe(app);
@@ -322,13 +281,11 @@ static void settings_committed(CSIghtApp* app) {
     }
 }
 
-// ─── Input ────────────────────────────────────────────────────────────────────
 static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
     if(type != InputTypeShort && type != InputTypeLong && type != InputTypeRepeat) return;
 
     switch(app->state) {
 
-        // ── ESP32 not found — Settings / Retry gate ──────────────────────────────
         case AppStateEsp32NotFound:
             if(key == InputKeyLeft || key == InputKeyRight) {
                 app->esp32_check_focus_settings = !app->esp32_check_focus_settings;
@@ -341,14 +298,13 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
                 } else {
                     csight_send_probe(app);
                     app->esp32_probe_ok         = false;
-                    app->esp32_probe_tried_alt  = false; // full two-channel sweep again
+                    app->esp32_probe_tried_alt  = false;
                     app->esp32_check_start_tick = furi_get_tick();
                     app->state                  = AppStateEsp32Check;
                 }
             }
             break;
 
-        // ── Main menu ──────────────────────────────────────────────────────────
         case AppStateMainMenu:
             if(key == InputKeyUp && app->menu_idx > 0) {
                 app->menu_idx--;
@@ -386,7 +342,6 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
             }
             break;
 
-        // ── Connection settings — manual USART/LPUART override + re-probe ──────
         case AppStateConnectSettings:
             if(key == InputKeyLeft || key == InputKeyRight) {
                 app->esp32_uart_channel = (app->esp32_uart_channel == GpioRemapEsp32UartLpuart)
@@ -403,7 +358,6 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
             }
             break;
 
-        // ── Scanning ──────────────────────────────────────────────────────────
         case AppStateScanning:
             if(key == InputKeyLeft) {
                 app->display_mode = (DisplayMode)((app->display_mode + DISPLAY_MODE_COUNT - 1) % DISPLAY_MODE_COUNT);
@@ -421,13 +375,13 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
                 csight_send_sensitivity(app);
             }
             if(key == InputKeyOk && type == InputTypeShort) {
-                // Force baseline recalibration
+
                 csight_send_calibrate(app);
                 notification_message(app->notifications, &sequence_blink_cyan_10);
             }
             if(key == InputKeyOk && type == InputTypeLong) {
                 if(app->schedule_start_hour != app->schedule_end_hour) {
-                    // Schedule is active — it owns the armed state, ignore manual toggle
+
                     notification_message(app->notifications, &sequence_blink_cyan_10);
                 } else {
                     app->alert_armed     = !app->alert_armed;
@@ -441,7 +395,7 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
                 csight_config_save(app);
                 uint32_t elapsed_s = (furi_get_tick() - app->session_start_tick) /
                                       furi_kernel_get_tick_frequency();
-                char detail[48]; // generous margin for two uint32_t values at worst case
+                char detail[48];
                 snprintf(detail, sizeof(detail), "%lus, %lu events",
                          (unsigned long)elapsed_s, (unsigned long)app->motion_count);
                 csight_log_event(app, "SESSION_END", detail);
@@ -449,7 +403,6 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
             }
             break;
 
-        // ── Settings ──────────────────────────────────────────────────────────
         case AppStateSettings:
             if(key == InputKeyUp && app->settings_idx > 0) {
                 app->settings_idx--;
@@ -457,7 +410,7 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
                 app->settings_idx++;
             } else if(key == InputKeyOk) {
                 if(app->settings_idx == (uint8_t)SettingRescanCh) {
-                    csight_send_channel_auto(app);  // ~13s survey, result comes back async
+                    csight_send_channel_auto(app);
                 } else if(app->settings_idx == (uint8_t)SettingMeshConfig) {
                     app->mesh_config_node_idx = 1;
                     app->mesh_config_edit_y   = false;
@@ -467,7 +420,7 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
                     notification_message(app->notifications, &sequence_blink_red_10);
                 } else if(app->settings_idx == (uint8_t)SettingSdLogging) {
                     app->log_enabled = !app->log_enabled;
-                    if(app->log_enabled) csight_log_init(app); // (re)create file if needed
+                    if(app->log_enabled) csight_log_init(app);
                 } else if(app->settings_idx == (uint8_t)SettingTestAlert) {
                     notification_message(app->notifications, &sequence_blink_red_100);
                 } else if(app->settings_idx == (uint8_t)SettingConnection) {
@@ -496,8 +449,7 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
                     csight_send_pathloss_gamma(app);
                 }
             } else if(app->settings_idx == (uint8_t)SettingPreset) {
-                // One-tap combos — Left = Quiet Room (catches subtle motion),
-                // Right = Busy Room (filters incidental background movement)
+
                 if(key == InputKeyLeft) {
                     app->sensitivity     = 8;
                     app->alert_threshold = 100;
@@ -520,7 +472,6 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
             }
             break;
 
-        // ── Mesh node position config ────────────────────────────────────────
         case AppStateMeshConfig: {
             int16_t* target = app->mesh_config_edit_y
                 ? &app->mesh_node_y_cm[app->mesh_config_node_idx]
@@ -531,8 +482,8 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
             } else if(key == InputKeyRight && app->mesh_config_node_idx < MESH_MAX_NODES - 1) {
                 app->mesh_config_node_idx++;
             } else if(key == InputKeyUp) {
-                *target += 10; // 10cm steps
-                if(*target > 2000) *target = 2000; // cap at 20m — sane physical limit
+                *target += 10;
+                if(*target > 2000) *target = 2000;
                 csight_send_node_positions(app);
             } else if(key == InputKeyDown) {
                 *target -= 10;
@@ -542,13 +493,12 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
                 app->mesh_config_edit_y = !app->mesh_config_edit_y;
             } else if(key == InputKeyBack) {
                 csight_config_save(app);
-                csight_send_node_positions(app); // make sure ESP32 has the final values
+                csight_send_node_positions(app);
                 app->state = AppStateSettings;
             }
             break;
         }
 
-        // ── Web UI ────────────────────────────────────────────────────────────
         case AppStateWebUI:
             if(key == InputKeyOk || key == InputKeyBack) {
                 if(app->web_ui_active) csight_send_webui_toggle(app);
@@ -556,7 +506,6 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
             }
             break;
 
-        // ── About ─────────────────────────────────────────────────────────────
         case AppStateAbout:
             if(key == InputKeyBack || key == InputKeyOk) {
                 app->state = AppStateMainMenu;
@@ -568,7 +517,6 @@ static void handle_input(CSIghtApp* app, InputKey key, InputType type) {
     }
 }
 
-// ─── Draw callback ────────────────────────────────────────────────────────────
 static void draw_cb(Canvas* c, void* ctx) {
     CSIghtApp* app = (CSIghtApp*)ctx;
 
@@ -618,12 +566,11 @@ static void draw_cb(Canvas* c, void* ctx) {
             break;
     }
 
-    // "Node discovered" banner — overlays on top of whatever screen is showing
     if(app->node_found_pending) {
         char banner[24];
         snprintf(banner, sizeof(banner), "Node %d discovered!", app->node_found_id);
         int w = canvas_string_width(c, banner);
-        int bx = (128 - w) / 2 - 3; // 128 = Flipper screen width
+        int bx = (128 - w) / 2 - 3;
         canvas_draw_box(c, bx, 24, w + 6, 12);
         canvas_set_color(c, ColorWhite);
         canvas_draw_str(c, bx + 3, 33, banner);
@@ -631,20 +578,17 @@ static void draw_cb(Canvas* c, void* ctx) {
     }
 }
 
-// ─── Input callback ───────────────────────────────────────────────────────────
 static void input_cb(InputEvent* event, void* ctx) {
     CSIghtApp* app = (CSIghtApp*)ctx;
     furi_message_queue_put(app->event_queue, event, 0);
 }
 
-// ─── Timer callback ───────────────────────────────────────────────────────────
 static void timer_cb(void* ctx) {
     CSIghtApp* app = (CSIghtApp*)ctx;
     csight_tick(app);
     view_port_update(app->view_port);
 }
 
-// ─── Alloc / Free ─────────────────────────────────────────────────────────────
 CSIghtApp* csight_app_alloc(void) {
     CSIghtApp* app = malloc(sizeof(CSIghtApp));
     memset(app, 0, sizeof(CSIghtApp));
@@ -664,18 +608,14 @@ CSIghtApp* csight_app_alloc(void) {
     view_port_input_callback_set(app->view_port, input_cb, app);
     gui_add_view_port(app->gui, app->view_port, GuiLayerFullscreen);
 
-    // Prevent Flipper from sleeping while the app is open
     furi_hal_power_insomnia_enter();
-
-    // UART init is deferred until after power warning is confirmed
-    // to prevent crashing if ESP32 is not yet powered
 
     return app;
 }
 
 void csight_app_free(CSIghtApp* app) {
     furi_hal_power_insomnia_exit();
-    // Only deinit UART if it was actually initialized
+
     if(app->esp_at != NULL) {
         csight_uart_deinit(app);
     }
@@ -687,7 +627,6 @@ void csight_app_free(CSIghtApp* app) {
     free(app);
 }
 
-// ─── Entry point ──────────────────────────────────────────────────────────────
 int32_t csight_app(void* p) {
     UNUSED(p);
     CSIghtApp* app = csight_app_alloc();
@@ -698,7 +637,7 @@ int32_t csight_app(void* p) {
     InputEvent event;
     while(1) {
         if(furi_message_queue_get(app->event_queue, &event, 10) == FuriStatusOk) {
-            // Only exit on long Back press from main menu
+
             if(event.key == InputKeyBack &&
                event.type == InputTypeLong &&
                app->state == AppStateMainMenu) break;

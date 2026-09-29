@@ -71,7 +71,7 @@ int __wrap_getchar(void) {
 }
 
 char* __wrap_fgets(char* str, size_t n, FILE* stream) {
-    // leave space for the zero terminator
+
     furi_check(n >= 1);
     n--;
 
@@ -80,14 +80,12 @@ char* __wrap_fgets(char* str, size_t n, FILE* stream) {
         return str;
     }
 
-    // read characters
     int c;
     do {
         c = __wrap_fgetc(stdin);
         if(c > 0) *(str++) = c;
     } while(c != EOF && c != '\n' && --n);
 
-    // place zero terminator
     *str = '\0';
     return str;
 }

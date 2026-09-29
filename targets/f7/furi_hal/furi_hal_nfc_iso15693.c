@@ -20,7 +20,6 @@
 #define FURI_HAL_NFC_ISO15693_RESP_PATTERN_0    (0x01U)
 #define FURI_HAL_NFC_ISO15693_RESP_PATTERN_1    (0x02U)
 
-// Derived experimentally
 #define FURI_HAL_NFC_ISO15693_POLLER_FWT_COMP_FC   (-1300)
 #define FURI_HAL_NFC_ISO15693_LISTENER_FDT_COMP_FC (2850)
 
@@ -34,7 +33,7 @@ typedef struct {
 } FuriHalNfcIso15693Listener;
 
 typedef struct {
-    // 4 bits per data bit on transmit
+
     uint8_t fifo_buf[FURI_HAL_NFC_ISO15693_POLLER_MAX_BUFFER_SIZE * FURI_HAL_NFC_ISO15693_BIT_LEN];
     size_t fifo_buf_bits;
     uint8_t frame_buf[FURI_HAL_NFC_ISO15693_POLLER_MAX_BUFFER_SIZE * FURI_HAL_NFC_ISO15693_BIT_LEN];
@@ -76,39 +75,29 @@ static void furi_hal_nfc_iso15693_poller_free(FuriHalNfcIso15693Poller* instance
 }
 
 static FuriHalNfcError furi_hal_nfc_iso15693_common_init(const FuriHalSpiBusHandle* handle) {
-    // Common NFC-V settings, 26.48 kbps
 
-    // 1st stage zero = 12 kHz, 3rd stage zero = 80 kHz, low-pass = 600 kHz
     st25r3916_write_reg(
         handle,
         ST25R3916_REG_RX_CONF1,
         ST25R3916_REG_RX_CONF1_z12k | ST25R3916_REG_RX_CONF1_h80 |
             ST25R3916_REG_RX_CONF1_lp_600khz);
 
-    // Enable AGC
-    // AGC Ratio 6
-    // AGC algorithm with RESET (recommended for ISO15693)
-    // AGC operation during complete receive period
-    // Squelch automatic activation on TX end
     st25r3916_write_reg(
         handle,
         ST25R3916_REG_RX_CONF2,
         ST25R3916_REG_RX_CONF2_agc6_3 | ST25R3916_REG_RX_CONF2_agc_m |
             ST25R3916_REG_RX_CONF2_agc_en | ST25R3916_REG_RX_CONF2_sqm_dyn);
 
-    // HF operation, full gain on AM and PM channels
     st25r3916_write_reg(handle, ST25R3916_REG_RX_CONF3, 0x00);
-    // No gain reduction on AM and PM channels
+
     st25r3916_write_reg(handle, ST25R3916_REG_RX_CONF4, 0x00);
 
-    // Collision detection level 53%
-    // AM & PM summation before digitizing on
     st25r3916_write_reg(
         handle,
         ST25R3916_REG_CORR_CONF1,
         ST25R3916_REG_CORR_CONF1_corr_s0 | ST25R3916_REG_CORR_CONF1_corr_s1 |
             ST25R3916_REG_CORR_CONF1_corr_s4);
-    // 424 kHz subcarrier stream mode on
+
     st25r3916_write_reg(handle, ST25R3916_REG_CORR_CONF2, ST25R3916_REG_CORR_CONF2_corr_s8);
     return FuriHalNfcErrorNone;
 }
@@ -118,22 +107,18 @@ static FuriHalNfcError furi_hal_nfc_iso15693_poller_init(const FuriHalSpiBusHand
 
     furi_hal_nfc_iso15693_poller = furi_hal_nfc_iso15693_poller_alloc();
 
-    // Enable Subcarrier Stream mode, OOK modulation
     st25r3916_change_reg_bits(
         handle,
         ST25R3916_REG_MODE,
         ST25R3916_REG_MODE_om_mask | ST25R3916_REG_MODE_tr_am,
         ST25R3916_REG_MODE_om_subcarrier_stream | ST25R3916_REG_MODE_tr_am_ook);
 
-    // Subcarrier 424 kHz mode
-    // 8 sub-carrier pulses in report period
     st25r3916_write_reg(
         handle,
         ST25R3916_REG_STREAM_MODE,
         ST25R3916_REG_STREAM_MODE_scf_sc424 | ST25R3916_REG_STREAM_MODE_stx_106 |
             ST25R3916_REG_STREAM_MODE_scp_8pulses);
 
-    // Use regulator AM, resistive AM disabled
     st25r3916_clear_reg_bits(
         handle,
         ST25R3916_REG_AUX_MOD,
@@ -162,7 +147,6 @@ static void iso15693_3_poller_encode_frame(
     size_t frame_buf_size_calc = (tx_bits / 2) + 2;
     furi_check(frame_buf_size >= frame_buf_size_calc);
 
-    // Add SOF 1 out of 4
     frame_buf[0] = 0x21;
 
     size_t byte_pos = 1;
@@ -172,7 +156,7 @@ static void iso15693_3_poller_encode_frame(
             frame_buf[byte_pos++] = bit_patterns_1_out_of_4[bit_pair];
         }
     }
-    // Add EOF
+
     frame_buf[byte_pos++] = 0x04;
     *frame_buf_bits = byte_pos * BITS_IN_BYTE;
 }
@@ -189,7 +173,7 @@ static FuriHalNfcError iso15693_3_poller_decode_frame(
 
     do {
         if(buf_bits == 0) break;
-        // Check SOF
+
         if((buf[0] & FURI_HAL_NFC_ISO15693_RESP_SOF_MASK) !=
            FURI_HAL_NFC_ISO15693_RESP_SOF_PATTERN)
             break;
@@ -199,7 +183,6 @@ static FuriHalNfcError iso15693_3_poller_decode_frame(
             break;
         }
 
-        // 2 response bits = 1 data bit
         for(uint32_t i = FURI_HAL_NFC_ISO15693_RESP_SOF_SIZE;
             i < buf_bits - FURI_HAL_NFC_ISO15693_RESP_SOF_SIZE;
             i += BITS_IN_BYTE / 4) {
@@ -208,7 +191,6 @@ static FuriHalNfcError iso15693_3_poller_decode_frame(
             const uint8_t resp_byte = (buf[byte_index] >> bit_offset) |
                                       (buf[byte_index + 1] << (BITS_IN_BYTE - bit_offset));
 
-            // Check EOF
             if(resp_byte == FURI_HAL_NFC_ISO15693_RESP_EOF_PATTERN) {
                 ret = FuriHalNfcErrorNone;
                 break;
@@ -295,7 +277,7 @@ static void
 
 static void
     furi_hal_nfc_iso15693_listener_transparent_mode_exit(const FuriHalSpiBusHandle* handle) {
-    // Configure gpio back to SPI and exit transparent mode
+
     furi_hal_nfc_init_gpio_isr();
     furi_hal_spi_bus_handle_init(handle);
 
@@ -307,7 +289,6 @@ static FuriHalNfcError furi_hal_nfc_iso15693_listener_init(const FuriHalSpiBusHa
 
     furi_hal_nfc_iso15693_listener = furi_hal_nfc_iso15693_listener_alloc();
 
-    // Set default operation mode
     st25r3916_change_reg_bits(
         handle,
         ST25R3916_REG_MODE,
@@ -320,7 +301,6 @@ static FuriHalNfcError furi_hal_nfc_iso15693_listener_init(const FuriHalSpiBusHa
         ST25R3916_REG_OP_CONTROL_rx_en,
         ST25R3916_REG_OP_CONTROL_rx_en);
 
-    // Enable passive target mode
     st25r3916_change_reg_bits(
         handle, ST25R3916_REG_MODE, ST25R3916_REG_MODE_targ, ST25R3916_REG_MODE_targ_targ);
 

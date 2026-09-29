@@ -21,7 +21,6 @@ void furi_hal_info_get(PropertyValueCallback out, char sep, void* context) {
     PropertyValueContext property_context = {
         .key = key, .value = value, .out = out, .sep = sep, .last = false, .context = context};
 
-    // Device Info version
     if(sep == '.') {
         property_value_out(&property_context, NULL, 2, "format", "major", "3");
         property_value_out(&property_context, NULL, 2, "format", "minor", "3");
@@ -30,11 +29,9 @@ void furi_hal_info_get(PropertyValueCallback out, char sep, void* context) {
         property_value_out(&property_context, NULL, 3, "device", "info", "minor", "4");
     }
 
-    // Model name
     property_value_out(
         &property_context, NULL, 2, "hardware", "model", furi_hal_version_get_model_name());
 
-    // Unique ID
     furi_string_reset(value);
     const uint8_t* uid = furi_hal_version_uid();
     for(size_t i = 0; i < furi_hal_version_uid_size(); i++) {
@@ -42,13 +39,11 @@ void furi_hal_info_get(PropertyValueCallback out, char sep, void* context) {
     }
     property_value_out(&property_context, NULL, 2, "hardware", "uid", furi_string_get_cstr(value));
 
-    // OTP Revision
     property_value_out(
         &property_context, "%d", 3, "hardware", "otp", "ver", furi_hal_version_get_otp_version());
     property_value_out(
         &property_context, "%lu", 2, "hardware", "timestamp", furi_hal_version_get_hw_timestamp());
 
-    // Board Revision
     property_value_out(
         &property_context, "%d", 2, "hardware", "ver", furi_hal_version_get_hw_version());
     property_value_out(
@@ -60,7 +55,6 @@ void furi_hal_info_get(PropertyValueCallback out, char sep, void* context) {
     property_value_out(
         &property_context, "%d", 2, "hardware", "display", furi_hal_version_get_hw_display());
 
-    // Board Personification
     property_value_out(
         &property_context, "%d", 2, "hardware", "color", furi_hal_version_get_hw_color());
 
@@ -92,7 +86,6 @@ void furi_hal_info_get(PropertyValueCallback out, char sep, void* context) {
         property_value_out(&property_context, NULL, 2, "hardware", "name", name);
     }
 
-    // Firmware version
     const Version* firmware_version = furi_hal_version_get_firmware_version();
     if(firmware_version) {
         if(sep == '.') {
@@ -205,7 +198,6 @@ void furi_hal_info_get(PropertyValueCallback out, char sep, void* context) {
             "mode",
             ble_c2_info->mode == BleGlueC2ModeFUS ? "FUS" : "Stack");
 
-        // FUS Info
         property_value_out(
             &property_context, "%d", 3, "radio", "fus", "major", ble_c2_info->FusVersionMajor);
         property_value_out(
@@ -237,7 +229,6 @@ void furi_hal_info_get(PropertyValueCallback out, char sep, void* context) {
             "flash",
             ble_c2_info->FusMemorySizeFlash * 4);
 
-        // Stack Info
         property_value_out(
             &property_context, "%d", 3, "radio", "stack", "type", ble_c2_info->StackType);
         property_value_out(
@@ -271,7 +262,6 @@ void furi_hal_info_get(PropertyValueCallback out, char sep, void* context) {
             "flash",
             ble_c2_info->MemorySizeFlash * 4);
 
-        // Mac address
         furi_string_reset(value);
         const uint8_t* ble_mac = furi_hal_version_get_ble_mac();
         for(size_t i = 0; i < 6; i++) {
@@ -280,7 +270,6 @@ void furi_hal_info_get(PropertyValueCallback out, char sep, void* context) {
         property_value_out(
             &property_context, NULL, 3, "radio", "ble", "mac", furi_string_get_cstr(value));
 
-        // Signature verification
         uint8_t enclave_keys = 0;
         uint8_t enclave_valid_keys = 0;
         bool enclave_valid = furi_hal_crypto_enclave_verify(&enclave_keys, &enclave_valid_keys);
@@ -298,7 +287,6 @@ void furi_hal_info_get(PropertyValueCallback out, char sep, void* context) {
         property_value_out(&property_context, NULL, 2, "radio", "alive", "false");
     }
 
-    // RTC flags
     property_value_out(
         &property_context,
         "%u",

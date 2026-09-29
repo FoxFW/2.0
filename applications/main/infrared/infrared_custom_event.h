@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 typedef enum {
-    // Reserve first 100 events for button types and indexes, starting from 0
+
     InfraredCustomEventTypeReserved = 100,
     InfraredCustomEventTypeMenuSelected,
     InfraredCustomEventTypeTransmitStarted,

@@ -56,17 +56,15 @@ static const char* const expansion_uart_names[] = {
     "LPUART",
 };
 
-// Called from the serial control thread
 static void expansion_detect_callback(void* context) {
     furi_assert(context);
     Expansion* instance = context;
 
     ExpansionMessage message = {
         .type = ExpansionMessageTypeModuleConnected,
-        .api_lock = NULL, // Not locking the API here to avoid a deadlock
+        .api_lock = NULL,
     };
 
-    // Not waiting for available queue space, discarding message if there is none
     const FuriStatus status = furi_message_queue_put(instance->queue, &message, 0);
     UNUSED(status);
 }
@@ -79,7 +77,7 @@ static void expansion_worker_callback(void* context, ExpansionWorkerCallbackReas
     switch(reason) {
     case ExpansionWorkerCallbackReasonExit:
         message.type = ExpansionMessageTypeModuleDisconnected;
-        message.api_lock = NULL; // Not locking the API here to avoid a deadlock
+        message.api_lock = NULL;
         break;
 
     case ExpansionWorkerCallbackReasonConnected:
@@ -304,8 +302,6 @@ void expansion_on_system_start(void* arg) {
 
     expansion_enable(instance);
 }
-
-// Public API functions
 
 void expansion_enable(Expansion* instance) {
     furi_check(instance);

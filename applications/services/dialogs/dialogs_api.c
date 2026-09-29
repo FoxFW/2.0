@@ -3,8 +3,6 @@
 #include <assets_icons.h>
 #include <storage/storage.h>
 
-/****************** File browser ******************/
-
 bool dialog_file_browser_show(
     DialogsApp* context,
     FuriString* result_path,
@@ -61,8 +59,6 @@ bool dialog_file_browser_show(
     return return_data.bool_value;
 }
 
-/****************** Message ******************/
-
 DialogMessageButton dialog_message_show(DialogsApp* context, const DialogMessage* dialog_message) {
     furi_check(context);
 
@@ -88,8 +84,6 @@ DialogMessageButton dialog_message_show(DialogsApp* context, const DialogMessage
 
     return return_data.dialog_value;
 }
-
-/****************** Storage error ******************/
 
 void dialog_message_show_storage_error(DialogsApp* context, const char* error_text) {
     furi_check(context);

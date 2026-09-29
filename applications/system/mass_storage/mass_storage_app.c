@@ -1,5 +1,6 @@
 #include "mass_storage_app_i.h"
 #include <furi.h>
+#include <string.h>
 #include <storage/storage.h>
 #include <lib/toolbox/path.h>
 
@@ -35,8 +36,9 @@ void mass_storage_app_show_loading_popup(MassStorageApp* app, bool show) {
 MassStorageApp* mass_storage_app_alloc(char* arg) {
     MassStorageApp* app = malloc(sizeof(MassStorageApp));
     app->file_path = furi_string_alloc();
+    app->sd_card_mode = (arg != NULL) && (strcmp(arg, MASS_STORAGE_SD_CARD_ARG) == 0);
 
-    if(arg != NULL) {
+    if(arg != NULL && !app->sd_card_mode) {
         furi_string_set_str(app->file_path, arg);
     } else {
         furi_string_set_str(app->file_path, MASS_STORAGE_APP_PATH_FOLDER);
@@ -84,7 +86,9 @@ MassStorageApp* mass_storage_app_alloc(char* arg) {
 
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    if(storage_file_exists(app->fs_api, furi_string_get_cstr(app->file_path))) {
+    if(app->sd_card_mode) {
+        scene_manager_next_scene(app->scene_manager, MassStorageSceneWork);
+    } else if(storage_file_exists(app->fs_api, furi_string_get_cstr(app->file_path))) {
         if(!furi_hal_usb_is_locked()) {
             scene_manager_next_scene(app->scene_manager, MassStorageSceneWork);
         } else {

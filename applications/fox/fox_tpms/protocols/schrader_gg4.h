@@ -40,6 +40,4 @@ LevelDuration tpms_protocol_encoder_schrader_gg4_yield(void* context);
 SubGhzProtocolStatus
     tpms_protocol_encoder_schrader_gg4_deserialize(void* context, FlipperFormat* flipper_format);
 
-/** Re-pack generic's data word from its id/pressure/temperature, preserving
- * the original status byte, and recompute the CRC8. */
 void tpms_protocol_schrader_gg4_pack(TPMSBlockGeneric* generic);

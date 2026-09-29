@@ -159,14 +159,13 @@ void furi_hal_adc_configure_ex(
     LL_VREFBUF_Enable();
     LL_VREFBUF_DisableHIZ();
 
-    timer = furi_hal_cortex_timer_get(500000); // 500ms to stabilize VREF
+    timer = furi_hal_cortex_timer_get(500000);
     while(!LL_VREFBUF_IsVREFReady()) {
         furi_check(!furi_hal_cortex_timer_is_expired(timer), "VREF fail");
     };
 
     furi_hal_bus_enable(FuriHalBusADC);
 
-    // ADC Common config
     LL_ADC_CommonInitTypeDef ADC_CommonInitStruct = {0};
     ADC_CommonInitStruct.CommonClock = furi_hal_adc_clock[clock];
     furi_check(
@@ -177,16 +176,14 @@ void furi_hal_adc_configure_ex(
         LL_ADC_PATH_INTERNAL_VREFINT | LL_ADC_PATH_INTERNAL_TEMPSENSOR |
             LL_ADC_PATH_INTERNAL_VBAT);
 
-    // ADC config part 1
     LL_ADC_InitTypeDef ADC_InitStruct = {0};
-    ADC_InitStruct.Resolution = LL_ADC_RESOLUTION_12B; //-V1048
+    ADC_InitStruct.Resolution = LL_ADC_RESOLUTION_12B;
     ADC_InitStruct.DataAlignment = LL_ADC_DATA_ALIGN_RIGHT;
     ADC_InitStruct.LowPowerMode = LL_ADC_LP_MODE_NONE;
     furi_check(LL_ADC_Init(handle->adc, &ADC_InitStruct) == SUCCESS);
 
-    // ADC config part 2: groups parameters
     LL_ADC_REG_InitTypeDef ADC_REG_InitStruct = {0};
-    ADC_REG_InitStruct.TriggerSource = LL_ADC_REG_TRIG_SOFTWARE; //-V1048
+    ADC_REG_InitStruct.TriggerSource = LL_ADC_REG_TRIG_SOFTWARE;
     ADC_REG_InitStruct.SequencerLength = LL_ADC_REG_SEQ_SCAN_DISABLE;
     ADC_REG_InitStruct.SequencerDiscont = LL_ADC_REG_SEQ_DISCONT_DISABLE;
     ADC_REG_InitStruct.ContinuousMode = LL_ADC_REG_CONV_SINGLE;
@@ -194,7 +191,6 @@ void furi_hal_adc_configure_ex(
     ADC_REG_InitStruct.Overrun = LL_ADC_REG_OVR_DATA_OVERWRITTEN;
     furi_check(LL_ADC_REG_Init(handle->adc, &ADC_REG_InitStruct) == SUCCESS);
 
-    // ADC config part 3: sequencer and channels
     if(oversample == FuriHalAdcOversampleNone) {
         LL_ADC_SetOverSamplingScope(handle->adc, LL_ADC_OVS_DISABLE);
     } else {
@@ -207,7 +203,7 @@ void furi_hal_adc_configure_ex(
 
     for(FuriHalAdcChannel channel = FuriHalAdcChannel0; channel < FuriHalAdcChannelNone;
         channel++) {
-        // 47.5 cycles on 64MHz is first meaningful value for internal sources sampling
+
         LL_ADC_SetChannelSamplingTime(
             handle->adc,
             furi_hal_adc_channel_map[channel],
@@ -216,28 +212,24 @@ void furi_hal_adc_configure_ex(
             handle->adc, furi_hal_adc_channel_map[channel], LL_ADC_SINGLE_ENDED);
     }
 
-    // Disable ADC deep power down (enabled by default after reset state)
     LL_ADC_DisableDeepPowerDown(handle->adc);
 
-    // Enable ADC internal voltage regulator
     LL_ADC_EnableInternalRegulator(handle->adc);
-    // Delay for ADC internal voltage regulator stabilization.
+
     timer = furi_hal_cortex_timer_get(LL_ADC_DELAY_INTERNAL_REGUL_STAB_US);
     while(!furi_hal_cortex_timer_is_expired(timer))
         ;
 
-    // Run ADC self calibration
     LL_ADC_StartCalibration(handle->adc, LL_ADC_SINGLE_ENDED);
-    // Poll for ADC effectively calibrated
+
     while(LL_ADC_IsCalibrationOnGoing(handle->adc) != 0)
         ;
-    // Delay between ADC end of calibration and ADC enable
+
     size_t end =
         DWT->CYCCNT + (LL_ADC_DELAY_CALIB_ENABLE_ADC_CYCLES * furi_hal_adc_clock_div[clock]);
     while(DWT->CYCCNT < end)
         ;
 
-    // Enable ADC
     LL_ADC_ClearFlag_ADRDY(handle->adc);
     LL_ADC_Enable(handle->adc);
     while(LL_ADC_IsActiveFlag_ADRDY(handle->adc) == 0)

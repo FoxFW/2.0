@@ -156,8 +156,6 @@ static void ford_v2_decoder_extract_from_raw(SubGhzProtocolDecoderFordV2* instan
 
     instance->generic.btn = k[6];
 
-    // Ford V2 mapping: Up=0x11 (Unlock), OK=0x10 (Lock), Down=0x13 (Trunk),
-    // Left=0x14 (Panic), Right=0x15 (RemoteStart).
     if(subghz_custom_btn_get_original() == 0) {
         subghz_custom_btn_set_original(instance->generic.btn);
     }
@@ -468,8 +466,6 @@ static SubGhzProtocolStatus
     ford_v2_encoder_deserialize_validate_and_pack(SubGhzProtocolEncoderFordV2* instance) {
     ford_v2_encoder_rebuild_raw_from_payload(instance);
 
-    // Ford V2 mapping: Up=0x11 (Unlock), OK=0x10 (Lock), Down=0x13 (Trunk),
-    // Left=0x14 (Panic), Right=0x15 (RemoteStart).
     {
         const uint8_t original_btn = instance->raw_bytes[6];
         if(subghz_custom_btn_get_original() == 0) {

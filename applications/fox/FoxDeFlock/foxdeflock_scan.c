@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Based on FlipDeFlock by ReconGrunt (https://github.com/ReconGrunt/FlipDeFlock).
+
 #include "foxdeflock_scan.h"
 #include "helpers/oui_vendor.h"
 
@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-#define SCAN_MODE_PERIOD_MS 8500 // a little past Fox FW's own 8s sniff/scan window
+#define SCAN_MODE_PERIOD_MS 8500
 
 static const char* const SCAN_MODE_CMD[] = {
     "WIFISNIFF:PROBE",
@@ -125,7 +125,6 @@ static FoxDeFlockHit* find_or_alloc_hit(FoxDeFlockApp* app, const uint8_t mac[6]
     return h;
 }
 
-// A bare OUI match alone is never a detection - only OUI+SSID or SSID alone.
 static bool foxdeflock_wifi_confidence(
     const uint8_t mac[6],
     bool have_ssid,

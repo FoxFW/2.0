@@ -46,15 +46,6 @@ typedef enum {
     SdSpiCmdAnswerTypeR7,
 } SdSpiCmdAnswerType;
 
-/*
-    SdSpiCmd and SdSpiToken use non-standard enum value names convention,
-    because it is more convenient to look for documentation on a specific command.
-    For example, to find out what the SD_CMD23_SET_BLOCK_COUNT command does, you need to look for
-    SET_BLOCK_COUNT or CMD23 in the "Part 1 Physical Layer Simplified Specification".
-
-    Do not use that naming convention in other places.
-*/
-
 typedef enum {
     SD_CMD0_GO_IDLE_STATE = 0,
     SD_CMD1_SEND_OP_COND = 1,
@@ -85,7 +76,6 @@ typedef enum {
     SD_CMD58_READ_OCR = 58,
 } SdSpiCmd;
 
-/** Data tokens */
 typedef enum {
     SD_TOKEN_START_DATA_SINGLE_BLOCK_READ = 0xFE,
     SD_TOKEN_START_DATA_MULTIPLE_BLOCK_READ = 0xFE,
@@ -94,7 +84,6 @@ typedef enum {
     SD_TOKEN_STOP_DATA_MULTIPLE_BLOCK_WRITE = 0xFD,
 } SdSpiToken;
 
-/** R1 answer value */
 typedef enum {
     SdSpi_R1_NO_ERROR = 0x00,
     SdSpi_R1_IN_IDLE_STATE = 0x01,
@@ -106,9 +95,8 @@ typedef enum {
     SdSpi_R1_PARAMETER_ERROR = 0x40,
 } SdSpiR1;
 
-/** R2 answer value */
 typedef enum {
-    /* R2 answer value */
+
     SdSpi_R2_NO_ERROR = 0x00,
     SdSpi_R2_CARD_LOCKED = 0x01,
     SdSpi_R2_LOCKUNLOCK_ERROR = 0x02,
@@ -120,99 +108,88 @@ typedef enum {
     SdSpi_R2_OUTOFRANGE = 0x80,
 } SdSpiR2;
 
-/**
- * @brief Card Specific Data: CSD Register
- */
 typedef struct {
-    /* Header part */
-    uint8_t CSDStruct        : 2; /* CSD structure */
-    uint8_t Reserved1        : 6; /* Reserved */
-    uint8_t TAAC             : 8; /* Data read access-time 1 */
-    uint8_t NSAC             : 8; /* Data read access-time 2 in CLK cycles */
-    uint8_t MaxBusClkFreq    : 8; /* Max. bus clock frequency */
-    uint16_t CardComdClasses : 12; /* Card command classes */
-    uint8_t RdBlockLen       : 4; /* Max. read data block length */
-    uint8_t PartBlockRead    : 1; /* Partial blocks for read allowed */
-    uint8_t WrBlockMisalign  : 1; /* Write block misalignment */
-    uint8_t RdBlockMisalign  : 1; /* Read block misalignment */
-    uint8_t DSRImpl          : 1; /* DSR implemented */
 
-    /* v1 or v2 struct */
+    uint8_t CSDStruct        : 2;
+    uint8_t Reserved1        : 6;
+    uint8_t TAAC             : 8;
+    uint8_t NSAC             : 8;
+    uint8_t MaxBusClkFreq    : 8;
+    uint16_t CardComdClasses : 12;
+    uint8_t RdBlockLen       : 4;
+    uint8_t PartBlockRead    : 1;
+    uint8_t WrBlockMisalign  : 1;
+    uint8_t RdBlockMisalign  : 1;
+    uint8_t DSRImpl          : 1;
+
     union csd_version {
         struct {
-            uint8_t Reserved1          : 2; /* Reserved */
-            uint16_t DeviceSize        : 12; /* Device Size */
-            uint8_t MaxRdCurrentVDDMin : 3; /* Max. read current @ VDD min */
-            uint8_t MaxRdCurrentVDDMax : 3; /* Max. read current @ VDD max */
-            uint8_t MaxWrCurrentVDDMin : 3; /* Max. write current @ VDD min */
-            uint8_t MaxWrCurrentVDDMax : 3; /* Max. write current @ VDD max */
-            uint8_t DeviceSizeMul      : 3; /* Device size multiplier */
+            uint8_t Reserved1          : 2;
+            uint16_t DeviceSize        : 12;
+            uint8_t MaxRdCurrentVDDMin : 3;
+            uint8_t MaxRdCurrentVDDMax : 3;
+            uint8_t MaxWrCurrentVDDMin : 3;
+            uint8_t MaxWrCurrentVDDMax : 3;
+            uint8_t DeviceSizeMul      : 3;
         } v1;
         struct {
-            uint8_t Reserved1   : 6; /* Reserved */
-            uint32_t DeviceSize : 22; /* Device Size */
-            uint8_t Reserved2   : 1; /* Reserved */
+            uint8_t Reserved1   : 6;
+            uint32_t DeviceSize : 22;
+            uint8_t Reserved2   : 1;
         } v2;
     } version;
 
-    uint8_t EraseSingleBlockEnable : 1; /* Erase single block enable */
-    uint8_t EraseSectorSize        : 7; /* Erase group size multiplier */
-    uint8_t WrProtectGrSize        : 7; /* Write protect group size */
-    uint8_t WrProtectGrEnable      : 1; /* Write protect group enable */
-    uint8_t Reserved2              : 2; /* Reserved */
-    uint8_t WrSpeedFact            : 3; /* Write speed factor */
-    uint8_t MaxWrBlockLen          : 4; /* Max. write data block length */
-    uint8_t WriteBlockPartial      : 1; /* Partial blocks for write allowed */
-    uint8_t Reserved3              : 5; /* Reserved */
-    uint8_t FileFormatGrouop       : 1; /* File format group */
-    uint8_t CopyFlag               : 1; /* Copy flag (OTP) */
-    uint8_t PermWrProtect          : 1; /* Permanent write protection */
-    uint8_t TempWrProtect          : 1; /* Temporary write protection */
-    uint8_t FileFormat             : 2; /* File Format */
-    uint8_t Reserved4              : 2; /* Reserved */
-    uint8_t crc                    : 7; /* Reserved */
-    uint8_t Reserved5              : 1; /* always 1*/
+    uint8_t EraseSingleBlockEnable : 1;
+    uint8_t EraseSectorSize        : 7;
+    uint8_t WrProtectGrSize        : 7;
+    uint8_t WrProtectGrEnable      : 1;
+    uint8_t Reserved2              : 2;
+    uint8_t WrSpeedFact            : 3;
+    uint8_t MaxWrBlockLen          : 4;
+    uint8_t WriteBlockPartial      : 1;
+    uint8_t Reserved3              : 5;
+    uint8_t FileFormatGrouop       : 1;
+    uint8_t CopyFlag               : 1;
+    uint8_t PermWrProtect          : 1;
+    uint8_t TempWrProtect          : 1;
+    uint8_t FileFormat             : 2;
+    uint8_t Reserved4              : 2;
+    uint8_t crc                    : 7;
+    uint8_t Reserved5              : 1;
 
 } SD_CSD;
 
-/**
- * @brief Card Identification Data: CID Register
- */
 typedef struct {
-    uint8_t ManufacturerID; /* ManufacturerID */
-    char OEM_AppliID[2]; /* OEM/Application ID */
-    char ProdName[5]; /* Product Name */
-    uint8_t ProdRev; /* Product Revision */
-    uint32_t ProdSN; /* Product Serial Number */
-    uint8_t Reserved1; /* Reserved1 */
-    uint8_t ManufactYear; /* Manufacturing Year */
-    uint8_t ManufactMonth; /* Manufacturing Month */
-    uint8_t CID_CRC; /* CID CRC */
-    uint8_t Reserved2; /* always 1 */
+    uint8_t ManufacturerID;
+    char OEM_AppliID[2];
+    char ProdName[5];
+    uint8_t ProdRev;
+    uint32_t ProdSN;
+    uint8_t Reserved1;
+    uint8_t ManufactYear;
+    uint8_t ManufactMonth;
+    uint8_t CID_CRC;
+    uint8_t Reserved2;
 } SD_CID;
 
-/**
- * @brief SD Card information structure
- */
 typedef struct {
     SD_CSD Csd;
     SD_CID Cid;
-    uint64_t CardCapacity; /*!< Card Capacity */
-    uint32_t CardBlockSize; /*!< Card Block Size */
-    uint32_t LogBlockNbr; /*!< Specifies the Card logical Capacity in blocks   */
-    uint32_t LogBlockSize; /*!< Specifies logical block size in bytes           */
+    uint64_t CardCapacity;
+    uint32_t CardBlockSize;
+    uint32_t LogBlockNbr;
+    uint32_t LogBlockSize;
 } SD_CardInfo;
 
-/** Pointer to currently used SPI Handle */
 const FuriHalSpiBusHandle* furi_hal_sd_spi_handle = NULL;
 
 static inline void sd_spi_select_card(void) {
     furi_hal_gpio_write(furi_hal_sd_spi_handle->cs, false);
-    furi_delay_us(10); // Entry guard time for some SD cards
+    furi_delay_us(10);
 }
 
 static inline void sd_spi_deselect_card(void) {
-    furi_delay_us(10); // Exit guard time for some SD cards
+    furi_delay_us(10);
     furi_hal_gpio_write(furi_hal_sd_spi_handle->cs, true);
 }
 
@@ -305,7 +282,6 @@ static uint8_t sd_spi_wait_for_data_and_read(void) {
     uint8_t retry_count = SD_ANSWER_RETRY_COUNT;
     uint8_t responce;
 
-    // Wait until we get a valid data
     do {
         responce = sd_spi_read_byte();
         retry_count--;
@@ -350,10 +326,6 @@ static SdSpiCmdAnswer
         .r5 = SD_DUMMY_BYTE,
     };
 
-    // R1 Length = NCS(0)+ 6 Bytes command + NCR(min1 max8) + 1 Bytes answer + NEC(0) = 15bytes
-    // R1b identical to R1 + Busy information
-    // R2 Length = NCS(0)+ 6 Bytes command + NCR(min1 max8) + 2 Bytes answer + NEC(0) = 16bytes
-
     frame[0] = ((uint8_t)cmd | 0x40);
     frame[1] = (uint8_t)(arg >> 24);
     frame[2] = (uint8_t)(arg >> 16);
@@ -369,16 +341,13 @@ static SdSpiCmdAnswer
         cmd_answer.r1 = sd_spi_wait_for_data_and_read();
         break;
     case SdSpiCmdAnswerTypeR1B:
-        // TODO FL-3507: can be wrong, at least for SD_CMD12_STOP_TRANSMISSION you need to purge one byte before reading R1
+
         cmd_answer.r1 = sd_spi_wait_for_data_and_read();
 
-        // In general this shenenigans seems suspicious, please double check SD specs if you are using SdSpiCmdAnswerTypeR1B
-        // reassert card
         sd_spi_deselect_card();
         furi_delay_us(1000);
         sd_spi_deselect_card();
 
-        // and wait for it to be ready
         while(sd_spi_read_byte() != 0xFF) {
         };
 
@@ -403,16 +372,15 @@ static SdSpiCmdAnswer
 
 static SdSpiDataResponce sd_spi_get_data_response(uint32_t timeout_ms) {
     SdSpiDataResponce responce = sd_spi_read_byte();
-    // read busy response byte
+
     sd_spi_read_byte();
 
     switch(responce & 0x1F) {
     case SdSpiDataResponceOK:
-        // TODO FL-3508: check timings
+
         sd_spi_deselect_card();
         sd_spi_select_card();
 
-        // wait for 0xFF
         if(sd_spi_wait_for_data(0xFF, timeout_ms) == FuriStatusOk) {
             return SdSpiDataResponceOK;
         } else {
@@ -436,11 +404,9 @@ static FuriStatus sd_spi_init_spi_mode_v1(void) {
     do {
         retry_count++;
 
-        // CMD55 (APP_CMD) before any ACMD command: R1 response (0x00: no errors)
         sd_spi_send_cmd(SD_CMD55_APP_CMD, 0, 0xFF, SdSpiCmdAnswerTypeR1);
         sd_spi_deselect_card_and_purge();
 
-        // ACMD41 (SD_APP_OP_COND) to initialize SDHC or SDXC cards: R1 response (0x00: no errors)
         response = sd_spi_send_cmd(SD_CMD41_SD_APP_OP_COND, 0, 0xFF, SdSpiCmdAnswerTypeR1);
         sd_spi_deselect_card_and_purge();
 
@@ -462,11 +428,10 @@ static FuriStatus sd_spi_init_spi_mode_v2(void) {
 
     do {
         retry_count++;
-        // CMD55 (APP_CMD) before any ACMD command: R1 response (0x00: no errors)
+
         sd_spi_send_cmd(SD_CMD55_APP_CMD, 0, 0xFF, SdSpiCmdAnswerTypeR1);
         sd_spi_deselect_card_and_purge();
 
-        // ACMD41 (APP_OP_COND) to initialize SDHC or SDXC cards: R1 response (0x00: no errors)
         response =
             sd_spi_send_cmd(SD_CMD41_SD_APP_OP_COND, 0x40000000, 0xFF, SdSpiCmdAnswerTypeR1);
         sd_spi_deselect_card_and_purge();
@@ -482,7 +447,7 @@ static FuriStatus sd_spi_init_spi_mode_v2(void) {
         retry_count = 0;
         do {
             retry_count++;
-            // CMD55 (APP_CMD) before any ACMD command: R1 response (0x00: no errors)
+
             response = sd_spi_send_cmd(SD_CMD55_APP_CMD, 0, 0xFF, SdSpiCmdAnswerTypeR1);
             sd_spi_deselect_card_and_purge();
 
@@ -490,7 +455,7 @@ static FuriStatus sd_spi_init_spi_mode_v2(void) {
                 sd_spi_debug("CMD55 failed");
                 return FuriStatusError;
             }
-            // ACMD41 (SD_APP_OP_COND) to initialize SDHC or SDXC cards: R1 response (0x00: no errors)
+
             response = sd_spi_send_cmd(SD_CMD41_SD_APP_OP_COND, 0, 0xFF, SdSpiCmdAnswerTypeR1);
             sd_spi_deselect_card_and_purge();
 
@@ -510,8 +475,6 @@ static FuriStatus sd_spi_init_spi_mode(void) {
     SdSpiCmdAnswer response;
     uint8_t retry_count;
 
-    // CMD0 (GO_IDLE_STATE) to put SD in SPI mode and
-    // wait for In Idle State Response (R1 Format) equal to 0x01
     retry_count = 0;
     do {
         retry_count++;
@@ -524,8 +487,6 @@ static FuriStatus sd_spi_init_spi_mode(void) {
         }
     } while(response.r1 != SdSpi_R1_IN_IDLE_STATE);
 
-    // CMD8 (SEND_IF_COND) to check the power supply status
-    // and wait until response (R7 Format) equal to 0xAA and
     response = sd_spi_send_cmd(SD_CMD8_SEND_IF_COND, 0x1AA, 0x87, SdSpiCmdAnswerTypeR7);
     sd_spi_deselect_card_and_purge();
 
@@ -541,7 +502,6 @@ static FuriStatus sd_spi_init_spi_mode(void) {
             return FuriStatusError;
         }
 
-        // CMD58 (READ_OCR) to initialize SDHC or SDXC cards: R3 response
         response = sd_spi_send_cmd(SD_CMD58_READ_OCR, 0, 0xFF, SdSpiCmdAnswerTypeR3);
         sd_spi_deselect_card_and_purge();
 
@@ -564,22 +524,17 @@ static FuriStatus sd_spi_get_csd(SD_CSD* csd) {
     FuriStatus ret = FuriStatusError;
     SdSpiCmdAnswer response;
 
-    // CMD9 (SEND_CSD): R1 format (0x00 is no errors)
     response = sd_spi_send_cmd(SD_CMD9_SEND_CSD, 0, 0xFF, SdSpiCmdAnswerTypeR1);
 
     if(response.r1 == SdSpi_R1_NO_ERROR) {
         if(sd_spi_wait_for_data(SD_TOKEN_START_DATA_SINGLE_BLOCK_READ, SD_TIMEOUT_MS) ==
            FuriStatusOk) {
-            // read CSD data
+
             for(counter = 0; counter < 16; counter++) {
                 csd_data[counter] = sd_spi_read_byte();
             }
 
             sd_spi_purge_crc();
-
-            /*************************************************************************
-            CSD header decoding 
-            *************************************************************************/
 
             csd->CSDStruct = (csd_data[0] & 0xC0) >> 6;
             csd->Reserved1 = csd_data[0] & 0x3F;
@@ -592,10 +547,6 @@ static FuriStatus sd_spi_get_csd(SD_CSD* csd) {
             csd->WrBlockMisalign = (csd_data[6] & 0x40) >> 6;
             csd->RdBlockMisalign = (csd_data[6] & 0x20) >> 5;
             csd->DSRImpl = (csd_data[6] & 0x10) >> 4;
-
-            /*************************************************************************
-            CSD v1/v2 decoding  
-            *************************************************************************/
 
             if(sd_high_capacity == 0) {
                 csd->version.v1.Reserved1 = ((csd_data[6] & 0x0C) >> 2);
@@ -648,13 +599,12 @@ static FuriStatus sd_spi_get_cid(SD_CID* Cid) {
     FuriStatus ret = FuriStatusError;
     SdSpiCmdAnswer response;
 
-    // CMD10 (SEND_CID): R1 format (0x00 is no errors)
     response = sd_spi_send_cmd(SD_CMD10_SEND_CID, 0, 0xFF, SdSpiCmdAnswerTypeR1);
 
     if(response.r1 == SdSpi_R1_NO_ERROR) {
         if(sd_spi_wait_for_data(SD_TOKEN_START_DATA_SINGLE_BLOCK_READ, SD_TIMEOUT_MS) ==
            FuriStatusOk) {
-            // read CID data
+
             for(counter = 0; counter < 16; counter++) {
                 cid_data[counter] = sd_spi_read_byte();
             }
@@ -690,7 +640,6 @@ static FuriStatus
     uint32_t block_address = address;
     uint32_t offset = 0;
 
-    // CMD16 (SET_BLOCKLEN): R1 response (0x00: no errors)
     SdSpiCmdAnswer response =
         sd_spi_send_cmd(SD_CMD16_SET_BLOCKLEN, SD_BLOCK_SIZE, 0xFF, SdSpiCmdAnswerTypeR1);
     sd_spi_deselect_card_and_purge();
@@ -704,7 +653,7 @@ static FuriStatus
     }
 
     while(blocks--) {
-        // CMD17 (READ_SINGLE_BLOCK): R1 response (0x00: no errors)
+
         response =
             sd_spi_send_cmd(SD_CMD17_READ_SINGLE_BLOCK, block_address, 0xFF, SdSpiCmdAnswerTypeR1);
         if(response.r1 != SdSpi_R1_NO_ERROR) {
@@ -712,17 +661,14 @@ static FuriStatus
             return FuriStatusError;
         }
 
-        // Wait for the data start token
         if(sd_spi_wait_for_data(SD_TOKEN_START_DATA_SINGLE_BLOCK_READ, timeout_ms) ==
            FuriStatusOk) {
-            // Read the data block
+
             sd_spi_read_bytes_dma((uint8_t*)data + offset, SD_BLOCK_SIZE);
             sd_spi_purge_crc();
 
-            // increase offset
             offset += SD_BLOCK_SIZE;
 
-            // increase block address
             if(sd_high_capacity) {
                 block_address += 1;
             } else {
@@ -747,7 +693,6 @@ static FuriStatus sd_spi_cmd_write_blocks(
     uint32_t block_address = address;
     uint32_t offset = 0;
 
-    // CMD16 (SET_BLOCKLEN): R1 response (0x00: no errors)
     SdSpiCmdAnswer response =
         sd_spi_send_cmd(SD_CMD16_SET_BLOCKLEN, SD_BLOCK_SIZE, 0xFF, SdSpiCmdAnswerTypeR1);
     sd_spi_deselect_card_and_purge();
@@ -761,7 +706,7 @@ static FuriStatus sd_spi_cmd_write_blocks(
     }
 
     while(blocks--) {
-        // CMD24 (WRITE_SINGLE_BLOCK): R1 response (0x00: no errors)
+
         response = sd_spi_send_cmd(
             SD_CMD24_WRITE_SINGLE_BLOCK, block_address, 0xFF, SdSpiCmdAnswerTypeR1);
         if(response.r1 != SdSpi_R1_NO_ERROR) {
@@ -769,17 +714,13 @@ static FuriStatus sd_spi_cmd_write_blocks(
             return FuriStatusError;
         }
 
-        // Send dummy byte for NWR timing : one byte between CMD_WRITE and TOKEN
-        // TODO FL-3509: check bytes count
         sd_spi_write_byte(SD_DUMMY_BYTE);
         sd_spi_write_byte(SD_DUMMY_BYTE);
 
-        // Send the data start token
         sd_spi_write_byte(SD_TOKEN_START_DATA_SINGLE_BLOCK_WRITE);
         sd_spi_write_bytes_dma((uint8_t*)data + offset, SD_BLOCK_SIZE);
         sd_spi_purge_crc();
 
-        // Read data response
         SdSpiDataResponce data_responce = sd_spi_get_data_response(timeout_ms);
         sd_spi_deselect_card_and_purge();
 
@@ -787,10 +728,8 @@ static FuriStatus sd_spi_cmd_write_blocks(
             return FuriStatusError;
         }
 
-        // increase offset
         offset += SD_BLOCK_SIZE;
 
-        // increase block address
         if(sd_high_capacity) {
             block_address += 1;
         } else {
@@ -804,11 +743,9 @@ static FuriStatus sd_spi_cmd_write_blocks(
 static FuriStatus sd_spi_get_card_state(void) {
     SdSpiCmdAnswer response;
 
-    // Send CMD13 (SEND_STATUS) to get SD status
     response = sd_spi_send_cmd(SD_CMD13_SEND_STATUS, 0, 0xFF, SdSpiCmdAnswerTypeR2);
     sd_spi_deselect_card_and_purge();
 
-    // Return status OK if response is valid
     if((response.r1 == SdSpi_R1_NO_ERROR) && (response.r2 == SdSpi_R2_NO_ERROR)) {
         return FuriStatusOk;
     }
@@ -846,7 +783,6 @@ static FuriStatus sd_device_read(uint32_t* buff, uint32_t sector, uint32_t count
     if(sd_spi_cmd_read_blocks(buff, sector, count, SD_TIMEOUT_MS) == FuriStatusOk) {
         FuriHalCortexTimer timer = furi_hal_cortex_timer_get(SD_TIMEOUT_MS * 1000);
 
-        /* wait until the read operation is finished */
         do {
             status = sd_spi_get_card_state();
 
@@ -872,7 +808,6 @@ static FuriStatus sd_device_write(const uint32_t* buff, uint32_t sector, uint32_
     if(sd_spi_cmd_write_blocks(buff, sector, count, SD_TIMEOUT_MS) == FuriStatusOk) {
         FuriHalCortexTimer timer = furi_hal_cortex_timer_get(SD_TIMEOUT_MS * 1000);
 
-        /* wait until the Write operation is finished */
         do {
             status = sd_spi_get_card_state();
 
@@ -892,12 +827,12 @@ static FuriStatus sd_device_write(const uint32_t* buff, uint32_t sector, uint32_
 }
 
 void furi_hal_sd_presence_init(void) {
-    // low speed input with pullup
+
     furi_hal_gpio_init(&gpio_sdcard_cd, GpioModeInput, GpioPullUp, GpioSpeedLow);
 }
 
 static void furi_hal_sd_present_pin_set_low(void) {
-    // low speed input with pullup
+
     furi_hal_gpio_init_simple(&gpio_sdcard_cd, GpioModeOutputOpenDrain);
     furi_hal_gpio_write(&gpio_sdcard_cd, 0);
 }
@@ -912,21 +847,18 @@ uint8_t furi_hal_sd_max_mount_retry_count(void) {
 }
 
 FuriStatus furi_hal_sd_init(bool power_reset) {
-    // Slow speed init
+
     furi_hal_spi_acquire(&furi_hal_spi_bus_handle_sd_slow);
     furi_hal_sd_spi_handle = &furi_hal_spi_bus_handle_sd_slow;
 
-    // We reset card in spi_lock context, so it is safe to disturb spi bus
     if(power_reset) {
         sd_spi_debug("Power reset");
 
-        // disable power and set low on all bus pins
         furi_hal_power_disable_external_3_3v();
         sd_spi_bus_to_ground();
         furi_hal_sd_present_pin_set_low();
         furi_delay_ms(250);
 
-        // reinit bus and enable power
         sd_spi_bus_rise_up();
         furi_hal_sd_presence_init();
         furi_hal_power_enable_external_3_3v();
@@ -935,7 +867,6 @@ FuriStatus furi_hal_sd_init(bool power_reset) {
 
     FuriStatus status = FuriStatusError;
 
-    // Send 80 dummy clocks with CS high
     sd_spi_deselect_card();
     for(uint8_t i = 0; i < 80; i++) {
         sd_spi_write_byte(SD_DUMMY_BYTE);
@@ -944,7 +875,7 @@ FuriStatus furi_hal_sd_init(bool power_reset) {
     for(uint8_t i = 0; i < 128; i++) {
         status = sd_spi_init_spi_mode();
         if(status == FuriStatusOk) {
-            // SD initialized and init to SPI mode properly
+
             sd_spi_debug("SD init OK after %d retries", i);
             break;
         }
@@ -953,7 +884,6 @@ FuriStatus furi_hal_sd_init(bool power_reset) {
     furi_hal_sd_spi_handle = NULL;
     furi_hal_spi_release(&furi_hal_spi_bus_handle_sd_slow);
 
-    // Init sector cache
     sector_cache_init();
 
     return status;
@@ -990,7 +920,7 @@ FuriStatus furi_hal_sd_read_blocks(uint32_t* buff, uint32_t sector, uint32_t cou
 
         while(status != FuriStatusOk && counter > 0 && furi_hal_sd_is_present()) {
             if((counter % 2) == 0) {
-                // power reset sd card
+
                 status = furi_hal_sd_init(true);
             } else {
                 status = furi_hal_sd_init(false);
@@ -1024,7 +954,7 @@ FuriStatus furi_hal_sd_write_blocks(const uint32_t* buff, uint32_t sector, uint3
 
         while(status != FuriStatusOk && counter > 0 && furi_hal_sd_is_present()) {
             if((counter % 2) == 0) {
-                // power reset sd card
+
                 status = furi_hal_sd_init(true);
             } else {
                 status = furi_hal_sd_init(false);

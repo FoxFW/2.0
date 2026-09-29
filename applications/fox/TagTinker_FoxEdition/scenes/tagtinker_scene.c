@@ -1,7 +1,3 @@
-/*
- * Scene handler table
- */
-
 #include "tagtinker_scene.h"
 
 void(*const tagtinker_scene_on_enter_handlers[])(void*) = {

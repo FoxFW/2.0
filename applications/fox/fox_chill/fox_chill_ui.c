@@ -10,11 +10,6 @@ void fox_chill_draw_double_border(Canvas* canvas, int32_t x, int32_t y, int32_t 
     canvas_draw_rframe(canvas, x + 1, y + 1, w - 2, h - 2, 2);
 }
 
-/* focused: filled pill + white icon/text when true (the default - most
- * call sites are single-button screens where this is always true, i.e.
- * Pattern C-correct/always-focused), an outlined pill + black icon/text
- * when false (used only by content_view.c, when this is the unfocused
- * side of its two-button footer - see that file's content_input_cb()). */
 void fox_chill_draw_next_button(Canvas* canvas, bool focused, const char* label) {
     const Icon* icon = &I_ButtonCenter_7x7;
     int32_t icon_w = icon_get_width(icon);

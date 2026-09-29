@@ -1,7 +1,3 @@
-/*
- * App state.
- */
-
 #pragma once
 
 #include <furi.h>
@@ -72,8 +68,7 @@ typedef struct {
     uint16_t width;
     uint16_t height;
     uint8_t page;
-    /* True when this BMP was authored for a different resolution than the
-     * current target, meaning the transmitter will rescale it on the fly. */
+
     bool resampled;
     char image_path[TAGTINKER_IMAGE_PATH_LEN + 1];
 } TagTinkerSyncedImage;
@@ -84,7 +79,6 @@ typedef enum {
     TagTinkerTextInputRenameTarget = 2,
 } TagTinkerTextInputMode;
 
-/* Views */
 typedef enum {
     TagTinkerViewSubmenu,
     TagTinkerViewVarItemList,
@@ -99,7 +93,6 @@ typedef enum {
     TagTinkerViewAbout,
 } TagTinkerView;
 
-/* Saved ESL target */
 typedef struct {
     char name[TAGTINKER_TARGET_NAME_LEN + 1];
     char barcode[TAGTINKER_BC_LEN + 1];
@@ -108,14 +101,13 @@ typedef struct {
 } TagTinkerTarget;
 
 struct TagTinkerApp {
-    /* GUI */
+
     Gui* gui;
     ViewDispatcher* view_dispatcher;
     SceneManager* scene_manager;
     NotificationApp* notifications;
     DialogsApp* dialogs;
 
-    /* Views */
     Submenu* submenu;
     VariableItemList* var_item_list;
     TextInput* text_input;
@@ -131,16 +123,13 @@ struct TagTinkerApp {
     bool transmit_view_allocated;
     bool about_view_allocated;
 
-    /* TX state */
     bool tx_active;
     FuriThread* tx_thread;
 
-    /* NFC scan state */
     Nfc* nfc;
     FuriThread* nfc_thread;
     volatile bool nfc_scanning;
 
-    /* Broadcast settings */
     uint8_t broadcast_type;
     uint8_t page;
     uint16_t duration;
@@ -148,28 +137,22 @@ struct TagTinkerApp {
     bool forever;
     bool tx_spam;
 
-    /* Current target */
     char barcode[TAGTINKER_BC_LEN + 1];
     uint8_t plid[4];
     bool barcode_valid;
-    int8_t selected_target; /* -1 = none */
+    int8_t selected_target;
 
-    /* Saved targets */
     TagTinkerTarget targets[TAGTINKER_MAX_TARGETS];
     uint8_t target_count;
 
-    /* Text to push */
     char text_input_buf[64];
 
-    /* ESL display size for current target */
     uint16_t esl_width;
     uint16_t esl_height;
 
-    /* Frame buffer */
     uint8_t frame_buf[TAGTINKER_MAX_FRAME_SIZE];
     size_t frame_len;
 
-    /* Multi-frame sequence */
     uint8_t** frame_sequence;
     size_t* frame_lengths;
     uint16_t* frame_repeats;
@@ -178,7 +161,6 @@ struct TagTinkerApp {
     bool color_clear;
     uint8_t text_padding_pct;
 
-    /* Saved recents */
     struct {
         uint16_t width;
         uint16_t height;
@@ -194,7 +176,6 @@ struct TagTinkerApp {
     TagTinkerSyncedImage synced_images[TAGTINKER_MAX_SYNCED_IMAGES];
     uint8_t synced_image_count;
 
-    /* Image settings */
     uint8_t img_page;
     uint16_t draw_x;
     uint16_t draw_y;
@@ -206,10 +187,8 @@ struct TagTinkerApp {
     TagTinkerSignalMode signal_mode;
     bool show_startup_warning;
 
-    /* Indicates which mode triggered raw cmd (0=broadcast, 1=targeted) */
     uint8_t raw_mode;
 
-    /* Browser BLE sync state */
     Bt* bt;
     FuriHalBleProfileBase* ble_serial;
     BtStatus ble_status;
@@ -241,36 +220,29 @@ struct TagTinkerApp {
     bool ble_sync_last_compact_protocol;
     int8_t ble_sync_ready_target;
 
-    /* ---- WiFi Plugins (ESP32 dev board) -------------------------------- */
-    /* Opaque handle (TagTinkerWifi*) - declared in wifi/tagtinker_wifi.h.
-     * Stored as void* here so this header doesn't pull in expansion/serial
-     * deps for unrelated translation units. */
     void* wifi;
-    /* WiFi link state mirrored from the ESP. */
-    uint8_t  wifi_link_state;     /* TT_WIFI_* */
+
+    uint8_t  wifi_link_state;
     int8_t   wifi_rssi;
     char     wifi_ssid[33];
     char     wifi_ip[20];
-    char     wifi_creds_ssid[33]; /* used by setup scene before sending */
+    char     wifi_creds_ssid[33];
     char     wifi_creds_pwd[65];
-    /* Plugin discovery cache. Up to TT_WIFI_MAX_FAP_PLUGINS slots. */
-    void*    wifi_plugins;        /* TagTinkerWifiPlugin[TT_WIFI_MAX_FAP_PLUGINS], heap-alloced */
+
+    void*    wifi_plugins;
     uint8_t  wifi_plugin_count;
     bool     wifi_plugins_loading;
     int8_t   wifi_selected_plugin;
-    /* Per-run state. */
+
     char     wifi_progress_msg[64];
     uint8_t  wifi_progress_pct;
     char     wifi_last_error[80];
     bool     wifi_run_in_flight;
     bool     wifi_result_ready;
-    /* Param values being collected by the run scene; one slot per plugin
-     * param, holding the textual value the user picked (string for STRING,
-     * stringified int for INT, option name for ENUM, "0"/"1" for BOOL). */
+
     char     wifi_param_values[6][64];
 };
 
-/* Main menu items */
 typedef enum {
     TagTinkerMenuBroadcast,
     TagTinkerMenuTargetESL,
@@ -278,13 +250,11 @@ typedef enum {
     TagTinkerMenuAbout,
 } TagTinkerMainMenuItem;
 
-/* Broadcast menu items */
 typedef enum {
     TagTinkerBroadcastFlipPage,
     TagTinkerBroadcastDebugScreen,
 } TagTinkerBroadcastMenuItem;
 
-/* Target action items */
 typedef enum {
     TagTinkerTargetDetails,
     TagTinkerTargetRename,

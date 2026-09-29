@@ -8,12 +8,10 @@
 #include "flipper_format_stream.h"
 #include "flipper_format_stream_i.h"
 
-// permits direct casting between `FlipperFormatOffset` and `StreamOffset`
 static_assert((size_t)FlipperFormatOffsetFromCurrent == (size_t)StreamOffsetFromCurrent);
 static_assert((size_t)FlipperFormatOffsetFromStart == (size_t)StreamOffsetFromStart);
 static_assert((size_t)FlipperFormatOffsetFromEnd == (size_t)StreamOffsetFromEnd);
 
-/********************************** Private **********************************/
 struct FlipperFormat {
     Stream* stream;
     bool strict_mode;
@@ -25,8 +23,6 @@ static const char* const flipper_format_version_key = "Version";
 Stream* flipper_format_get_raw_stream(FlipperFormat* flipper_format) {
     return flipper_format->stream;
 }
-
-/********************************** Public **********************************/
 
 FlipperFormat* flipper_format_string_alloc(void) {
     FlipperFormat* flipper_format = malloc(sizeof(FlipperFormat));
@@ -66,7 +62,6 @@ bool flipper_format_file_open_append(FlipperFormat* flipper_format, const char* 
     bool result =
         file_stream_open(flipper_format->stream, path, FSAM_READ_WRITE, FSOM_OPEN_APPEND);
 
-    // Add EOL if it is not there
     if(stream_size(flipper_format->stream) >= 1) {
         do {
             char last_char;
@@ -139,7 +134,7 @@ size_t flipper_format_tell(FlipperFormat* flipper_format) {
 
 bool flipper_format_seek(FlipperFormat* flipper_format, int32_t offset, FlipperFormatOffset anchor) {
     furi_check(flipper_format);
-    // direct usage of `anchor` made valid by `static_assert`s at the top of this file
+
     return stream_seek(flipper_format->stream, offset, (StreamOffset)anchor);
 }
 

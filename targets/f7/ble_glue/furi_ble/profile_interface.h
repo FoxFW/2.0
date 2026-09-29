@@ -10,10 +10,8 @@ extern "C" {
 
 typedef struct FuriHalBleProfileTemplate FuriHalBleProfileTemplate;
 
-/* Actual profiles must inherit (include this structure) as their first field */
 typedef struct {
-    /* Pointer to the config for this profile. Must be used to check if the
-     * instance belongs to the profile */
+
     const FuriHalBleProfileTemplate* config;
 } FuriHalBleProfileBase;
 
@@ -26,11 +24,11 @@ typedef void (*FuriHalBleProfileGetGapConfig)(
     FuriHalBleProfileParams profile_params);
 
 struct FuriHalBleProfileTemplate {
-    /* Returns an instance of the profile */
+
     FuriHalBleProfileStart start;
-    /* Destroys the instance of the profile.  Must check if instance belongs to the profile */
+
     FuriHalBleProfileStop stop;
-    /* Called before starting the profile to get the GAP configuration */
+
     FuriHalBleProfileGetGapConfig get_gap_config;
 };
 

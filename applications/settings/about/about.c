@@ -118,7 +118,7 @@ static DialogMessageButton foxfw_info_screen3(DialogsApp* dialogs, DialogMessage
     dialog_message_set_text(message, NULL, 0, 0, AlignLeft, AlignTop);
 
     return result;
-    
+
 }
 
 static DialogMessageButton foxfw_info_screen4(DialogsApp* dialogs, DialogMessage* message) {
@@ -134,7 +134,7 @@ static DialogMessageButton foxfw_info_screen4(DialogsApp* dialogs, DialogMessage
     dialog_message_set_text(message, NULL, 0, 0, AlignLeft, AlignTop);
 
     return result;
-    
+
 }
 
 static DialogMessageButton foxfw_info_screen5(DialogsApp* dialogs, DialogMessage* message) {
@@ -151,9 +151,8 @@ static DialogMessageButton foxfw_info_screen5(DialogsApp* dialogs, DialogMessage
     dialog_message_set_text(message, NULL, 0, 0, AlignLeft, AlignTop);
 
     return result;
-    
-}
 
+}
 
 static DialogMessageButton hw_version_screen(DialogsApp* dialogs, DialogMessage* message) {
     DialogMessageButton result;
@@ -193,11 +192,10 @@ static DialogMessageButton fw_version_screen(DialogsApp* dialogs, DialogMessage*
     buffer = furi_string_alloc();
     const Version* ver = furi_hal_version_get_firmware_version();
     const BleGlueC2Info* c2_ver = NULL;
-    //#ifdef SRV_BT
-    c2_ver = ble_glue_get_c2_info();
-    //#endif
 
-    if(!ver) { //-V1051
+    c2_ver = ble_glue_get_c2_info();
+
+    if(!ver) {
         furi_string_cat_printf(buffer, "No info\n");
     } else {
         uint16_t api_major, api_minor;
@@ -250,7 +248,6 @@ int32_t about_settings_app(void* p) {
     size_t screen_index = 0;
     DialogMessageButton screen_result;
 
-    // draw empty screen to prevent menu flickering
     view_holder_attach_to_gui(view_holder, gui);
     view_holder_set_view(view_holder, empty_screen_get_view(empty_screen));
 

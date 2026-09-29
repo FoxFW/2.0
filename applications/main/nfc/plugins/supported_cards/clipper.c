@@ -28,16 +28,13 @@
 #include <locale/locale.h>
 #include <inttypes.h>
 
-//
-// Table of application ids observed in the wild, and their sources.
-//
 static const struct {
     const MfDesfireApplicationId app;
     const char* type;
 } clipper_types[] = {
-    // Application advertised on classic, plastic cards.
+
     {.app = {.data = {0x90, 0x11, 0xf2}}, .type = "Card"},
-    // Application advertised on a mobile device.
+
     {.app = {.data = {0x91, 0x11, 0xf2}}, .type = "Mobile Device"},
 };
 static const size_t kNumCardTypes = sizeof(clipper_types) / sizeof(clipper_types[0]);
@@ -50,9 +47,6 @@ typedef struct IdMapping_struct IdMapping;
 
 #define COUNT(_array) sizeof(_array) / sizeof(_array[0])
 
-//
-// Known transportation agencies and their identifiers.
-//
 static const IdMapping agency_names[] = {
     {.id = 0x0001, .name = "AC Transit"},
     {.id = 0x0004, .name = "BART"},
@@ -67,9 +61,6 @@ static const IdMapping agency_names[] = {
 };
 static const size_t kNumAgencies = COUNT(agency_names);
 
-//
-// Known station names for various agencies.
-//
 static const IdMapping bart_zones[] = {
     {.id = 0x0001, .name = "Colma"},
     {.id = 0x0002, .name = "Daly City"},
@@ -128,10 +119,10 @@ static const IdMapping muni_zones[] = {
     {.id = 0x0006, .name = "Montgomery"},
     {.id = 0x0007, .name = "Powell"},
     {.id = 0x0008, .name = "Civic Center"},
-    {.id = 0x0009, .name = "Van Ness"}, // Guessed
+    {.id = 0x0009, .name = "Van Ness"},
     {.id = 0x000a, .name = "Church"},
     {.id = 0x000b, .name = "Castro"},
-    {.id = 0x000c, .name = "Forest Hill"}, // Guessed
+    {.id = 0x000c, .name = "Forest Hill"},
     {.id = 0x000d, .name = "West Portal"},
     {.id = 0x0019, .name = "Union Square/Market Street"},
     {.id = 0x001a, .name = "Chinatown - Rose Pak"},
@@ -144,8 +135,6 @@ static const IdMapping actransit_zones[] = {
 };
 static const size_t kNumACTransitZones = COUNT(actransit_zones);
 
-// Instead of persisting individual Station IDs, Caltrain saves Zone numbers.
-// https://www.caltrain.com/stations-zones
 static const IdMapping caltrain_zones[] = {
     {.id = 0x0001, .name = "Zone 1"},
     {.id = 0x0002, .name = "Zone 2"},
@@ -157,9 +146,6 @@ static const IdMapping caltrain_zones[] = {
 
 static const size_t kNumCaltrainZones = COUNT(caltrain_zones);
 
-//
-// Full agency+zone mapping.
-//
 static const struct {
     uint16_t agency_id;
     const IdMapping* zone_map;
@@ -171,7 +157,6 @@ static const struct {
     {.agency_id = 0x0012, .zone_map = muni_zones, .zone_count = kNumMUNIZones}};
 static const size_t kNumAgencyZoneMaps = COUNT(agency_zone_map);
 
-// File ids of important files on the card.
 static const MfDesfireFileId clipper_ecash_file_id = 2;
 static const MfDesfireFileId clipper_histidx_file_id = 6;
 static const MfDesfireFileId clipper_identity_file_id = 8;
@@ -187,7 +172,6 @@ struct ClipperCardInfo_struct {
 };
 typedef struct ClipperCardInfo_struct ClipperCardInfo;
 
-// Forward declarations for helper functions.
 static void furi_string_cat_timestamp(
     FuriString* str,
     const char* date_hdr,
@@ -212,17 +196,14 @@ static bool dump_ride_history(
     FuriString* parsed_data);
 static bool dump_ride_event(const uint8_t* record, FuriString* parsed_data);
 
-// Unmarshal a 32-bit integer, big endian, unsigned
 static inline uint32_t get_u32be(const uint8_t* field) {
     return bit_lib_bytes_to_num_be(field, 4);
 }
 
-// Unmarshal a 16-bit integer, big endian, unsigned
 static uint16_t get_u16be(const uint8_t* field) {
     return bit_lib_bytes_to_num_be(field, 2);
 }
 
-// Unmarshal a 16-bit integer, big endian, signed, two's-complement
 static int16_t get_i16be(const uint8_t* field) {
     uint16_t raw = get_u16be(field);
     if(raw > 0x7fff)
@@ -249,7 +230,6 @@ static bool clipper_parse(const NfcDevice* device, FuriString* parsed_data) {
             if(app != NULL) break;
         }
 
-        // If no matching application was found, abort this parser.
         if(app == NULL) break;
 
         ClipperCardInfo info;
@@ -332,59 +312,13 @@ static bool get_file_contents(
 }
 
 static bool decode_id_file(const uint8_t* ef8_data, ClipperCardInfo* info) {
-    // Identity file (8)
-    //
-    // Byte view
-    //
-    //       0    1    2    3    4    5    6    7    8
-    //       +----+----.----.----.----+----.----.----+
-    // 0x00  | uk | card_id           | unknown      |
-    //       +----+----.----.----.----+----.----.----+
-    // 0x08  | unknown                               |
-    //       +----.----.----.----.----.----.----.----+
-    // 0x10    ...
-    //
-    //
-    // Field          Datatype   Description
-    // -----          --------   -----------
-    // uk             ?8??       Unknown, 8-bit byte
-    // card_id        U32BE      Card identifier
-    //
+
     info->serial_number = bit_lib_bytes_to_num_be(&ef8_data[1], 4);
     return true;
 }
 
 static bool decode_cash_file(const uint8_t* ef2_data, ClipperCardInfo* info) {
-    // ECash file (2)
-    //
-    // Byte view
-    //
-    //       0    1    2    3    4    5    6    7    8
-    //       +----.----+----.----+----.----.----.----+
-    // 0x00  |  unk00  | counter | timestamp_1900    |
-    //       +----.----+----.----+----.----.----.----+
-    // 0x08  | term_id |     unk01                   |
-    //       +----.----+----.----+----.----.----.----+
-    // 0x10  | txn_id  | balance |      unknown      |
-    //       +----.----+----.----+----.----.----.----+
-    // 0x18  |               unknown                 |
-    //       +---------------------------------------+
-    //
-    // Field          Datatype Description
-    // -----          -------- -----------
-    // unk00          U8[2]     Unknown bytes
-    // counter        U16BE     Unknown, appears to be a counter
-    // timestamp_1900 U32BE     Timestamp of last transaction, in seconds
-    //                          since 1900-01-01 GMT.
-    // unk01          U8[6]     Unknown bytes
-    // txn_id         U16BE     Id of last transaction.
-    // balance        S16BE     Card cash balance, in cents.
-    //                          Cards can obtain negative balances in this
-    //                          system, so balances are signed integers.
-    //                          Maximum card balance is therefore
-    //                          $327.67.
-    // unk02          U8[12]    Unknown bytes.
-    //
+
     info->counter = get_u16be(&ef2_data[2]);
     info->last_updated_tm_1900 = get_u32be(&ef2_data[4]);
     info->last_terminal_id = get_u16be(&ef2_data[8]);
@@ -416,40 +350,12 @@ static bool dump_ride_history(
 }
 
 static bool dump_ride_event(const uint8_t* record, FuriString* parsed_data) {
-    // Ride record
-    //
-    //       0    1    2    3    4    5    6    7    8
-    //       +----+----+----.----+----.----+----.----+
-    // 0x00  |0x10| ?  | agency  | ?       | fare    |
-    //       +----.----+----.----+----.----.----.----+
-    // 0x08  | ?       | vehicle | time_on           |
-    //       +----.----.----.----+----.----+----.----+
-    // 0x10  | time_off          | zone_on | zone_off|
-    //       +----+----.----.----.----+----+----+----+
-    // 0x18  | ?  | ?                 | ?  | ?  | ?  |
-    //       +----+----.----.----.----+----+----+----+
-    //
-    // Field          Datatype Description
-    // -----          -------- -----------
-    // agency         U16BE    Transportation agency identifier.
-    //                         Known ids:
-    //                         1  == AC Transit
-    //                         4  == BART
-    //                         18 == SF MUNI
-    // fare           I16BE    Fare deducted, in cents.
-    // vehicle        U16BE    Vehicle id (0 == not provided)
-    // time_on        U32BE    Boarding time, in seconds since 1900-01-01 GMT.
-    // time_off       U32BE    Off-boarding time, if present, in seconds
-    //                         since 1900-01-01 GMT. Set to zero if no offboard
-    //                         has been recorded.
-    // zone_on        U16BE    Id of boarding zone or station. Agency-specific.
-    // zone_off       U16BE    Id of offboarding zone or station. Agency-
-    //                         specific.
+
     if(record[0] != 0x10) return false;
 
     uint16_t agency_id = get_u16be(&record[2]);
     if(agency_id == 0)
-        // Likely empty record. Skip.
+
         return false;
     const char* agency_name;
     bool ok = get_map_item(agency_id, agency_names, kNumAgencies, &agency_name);
@@ -524,9 +430,6 @@ static bool get_agency_zone_name(uint16_t agency_id, uint16_t zone_id, const cha
     return false;
 }
 
-// Split a balance/fare amount from raw cents to dollars and cents portion,
-// automatically adjusting the cents portion so that it is always positive,
-// for easier display.
 static void
     decode_usd(int16_t amount_cents, bool* out_is_negative, int16_t* out_usd, uint16_t* out_cents) {
     *out_usd = amount_cents / 100;
@@ -540,15 +443,13 @@ static void
     }
 }
 
-// Decode a raw 1900-based timestamp and append a human-readable form to a
-// FuriString.
 static void furi_string_cat_timestamp(
     FuriString* str,
     const char* date_hdr,
     const char* time_hdr,
     uint32_t tmst_1900) {
     DateTime tm;
-    tmst_1900 -= 2208988800; // Clipper uses epoch from 1900, not 1970.
+    tmst_1900 -= 2208988800;
     datetime_timestamp_to_datetime(tmst_1900, &tm);
 
     FuriString* date_str = furi_string_alloc();
@@ -569,7 +470,6 @@ static void furi_string_cat_timestamp(
     furi_string_free(time_str);
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin clipper_plugin = {
     .protocol = NfcProtocolMfDesfire,
     .verify = NULL,
@@ -577,14 +477,12 @@ static const NfcSupportedCardsPlugin clipper_plugin = {
     .parse = clipper_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor clipper_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &clipper_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* clipper_plugin_ep(void) {
     return &clipper_plugin_descriptor;
 }

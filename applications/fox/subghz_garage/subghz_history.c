@@ -12,9 +12,10 @@ typedef struct {
     uint8_t type;
     SubGhzRadioPreset* preset;
     DateTime datetime;
+    bool auto_save_pending;
 } SubGhzHistoryItem;
 
-ARRAY_DEF(SubGhzHistoryItemArray, SubGhzHistoryItem, M_POD_OPLIST) //-V658
+ARRAY_DEF(SubGhzHistoryItemArray, SubGhzHistoryItem, M_POD_OPLIST)
 
 #define M_OPL_SubGhzHistoryItemArray_t() ARRAY_OPLIST(SubGhzHistoryItemArray, M_POD_OPLIST)
 
@@ -149,6 +150,27 @@ FlipperFormat* subghz_history_get_raw_data(SubGhzHistory* instance, uint16_t idx
         return NULL;
     }
 }
+
+void subghz_history_set_auto_save_pending(SubGhzHistory* instance, uint16_t idx, bool pending) {
+    furi_assert(instance);
+    if(idx < SubGhzHistoryItemArray_size(instance->history->data)) {
+        SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
+        item->auto_save_pending = pending;
+    }
+}
+
+bool subghz_history_find_auto_save_pending(SubGhzHistory* instance, uint16_t* idx) {
+    furi_assert(instance);
+    for(uint16_t i = 0; i < SubGhzHistoryItemArray_size(instance->history->data); i++) {
+        SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, i);
+        if(item->auto_save_pending) {
+            *idx = i;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool subghz_history_get_text_space_left(
     SubGhzHistory* instance,
     FuriString* output,
@@ -207,6 +229,7 @@ bool subghz_history_add_to_history(
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_push_raw(instance->history->data);
     item->preset = malloc(sizeof(SubGhzRadioPreset));
     item->type = decoder_base->protocol->type;
+    item->auto_save_pending = false;
     item->preset->frequency = preset->frequency;
     item->preset->name = furi_string_alloc();
     furi_string_set(item->preset->name, preset->name);

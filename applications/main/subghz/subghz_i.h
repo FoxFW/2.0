@@ -10,6 +10,8 @@
 #include "subghz_protocol_filter.h"
 #include "subghz_modulation_filter.h"
 #include "views/subghz_view_start_grid.h"
+#include "views/subghz_view_garage_grid.h"
+#include "views/subghz_view_protocol_groups.h"
 #include "views/subghz_view_mode_picker.h"
 #include <gui/modules/loading.h>
 #include <gui/view_holder.h>
@@ -66,14 +68,6 @@ struct SubGhz {
     SceneManager* scene_manager;
     ViewDispatcher* view_dispatcher;
 
-    /* A standalone ViewPort (NOT managed by view_dispatcher) that paints
-     * solid black over the full screen, registered right before SubGHz
-     * exits to launch a sub-tool FAP. view_dispatcher_stop() fully tears
-     * down SubGHz's own GUI presence, briefly revealing the Desktop/Apps
-     * menu underneath before the next app's view attaches — this gives
-     * our OWN content something to show during that exact gap instead,
-     * since it's independent of the ViewDispatcher being torn down.
-     * Cleaned up in subghz_free(), right before the app's thread ends. */
     ViewPort* blank_transition_viewport;
 
     Submenu* submenu;
@@ -86,11 +80,6 @@ struct SubGhz {
     FuriString* file_path;
     FuriString* file_path_tmp;
 
-    /* Decoded-protocol "Send" preview: when a decoded file's Emulate
-     * action is triggered, the protocol is synthesized into a temporary
-     * RAW capture and played through the RAW player (waveform/bargraph,
-     * pause, seek). These track that state so the ORIGINAL file can be
-     * restored when the user backs out, and the temp file cleaned up. */
     bool        decoded_preview_active;
     FuriString* decoded_preview_orig_path;
     char file_name_tmp[SUBGHZ_MAX_LEN_NAME];
@@ -104,9 +93,10 @@ struct SubGhz {
     SubGhzProtocolFilter*         protocol_filter;
     SubGhzModulationFilter*        modulation_filter;
     SubGhzStartGrid*               start_grid;
+    SubGhzGarageGrid*              garage_grid;
+    SubGhzProtocolGroups*          garage_protocol_groups;
     SubGhzModePicker*              mode_picker;
-    /* Startup loading wheel — shown immediately on launch, removed
-     * when the start grid scene enters (hides apps menu + input). */
+
     Loading*                       startup_loading;
     ViewHolder*                    startup_holder;
     SubGhzReadRAW* subghz_read_raw;
@@ -138,7 +128,6 @@ struct SubGhz {
     uint8_t tx_power;
     void* rpc_ctx;
 
-    // KeeLoq key management
     SubGhzKeeloqKeysManager* keeloq_keys_manager;
     struct {
         uint8_t key_bytes[8];
@@ -179,7 +168,6 @@ bool subghz_save_protocol_to_file(
     FlipperFormat* flipper_format,
     const char* dev_file_name);
 void subghz_save_to_file(void* context);
-bool subghz_load_protocol_from_file(SubGhz* subghz);
 bool subghz_rename_file(SubGhz* subghz);
 bool subghz_file_available(SubGhz* subghz);
 bool subghz_delete_file(SubGhz* subghz);
@@ -197,3 +185,4 @@ SubGhzRxKeyState subghz_rx_key_state_get(SubGhz* subghz);
 extern const NotificationSequence subghz_sequence_rx;
 extern const NotificationSequence subghz_sequence_rx_locked;
 void subghz_save_all(SubGhz* subghz);
+void subghz_launch_garage_via_probe(SubGhz* subghz, const char* args);

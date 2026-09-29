@@ -40,46 +40,46 @@ static const MfClassicKeyPair troika_1k_keys[] = {
 };
 
 static const MfClassicKeyPair troika_4k_keys[] = {
-    {.a = 0xEC29806D9738, .b = 0xFBF225DC5D58}, //1
-    {.a = 0xA0A1A2A3A4A5, .b = 0x7DE02A7F6025}, //2
-    {.a = 0x2AA05ED1856F, .b = 0xEAAC88E5DC99}, //3
-    {.a = 0x2AA05ED1856F, .b = 0xEAAC88E5DC99}, //4
-    {.a = 0x73068F118C13, .b = 0x2B7F3253FAC5}, //5
-    {.a = 0xFBC2793D540B, .b = 0xD3A297DC2698}, //6
-    {.a = 0x2AA05ED1856F, .b = 0xEAAC88E5DC99}, //7
-    {.a = 0xAE3D65A3DAD4, .b = 0x0F1C63013DBA}, //8
-    {.a = 0xA73F5DC1D333, .b = 0xE35173494A81}, //9
-    {.a = 0x69A32F1C2F19, .b = 0x6B8BD9860763}, //10
-    {.a = 0x9BECDF3D9273, .b = 0xF8493407799D}, //11
-    {.a = 0x08B386463229, .b = 0x5EFBAECEF46B}, //12
-    {.a = 0xCD4C61C26E3D, .b = 0x31C7610DE3B0}, //13
-    {.a = 0xA82607B01C0D, .b = 0x2910989B6880}, //14
-    {.a = 0x0E8F64340BA4, .b = 0x4ACEC1205D75}, //15
-    {.a = 0x2AA05ED1856F, .b = 0xEAAC88E5DC99}, //16
-    {.a = 0x6B02733BB6EC, .b = 0x7038CD25C408}, //17
-    {.a = 0x403D706BA880, .b = 0xB39D19A280DF}, //18
-    {.a = 0xC11F4597EFB5, .b = 0x70D901648CB9}, //19
-    {.a = 0x0DB520C78C1C, .b = 0x73E5B9D9D3A4}, //20
-    {.a = 0x3EBCE0925B2F, .b = 0x372CC880F216}, //21
-    {.a = 0x16A27AF45407, .b = 0x9868925175BA}, //22
-    {.a = 0xABA208516740, .b = 0xCE26ECB95252}, //23
-    {.a = 0xCD64E567ABCD, .b = 0x8F79C4FD8A01}, //24
-    {.a = 0x764CD061F1E6, .b = 0xA74332F74994}, //25
-    {.a = 0x1CC219E9FEC1, .b = 0xB90DE525CEB6}, //26
-    {.a = 0x2FE3CB83EA43, .b = 0xFBA88F109B32}, //27
-    {.a = 0x07894FFEC1D6, .b = 0xEFCB0E689DB3}, //28
-    {.a = 0x04C297B91308, .b = 0xC8454C154CB5}, //29
-    {.a = 0x7A38E3511A38, .b = 0xAB16584C972A}, //30
-    {.a = 0x7545DF809202, .b = 0xECF751084A80}, //31
-    {.a = 0x5125974CD391, .b = 0xD3EAFB5DF46D}, //32
-    {.a = 0x7A86AA203788, .b = 0xE41242278CA2}, //33
-    {.a = 0xAFCEF64C9913, .b = 0x9DB96DCA4324}, //34
-    {.a = 0x04EAA462F70B, .b = 0xAC17B93E2FAE}, //35
-    {.a = 0xE734C210F27E, .b = 0x29BA8C3E9FDA}, //36
-    {.a = 0xD5524F591EED, .b = 0x5DAF42861B4D}, //37
-    {.a = 0xE4821A377B75, .b = 0xE8709E486465}, //38
-    {.a = 0x518DC6EEA089, .b = 0x97C64AC98CA4}, //39
-    {.a = 0xBB52F8CCE07F, .b = 0x6B6119752C70}, //40
+    {.a = 0xEC29806D9738, .b = 0xFBF225DC5D58},
+    {.a = 0xA0A1A2A3A4A5, .b = 0x7DE02A7F6025},
+    {.a = 0x2AA05ED1856F, .b = 0xEAAC88E5DC99},
+    {.a = 0x2AA05ED1856F, .b = 0xEAAC88E5DC99},
+    {.a = 0x73068F118C13, .b = 0x2B7F3253FAC5},
+    {.a = 0xFBC2793D540B, .b = 0xD3A297DC2698},
+    {.a = 0x2AA05ED1856F, .b = 0xEAAC88E5DC99},
+    {.a = 0xAE3D65A3DAD4, .b = 0x0F1C63013DBA},
+    {.a = 0xA73F5DC1D333, .b = 0xE35173494A81},
+    {.a = 0x69A32F1C2F19, .b = 0x6B8BD9860763},
+    {.a = 0x9BECDF3D9273, .b = 0xF8493407799D},
+    {.a = 0x08B386463229, .b = 0x5EFBAECEF46B},
+    {.a = 0xCD4C61C26E3D, .b = 0x31C7610DE3B0},
+    {.a = 0xA82607B01C0D, .b = 0x2910989B6880},
+    {.a = 0x0E8F64340BA4, .b = 0x4ACEC1205D75},
+    {.a = 0x2AA05ED1856F, .b = 0xEAAC88E5DC99},
+    {.a = 0x6B02733BB6EC, .b = 0x7038CD25C408},
+    {.a = 0x403D706BA880, .b = 0xB39D19A280DF},
+    {.a = 0xC11F4597EFB5, .b = 0x70D901648CB9},
+    {.a = 0x0DB520C78C1C, .b = 0x73E5B9D9D3A4},
+    {.a = 0x3EBCE0925B2F, .b = 0x372CC880F216},
+    {.a = 0x16A27AF45407, .b = 0x9868925175BA},
+    {.a = 0xABA208516740, .b = 0xCE26ECB95252},
+    {.a = 0xCD64E567ABCD, .b = 0x8F79C4FD8A01},
+    {.a = 0x764CD061F1E6, .b = 0xA74332F74994},
+    {.a = 0x1CC219E9FEC1, .b = 0xB90DE525CEB6},
+    {.a = 0x2FE3CB83EA43, .b = 0xFBA88F109B32},
+    {.a = 0x07894FFEC1D6, .b = 0xEFCB0E689DB3},
+    {.a = 0x04C297B91308, .b = 0xC8454C154CB5},
+    {.a = 0x7A38E3511A38, .b = 0xAB16584C972A},
+    {.a = 0x7545DF809202, .b = 0xECF751084A80},
+    {.a = 0x5125974CD391, .b = 0xD3EAFB5DF46D},
+    {.a = 0x7A86AA203788, .b = 0xE41242278CA2},
+    {.a = 0xAFCEF64C9913, .b = 0x9DB96DCA4324},
+    {.a = 0x04EAA462F70B, .b = 0xAC17B93E2FAE},
+    {.a = 0xE734C210F27E, .b = 0x29BA8C3E9FDA},
+    {.a = 0xD5524F591EED, .b = 0x5DAF42861B4D},
+    {.a = 0xE4821A377B75, .b = 0xE8709E486465},
+    {.a = 0x518DC6EEA089, .b = 0x97C64AC98CA4},
+    {.a = 0xBB52F8CCE07F, .b = 0x6B6119752C70},
 };
 
 static bool troika_get_card_config(TroikaCardConfig* config, MfClassicType type) {
@@ -89,7 +89,7 @@ static bool troika_get_card_config(TroikaCardConfig* config, MfClassicType type)
         config->data_sector = 11;
         config->keys = troika_1k_keys;
     } else if(type == MfClassicType4k) {
-        config->data_sector = 8; // Further testing needed
+        config->data_sector = 8;
         config->keys = troika_4k_keys;
     } else {
         success = false;
@@ -182,11 +182,10 @@ static bool troika_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // Verify card type
+
         TroikaCardConfig cfg = {};
         if(!troika_get_card_config(&cfg, data->type)) break;
 
-        // Verify key
         const MfClassicSectorTrailer* sec_tr =
             mf_classic_get_sector_trailer_by_sector(data, cfg.data_sector);
 
@@ -230,7 +229,6 @@ static bool troika_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin troika_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = troika_verify,
@@ -238,14 +236,12 @@ static const NfcSupportedCardsPlugin troika_plugin = {
     .parse = troika_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor troika_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &troika_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* troika_plugin_ep(void) {
     return &troika_plugin_descriptor;
 }

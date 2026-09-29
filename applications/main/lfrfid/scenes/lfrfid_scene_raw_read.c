@@ -29,7 +29,6 @@ void lfrfid_scene_raw_read_on_enter(void* context) {
     LfRfid* app = context;
     Popup* popup = app->popup;
 
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 0, &I_NFC_dolphin_emulation_51x64);
     popup_set_header(popup, "Reading ASK", 91, 16, AlignCenter, AlignTop);
     popup_set_text(popup, "Don't move\nfor 5 sec.", 91, 29, AlignCenter, AlignTop);
 
@@ -78,7 +77,6 @@ bool lfrfid_scene_raw_read_on_event(void* context, SceneManagerEvent event) {
         if(event.event == LfRfidEventReadError || event.event == LfRfidEventReadOverrun) {
             furi_timer_stop(state->timer);
 
-            // [NO_DOLPHIN] popup_set_icon(popup, 83, 22, &I_WarningDolphinFlip_45x42);
             popup_set_header(popup, "RAW Reading error!", 64, 0, AlignCenter, AlignTop);
             popup_set_text(
                 popup, "This may be\ncaused by SD\ncard issues", 0, 13, AlignLeft, AlignTop);

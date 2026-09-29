@@ -18,7 +18,6 @@
 #include <infrared_transmit.h>
 #include <xc_icons.h>
 
-#include <dolphin/dolphin.h>
 
 #include "../infrared/infrared_remote.h"
 

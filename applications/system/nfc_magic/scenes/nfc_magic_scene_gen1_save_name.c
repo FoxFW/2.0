@@ -55,7 +55,6 @@ bool nfc_magic_scene_gen1_save_name_on_event(void* context, SceneManagerEvent ev
 
             if(nfc_device_save(instance->source_dev, furi_string_get_cstr(instance->file_path))) {
                 scene_manager_next_scene(instance->scene_manager, NfcMagicSceneSuccess);
-                dolphin_deed(DolphinDeedNfcSave);
             } else {
                 consumed = scene_manager_search_and_switch_to_previous_scene(
                     instance->scene_manager, NfcMagicSceneStart);

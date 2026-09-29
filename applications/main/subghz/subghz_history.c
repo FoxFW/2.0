@@ -13,9 +13,10 @@ typedef struct {
     uint8_t type;
     SubGhzRadioPreset* preset;
     DateTime datetime;
+    bool auto_save_pending;
 } SubGhzHistoryItem;
 
-ARRAY_DEF(SubGhzHistoryItemArray, SubGhzHistoryItem, M_POD_OPLIST) //-V658
+ARRAY_DEF(SubGhzHistoryItemArray, SubGhzHistoryItem, M_POD_OPLIST)
 
 #define M_OPL_SubGhzHistoryItemArray_t() ARRAY_OPLIST(SubGhzHistoryItemArray, M_POD_OPLIST)
 
@@ -29,6 +30,8 @@ struct SubGhzHistory {
     uint8_t code_last_hash_data;
     FuriString* tmp_string;
     SubGhzHistoryStruct* history;
+
+    FuriMutex* mutex;
 };
 
 SubGhzHistory* subghz_history_alloc(void) {
@@ -36,6 +39,7 @@ SubGhzHistory* subghz_history_alloc(void) {
     instance->tmp_string = furi_string_alloc();
     instance->history = malloc(sizeof(SubGhzHistoryStruct));
     SubGhzHistoryItemArray_init(instance->history->data);
+    instance->mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     return instance;
 }
 
@@ -52,29 +56,40 @@ void subghz_history_free(SubGhzHistory* instance) {
         }
     SubGhzHistoryItemArray_clear(instance->history->data);
     free(instance->history);
+    furi_mutex_free(instance->mutex);
     free(instance);
 }
 
 uint32_t subghz_history_get_frequency(SubGhzHistory* instance, uint16_t idx) {
     furi_assert(instance);
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
-    return item->preset->frequency;
+    uint32_t frequency = item->preset->frequency;
+    furi_mutex_release(instance->mutex);
+    return frequency;
 }
 
 SubGhzRadioPreset* subghz_history_get_radio_preset(SubGhzHistory* instance, uint16_t idx) {
     furi_assert(instance);
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
-    return item->preset;
+    SubGhzRadioPreset* preset = item->preset;
+    furi_mutex_release(instance->mutex);
+    return preset;
 }
 
 const char* subghz_history_get_preset(SubGhzHistory* instance, uint16_t idx) {
     furi_assert(instance);
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
-    return furi_string_get_cstr(item->preset->name);
+    const char* name = furi_string_get_cstr(item->preset->name);
+    furi_mutex_release(instance->mutex);
+    return name;
 }
 
 void subghz_history_reset(SubGhzHistory* instance) {
     furi_assert(instance);
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     furi_string_reset(instance->tmp_string);
     for
         M_EACH(item, instance->history->data, SubGhzHistoryItemArray_t) {
@@ -87,11 +102,13 @@ void subghz_history_reset(SubGhzHistory* instance) {
     SubGhzHistoryItemArray_reset(instance->history->data);
     instance->last_index_write = 0;
     instance->code_last_hash_data = 0;
+    furi_mutex_release(instance->mutex);
 }
 
 void subghz_history_delete_item(SubGhzHistory* instance, uint16_t idx) {
     furi_assert(instance);
 
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     if(idx < SubGhzHistoryItemArray_size(instance->history->data)) {
         SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
         furi_string_free(item->item_str);
@@ -102,81 +119,130 @@ void subghz_history_delete_item(SubGhzHistory* instance, uint16_t idx) {
         SubGhzHistoryItemArray_remove_v(instance->history->data, idx, idx + 1);
         instance->last_index_write--;
     }
+    furi_mutex_release(instance->mutex);
 }
 
 uint16_t subghz_history_get_item(SubGhzHistory* instance) {
     furi_assert(instance);
-    return instance->last_index_write;
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
+    uint16_t last_index_write = instance->last_index_write;
+    furi_mutex_release(instance->mutex);
+    return last_index_write;
 }
 
 uint8_t subghz_history_get_type_protocol(SubGhzHistory* instance, uint16_t idx) {
     furi_assert(instance);
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
-    return item->type;
+    uint8_t type = item->type;
+    furi_mutex_release(instance->mutex);
+    return type;
 }
 
 const char* subghz_history_get_protocol_name(SubGhzHistory* instance, uint16_t idx) {
     furi_assert(instance);
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
     if(!item || !item->flipper_string) {
         FURI_LOG_E(TAG, "Missing Item");
         furi_string_reset(instance->tmp_string);
-        return furi_string_get_cstr(instance->tmp_string);
+        const char* name = furi_string_get_cstr(instance->tmp_string);
+        furi_mutex_release(instance->mutex);
+        return name;
     }
     flipper_format_rewind(item->flipper_string);
     if(!flipper_format_read_string(item->flipper_string, "Protocol", instance->tmp_string)) {
         FURI_LOG_E(TAG, "Missing Protocol");
         furi_string_reset(instance->tmp_string);
     }
-    return furi_string_get_cstr(instance->tmp_string);
+    const char* name = furi_string_get_cstr(instance->tmp_string);
+    furi_mutex_release(instance->mutex);
+    return name;
 }
 
 DateTime subghz_history_get_datetime(SubGhzHistory* instance, uint16_t idx) {
     furi_assert(instance);
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
-    if(item) {
-        return item->datetime;
-    } else {
-        return (DateTime){};
-    }
+    DateTime datetime = item ? item->datetime : (DateTime){};
+    furi_mutex_release(instance->mutex);
+    return datetime;
 }
 
 FlipperFormat* subghz_history_get_raw_data(SubGhzHistory* instance, uint16_t idx) {
     furi_assert(instance);
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
-    if(item->flipper_string) {
-        return item->flipper_string;
-    } else {
-        return NULL;
-    }
+    FlipperFormat* raw_data = item->flipper_string ? item->flipper_string : NULL;
+    furi_mutex_release(instance->mutex);
+    return raw_data;
 }
+
+void subghz_history_set_auto_save_pending(SubGhzHistory* instance, uint16_t idx, bool pending) {
+    furi_assert(instance);
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
+    if(idx < SubGhzHistoryItemArray_size(instance->history->data)) {
+        SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
+        item->auto_save_pending = pending;
+    }
+    furi_mutex_release(instance->mutex);
+}
+
+bool subghz_history_find_auto_save_pending(SubGhzHistory* instance, uint16_t* idx) {
+    furi_assert(instance);
+    furi_assert(idx);
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
+    bool found = false;
+    size_t size = SubGhzHistoryItemArray_size(instance->history->data);
+    for(size_t i = 0; i < size; i++) {
+        SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, i);
+        if(item->auto_save_pending) {
+            *idx = (uint16_t)i;
+            found = true;
+            break;
+        }
+    }
+    furi_mutex_release(instance->mutex);
+    return found;
+}
+
 bool subghz_history_get_text_space_left(SubGhzHistory* instance, FuriString* output) {
     furi_assert(instance);
     if(memmgr_get_free_heap() < SUBGHZ_HISTORY_FREE_HEAP) {
         if(output != NULL) furi_string_printf(output, "  RAM almost FULL");
         return true;
     }
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     if(instance->last_index_write == SUBGHZ_HISTORY_MAX) {
         if(output != NULL) furi_string_printf(output, "   Memory is FULL");
+        furi_mutex_release(instance->mutex);
         return true;
     }
     if(output != NULL)
         furi_string_printf(output, "%02u/%02u", instance->last_index_write, SUBGHZ_HISTORY_MAX);
+    furi_mutex_release(instance->mutex);
     return false;
 }
 
 uint16_t subghz_history_get_last_index(SubGhzHistory* instance) {
-    return instance->last_index_write;
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
+    uint16_t last_index_write = instance->last_index_write;
+    furi_mutex_release(instance->mutex);
+    return last_index_write;
 }
 void subghz_history_get_text_item_menu(SubGhzHistory* instance, FuriString* output, uint16_t idx) {
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
     furi_string_set(output, item->item_str);
+    furi_mutex_release(instance->mutex);
 }
 
 void subghz_history_get_time_item_menu(SubGhzHistory* instance, FuriString* output, uint16_t idx) {
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_get(instance->history->data, idx);
-    DateTime* t = &item->datetime;
-    furi_string_printf(output, "%.2d:%.2d:%.2d ", t->hour, t->minute, t->second);
+    DateTime t = item->datetime;
+    furi_mutex_release(instance->mutex);
+    furi_string_printf(output, "%.2d:%.2d:%.2d ", t.hour, t.minute, t.second);
 }
 
 bool subghz_history_add_to_history(
@@ -187,13 +253,20 @@ bool subghz_history_add_to_history(
     furi_assert(context);
 
     if(memmgr_get_free_heap() < SUBGHZ_HISTORY_FREE_HEAP) return false;
-    if(instance->last_index_write >= SUBGHZ_HISTORY_MAX) return false;
+
+    furi_mutex_acquire(instance->mutex, FuriWaitForever);
+
+    if(instance->last_index_write >= SUBGHZ_HISTORY_MAX) {
+        furi_mutex_release(instance->mutex);
+        return false;
+    }
 
     SubGhzProtocolDecoderBase* decoder_base = context;
     if((instance->code_last_hash_data ==
         subghz_protocol_decoder_base_get_hash_data(decoder_base)) &&
        ((furi_get_tick() - instance->last_update_timestamp) < 500)) {
         instance->last_update_timestamp = furi_get_tick();
+        furi_mutex_release(instance->mutex);
         return false;
     }
 
@@ -204,6 +277,7 @@ bool subghz_history_add_to_history(
     SubGhzHistoryItem* item = SubGhzHistoryItemArray_push_raw(instance->history->data);
     item->preset = malloc(sizeof(SubGhzRadioPreset));
     item->type = decoder_base->protocol->type;
+    item->auto_save_pending = false;
     item->preset->frequency = preset->frequency;
     item->preset->name = furi_string_alloc();
     furi_string_set(item->preset->name, preset->name);
@@ -225,8 +299,7 @@ bool subghz_history_add_to_history(
             break;
         }
         if(item->type == SubGhzProtocolTypeTpms) {
-            // TPMS protocols carry an "Id" (uint32) instead of a "Key" (uint64 hex).
-            // Format as "<Protocol> <hex-id>" and skip the generic Key path below.
+
             uint32_t id = 0;
             if(flipper_format_read_uint32(item->flipper_string, "Id", &id, 1)) {
                 furi_string_printf(
@@ -289,5 +362,6 @@ bool subghz_history_add_to_history(
 
     furi_string_free(text);
     instance->last_index_write++;
+    furi_mutex_release(instance->mutex);
     return true;
 }

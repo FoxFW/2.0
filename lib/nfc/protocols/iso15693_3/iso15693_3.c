@@ -98,11 +98,9 @@ static inline bool iso15693_3_load_security_legacy(Iso15693_3Data* data, Flipper
         if(!flipper_format_read_hex(ff, ISO15693_3_SECURITY_STATUS_KEY, legacy_data, value_count))
             break;
 
-        // First legacy data byte is lock bits
         data->settings.lock_bits.dsfid = legacy_data[0] & ISO15693_3_LOCK_DSFID_LEGACY;
         data->settings.lock_bits.afi = legacy_data[0] & ISO15693_3_LOCK_AFI_LEGACY;
 
-        // The rest are block security
         memcpy(
             &legacy_data[1],
             simple_array_get_data(data->block_security),
@@ -293,7 +291,7 @@ bool iso15693_3_is_equal(const Iso15693_3Data* data, const Iso15693_3Data* other
 
     return memcmp(data->uid, other->uid, ISO15693_3_UID_SIZE) == 0 &&
            memcmp(&data->settings, &other->settings, sizeof(Iso15693_3Settings)) == 0 &&
-           memcmp( //-V1103
+           memcmp(
                &data->system_info,
                &other->system_info,
                sizeof(Iso15693_3SystemInfo)) == 0 &&
@@ -323,7 +321,7 @@ bool iso15693_3_set_uid(Iso15693_3Data* data, const uint8_t* uid, size_t uid_len
 
     if(uid_valid) {
         memcpy(data->uid, uid, uid_len);
-        // All ISO15693-3 cards must have this as first UID byte
+
         data->uid[0] = 0xe0;
     }
 
@@ -339,7 +337,6 @@ bool iso15693_3_is_block_locked(const Iso15693_3Data* data, uint8_t block_index)
     furi_check(data);
     furi_check(block_index < data->system_info.block_count);
 
-    // TODO: make proper fix for this, old format had no Block Security Status in file
     if(simple_array_get_count(data->block_security) != 0) {
         return *(const uint8_t*)simple_array_cget(data->block_security, block_index);
     } else {

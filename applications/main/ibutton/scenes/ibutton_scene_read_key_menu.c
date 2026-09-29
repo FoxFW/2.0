@@ -1,5 +1,4 @@
 #include "../ibutton_i.h"
-#include <dolphin/dolphin.h>
 
 typedef enum {
     SubmenuIndexSave,
@@ -75,7 +74,6 @@ bool ibutton_scene_read_key_menu_on_event(void* context, SceneManagerEvent event
             scene_manager_next_scene(scene_manager, iButtonSceneSaveName);
         } else if(event.event == SubmenuIndexEmulate) {
             scene_manager_next_scene(scene_manager, iButtonSceneEmulate);
-            dolphin_deed(DolphinDeedIbuttonEmulate);
         } else if(event.event == SubmenuIndexViewData) {
             scene_manager_next_scene(scene_manager, iButtonSceneViewData);
         } else if(event.event == SubmenuIndexWriteId) {
@@ -88,7 +86,7 @@ bool ibutton_scene_read_key_menu_on_event(void* context, SceneManagerEvent event
     } else if(event.event == SceneManagerEventTypeBack) {
         scene_manager_set_scene_state(
             ibutton->scene_manager, iButtonSceneReadKeyMenu, SubmenuIndexSave);
-        // Event is not consumed
+
     }
 
     return consumed;

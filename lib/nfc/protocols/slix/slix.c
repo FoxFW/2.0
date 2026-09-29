@@ -142,7 +142,7 @@ void slix_copy(SlixData* data, const SlixData* other) {
 bool slix_verify(SlixData* data, const FuriString* device_type) {
     UNUSED(data);
     UNUSED(device_type);
-    // No backward compatibility, unified format only
+
     return false;
 }
 

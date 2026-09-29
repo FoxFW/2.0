@@ -60,10 +60,7 @@ void my_apps_open(App* app) {
                 char full[FOX_MYAPPS_PATH_MAX];
                 join_path(full, sizeof(full), cur, name);
                 if(info.flags & FSF_DIRECTORY) {
-                    // "assets" folders hold each app's bundled resource
-                    // files (icons, dictionaries, etc.), not installed
-                    // apps themselves, and aren't meant to be deleted on
-                    // their own - don't descend into them.
+
                     if(strcmp(name, "assets") != 0) {
                         if(dcount == dcap) {
                             dcap *= 2;

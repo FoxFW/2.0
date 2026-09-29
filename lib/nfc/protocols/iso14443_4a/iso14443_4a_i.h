@@ -5,7 +5,6 @@
 #define ISO14443_4A_CMD_READ_ATS      (0xE0)
 #define ISO14443_4A_READ_ATS_CID_MASK (0x0F)
 
-// ATS bit definitions
 #define ISO14443_4A_ATS_T0_TA1 (1U << 4)
 #define ISO14443_4A_ATS_T0_TB1 (1U << 5)
 #define ISO14443_4A_ATS_T0_TC1 (1U << 6)

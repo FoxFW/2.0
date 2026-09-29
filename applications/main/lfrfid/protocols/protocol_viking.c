@@ -46,20 +46,18 @@ uint8_t* protocol_viking_get_data(ProtocolViking* protocol) {
 }
 
 static void protocol_viking_decode(ProtocolViking* protocol) {
-    // Copy Card ID
+
     bit_lib_copy_bits(protocol->data, 0, 32, protocol->encoded_data, 24);
 }
 
 static bool protocol_viking_can_be_decoded(ProtocolViking* protocol) {
-    // check 24 bits preamble
+
     if(bit_lib_get_bits_16(protocol->encoded_data, 0, 16) != 0b1111001000000000) return false;
     if(bit_lib_get_bits(protocol->encoded_data, 16, 8) != 0b00000000) return false;
 
-    // check next 24 bits preamble
     if(bit_lib_get_bits_16(protocol->encoded_data, 64, 16) != 0b1111001000000000) return false;
     if(bit_lib_get_bits(protocol->encoded_data, 80, 8) != 0b00000000) return false;
 
-    // Checksum
     uint32_t checksum = bit_lib_get_bits(protocol->encoded_data, 0, 8) ^
                         bit_lib_get_bits(protocol->encoded_data, 8, 8) ^
                         bit_lib_get_bits(protocol->encoded_data, 16, 8) ^
@@ -120,15 +118,13 @@ bool protocol_viking_decoder_feed(ProtocolViking* protocol, bool level, uint32_t
 }
 
 bool protocol_viking_encoder_start(ProtocolViking* protocol) {
-    // Preamble
+
     bit_lib_set_bits(protocol->encoded_data, 0, 0b11110010, 8);
     bit_lib_set_bits(protocol->encoded_data, 8, 0b00000000, 8);
     bit_lib_set_bits(protocol->encoded_data, 16, 0b00000000, 8);
 
-    // Card Id
     bit_lib_copy_bits(protocol->encoded_data, 24, 32, protocol->data, 0);
 
-    // Checksum
     uint32_t id = bit_lib_get_bits_32(protocol->data, 0, 32);
     uint8_t checksum = ((id >> 24) & 0xFF) ^ ((id >> 16) & 0xFF) ^ ((id >> 8) & 0xFF) ^
                        (id & 0xFF) ^ 0xF2 ^ 0xA8;
@@ -157,7 +153,6 @@ bool protocol_viking_write_data(ProtocolViking* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_viking_encoder_start(protocol);
     protocol_viking_decode(protocol);
 

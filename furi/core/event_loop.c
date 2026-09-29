@@ -9,10 +9,6 @@
 
 #define TAG "FuriEventLoop"
 
-/*
- * Private functions
- */
-
 static FuriEventLoopItem* furi_event_loop_item_alloc(
     FuriEventLoop* owner,
     const FuriEventLoopContract* contract,
@@ -41,15 +37,11 @@ static bool furi_event_loop_signal_callback(uint32_t signal, void* arg, void* co
     case FuriSignalExit:
         furi_event_loop_stop(instance);
         return true;
-    // Room for possible other standard signal handlers
+
     default:
         return false;
     }
 }
-
-/*
- * Main public API
- */
 
 FuriEventLoop* furi_event_loop_alloc(void) {
     FuriEventLoop* instance = malloc(sizeof(FuriEventLoop));
@@ -62,7 +54,6 @@ FuriEventLoop* furi_event_loop_alloc(void) {
     TimerQueue_init(instance->timer_queue);
     PendingQueue_init(instance->pending_queue);
 
-    // Clear notification state and value
     TaskHandle_t task = (TaskHandle_t)instance->thread_id;
     xTaskNotifyStateClearIndexed(task, FURI_EVENT_LOOP_FLAG_NOTIFY_INDEX);
     ulTaskNotifyValueClearIndexed(task, FURI_EVENT_LOOP_FLAG_NOTIFY_INDEX, 0xFFFFFFFF);
@@ -176,12 +167,12 @@ static void furi_event_loop_process_waiting_list(FuriEventLoop* instance) {
     FuriEventLoopProcessStatus status = furi_event_loop_process_event(instance, item);
 
     if(status == FuriEventLoopProcessStatusComplete) {
-        // Event processing complete, do nothing
+
     } else if(status == FuriEventLoopProcessStatusIncomplete) {
-        // Event processing incomplete, put item back in waiting list
+
         furi_event_loop_item_notify(item);
-    } else if(status == FuriEventLoopProcessStatusFreeLater) { //-V547
-        // Unsubscribed from inside the callback, delete item
+    } else if(status == FuriEventLoopProcessStatusFreeLater) {
+
         furi_event_loop_item_free(item);
     } else {
         furi_crash();
@@ -210,7 +201,6 @@ void furi_event_loop_run(FuriEventLoop* instance) {
     furi_check(instance->thread_id == furi_thread_get_current_id());
     FuriThread* thread = furi_thread_get_current();
 
-    // Set the default signal callback if none was previously set
     if(furi_thread_get_signal_callback(thread) == NULL) {
         furi_thread_set_signal_callback(thread, furi_event_loop_signal_callback, instance);
     }
@@ -257,7 +247,6 @@ void furi_event_loop_run(FuriEventLoop* instance) {
         }
     }
 
-    // Disable the default signal callback
     if(furi_thread_get_signal_callback(thread) == furi_event_loop_signal_callback) {
         furi_thread_set_signal_callback(thread, NULL, NULL);
     }
@@ -287,10 +276,6 @@ void furi_event_loop_stop(FuriEventLoop* instance) {
     furi_event_loop_notify(instance, FuriEventLoopFlagStop);
 }
 
-/*
- * Public deferred function call API
- */
-
 void furi_event_loop_pend_callback(
     FuriEventLoop* instance,
     FuriEventLoopPendingCallback callback,
@@ -309,10 +294,6 @@ void furi_event_loop_pend_callback(
     furi_event_loop_notify(instance, FuriEventLoopFlagPending);
 }
 
-/*
- * Private generic susbscription API
- */
-
 static void furi_event_loop_object_subscribe(
     FuriEventLoop* instance,
     FuriEventLoopObject* object,
@@ -330,7 +311,6 @@ static void furi_event_loop_object_subscribe(
 
     furi_check(FuriEventLoopTree_get(instance->tree, object) == NULL);
 
-    // Allocate and setup item
     FuriEventLoopItem* item = furi_event_loop_item_alloc(instance, contract, object, event);
     furi_event_loop_item_set_callback(item, callback, context);
 
@@ -357,10 +337,6 @@ static void furi_event_loop_object_subscribe(
 
     FURI_CRITICAL_EXIT();
 }
-
-/**
- * Public specialized subscription API
- */
 
 void furi_event_loop_subscribe_event_flag(
     FuriEventLoop* instance,
@@ -439,10 +415,6 @@ void furi_event_loop_unsubscribe_thread_flags(FuriEventLoop* instance) {
     instance->are_thread_flags_subscribed = false;
 }
 
-/**
- * Public generic unsubscription API
- */
-
 void furi_event_loop_unsubscribe(FuriEventLoop* instance, FuriEventLoopObject* object) {
     furi_check(instance);
     furi_check(instance->thread_id == furi_thread_get_current_id());
@@ -492,10 +464,6 @@ bool furi_event_loop_is_subscribed(FuriEventLoop* instance, FuriEventLoopObject*
     FURI_CRITICAL_EXIT();
     return result;
 }
-
-/* 
- * Private Event Loop Item functions
- */
 
 static FuriEventLoopItem* furi_event_loop_item_alloc(
     FuriEventLoop* owner,
@@ -579,10 +547,6 @@ void furi_event_loop_thread_flag_callback(FuriThreadId thread_id) {
             hTask, FURI_EVENT_LOOP_FLAG_NOTIFY_INDEX, FuriEventLoopFlagThreadFlag, eSetBits);
     }
 }
-
-/*
- * Internal event loop link API, used by supported primitives
- */
 
 void furi_event_loop_link_notify(FuriEventLoopLink* instance, FuriEventLoopEvent event) {
     furi_assert(instance);

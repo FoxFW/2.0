@@ -300,12 +300,4 @@ const NfcCliActionDescriptor apdu_action = {
 
 const NfcCliActionDescriptor* apdu_actions_collection[] = {&apdu_action};
 
-//Command descriptor
 ADD_NFC_CLI_COMMAND(apdu, "", apdu_actions_collection);
-
-//Command usage: apdu <protocol> <data>
-//Command examples:
-//apdu -d 00a404000e325041592e5359532e444446303100 00A4040008A000000333010102
-//apdu -p 4a -d 00a404000e325041592e5359532e444446303100 00A4040008A000000333010102
-//apdu -p 4b -d 00a404000e325041592e5359532e444446303100 00A4040008A000000333010102
-//apdu -p 15 -d 00a404000e325041592e5359532e444446303100 00A4040008A000000333010102

@@ -15,9 +15,9 @@ static bool lfrfid_search_data(Storage* storage, uint16_t country_code, FuriStri
     FuriString* temp_str = furi_string_alloc();
 
     do {
-        // Open file
+
         if(!flipper_format_file_open_existing(file, RESOURCE_FILE_PATH)) break;
-        // Read file header and version
+
         uint32_t version = 0;
         if(!flipper_format_read_header(file, temp_str, &version)) break;
         if(furi_string_cmp_str(temp_str, lfrfid_resources_header) ||
@@ -39,7 +39,7 @@ static bool lfrfid_search_data(Storage* storage, uint16_t country_code, FuriStri
 }
 
 bool iso_3166_get_two_letter(Storage* storage, uint16_t country_code, FuriString* out_two_letter) {
-    // We'll fetch the entire line from iso3166.lfrfid
+
     FuriString* line = furi_string_alloc();
     bool found = lfrfid_search_data(storage, country_code, line);
 
@@ -47,10 +47,10 @@ bool iso_3166_get_two_letter(Storage* storage, uint16_t country_code, FuriString
         if(furi_string_size(line) < 2) {
             furi_string_free(line);
             FURI_LOG_E("Lfrifd:Iso_3166", "Not enough data for two-letter code");
-            return false; // Not enough data for a two-letter code
+            return false;
         }
-        // AFAFGAfghanistan
-        furi_string_left(line, 2); // AF
+
+        furi_string_left(line, 2);
         furi_string_set(out_two_letter, line);
     }
     furi_string_free(line);
@@ -68,11 +68,11 @@ bool iso_3166_get_three_letter(
         if(furi_string_size(line) < 5) {
             furi_string_free(line);
             FURI_LOG_E("Lfrifd:Iso_3166", "Not enough data for three-letter code");
-            return false; // Not enough data for a three-letter code
+            return false;
         }
-        // AFAFGAfghanistan
-        furi_string_left(line, 5); // AFAFG
-        furi_string_right(line, 2); // AFG
+
+        furi_string_left(line, 5);
+        furi_string_right(line, 2);
         furi_string_set(out_three_letter, line);
     }
     furi_string_free(line);
@@ -87,10 +87,10 @@ bool iso_3166_get_full_name(Storage* storage, uint16_t country_code, FuriString*
         if(furi_string_size(line) < 6) {
             furi_string_free(line);
             FURI_LOG_E("Lfrifd:Iso_3166", "Not enough data for full name");
-            return false; // Not enough data for a full name
+            return false;
         }
-        // AFAFGAfghanistan
-        furi_string_right(line, 5); // Afghanistan
+
+        furi_string_right(line, 5);
         furi_string_set(out_full_name, line);
     }
     furi_string_free(line);

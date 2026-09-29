@@ -41,7 +41,7 @@ uint8_t tpms_scene_receiver_config_next_preset(const char* preset_name, void* co
             index = i;
             break;
         } else {
-            //  index = subghz_setting_get_frequency_default_index(app ->setting);
+
         }
     }
     return index;

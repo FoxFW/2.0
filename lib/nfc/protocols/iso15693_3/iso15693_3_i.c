@@ -4,7 +4,7 @@ bool iso15693_3_error_response_parse(Iso15693_3Error* error, const BitBuffer* bu
     furi_assert(error);
 
     if(bit_buffer_get_size_bytes(buf) == 0) {
-        // YEET!
+
         *error = Iso15693_3ErrorBufferEmpty;
         return true;
     }
@@ -17,16 +17,16 @@ bool iso15693_3_error_response_parse(Iso15693_3Error* error, const BitBuffer* bu
     const ErrorResponseLayout* resp = (const ErrorResponseLayout*)bit_buffer_get_data(buf);
 
     if((resp->flags & ISO15693_3_RESP_FLAG_ERROR) == 0) {
-        // No error flag is set, the data does not contain an error frame
+
         return false;
     } else if(bit_buffer_get_size_bytes(buf) < sizeof(ErrorResponseLayout)) {
-        // Error bit is set, but not enough data to determine the error
+
         *error = Iso15693_3ErrorUnexpectedResponse;
         return true;
     } else if(
         resp->error >= ISO15693_3_RESP_ERROR_CUSTOM_START &&
         resp->error <= ISO15693_3_RESP_ERROR_CUSTOM_END) {
-        // Custom vendor-specific error, must be checked in the respective protocol implementation
+
         *error = Iso15693_3ErrorCustom;
         return true;
     }
@@ -75,7 +75,7 @@ Iso15693_3Error iso15693_3_inventory_response_parse(uint8_t* data, const BitBuff
 
         const InventoryResponseLayout* resp =
             (const InventoryResponseLayout*)bit_buffer_get_data(buf);
-        // Reverse UID for backward compatibility
+
         for(uint32_t i = 0; i < ISO15693_3_UID_SIZE; ++i) {
             data[i] = resp->uid[ISO15693_3_UID_SIZE - i - 1];
         }
@@ -131,7 +131,7 @@ Iso15693_3Error
         }
 
         if(data->flags & ISO15693_3_SYSINFO_FLAG_MEMORY) {
-            // Add 1 to get actual values
+
             data->block_count = *extra++ + 1;
             data->block_size = (*extra++ & 0x1F) + 1;
         }
@@ -213,7 +213,7 @@ Iso15693_3Error iso15693_3_get_block_security_response_parse(
 
 void iso15693_3_append_uid(const Iso15693_3Data* data, BitBuffer* buf) {
     for(size_t i = 0; i < ISO15693_3_UID_SIZE; ++i) {
-        // Reverse the UID
+
         bit_buffer_append_byte(buf, data->uid[ISO15693_3_UID_SIZE - i - 1]);
     }
 }

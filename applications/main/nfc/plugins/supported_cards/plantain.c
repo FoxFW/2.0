@@ -208,11 +208,10 @@ static bool plantain_parse(const NfcDevice* device, FuriString* parsed_data) {
     bool parsed = false;
 
     do {
-        // Verify card type
+
         PlantainCardConfig cfg = {};
         if(!plantain_get_card_config(&cfg, data->type)) break;
 
-        // Verify key
         const MfClassicSectorTrailer* sec_tr =
             mf_classic_get_sector_trailer_by_sector(data, cfg.data_sector);
 
@@ -224,7 +223,6 @@ static bool plantain_parse(const NfcDevice* device, FuriString* parsed_data) {
 
         const uint8_t* temp_ptr = &uid[0];
 
-        // UID is read from last to first byte
         uint8_t card_number_tmp[uid_len];
 
         if(uid_len == 4) {
@@ -238,13 +236,12 @@ static bool plantain_parse(const NfcDevice* device, FuriString* parsed_data) {
         } else {
             break;
         }
-        //UID is converted to a card number
+
         uint64_t card_number = 0;
         for(size_t i = 0; i < uid_len; i++) {
             card_number = (card_number << 8) | card_number_tmp[i];
         }
 
-        // Print card number with 4-digit groups. "3" in "3078" denotes a ticket type "3 - full ticket", will differ on discounted cards.
         furi_string_cat_printf(parsed_data, "Number: ");
         FuriString* card_number_s = furi_string_alloc();
         furi_string_cat_printf(card_number_s, "%lld", card_number);
@@ -256,20 +253,19 @@ static bool plantain_parse(const NfcDevice* device, FuriString* parsed_data) {
             furi_string_push_back(tmp_s, ' ');
         }
         furi_string_cat_printf(parsed_data, "%s\n", furi_string_get_cstr(tmp_s));
-        // this works for 2K Plantain
+
         if(data->type == MfClassicType1k) {
-            //balance
+
             uint32_t balance = 0;
             for(uint8_t i = 0; i < 4; i++) {
                 balance = (balance << 8) | data->block[16].data[3 - i];
             }
             furi_string_cat_printf(parsed_data, "Balance: %ld rub\n", balance / 100);
 
-            //trips
             uint8_t trips_metro = data->block[21].data[0];
             uint8_t trips_ground = data->block[21].data[1];
             furi_string_cat_printf(parsed_data, "Trips: %d\n", trips_metro + trips_ground);
-            //trip time
+
             uint32_t last_trip_timestamp = 0;
             for(uint8_t i = 0; i < 3; i++) {
                 last_trip_timestamp = (last_trip_timestamp << 8) | data->block[21].data[4 - i];
@@ -284,17 +280,17 @@ static bool plantain_parse(const NfcDevice* device, FuriString* parsed_data) {
                 last_trip.year,
                 last_trip.hour,
                 last_trip.minute);
-            //validator
+
             uint16_t validator = (data->block[20].data[5] << 8) | data->block[20].data[4];
             furi_string_cat_printf(parsed_data, "Validator: %d\n", validator);
-            //tariff
+
             uint16_t fare = (data->block[20].data[7] << 8) | data->block[20].data[6];
             furi_string_cat_printf(parsed_data, "Tariff: %d rub\n", fare / 100);
-            //trips in metro
+
             furi_string_cat_printf(parsed_data, "Trips (Metro): %d\n", trips_metro);
-            //trips on ground
+
             furi_string_cat_printf(parsed_data, "Trips (Ground): %d\n", trips_ground);
-            //last payment
+
             uint32_t last_payment_timestamp = 0;
             for(uint8_t i = 0; i < 3; i++) {
                 last_payment_timestamp = (last_payment_timestamp << 8) |
@@ -310,27 +306,26 @@ static bool plantain_parse(const NfcDevice* device, FuriString* parsed_data) {
                 last_payment_date.year,
                 last_payment_date.hour,
                 last_payment_date.minute);
-            //Last payment amount.
+
             uint16_t last_payment = ((data->block[18].data[10] << 16) |
                                      (data->block[18].data[9] << 8) | (data->block[18].data[8])) /
                                     100;
             furi_string_cat_printf(parsed_data, "Amount: %d rub", last_payment);
             furi_string_free(card_number_s);
             furi_string_free(tmp_s);
-            //This is for 4K Plantains.
+
         } else if(data->type == MfClassicType4k) {
-            //balance
+
             uint32_t balance = 0;
             for(uint8_t i = 0; i < 4; i++) {
                 balance = (balance << 8) | data->block[16].data[3 - i];
             }
             furi_string_cat_printf(parsed_data, "Balance: %ld rub\n", balance / 100);
 
-            //trips
             uint8_t trips_metro = data->block[21].data[0];
             uint8_t trips_ground = data->block[21].data[1];
             furi_string_cat_printf(parsed_data, "Trips: %d\n", trips_metro + trips_ground);
-            //trip time
+
             uint32_t last_trip_timestamp = 0;
             for(uint8_t i = 0; i < 3; i++) {
                 last_trip_timestamp = (last_trip_timestamp << 8) | data->block[21].data[4 - i];
@@ -345,17 +340,17 @@ static bool plantain_parse(const NfcDevice* device, FuriString* parsed_data) {
                 last_trip.year,
                 last_trip.hour,
                 last_trip.minute);
-            //validator
+
             uint16_t validator = (data->block[20].data[5] << 8) | data->block[20].data[4];
             furi_string_cat_printf(parsed_data, "Validator: %d\n", validator);
-            //tariff
+
             uint16_t fare = (data->block[20].data[7] << 8) | data->block[20].data[6];
             furi_string_cat_printf(parsed_data, "Tariff: %d rub\n", fare / 100);
-            //trips in metro
+
             furi_string_cat_printf(parsed_data, "Trips (Metro): %d\n", trips_metro);
-            //trips on ground
+
             furi_string_cat_printf(parsed_data, "Trips (Ground): %d\n", trips_ground);
-            //last payment
+
             uint32_t last_payment_timestamp = 0;
             for(uint8_t i = 0; i < 3; i++) {
                 last_payment_timestamp = (last_payment_timestamp << 8) |
@@ -371,7 +366,7 @@ static bool plantain_parse(const NfcDevice* device, FuriString* parsed_data) {
                 last_payment_date.year,
                 last_payment_date.hour,
                 last_payment_date.minute);
-            //Last payment amount
+
             uint16_t last_payment = ((data->block[18].data[10] << 16) |
                                      (data->block[18].data[9] << 8) | (data->block[18].data[8])) /
                                     100;
@@ -385,7 +380,6 @@ static bool plantain_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin plantain_plugin = {
     .protocol = NfcProtocolMfClassic,
     .verify = plantain_verify,
@@ -393,14 +387,12 @@ static const NfcSupportedCardsPlugin plantain_plugin = {
     .parse = plantain_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor plantain_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &plantain_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* plantain_plugin_ep(void) {
     return &plantain_plugin_descriptor;
 }

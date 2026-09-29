@@ -1,8 +1,3 @@
-/**
- * @file view_i.h
- * GUI: internal View API
- */
-
 #pragma once
 
 #include "view.h"
@@ -31,29 +26,20 @@ struct View {
     void* context;
 };
 
-/** Initialize View (for internal use) */
 void view_init(View* view);
 
-/** IconAnimation tie callback */
 void view_icon_animation_callback(IconAnimation* instance, void* context);
 
-/** Unlock model */
 void view_unlock_model(View* view);
 
-/** Draw Callback for View dispatcher */
 void view_draw(View* view, Canvas* canvas);
 
-/** Input Callback for View dispatcher */
 bool view_input(View* view, InputEvent* event);
 
-/** Custom Callback for View dispatcher */
 bool view_custom(View* view, uint32_t event);
 
-/** Previous Callback for View dispatcher */
 uint32_t view_previous(View* view);
 
-/** Enter Callback for View dispatcher */
 void view_enter(View* view);
 
-/** Exit Callback for View dispatcher */
 void view_exit(View* view);

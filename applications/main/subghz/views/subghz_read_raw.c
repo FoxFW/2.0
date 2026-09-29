@@ -13,13 +13,10 @@
 #define SEEK_STEP_PCT 5u
 
 #define REVEAL_TIMER_MS      15u
-#define REVEAL_COLS_PER_TICK 4u   /* ~100/4 * 15ms ≈ 375ms total reveal time */
+#define REVEAL_COLS_PER_TICK 4u
 
-/* MUST match the scene tick in subghz.c (view_dispatcher_set_tick_event_callback(..., 100)).
- * Converts total playback duration into a tick count for the position cursor. */
-#define SCENE_TICK_PERIOD_US 100000u /* 100ms */
+#define SCENE_TICK_PERIOD_US 100000u
 
-/* Zoom levels: window span as % of full file, narrowing ~2/3 per step. */
 #define ZOOM_LEVEL_COUNT 5u
 
 struct SubGhzReadRAW {
@@ -40,7 +37,7 @@ typedef struct {
     uint8_t     ind_write;
     SubGhzReadRAWStatus    status;
     bool        raw_send_only;
-    bool        allow_new;      /* show "New" only after record+save, not when loading an existing file */
+    bool        allow_new;
     float       raw_threshold_rssi;
     bool        not_showing_samples;
     SubGhzRadioDeviceType device_type;
@@ -53,13 +50,11 @@ typedef struct {
     uint8_t  play_pct;
     uint8_t  seek_pct;
     uint32_t tx_tick;
-    uint32_t tx_total_ticks;    /* derived from REAL duration, not pulse count */
-    uint8_t  zoom_level;        /* 0 = fully zoomed out */
-    uint32_t recording_ticks;  /* incremented every scene tick while in REC state */
-    uint8_t  start_countdown_sec; /* auto-start countdown shown on the Start screen */
+    uint32_t tx_total_ticks;
+    uint8_t  zoom_level;
+    uint32_t recording_ticks;
+    uint8_t  start_countdown_sec;
 } SubGhzReadRAWModel;
-
-/*  Public setters                                                            */
 
 void subghz_read_raw_set_callback(
     SubGhzReadRAW* instance,
@@ -185,22 +180,16 @@ void subghz_read_raw_stop_send(SubGhzReadRAW* instance) {
         {
             switch(model->status) {
             case SubGhzReadRAWStatusTXRepeat:
-                /* Legacy unsaved-quick-send path only — file playback never
-                 * enters TXRepeat anymore (Hold-OK-repeat was removed). */
+
                 instance->callback(SubGhzCustomEventViewReadRAWSendStart, instance->context);
                 break;
             case SubGhzReadRAWStatusTX:
                 model->status = SubGhzReadRAWStatusIDLE;
                 break;
             case SubGhzReadRAWStatusLoadKeyTX:
-            case SubGhzReadRAWStatusLoadKeyTXRepeat: /* dead state, kept for enum compat */
+            case SubGhzReadRAWStatusLoadKeyTXRepeat:
             case SubGhzReadRAWStatusLoadKeyTXPaused:
-                /* Playback finished naturally (or was stopped) — return to
-                 * the idle screen so OK can start it again. No more
-                 * auto-repeat; that gesture was unreliable (a long-press
-                 * can't be distinguished from a short-press until the
-                 * short-press action has already fired) and the user
-                 * doesn't want it. */
+
                 model->status   = SubGhzReadRAWStatusLoadKeyIDLE;
                 model->play_pct = 0;
                 model->tx_tick  = 0;
@@ -256,13 +245,6 @@ uint8_t subghz_read_raw_get_seek_pct(SubGhzReadRAW* instance) {
     return p;
 }
 
-/**
- * Returns true once active playback has run at least GRACE_TICKS past its
- * expected completion time. Used as a defensive backup: the underlying TX
- * worker is supposed to fire a natural "end of file" callback, but if for
- * any reason that doesn't happen, the scene can use this to force a clean
- * stop instead of leaving playback stuck at 100% indefinitely.
- */
 bool subghz_read_raw_is_playback_overdue(SubGhzReadRAW* instance) {
     furi_assert(instance);
     bool overdue = false;
@@ -271,7 +253,7 @@ bool subghz_read_raw_is_playback_overdue(SubGhzReadRAW* instance) {
         SubGhzReadRAWModel * model,
         {
             if(model->status == SubGhzReadRAWStatusLoadKeyTX) {
-                const uint32_t GRACE_TICKS = 3; /* ~300ms past expected end */
+                const uint32_t GRACE_TICKS = 3;
                 overdue = model->tx_tick >= (model->tx_total_ticks + GRACE_TICKS);
             }
         },
@@ -324,12 +306,6 @@ void subghz_read_raw_set_envelope(
             model->seek_pct       = 0;
             model->tx_tick        = 0;
 
-            /* ── THE FIX: derive tick count from REAL duration, not pulse
-             * count. Pulse count has no fixed relationship to playback
-             * time (a dense burst with many short pulses and a sparse one
-             * with few long pulses can have wildly different durations
-             * for the same pulse count) — using it made the cursor crawl
-             * at a speed completely unrelated to actual playback. ── */
             uint32_t ticks = total_duration_us / SCENE_TICK_PERIOD_US;
             model->tx_total_ticks = (ticks > 0) ? ticks : 1;
         },
@@ -353,9 +329,7 @@ void subghz_read_raw_tick_tx(SubGhzReadRAW* instance) {
                 }
             } else if(model->status == SubGhzReadRAWStatusTX ||
                       model->status == SubGhzReadRAWStatusTXRepeat) {
-                /* Quick-send (no saved file): use recording_ticks as the
-                 * total duration reference so the cursor tracks approximately
-                 * how far through the replay we are. */
+
                 model->tx_tick++;
                 uint32_t total = model->recording_ticks > 0 ? model->recording_ticks : 1;
                 uint32_t pct   = (model->tx_tick * 100) / total;
@@ -365,11 +339,9 @@ void subghz_read_raw_tick_tx(SubGhzReadRAW* instance) {
         true);
 }
 
-/*  Draw helpers — recording-phase RSSI history (unchanged from original)    */
-
 static void subghz_read_raw_draw_scale(Canvas* canvas, SubGhzReadRAWModel* model) {
 #define SUBGHZ_RAW_TOP_SCALE 15
-#define SUBGHZ_RAW_END_SCALE 112  /* keep ticks inside right frame border at x=115 */
+#define SUBGHZ_RAW_END_SCALE 112
     if(!model->rssi_history_end) {
         for(int i = SUBGHZ_RAW_END_SCALE; i > 0; i -= 15) {
             canvas_draw_line(canvas, i, SUBGHZ_RAW_TOP_SCALE, i, SUBGHZ_RAW_TOP_SCALE + 4);
@@ -389,32 +361,21 @@ static void subghz_read_raw_draw_scale(Canvas* canvas, SubGhzReadRAWModel* model
 
 static void subghz_read_raw_draw_rssi(Canvas* canvas, SubGhzReadRAWModel* model) {
     uint8_t width = 2;
-    /* 85% of the 113px usable frame width = ~96px marker position */
-    const uint8_t MARKER_X = 85; /* stop before timer text which can start at ~x=89 */
 
-    /* Flat baseline — always visible even with no signal */
+    const uint8_t MARKER_X = 85;
+
     canvas_draw_line(canvas, 1, 47, 114, 47);
 
     uint32_t iw = model->ind_write;
     bool wrapped = model->rssi_history_end;
 
-    /* Compute screen position of the marker and draw the waveform.
-     *
-     * Phase 1 (!wrapped && iw < MARKER_X):
-     *   Bars fill left→right.  Marker moves with iw.
-     *
-     * Phase 2 (!wrapped && iw >= MARKER_X) OR (wrapped):
-     *   Marker stays at MARKER_X.  Waveform scrolls: screen_x maps to
-     *   history[(iw - MARKER_X + screen_x) % SIZE] so older samples
-     *   slide left as new ones arrive on the right. */
-
     if(!wrapped && iw < MARKER_X) {
-        /* Phase 1 — filling */
+
         for(uint32_t i = 0; i <= iw; i++)
             canvas_draw_line(canvas, (uint8_t)i, 47,
                              (uint8_t)i, 47 - model->rssi_history[i]);
     } else {
-        /* Phase 2 / wrapped — scrolling */
+
         uint32_t base_idx = wrapped
             ? (iw + SUBGHZ_READ_RAW_RSSI_HISTORY_SIZE - MARKER_X)
             : (iw - MARKER_X);
@@ -426,9 +387,6 @@ static void subghz_read_raw_draw_rssi(Canvas* canvas, SubGhzReadRAWModel* model)
         }
     }
 
-    /* Marker position: during TX (quick-send replay) use play_pct to drive
-     * the cursor from left to right.  In all other states keep the original
-     * behavior (marks the live write head / end of recording).             */
     uint8_t px;
     if(model->status == SubGhzReadRAWStatusTX ||
        model->status == SubGhzReadRAWStatusTXRepeat) {
@@ -440,18 +398,18 @@ static void subghz_read_raw_draw_rssi(Canvas* canvas, SubGhzReadRAWModel* model)
     canvas_set_color(canvas, ColorWhite);
     canvas_draw_line(canvas, px, 15, px, 47);
     canvas_set_color(canvas, ColorBlack);
-    /* Current RSSI bar at marker */
+
     canvas_draw_line(canvas, px, 47, px, 47 - model->rssi_current);
-    /* Dotted vertical line */
+
     for(uint8_t i = 15; i < 47; i += width * 2)
         canvas_draw_line(canvas, px, i, px, i + width);
-    /* Arrowhead pointing down at top */
+
     canvas_draw_line(canvas, px - 2, 13, px + 2, 13);
     canvas_draw_line(canvas, px - 1, 14, px + 1, 14);
 }
 
 static void subghz_read_raw_draw_threshold_rssi(Canvas* canvas, SubGhzReadRAWModel* model) {
-    uint8_t x = 114; /* right edge of waveform frame is 115; stay inside */
+    uint8_t x = 114;
     uint8_t y = 48;
     if(model->raw_threshold_rssi > SUBGHZ_RAW_THRESHOLD_MIN) {
         y -= (uint8_t)((model->raw_threshold_rssi - SUBGHZ_RAW_THRESHOLD_MIN) / 2.7f);
@@ -464,8 +422,6 @@ static void subghz_read_raw_draw_threshold_rssi(Canvas* canvas, SubGhzReadRAWMod
     canvas_draw_dot(canvas, x - 2, y);
 }
 
-/*  Draw helpers — playback envelope: Bar & Line (NO other modes exist)      */
-
 static void subghz_read_raw_draw_envelope(Canvas* canvas, SubGhzReadRAWModel* model) {
     const uint8_t W      = 114;
     const uint8_t TOP    = 15;
@@ -474,7 +430,7 @@ static void subghz_read_raw_draw_envelope(Canvas* canvas, SubGhzReadRAWModel* mo
     const uint8_t BAR_H  = 3;
 
     if(!model->has_envelope && model->reveal_count == 0) {
-        /* Blank recording: just draw a flat baseline — no "Playing..." text */
+
         canvas_draw_line(canvas, 0, BOTTOM, W, BOTTOM);
     } else if(model->viz_mode == SubGhzReadRawVizLine) {
         int prev_x = -1, prev_y = BOTTOM;
@@ -502,8 +458,6 @@ static void subghz_read_raw_draw_envelope(Canvas* canvas, SubGhzReadRAWModel* mo
     for(uint8_t y = TOP; y < BAR_Y; y += 3)
         canvas_draw_dot(canvas, cursor_x, y);
 
-    /* ── Progress bar — frame is W+2 wide so at 100% the fill
-     * reaches exactly the inner right edge (fill = W px from x=1). ── */
     canvas_draw_frame(canvas, 0, BAR_Y, W + 2, BAR_H + 2);
     uint8_t fill_w = (uint8_t)((uint16_t)model->play_pct * W / 100);
     if(fill_w > 0) canvas_draw_box(canvas, 1, BAR_Y + 1, fill_w, BAR_H);
@@ -522,7 +476,6 @@ static void subghz_read_raw_draw_envelope(Canvas* canvas, SubGhzReadRAWModel* mo
     }
 }
 
-/* Compact bargraph for send-before-save path; no seek (no file backing yet). */
 static void subghz_read_raw_draw_legacy_bargraph(Canvas* canvas, SubGhzReadRAWModel* model) {
     const uint8_t W   = 114;
     const uint8_t TOP = 14;
@@ -538,12 +491,6 @@ static void subghz_read_raw_draw_legacy_bargraph(Canvas* canvas, SubGhzReadRAWMo
     }
 }
 
-/* Same visual as elements_button_center(), but shifted a couple of pixels
- * right - the countdown label ("REC (3)") is wide enough that the stock
- * centered button's left edge butts right up against the Config button's
- * right edge with no gap between them. Only used for the countdown label;
- * the plain "REC" case is narrow enough to use the stock helper unshifted,
- * same as always. */
 #define SUBGHZ_READ_RAW_COUNTDOWN_BTN_X_NUDGE 7
 static void subghz_read_raw_draw_button_center_nudged(Canvas* canvas, const char* str) {
     const size_t button_height = 12;
@@ -577,8 +524,6 @@ static void subghz_read_raw_draw_button_center_nudged(Canvas* canvas, const char
     canvas_invert_color(canvas);
 }
 
-/*  Main draw callback                                                        */
-
 void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
     canvas_set_color(canvas, ColorBlack);
     canvas_set_font(canvas, FontSecondary);
@@ -597,15 +542,11 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
     canvas_draw_str_aligned(canvas, 126, 0, AlignRight, AlignTop,
                             furi_string_get_cstr(model->sample_write));
 
-    /* No top border — the scale ticks drawn at y=15 (signal_mode 1/2)
-     * already read as the box's top edge; a separate flat line here
-     * only shows as a stray extra line when they're absent (signal_mode
-     * 3, the idle Start screen, which has none). */
-    canvas_draw_line(canvas, 0, 48, 115, 48); /* bottom border */
-    canvas_draw_line(canvas, 115, 14, 115, 48); /* right border */
-    canvas_draw_line(canvas, 0, 14, 0, 48);   /* left border */
+    canvas_draw_line(canvas, 0, 48, 115, 48);
+    canvas_draw_line(canvas, 115, 14, 115, 48);
+    canvas_draw_line(canvas, 0, 14, 0, 48);
 
-    uint8_t signal_mode = 1; /* 0=legacy bargraph, 1=recording RSSI, 2=playback envelope */
+    uint8_t signal_mode = 1;
 
     switch(model->status) {
     case SubGhzReadRAWStatusIDLE:
@@ -615,28 +556,19 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
         break;
 
     case SubGhzReadRAWStatusLoadKeyIDLE: {
-        /* Show the waveform envelope at all times when a file is loaded,
-         * not just during playback. The filename is shown at the top of
-         * the waveform area (small font) — truncated with "..." if it
-         * would overflow the available ~110px / ~22 char width. */
-        signal_mode = 2; /* envelope */
+
+        signal_mode = 2;
         if(model->allow_new) {
             elements_button_left(canvas, "New");
         }
         elements_button_right(canvas, "More");
         elements_button_center(canvas, "Send");
 
-        /* No filename overlay in the waveform area */
         break;
     }
 
-    /* ── File playback. Hold-OK-repeat removed entirely: a short OK press
-     * already fires before a long-press can be distinguished, so the
-     * gesture was never actually reachable. OK is now a plain
-     * play/pause toggle; when playback ends naturally it returns to
-     * LoadKeyIDLE so pressing OK again simply starts it over. ── */
     case SubGhzReadRAWStatusLoadKeyTX:
-    case SubGhzReadRAWStatusLoadKeyTXRepeat: /* dead state, kept for enum compat */
+    case SubGhzReadRAWStatusLoadKeyTXRepeat:
         signal_mode = 2;
         elements_button_center(canvas, "Pause");
         break;
@@ -646,8 +578,7 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
         elements_button_left(canvas, "Rew");
         elements_button_center(canvas, "Resume");
         elements_button_right(canvas, "Fwd");
-        /* PAUSED: moved to the TOP of the envelope frame, bold, no box —
-         * it was sitting too low/boxed in before. */
+
         canvas_set_font(canvas, FontPrimary);
         canvas_draw_str_aligned(canvas, 57, 16, AlignCenter, AlignTop, "PAUSED");
         canvas_set_font(canvas, FontSecondary);
@@ -655,9 +586,7 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
 
     case SubGhzReadRAWStatusTX:
     case SubGhzReadRAWStatusTXRepeat:
-        /* Quick-send (no saved file) — keep the RSSI display with its
-         * scale ruler + cursor visible during send, same as the recording
-         * view. mode=1 shows the frozen RSSI history + scale ticks. */
+
         signal_mode = 1;
         elements_button_center(canvas, "Hold to repeat");
         break;
@@ -671,7 +600,7 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
         } else {
             elements_button_center(canvas, "REC");
         }
-        signal_mode = 3; /* clean empty envelope — no scale/RSSI before recording */
+        signal_mode = 3;
         break;
 
     default:
@@ -679,11 +608,6 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
         break;
     }
 
-    /* ── Recording / playback timer ─────────────────────────────────────────
-     * Source depends on state:
-     *   TX / LoadKeyTX / Paused → tx_tick  (counts up from 0 during replay)
-     *   Everything else          → recording_ticks (frozen final duration)
-     * Both are in 100 ms units so the format string is identical.          */
     {
         uint32_t timer_ticks = 0;
         bool show_timer = false;
@@ -717,11 +641,11 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
     if(signal_mode == 0) {
         subghz_read_raw_draw_legacy_bargraph(canvas, model);
     } else if(signal_mode == 2) {
-        /* Always draw scale ticks above envelope — user wants them everywhere */
+
         subghz_read_raw_draw_scale(canvas, model);
         subghz_read_raw_draw_envelope(canvas, model);
     } else if(signal_mode == 1) {
-        /* Only draw RSSI/scale for mode 1 — mode 3 (Start state) draws nothing */
+
         subghz_read_raw_draw_rssi(canvas, model);
         subghz_read_raw_draw_scale(canvas, model);
         subghz_read_raw_draw_threshold_rssi(canvas, model);
@@ -729,18 +653,13 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
         canvas_draw_str(canvas, 126, 40, "RSSI");
         canvas_set_font_direction(canvas, CanvasDirectionLeftToRight);
     }
-    /* signal_mode == 3: clean empty waveform area for Start state */
-}
 
-/*  Input callback                                                            */
+}
 
 bool subghz_read_raw_input(InputEvent* event, void* context) {
     furi_assert(context);
     SubGhzReadRAW* instance = context;
 
-    /* ── OK short press: simple play/pause toggle for file playback.
-     * Long-press / repeat handling for OK has been removed entirely —
-     * there is no more Hold-OK-repeat gesture. ── */
     if(event->key == InputKeyOk && event->type == InputTypePress) {
         uint8_t ret = false;
         with_view_model(instance->view, SubGhzReadRAWModel * model, {
@@ -748,7 +667,7 @@ bool subghz_read_raw_input(InputEvent* event, void* context) {
             case SubGhzReadRAWStatusIDLE:
                 instance->callback(SubGhzCustomEventViewReadRAWSendStart, instance->context);
                 model->status   = SubGhzReadRAWStatusTXRepeat;
-                model->play_pct = 0;   /* cursor returns to start */
+                model->play_pct = 0;
                 model->tx_tick  = 0;
                 ret = true;
                 break;
@@ -849,8 +768,7 @@ bool subghz_read_raw_input(InputEvent* event, void* context) {
                     furi_string_reset(model->file_name);
                     fire_erase = true;
                 }
-                /* When allow_new is false (file loaded from Saved), Left
-                 * does nothing in LoadKeyIDLE — "New" isn't offered here. */
+
             }
         }, true);
         if(fire_erase) instance->callback(SubGhzCustomEventViewReadRAWErase, instance->context);
@@ -866,23 +784,13 @@ bool subghz_read_raw_input(InputEvent* event, void* context) {
             } else if(model->status == SubGhzReadRAWStatusIDLE && !model->raw_send_only) {
                 instance->callback(SubGhzCustomEventViewReadRAWSave, instance->context);
             } else if(model->status == SubGhzReadRAWStatusLoadKeyIDLE) {
-                /* More is always available, regardless of raw_send_only */
+
                 instance->callback(SubGhzCustomEventViewReadRAWMore, instance->context);
             }
         }, true);
         return true;
     }
 
-    /* ── Up / Down: zoom in/out. Only available while PAUSED — zooming
-     * during active playback would require either auto-scrolling the
-     * window to follow the cursor or letting the cursor run off-screen,
-     * both meaningfully more complex/larger for a feature that's really
-     * about static inspection (same as the RAW editor itself, which only
-     * supports zoom while not actively transmitting). Fires a custom
-     * event so the scene can re-derive a windowed envelope from the file,
-     * centered on the current seek position; the view only tracks its
-     * own zoom_level for display + so the scene can read it back to
-     * persist it via subghz_read_raw_get_zoom_level(). ── */
     if((event->key == InputKeyUp || event->key == InputKeyDown) &&
        (event->type == InputTypeShort || event->type == InputTypeRepeat)) {
         bool paused = false;
@@ -912,7 +820,7 @@ bool subghz_read_raw_input(InputEvent* event, void* context) {
                 model->status = SubGhzReadRAWStatusREC;
                 model->ind_write = 0;
                 model->rssi_history_end = false;
-                model->recording_ticks = 0; /* reset timer for each new recording */
+                model->recording_ticks = 0;
             } else if(model->status == SubGhzReadRAWStatusREC) {
                 instance->callback(SubGhzCustomEventViewReadRAWIDLE, instance->context);
                 model->status = SubGhzReadRAWStatusIDLE;
@@ -923,8 +831,6 @@ bool subghz_read_raw_input(InputEvent* event, void* context) {
 
     return true;
 }
-
-/*  set_status                                                                */
 
 void subghz_read_raw_set_status(
     SubGhzReadRAW* instance,
@@ -939,7 +845,7 @@ void subghz_read_raw_set_status(
             model->rssi_history_end = false;
             model->ind_write = 0;
             model->not_showing_samples = true;
-            model->recording_ticks = 0; /* clear timer — user is starting fresh */
+            model->recording_ticks = 0;
             furi_string_reset(model->file_name);
             furi_string_set(model->sample_write, "0 spl.");
             model->raw_threshold_rssi = raw_threshold_rssi;
@@ -950,10 +856,7 @@ void subghz_read_raw_set_status(
             { model->status = SubGhzReadRAWStatusIDLE; }, true);
         break;
     case SubGhzReadRAWStatusREC:
-        /* No caller needed this until the auto-start countdown began
-         * driving this view programmatically instead of via the OK-key
-         * Start->REC transition - same reset fields that transition
-         * already applies. */
+
         with_view_model(instance->view, SubGhzReadRAWModel * model, {
             model->status = SubGhzReadRAWStatusREC;
             model->ind_write = 0;
@@ -991,8 +894,6 @@ void subghz_read_raw_set_status(
         break;
     }
 }
-
-/*  Enter / Exit / Alloc / Free                                               */
 
 void subghz_read_raw_enter(void* context) { UNUSED(context); }
 

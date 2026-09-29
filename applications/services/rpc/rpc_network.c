@@ -1,6 +1,7 @@
 #include "flipper.pb.h"
 #include "rpc_i.h"
 #include <network/network_i.h>
+#include <core/kernel.h>
 
 #include <string.h>
 
@@ -229,6 +230,8 @@ void rpc_network_free(void* context) {
     furi_record_close(RECORD_NETWORK);
 
     rpc_network->session = NULL;
+    furi_kernel_lock();
     free(rpc_network->request);
     free(rpc_network);
+    furi_kernel_unlock();
 }

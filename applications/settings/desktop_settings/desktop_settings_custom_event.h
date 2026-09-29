@@ -5,7 +5,7 @@ extern "C" {
 #endif
 
 typedef enum {
-    // reserve 100 for button presses, submenu selections, etc.
+
     DesktopSettingsCustomEventExit = 100,
     DesktopSettingsCustomEventDone,
 

@@ -81,7 +81,7 @@ static void submenu_process_down(Submenu* submenu);
 static void submenu_process_ok(Submenu* submenu, InputType input_type);
 
 static size_t submenu_items_on_screen(SubmenuModel* model) {
-    /* Fox Theme uses taller rows — only 3 fit on screen instead of 4. */
+
     size_t res = (model->is_vertical) ? 8 : (fox_theme_is_active() ? 3 : 4);
     return (furi_string_empty(model->header)) ? res : res - 1;
 }
@@ -90,7 +90,7 @@ static void submenu_view_draw_callback(Canvas* canvas, void* _model) {
     SubmenuModel* model = _model;
 
     const bool fox = fox_theme_is_active();
-    /* Fox Theme: taller rows so 3 fit on screen. Classic: 16px → 4 rows. */
+
     const uint8_t item_height = fox ? 21u : 16u;
     uint8_t item_width = canvas_width(canvas) - 5;
 
@@ -163,7 +163,7 @@ static void submenu_view_draw_callback(Canvas* canvas, void* _model) {
             elements_string_fit_width(canvas, disp_str, item_width - (is_locked ? 21 : 11));
 
             if(fox) {
-                /* Fox Theme: center label both H and V inside the bordered row. */
+
                 canvas_draw_str_aligned(
                     canvas,
                     item_width / 2,
@@ -197,7 +197,6 @@ static void submenu_view_draw_callback(Canvas* canvas, void* _model) {
         canvas_draw_box(canvas, frame_x + 2, frame_y + 2, frame_width - 4, frame_height - 4);
 
         canvas_set_color(canvas, ColorBlack);
-        // [NO_DOLPHIN] canvas_draw_icon(canvas, frame_x + 2, canvas_height(canvas) - frame_y - 2 - 42, &I_WarningDolphin_45x42);
 
         canvas_draw_rframe(canvas, frame_x, frame_y, frame_width, frame_height, 3);
         canvas_draw_rframe(canvas, frame_x + 1, frame_y + 1, frame_width - 2, frame_height - 2, 2);
@@ -509,11 +508,6 @@ void submenu_process_up(Submenu* submenu) {
                 model->position = items_size - 1;
             }
 
-            /* Clamp window to keep position in view. Fixes desync when
-             * items_on_screen <= 2 (Fox theme + header), where the old
-             * "position == window_position" heuristic assumed the
-             * selection always rested one row below the top edge while
-             * scrolling — true for >=3 visible rows, false for 2. */
             if(model->position < model->window_position) {
                 model->window_position = model->position;
             } else if(
@@ -539,7 +533,6 @@ void submenu_process_down(Submenu* submenu) {
                 model->position = 0;
             }
 
-            /* Same clamp as submenu_process_up() — see comment there. */
             if(model->position < model->window_position) {
                 model->window_position = model->position;
             } else if(
@@ -613,8 +606,6 @@ void submenu_set_orientation(Submenu* submenu, ViewOrientation orientation) {
         {
             model->is_vertical = is_vertical;
 
-            // Recalculating the position
-            // Need if _set_orientation is called after _set_selected_item
             size_t position = model->position;
             const size_t items_size = SubmenuItemArray_size(model->items);
             const size_t items_on_screen = submenu_items_on_screen(model);

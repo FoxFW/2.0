@@ -26,14 +26,13 @@ static void gui_circle_free(WidgetElement* gui_circle) {
 }
 
 WidgetElement* widget_element_circle_create(uint8_t x, uint8_t y, uint8_t radius, bool fill) {
-    // Allocate and init model
+
     GuiCircleModel* model = malloc(sizeof(GuiCircleModel));
     model->x = x;
     model->y = y;
     model->radius = radius;
     model->fill = fill;
 
-    // Allocate and init Element
     WidgetElement* gui_circle = malloc(sizeof(WidgetElement));
     gui_circle->parent = NULL;
     gui_circle->input = NULL;

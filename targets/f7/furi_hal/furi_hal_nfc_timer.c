@@ -11,11 +11,6 @@
 
 #define FURI_HAL_NFC_TIMER_US_IN_S (1000000UL)
 
-/**
- * To enable timer debug output on GPIO, define the FURI_HAL_NFC_TIMER_DEBUG macro
- * Example: ./fbt --extra-define=FURI_HAL_NFC_TIMER_DEBUG
- */
-
 typedef enum {
     FuriHalNfcTimerFwt,
     FuriHalNfcTimerBlockTx,
@@ -61,7 +56,7 @@ static const FuriHalNfcTimerConfig furi_hal_nfc_timers[FuriHalNfcTimerCount] = {
 };
 
 static void furi_hal_nfc_timer_irq_callback(void* context) {
-    // Returning removed const-ness
+
     const FuriHalNfcTimerConfig* config = context;
     if(LL_TIM_IsActiveFlag_UPDATE(config->timer)) {
         LL_TIM_ClearFlag_UPDATE(config->timer);
@@ -85,7 +80,7 @@ static void furi_hal_nfc_timer_init(FuriHalNfcTimer timer) {
     furi_hal_interrupt_set_isr(
         config->irq_id,
         furi_hal_nfc_timer_irq_callback,
-        // Warning: casting const-ness away
+
         (FuriHalNfcTimerConfig*)config);
     NVIC_SetPriority(config->irq_type, NVIC_EncodePriority(NVIC_GetPriorityGrouping(), 5, 0));
     NVIC_EnableIRQ(config->irq_type);
@@ -169,7 +164,7 @@ static void furi_hal_nfc_timer_start_us(FuriHalNfcTimer timer, uint32_t time_us)
 
 static void furi_hal_nfc_timer_start_fc(FuriHalNfcTimer timer, uint32_t time_fc) {
     const int32_t comp_fc = furi_hal_nfc_timer_get_compensation(timer);
-    // Not starting the timer if the compensation value is greater than the requested delay
+
     if(comp_fc >= (int32_t)time_fc) return;
 
     furi_hal_nfc_timer_start_core_ticks(

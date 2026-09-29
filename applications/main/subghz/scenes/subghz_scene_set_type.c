@@ -82,8 +82,7 @@ static const char* submenu_names[SetTypeMAX] = {
     [SetTypeMarantec_868] = "Marantec 868MHz",
     [SetTypeBETT_433] = "BETT 433MHz",
     [SetTypeLinear_300_00] = "Linear 300MHz",
-    // [SetTypeNeroSketch] = "Nero Sketch", // Deleted in OFW
-    // [SetTypeNeroRadio] = "Nero Radio", // Deleted in OFW
+
     [SetTypeGateTX] = "Gate TX 433MHz",
     [SetTypeSecPlus_v1_315_00] = "Security+1.0 315MHz",
     [SetTypeSecPlus_v1_390_00] = "Security+1.0 390MHz",
@@ -281,23 +280,23 @@ bool subghz_scene_set_type_on_event(void* context, SceneManagerEvent event) {
         if(scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneStart) ==
            SubmenuIndexAddManuallyAdvanced) {
             switch(subghz->gen_info->type) {
-            case GenData: // Key (u64)
+            case GenData:
                 scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSetKey);
                 break;
-            case GenSecPlus1: // None
+            case GenSecPlus1:
                 return subghz_scene_set_type_generate_protocol_from_infos(subghz);
-            case GenFaacSLH: // Serial (u32), Button (u8), Counter (u32), Seed (u32)
-            case GenKeeloq: // Serial (u32), Button (u8), Counter (u16)
-            case GenCameAtomo: // Serial (u32), Counter (u16)
-            case GenKeeloqBFT: // Serial (u32), Button (u8), Counter (u16), Seed (u32)
-            case GenAlutechAt4n: // Serial (u32), Button (u8), Counter (u16)
-            case GenSomfyTelis: // Serial (u32), Button (u8), Counter (u16)
-            case GenKingGatesStylo4k: // Serial (u32), Button (u8), Counter (u16)
-            case GenBenincaARC: // Serial (u32), Button (u8), Counter (u32)
-            case GenJarolift: // Serial (u32), Button (u4), Counter (u16)
-            case GenNiceFlorS: // Serial (u32), Button (u8), Counter (u16)
-            case GenSecPlus2: // Serial (u32), Button (u8), Counter (u32)
-            case GenPhoenixV2: // Serial (u32), Counter (u16)
+            case GenFaacSLH:
+            case GenKeeloq:
+            case GenCameAtomo:
+            case GenKeeloqBFT:
+            case GenAlutechAt4n:
+            case GenSomfyTelis:
+            case GenKingGatesStylo4k:
+            case GenBenincaARC:
+            case GenJarolift:
+            case GenNiceFlorS:
+            case GenSecPlus2:
+            case GenPhoenixV2:
                 scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSetSerial);
                 break;
             }

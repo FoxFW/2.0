@@ -83,10 +83,6 @@ const SubGhzProtocol subghz_protocol_mazda_siemens = {
     .encoder = &subghz_protocol_mazda_siemens_encoder,
 };
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
 static uint8_t mazda_byte_parity(uint8_t val);
 static void mazda_xor_deobfuscate(uint8_t* data);
 
@@ -117,7 +113,6 @@ static bool mazda_check_completion(SubGhzProtocolDecoderMazdaSiemens* instance) 
         return false;
     }
 
-    // Shift buffer by 1 byte (discard sync/header byte)
     uint8_t data[8];
     for(int i = 0; i < 8; i++) {
         data[i] = instance->data_buffer[i + 1];
@@ -160,13 +155,13 @@ static void mazda_xor_deobfuscate(uint8_t* data) {
     uint8_t parity = mazda_byte_parity(data[7]);
 
     if(parity) {
-        // Odd parity: mask = byte[6], XOR bytes 0-5
+
         uint8_t mask = data[6];
         for(int i = 0; i < 6; i++) {
             data[i] ^= mask;
         }
     } else {
-        // Even parity: mask = byte[5], XOR bytes 0-4 and byte[6]
+
         uint8_t mask = data[5];
         for(int i = 0; i < 5; i++) {
             data[i] ^= mask;
@@ -174,16 +169,12 @@ static void mazda_xor_deobfuscate(uint8_t* data) {
         data[6] ^= mask;
     }
 
-    // Bit deinterleave bytes 5-6
     uint8_t old5 = data[5];
     uint8_t old6 = data[6];
     data[5] = (old5 & 0xAA) | (old6 & 0x55);
     data[6] = (old5 & 0x55) | (old6 & 0xAA);
 }
 
-/**
- * Bit interleave + XOR obfuscation (TX path)
- */
 static void mazda_xor_obfuscate(uint8_t* data) {
     uint8_t old5 = data[5];
     uint8_t old6 = data[6];
@@ -218,10 +209,6 @@ static const char* mazda_get_btn_name(uint8_t btn) {
         return "Unknown";
     }
 }
-
-// ============================================================================
-// Encoder
-// ============================================================================
 
 #define MAZDA_UPLOAD_MAX 400
 
@@ -283,14 +270,12 @@ static bool
     }
     data[7] = checksum;
 
-    // Store cleartext in generic.data (for display/save)
     uint64_t packed = 0;
     for(int i = 0; i < 8; i++) {
         packed = (packed << 8) | data[i];
     }
     instance->generic.data = packed;
 
-    // XOR obfuscate for TX (Pandora sub_142A0)
     uint8_t tx_data[8];
     memcpy(tx_data, data, 8);
     mazda_xor_obfuscate(tx_data);
@@ -375,10 +360,6 @@ LevelDuration subghz_protocol_encoder_mazda_siemens_yield(void* context) {
     return ret;
 }
 
-// ============================================================================
-// Decoder
-// ============================================================================
-
 void* subghz_protocol_decoder_mazda_siemens_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderMazdaSiemens* instance =
@@ -414,14 +395,14 @@ static bool mazda_process_pair(
     bool second_long = mazda_is_long(dur_second);
 
     if(first_long && second_short) {
-        mazda_collect_bit(instance, 0); 
+        mazda_collect_bit(instance, 0);
         mazda_collect_bit(instance, 1);
         instance->prev_state = 1;
         return true;
     }
 
     if(first_short && second_long) {
-        mazda_collect_bit(instance, 1); 
+        mazda_collect_bit(instance, 1);
         instance->prev_state = 0;
         return true;
     }
@@ -432,8 +413,8 @@ static bool mazda_process_pair(
     }
 
     if(first_long && second_long) {
-        mazda_collect_bit(instance, 0); 
-        mazda_collect_bit(instance, 1); 
+        mazda_collect_bit(instance, 0);
+        mazda_collect_bit(instance, 1);
         instance->prev_state = 0;
         return true;
     }

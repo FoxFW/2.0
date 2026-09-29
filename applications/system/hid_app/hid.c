@@ -3,7 +3,6 @@
 #include <profiles/serial_profile.h>
 #include "views.h"
 #include <notification/notification_messages.h>
-#include <dolphin/dolphin.h>
 #include <flipper_format/flipper_format.h>
 
 #define TAG "HidApp"
@@ -296,7 +295,6 @@ int32_t hid_usb_app(void* p) {
     furi_hal_usb_unlock();
     furi_check(furi_hal_usb_set_config(&usb_hid, NULL) == true);
 
-    dolphin_deed(DolphinDeedPluginStart);
 
     scene_manager_next_scene(app->scene_manager, HidSceneStart);
 
@@ -341,7 +339,6 @@ int32_t hid_ble_app(void* p) {
     furi_hal_bt_start_advertising();
     bt_set_status_changed_callback(app->bt, bt_hid_connection_status_changed_callback, app);
 
-    dolphin_deed(DolphinDeedPluginStart);
 
     scene_manager_next_scene(app->scene_manager, HidSceneStart);
 

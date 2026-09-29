@@ -62,7 +62,7 @@ static MfClassicError mf_classic_poller_get_nt_common(
             error = iso14443_3a_poller_txrx_custom_parity(
                 instance->iso14443_3a_poller,
                 instance->tx_encrypted_buffer,
-                instance->rx_plain_buffer, // NT gets decrypted by mf_classic_async_auth
+                instance->rx_plain_buffer,
                 MF_CLASSIC_FWT_FC);
             if(error != Iso14443_3aErrorNone) {
                 ret = mf_classic_process_error(error);
@@ -432,7 +432,6 @@ MfClassicError mf_classic_poller_value_cmd(
             instance->rx_encrypted_buffer,
             MF_CLASSIC_FWT_FC);
 
-        // Command processed if tag doesn't respond
         if(error != Iso14443_3aErrorTimeout) {
             ret = MfClassicErrorProtocol;
             break;

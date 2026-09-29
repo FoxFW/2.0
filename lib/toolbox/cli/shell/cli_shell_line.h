@@ -28,9 +28,6 @@ size_t cli_shell_line_get_line_position(CliShellLine* line);
 
 void cli_shell_line_set_line_position(CliShellLine* line, size_t position);
 
-/**
- * @brief If a line from history has been selected, moves it into the active line
- */
 void cli_shell_line_ensure_not_overwriting_history(CliShellLine* line);
 
 void cli_shell_line_set_about_to_exit(CliShellLine* line);

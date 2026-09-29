@@ -1,5 +1,3 @@
-// https://sega.bsnk.me/allnet/amusement_ic/
-
 #include "nfc_supported_card_plugin.h"
 #include <flipper_application.h>
 #include <nfc/protocols/felica/felica.h>
@@ -472,7 +470,7 @@ static void decrypt_spad_0(const uint8_t* spad, uint8_t* decrypted) {
 
     for(int iter = 0; iter < count; iter++) {
         table -= ITERATION_ADD;
-        rotate_right(decrypted, 15, 5); // only the first 15 bytes
+        rotate_right(decrypted, 15, 5);
         for(int i = 0; i < 15; i++) {
             decrypted[i] = s_box[table % N_TABLES][decrypted[i]];
         }
@@ -511,7 +509,7 @@ static void parse_access_code(const uint8_t* access_code, FuriString* parsed_dat
     furi_assert(parsed_data);
 
     uint8_t decrypted[6];
-    // decrypted contains the decoded serial bytes (as 6 BCD bytes)
+
     for(int i = 0, j = 3; i < 6; ++i, j += 2) {
         decrypted[i] = (access_code[j]) * 10 + (access_code[j + 1]);
     }
@@ -566,13 +564,13 @@ bool aic_parse(const NfcDevice* device, FuriString* parsed_data) {
 
     const uint8_t ic_type = data->pmm.data[1];
     if(ic_type != 0xF0 && ic_type != 0xF1) {
-        // Must be Felica Lite (0xF0) or Lite-S (0xF1) to parse
+
         return false;
     }
 
     const uint8_t data_format_code_1 = data->data.fs.id.data[8];
     if(data_format_code_1 != 0) {
-        // We only know Data Format Code {0x00, 0xXX}
+
         return false;
     }
 
@@ -582,7 +580,6 @@ bool aic_parse(const NfcDevice* device, FuriString* parsed_data) {
         parsed_data, "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::");
     furi_string_cat_str(parsed_data, "\nType:\n");
 
-    // Determine card brand and type
     const uint8_t data_format_code_2 = data->data.fs.id.data[9];
     switch(data_format_code_2) {
     case 0x2A:
@@ -602,20 +599,18 @@ bool aic_parse(const NfcDevice* device, FuriString* parsed_data) {
         break;
     default:
         parsed = false;
-        return parsed; // Unknown vendor
+        return parsed;
     }
     furi_string_cat_str(
         parsed_data, "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::");
 
-    // decrypt_spad_0 S-PAD 0
     uint8_t decrypted[16] = {0};
     decrypt_spad_0(data->data.fs.spad[0].data, decrypted);
 
-    // Get Access Code
     uint8_t access_code[20] = {0};
     for(int i = 0; i < 10; i++) {
-        access_code[i * 2] = (decrypted[i + 6] & 0xF0) >> 4; // Get upper nibble
-        access_code[i * 2 + 1] = decrypted[i + 6] & 0x0F; // Get lower nibble
+        access_code[i * 2] = (decrypted[i + 6] & 0xF0) >> 4;
+        access_code[i * 2 + 1] = decrypted[i + 6] & 0x0F;
     }
     furi_string_cat_str(parsed_data, "\nAccess Code:\n");
     bool access_code_is_bcd = true;
@@ -632,7 +627,6 @@ bool aic_parse(const NfcDevice* device, FuriString* parsed_data) {
     furi_string_cat_str(
         parsed_data, "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::");
 
-    // Parse Access Code
     if(access_code_is_bcd && access_code[0] == 5) {
         furi_string_cat_str(parsed_data, "\n");
         parse_access_code(access_code, parsed_data);
@@ -657,7 +651,6 @@ bool aic_parse(const NfcDevice* device, FuriString* parsed_data) {
     return parsed;
 }
 
-/* Actual implementation of app<>plugin interface */
 static const NfcSupportedCardsPlugin aic_plugin = {
     .protocol = NfcProtocolFelica,
     .verify = NULL,
@@ -665,14 +658,12 @@ static const NfcSupportedCardsPlugin aic_plugin = {
     .parse = aic_parse,
 };
 
-/* Plugin descriptor to comply with basic plugin specification */
 static const FlipperAppPluginDescriptor aic_plugin_descriptor = {
     .appid = NFC_SUPPORTED_CARD_PLUGIN_APP_ID,
     .ep_api_version = NFC_SUPPORTED_CARD_PLUGIN_API_VERSION,
     .entry_point = &aic_plugin,
 };
 
-/* Plugin entry point - must return a pointer to const descriptor  */
 const FlipperAppPluginDescriptor* aic_plugin_ep(void) {
     return &aic_plugin_descriptor;
 }

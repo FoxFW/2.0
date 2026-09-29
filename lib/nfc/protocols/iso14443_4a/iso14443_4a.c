@@ -86,7 +86,6 @@ bool iso14443_4a_verify(Iso14443_4aData* data, const FuriString* device_type) {
     UNUSED(data);
     UNUSED(device_type);
 
-    // Empty, unified file format only
     return false;
 }
 

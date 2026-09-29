@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Based on FlipDeFlock by ReconGrunt, adapted for Fox ESP32 Firmware.
+
 #pragma once
 
 #include "foxdeflock_app.h"

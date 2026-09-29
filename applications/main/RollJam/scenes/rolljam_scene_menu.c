@@ -1,9 +1,5 @@
 #include "rolljam_scene.h"
 
-// ============================================================
-// Menu scene: select frequency, modulation, start attack
-// ============================================================
-
 static uint8_t get_min_offset_index(uint8_t mod_index) {
     if(mod_index == ModIndex_AM270) return JamOffIndex_1000k;
     return JamOffIndex_300k;
@@ -77,7 +73,6 @@ void rolljam_scene_menu_on_enter(void* context) {
 
     variable_item_list_reset(app->var_item_list);
 
-    // --- Frequency ---
     VariableItem* freq_item = variable_item_list_add(
         app->var_item_list,
         "Frequency",
@@ -87,7 +82,6 @@ void rolljam_scene_menu_on_enter(void* context) {
     variable_item_set_current_value_index(freq_item, app->freq_index);
     variable_item_set_current_value_text(freq_item, freq_names[app->freq_index]);
 
-    // --- Modulation ---
     VariableItem* mod_item = variable_item_list_add(
         app->var_item_list,
         "Modulation",
@@ -97,7 +91,6 @@ void rolljam_scene_menu_on_enter(void* context) {
     variable_item_set_current_value_index(mod_item, app->mod_index);
     variable_item_set_current_value_text(mod_item, mod_names[app->mod_index]);
 
-    // --- Jam Offset ---
     VariableItem* offset_item = variable_item_list_add(
         app->var_item_list,
         "Jam Offset",
@@ -111,7 +104,6 @@ void rolljam_scene_menu_on_enter(void* context) {
     variable_item_set_current_value_index(offset_item, app->jam_offset_index);
     variable_item_set_current_value_text(offset_item, jam_offset_names[app->jam_offset_index]);
 
-    // --- Hardware ---
     VariableItem* hw_item = variable_item_list_add(
         app->var_item_list,
         "Hardware",
@@ -121,7 +113,6 @@ void rolljam_scene_menu_on_enter(void* context) {
     variable_item_set_current_value_index(hw_item, app->hw_index);
     variable_item_set_current_value_text(hw_item, hw_names[app->hw_index]);
 
-    // --- Start button ---
     variable_item_list_add(
         app->var_item_list,
         ">> START ATTACK <<",

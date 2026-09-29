@@ -2,6 +2,7 @@
 #include "../blocks/const.h"
 #include "../blocks/generic.h"
 #include "../blocks/math.h"
+#include "../blocks/custom_btn_i.h"
 #include <string.h>
 #include <lib/toolbox/level_duration.h>
 
@@ -631,12 +632,35 @@ uint8_t subghz_protocol_decoder_honda_static_get_hash_data(void* context) {
                      (data >> 40U) ^ (data >> 48U) ^ (data >> 56U));
 }
 
+static uint8_t honda_static_ui_button(uint8_t custom, uint8_t original_btn) {
+    switch(custom) {
+    case SUBGHZ_CUSTOM_BTN_UP:
+        return 0x1U;
+    case SUBGHZ_CUSTOM_BTN_DOWN:
+        return 0x4U;
+    case SUBGHZ_CUSTOM_BTN_LEFT:
+        return 0x8U;
+    case SUBGHZ_CUSTOM_BTN_RIGHT:
+        return 0x5U;
+    case SUBGHZ_CUSTOM_BTN_OK:
+    default:
+        return original_btn;
+    }
+}
+
 void subghz_protocol_decoder_honda_static_get_string(void* context, FuriString* output) {
     furi_check(context);
 
     SubGhzProtocolDecoderHondaStatic* instance = context;
     HondaStaticFields decoded;
     honda_static_unpack_compact(instance->generic.data, &decoded);
+
+    subghz_custom_btn_set_max(5);
+    uint8_t display_btn = decoded.button;
+    uint8_t custom_btn_id = subghz_custom_btn_get();
+    if(custom_btn_id != SUBGHZ_CUSTOM_BTN_OK) {
+        display_btn = honda_static_ui_button(custom_btn_id, decoded.button);
+    }
 
     furi_string_printf(
         output,
@@ -646,7 +670,7 @@ void subghz_protocol_decoder_honda_static_get_string(void* context, FuriString* 
         "Ser:%07lX Cnt:%06lX",
         instance->generic.protocol_name,
         (unsigned long long)instance->generic.data,
-        honda_static_button_name(decoded.button),
+        honda_static_button_name(display_btn),
         (unsigned long)decoded.serial,
         (unsigned long)decoded.counter);
 }

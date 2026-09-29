@@ -17,6 +17,15 @@
 
 #include <bt/bt_service/bt.h>
 
+#include <storage/storage.h>
+#include <gui/gui.h>
+#include <notification/notification.h>
+#include <desktop/desktop.h>
+#include <gps/gps.h>
+#include <network/network.h>
+#include <input/input.h>
+#include <toolbox/heap_alloc_guard.h>
+
 #define TAG "RpcSrv"
 
 typedef enum {
@@ -80,7 +89,7 @@ struct RpcSession {
 
     RpcHandlerDict_t handlers;
     FuriStreamBuffer* stream;
-    PB_Main* decoded_message;
+    PB_Main decoded_message;
     bool terminate;
     void** system_contexts;
     bool decode_error;
@@ -276,19 +285,19 @@ static int32_t rpc_session_worker(void* context) {
 
         bool message_decode_failed = false;
 
-        if(pb_decode_ex(&istream, &PB_Main_msg, session->decoded_message, PB_DECODE_DELIMITED)) {
+        if(pb_decode_ex(&istream, &PB_Main_msg, &session->decoded_message, PB_DECODE_DELIMITED)) {
 #ifdef SRV_RPC_DEBUG
             FURI_LOG_I(TAG, "INPUT:");
-            rpc_debug_print_message(session->decoded_message);
+            rpc_debug_print_message(&session->decoded_message);
 #endif
             RpcHandler* handler =
-                RpcHandlerDict_get(session->handlers, session->decoded_message->which_content);
+                RpcHandlerDict_get(session->handlers, session->decoded_message.which_content);
 
             if(handler && handler->message_handler) {
                 furi_check(furi_mutex_acquire(rpc->busy_mutex, FuriWaitForever) == FuriStatusOk);
-                handler->message_handler(session->decoded_message, handler->context);
+                handler->message_handler(&session->decoded_message, handler->context);
                 furi_check(furi_mutex_release(rpc->busy_mutex) == FuriStatusOk);
-            } else if(session->decoded_message->which_content == 0) {
+            } else if(session->decoded_message.which_content == 0) {
                 /* Receiving zeroes means message is 0-length, which
                  * is valid for proto3: all fields are filled with default values.
                  * 0 - is default value for which_content field.
@@ -300,10 +309,10 @@ static int32_t rpc_session_worker(void* context) {
                 FURI_LOG_E(
                     TAG,
                     "Message(%d) decoded, but not implemented",
-                    session->decoded_message->which_content);
+                    session->decoded_message.which_content);
                 rpc_send_and_release_empty(
                     session,
-                    session->decoded_message->command_id,
+                    session->decoded_message.command_id,
                     PB_CommandStatus_ERROR_NOT_IMPLEMENTED);
             }
         } else {
@@ -345,7 +354,7 @@ static int32_t rpc_session_worker(void* context) {
             }
         }
 
-        pb_release(&PB_Main_msg, session->decoded_message);
+        pb_release(&PB_Main_msg, &session->decoded_message);
 
         if(session->terminate) {
             FURI_LOG_D(TAG, "Session terminated");
@@ -361,12 +370,19 @@ static void rpc_session_thread_pending_callback(void* context, uint32_t arg) {
     RpcSession* session = (RpcSession*)context;
 
     for(size_t i = 0; i < COUNT_OF(rpc_systems); ++i) {
-        if(rpc_systems[i].free) {
+        if(rpc_systems[i].free == rpc_system_app_free) {
+            (rpc_systems[i].free)(session->system_contexts[i]);
+        }
+    }
+
+    heap_alloc_guard_lock();
+
+    for(size_t i = 0; i < COUNT_OF(rpc_systems); ++i) {
+        if(rpc_systems[i].free && rpc_systems[i].free != rpc_system_app_free) {
             (rpc_systems[i].free)(session->system_contexts[i]);
         }
     }
     free(session->system_contexts);
-    free(session->decoded_message);
     RpcHandlerDict_clear(session->handlers);
     furi_stream_buffer_free(session->stream);
 
@@ -380,6 +396,8 @@ static void rpc_session_thread_pending_callback(void* context, uint32_t arg) {
     furi_thread_join(session->thread);
     furi_thread_free(session->thread);
     free(session);
+
+    heap_alloc_guard_unlock();
 }
 
 static void
@@ -387,6 +405,15 @@ static void
     UNUSED(thread);
     if(state == FuriThreadStateStopped) {
         furi_timer_pending_callback(rpc_session_thread_pending_callback, context, 0);
+    }
+}
+
+void rpc_wait_for_subsystems_ready(void) {
+    while(!furi_record_exists(RECORD_STORAGE) || !furi_record_exists(RECORD_GUI) ||
+          !furi_record_exists(RECORD_NOTIFICATION) || !furi_record_exists(RECORD_DESKTOP) ||
+          !furi_record_exists(RECORD_GPS) || !furi_record_exists(RECORD_NETWORK) ||
+          !furi_record_exists(RECORD_INPUT_EVENTS)) {
+        furi_delay_ms(10);
     }
 }
 
@@ -402,9 +429,8 @@ RpcSession* rpc_session_open(Rpc* rpc, RpcOwner owner) {
     session->owner = owner;
     RpcHandlerDict_init(session->handlers);
 
-    session->decoded_message = malloc(sizeof(PB_Main));
-    session->decoded_message->cb_content.funcs.decode = rpc_pb_content_callback;
-    session->decoded_message->cb_content.arg = session;
+    session->decoded_message.cb_content.funcs.decode = rpc_pb_content_callback;
+    session->decoded_message.cb_content.arg = session;
 
     session->system_contexts = malloc(COUNT_OF(rpc_systems) * sizeof(void*));
     for(size_t i = 0; i < COUNT_OF(rpc_systems); ++i) {

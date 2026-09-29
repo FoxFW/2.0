@@ -13,6 +13,7 @@
 #include <flipper_application/plugins/plugin_manager.h>
 #include <loader/firmware_api/firmware_api.h>
 #include <storage/storage.h>
+#include <toolbox/heap_alloc_guard.h>
 
 #define TAG "CliShell"
 
@@ -343,6 +344,42 @@ static void cli_shell_timer_expired(void* context) {
 // Thread code
 // ===========
 
+static void cli_shell_wait_for_storage_ready(void) {
+    while(!furi_record_exists(RECORD_STORAGE)) {
+        furi_delay_ms(10);
+    }
+}
+
+void cli_shell_preregister_builtin_commands(CliRegistry* registry, bool with_external_reload) {
+    furi_check(registry);
+    cli_registry_add_command(
+        registry,
+        "help",
+        CliCommandFlagUseShellThread | CliCommandFlagParallelSafe,
+        cli_command_help,
+        NULL);
+    cli_registry_add_command(
+        registry,
+        "?",
+        CliCommandFlagUseShellThread | CliCommandFlagParallelSafe,
+        cli_command_help,
+        NULL);
+    cli_registry_add_command(
+        registry,
+        "exit",
+        CliCommandFlagUseShellThread | CliCommandFlagParallelSafe,
+        cli_command_exit,
+        NULL);
+    if(with_external_reload) {
+        cli_registry_add_command(
+            registry,
+            "reload_ext_cmds",
+            CliCommandFlagUseShellThread,
+            cli_command_reload_external,
+            NULL);
+    }
+}
+
 static void cli_shell_init(CliShell* shell) {
     cli_registry_add_command(
         shell->registry,
@@ -426,7 +463,10 @@ static int32_t cli_shell_thread(void* context) {
         if(pipe_state(shell->pipe) == PipeStateBroken) return 0;
     }
 
+    cli_shell_wait_for_storage_ready();
+    heap_alloc_guard_lock();
     cli_shell_init(shell);
+    heap_alloc_guard_unlock();
     FURI_LOG_D(TAG, "Started");
 
     shell->motd(shell->callback_context);
@@ -435,7 +475,9 @@ static int32_t cli_shell_thread(void* context) {
     furi_event_loop_run(shell->event_loop);
 
     FURI_LOG_D(TAG, "Stopped");
+    heap_alloc_guard_lock();
     cli_shell_deinit(shell);
+    heap_alloc_guard_unlock();
     return 0;
 }
 

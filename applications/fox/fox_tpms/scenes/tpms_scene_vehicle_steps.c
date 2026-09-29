@@ -1,11 +1,5 @@
 #include "../tpms_app_i.h"
 
-/* Widget-based instruction walker for the guided "Select Model" flow. Shows
- * one tpms_vehicle_groups[].steps[] entry at a time with a single Center
- * button that either advances to the next step or, on the last step, fires
- * the LF wake trigger and jumps straight to the Receiver (already tuned to
- * that vehicle group's first RF candidate - see tpms_scene_receiver.c). */
-
 typedef enum {
     TPMSVehicleStepsEventNext,
 } TPMSVehicleStepsEvent;
@@ -23,16 +17,11 @@ static void
     }
 }
 
-// Renders whichever step app->vehicle_step_index currently points at. Called
-// both from on_enter and again each time Next/Back moves to a different step
-// within this same scene instance (no scene re-push needed for that).
 static void tpms_scene_vehicle_steps_show(TPMSApp* app) {
     widget_reset(app->widget);
 
     if(!tpms_scene_vehicle_steps_group_valid(app)) {
-        // Defensive only - Vehicle Make always sets a valid index before
-        // pushing this scene. Bail out to Receiver with no group active
-        // rather than reading tpms_vehicle_groups[] out of bounds.
+
         app->active_vehicle_group = -1;
         scene_manager_next_scene(app->scene_manager, TPMSSceneReceiver);
         return;
@@ -46,12 +35,6 @@ static void tpms_scene_vehicle_steps_show(TPMSApp* app) {
     const TPMSVehicleStep* step = &group->steps[app->vehicle_step_index];
     bool is_last_step = (app->vehicle_step_index + 1) >= step_count;
 
-    // Heading gets its own fixed top band; the body goes in a bounded,
-    // scrollable box (widget_add_text_scroll_element(), not a plain
-    // multiline string) so it can never run into the button row below no
-    // matter how long a future group's instruction text gets - a plain
-    // string element draws unbounded and was overlapping "Next"/"Start
-    // Reading" on real hardware for the current 4-line generic step text.
     widget_add_string_multiline_element(
         app->widget, 64, 6, AlignCenter, AlignTop, FontPrimary, step->heading);
     widget_add_text_scroll_element(app->widget, 0, 18, 128, 34, step->body);
@@ -81,8 +64,7 @@ bool tpms_scene_vehicle_steps_on_event(void* context, SceneManagerEvent event) {
                                                  NULL;
             bool is_last_step = !group || ((app->vehicle_step_index + 1) >= group->step_count);
             if(is_last_step) {
-                // Same LF wake helper the manual Relearn scene uses - see
-                // tpms_relearn_lf_start()'s comment in tpms_app_i.h.
+
                 tpms_relearn_lf_start(app);
                 scene_manager_next_scene(app->scene_manager, TPMSSceneReceiver);
             } else {
@@ -97,8 +79,7 @@ bool tpms_scene_vehicle_steps_on_event(void* context, SceneManagerEvent event) {
             tpms_scene_vehicle_steps_show(app);
             consumed = true;
         }
-        // else: not consumed - falls through to SceneManager's default
-        // previous-scene navigation, back to Vehicle Make.
+
     }
 
     return consumed;

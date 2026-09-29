@@ -3,10 +3,6 @@
 #include <lib/subghz/blocks/custom_btn_i.h>
 #include <string.h>
 
-// =============================================================================
-// PROTOCOL CONSTANTS
-// =============================================================================
-
 static const SubGhzBlockConst subghz_protocol_mazda_v0_const = {
     .te_short = 250,
     .te_long = 500,
@@ -19,10 +15,6 @@ static const SubGhzBlockConst subghz_protocol_mazda_v0_const = {
 #define MAZDA_V0_SYNC_BYTE       0xD7
 #define MAZDA_V0_TAIL_BYTE       0x5A
 #define MAZDA_V0_PREAMBLE_ONES   16
-
-// =============================================================================
-// STRUCT DEFINITIONS
-// =============================================================================
 
 typedef struct SubGhzProtocolDecoderMazdaV0 {
     SubGhzProtocolDecoderBase base;
@@ -38,7 +30,6 @@ typedef struct SubGhzProtocolDecoderMazdaV0 {
     uint32_t count;
 } SubGhzProtocolDecoderMazdaV0;
 
-//#ifdef ENABLE_EMULATE_FEATURE
 typedef struct SubGhzProtocolEncoderMazdaV0 {
     SubGhzProtocolEncoderBase base;
     SubGhzProtocolBlockEncoder encoder;
@@ -48,7 +39,6 @@ typedef struct SubGhzProtocolEncoderMazdaV0 {
     uint8_t button;
     uint32_t count;
 } SubGhzProtocolEncoderMazdaV0;
-//#endif
 
 typedef enum {
     MazdaV0DecoderStepReset = 0,
@@ -56,13 +46,9 @@ typedef enum {
     MazdaV0DecoderStepData = 6,
 } MazdaV0DecoderStep;
 
-// =============================================================================
-// FUNCTION PROTOTYPES
-// =============================================================================
-
 static bool mazda_v0_get_event(uint32_t duration, bool level, ManchesterEvent* event);
 static void mazda_v0_decode_key(SubGhzBlockGeneric* generic);
-//#ifdef ENABLE_EMULATE_FEATURE
+
 static uint64_t mazda_v0_encode_key(uint32_t serial, uint8_t button, uint32_t counter);
 static bool mazda_v0_encoder_add_level(
     SubGhzProtocolEncoderMazdaV0* instance,
@@ -72,15 +58,11 @@ static bool mazda_v0_encoder_add_level(
 static bool
     mazda_v0_append_byte(SubGhzProtocolEncoderMazdaV0* instance, size_t* index, uint8_t value);
 static bool mazda_v0_build_upload(SubGhzProtocolEncoderMazdaV0* instance);
-//#endif
+
 static SubGhzProtocolStatus mazda_v0_write_display(
     FlipperFormat* flipper_format,
     const char* protocol_name,
     uint8_t button);
-
-// =============================================================================
-// PROTOCOL INTERFACE DEFINITIONS
-// =============================================================================
 
 const SubGhzProtocolDecoder subghz_protocol_mazda_v0_decoder = {
     .alloc = subghz_protocol_decoder_mazda_v0_alloc,
@@ -93,7 +75,6 @@ const SubGhzProtocolDecoder subghz_protocol_mazda_v0_decoder = {
     .get_string = subghz_protocol_decoder_mazda_v0_get_string,
 };
 
-//#ifdef ENABLE_EMULATE_FEATURE
 const SubGhzProtocolEncoder subghz_protocol_mazda_v0_encoder = {
     .alloc = subghz_protocol_encoder_mazda_v0_alloc,
     .free = subghz_protocol_encoder_mazda_v0_free,
@@ -101,15 +82,6 @@ const SubGhzProtocolEncoder subghz_protocol_mazda_v0_encoder = {
     .stop = subghz_protocol_encoder_mazda_v0_stop,
     .yield = subghz_protocol_encoder_mazda_v0_yield,
 };
-//#else
-//const SubGhzProtocolEncoder subghz_protocol_mazda_v0_encoder = {
-//    .alloc = NULL,
-//    .free = NULL,
-//    .deserialize = NULL,
-//    .stop = NULL,
-//    .yield = NULL,
-//};
-//#endif
 
 const SubGhzProtocol subghz_protocol_mazda_v0 = {
     .name = MAZDA_PROTOCOL_V0_NAME,
@@ -119,10 +91,6 @@ const SubGhzProtocol subghz_protocol_mazda_v0 = {
     .decoder = &subghz_protocol_mazda_v0_decoder,
     .encoder = &subghz_protocol_mazda_v0_encoder,
 };
-
-// =============================================================================
-// HELPERS
-// =============================================================================
 
 static uint8_t mazda_v0_popcount8(uint8_t x) {
     uint8_t count = 0;
@@ -139,7 +107,6 @@ static void mazda_v0_u64_to_bytes_be(uint64_t data, uint8_t bytes[8]) {
     }
 }
 
-//#ifdef ENABLE_EMULATE_FEATURE
 static uint64_t mazda_v0_bytes_to_u64_be(const uint8_t bytes[8]) {
     uint64_t data = 0;
     for(size_t i = 0; i < 8; i++) {
@@ -147,7 +114,6 @@ static uint64_t mazda_v0_bytes_to_u64_be(const uint8_t bytes[8]) {
     }
     return data;
 }
-//#endif
 
 static uint8_t mazda_v0_calculate_checksum(uint32_t serial, uint8_t button, uint32_t counter) {
     counter &= 0xFFFFFU;
@@ -214,7 +180,6 @@ static void mazda_v0_decode_key(SubGhzBlockGeneric* generic) {
     generic->data_count_bit = subghz_protocol_mazda_v0_const.min_count_bit_for_found;
 }
 
-//#ifdef ENABLE_EMULATE_FEATURE
 static uint64_t mazda_v0_encode_key(uint32_t serial, uint8_t button, uint32_t counter) {
     uint8_t data[8];
 
@@ -331,7 +296,6 @@ static bool mazda_v0_build_upload(SubGhzProtocolEncoderMazdaV0* instance) {
 
     return true;
 }
-//#endif
 
 static SubGhzProtocolStatus mazda_v0_write_display(
     FlipperFormat* flipper_format,
@@ -350,11 +314,6 @@ static SubGhzProtocolStatus mazda_v0_write_display(
     return status;
 }
 
-// =============================================================================
-// ENCODER
-// =============================================================================
-
-//#ifdef ENABLE_EMULATE_FEATURE
 void* subghz_protocol_encoder_mazda_v0_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
 
@@ -444,8 +403,6 @@ SubGhzProtocolStatus
             instance->encoder.repeat = 10;
         }
 
-        // Mazda V0 mapping: Up=0x1 (LOCK), OK=0x2 (UNLOCK), Down=0x4 (BOOT),
-        // Right=0x8 (REMOTE). Left unsupported.
         {
             const uint8_t original_btn = (uint8_t)(instance->generic.btn & 0x0FU);
             if(subghz_custom_btn_get_original() == 0) {
@@ -463,6 +420,12 @@ SubGhzProtocolStatus
         }
 
         instance->generic.btn &= 0x0FU;
+
+        {
+            uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
+            if(mult == 0U) mult = 1U;
+            instance->generic.cnt = (instance->generic.cnt + mult);
+        }
         instance->generic.cnt &= 0xFFFFFU;
 
         instance->generic.data = mazda_v0_encode_key(
@@ -525,11 +488,6 @@ LevelDuration subghz_protocol_encoder_mazda_v0_yield(void* context) {
 
     return out;
 }
-//#endif
-
-// =============================================================================
-// DECODER
-// =============================================================================
 
 void* subghz_protocol_decoder_mazda_v0_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -714,8 +672,6 @@ SubGhzProtocolStatus
         flipper_format_read_uint32(flipper_format, "Cnt", &instance->count, 1);
         instance->generic.cnt = instance->count;
 
-        // Mazda V0 mapping: Up=0x1 (LOCK), OK=0x2 (UNLOCK), Down=0x4 (BOOT),
-        // Right=0x8 (REMOTE). Left unsupported -> 4 buttons.
         if(subghz_custom_btn_get_original() == 0) {
             subghz_custom_btn_set_original(instance->generic.btn);
         }
@@ -731,9 +687,22 @@ void subghz_protocol_decoder_mazda_v0_get_string(void* context, FuriString* outp
 
     mazda_v0_decode_key(&instance->generic);
 
-    const uint8_t raw_crc = instance->generic.data & 0xFF;
+    subghz_custom_btn_set_max(4);
+    const uint8_t original_btn = (uint8_t)(instance->generic.btn & 0x0FU);
+    uint8_t display_btn = original_btn;
+    switch(subghz_custom_btn_get()) {
+    case SUBGHZ_CUSTOM_BTN_UP:    display_btn = 0x1U; break;
+    case SUBGHZ_CUSTOM_BTN_OK:    display_btn = 0x2U; break;
+    case SUBGHZ_CUSTOM_BTN_DOWN:  display_btn = 0x4U; break;
+    case SUBGHZ_CUSTOM_BTN_RIGHT: display_btn = 0x8U; break;
+    default:                      display_btn = original_btn; break;
+    }
+
     const uint8_t calc_crc = mazda_v0_calculate_checksum(
-        instance->generic.serial, instance->generic.btn, instance->generic.cnt);
+        instance->generic.serial, display_btn, instance->generic.cnt);
+    const uint8_t raw_crc = (display_btn == original_btn) ?
+                                (uint8_t)(instance->generic.data & 0xFF) :
+                                calc_crc;
 
     furi_string_cat_printf(
         output,
@@ -746,8 +715,8 @@ void subghz_protocol_decoder_mazda_v0_get_string(void* context, FuriString* outp
         (raw_crc == calc_crc) ? "OK" : "BAD",
         (unsigned long long)instance->generic.data,
         (unsigned long)instance->generic.serial,
-        instance->generic.btn,
-        mazda_v0_get_button_name(instance->generic.btn),
+        display_btn,
+        mazda_v0_get_button_name(display_btn),
         (unsigned long)(instance->generic.cnt & 0xFFFFFU),
         raw_crc);
 }

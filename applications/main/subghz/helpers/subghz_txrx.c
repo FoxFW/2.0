@@ -1,4 +1,5 @@
-#include "subghz_txrx_i.h" // IWYU pragma: keep
+#include "subghz_txrx_i.h"
+#include <core/kernel.h>
 
 #include <math.h>
 #include <lib/subghz/protocols/protocol_items.h>
@@ -9,14 +10,6 @@
 
 #define TAG "SubGhzTxRx"
 
-/* Same flag file Desktop's status-bar icon reads (see CC1101_EXT_STATUS_PATH
- * in applications/services/desktop/desktop.c) - written here too so a
- * detection made by this app (at its own startup, or whenever the user
- * picks External in Radio Settings) shows up on the icon right away
- * instead of waiting on Desktop's own separate background probe. Only
- * called when this app actually just checked for an external module (see
- * call sites in subghz_txrx_radio_device_set() below), never on a plain
- * "switch to Internal" request that didn't check anything. */
 #define FOX_CC1101_EXT_STATUS_PATH EXT_PATH("subghz/.cc1101_ext_status")
 
 static void fox_cc1101_ext_status_write(bool connected) {
@@ -38,7 +31,7 @@ static void subghz_txrx_radio_device_power_on(SubGhzTxRx* instance) {
     uint8_t attempts = 0;
     while(!furi_hal_power_is_otg_enabled() && attempts++ < 5) {
         furi_hal_power_enable_otg();
-        //CC1101 power-up time
+
         furi_delay_ms(10);
     }
 }
@@ -88,7 +81,6 @@ SubGhzTxRx* subghz_txrx_alloc(void) {
         instance->worker, (SubGhzWorkerPairCallback)subghz_receiver_decode);
     subghz_worker_set_context(instance->worker, instance->receiver);
 
-    //set default device External
     subghz_devices_init();
     instance->radio_device_type = SubGhzRadioDeviceTypeInternal;
     instance->radio_device_type =
@@ -109,6 +101,8 @@ void subghz_txrx_free(SubGhzTxRx* instance) {
 
     subghz_worker_free(instance->worker);
     subghz_receiver_free(instance->receiver);
+
+    furi_kernel_lock();
     subghz_environment_free(instance->environment);
     flipper_format_free(instance->fff_data);
     furi_string_free(instance->preset->name);
@@ -116,6 +110,7 @@ void subghz_txrx_free(SubGhzTxRx* instance) {
 
     free(instance->preset);
     free(instance);
+    furi_kernel_unlock();
 }
 
 bool subghz_txrx_is_database_loaded(SubGhzTxRx* instance) {
@@ -145,55 +140,48 @@ uint8_t*
 #define TX_PATABLE_OFFSET_AM   8
 #define TX_PATABLE_COUNT       17
 
-    //I had to skip the +10dBM and -6dBm Values, use only ones AM/FM have in common.
-    //Highest Value is 12dBm for AM, 10 for FM. So Menu needs to reflect that.
     const uint8_t tx_pa_table[TX_PATABLE_COUNT] = {
         0,
-        0xC0, //12dBm
-        0xCD, //7dBm
-        0x86, //5dBm
-        0x50, //0dBm
-        0x26, // -10dBm
-        0x1D, // -15dBm
-        0x17, //-20dBm
-        0x03, //-30dBm
-        0xC0, // 10dBm
-        0xC8, //7dBm
-        0x84, //5dBm
-        0x60, //0dBm
-        0x34, //-10dBm
-        0x1D, //-15dBm
-        0x0E, // -20dBm
-        0x12, //-30dBm
+        0xC0,
+        0xCD,
+        0x86,
+        0x50,
+        0x26,
+        0x1D,
+        0x17,
+        0x03,
+        0xC0,
+        0xC8,
+        0x84,
+        0x60,
+        0x34,
+        0x1D,
+        0x0E,
+        0x12,
     };
 
-    //Grab the AM and FM byte now, so we can do proper checks.
     uint8_t fm_byte = preset_data[preset_data_size - PRESET_POWER_OFFSET_FM];
     uint8_t am_byte = preset_data[preset_data_size - PRESET_POWER_OFFSET_AM];
 
-    //Set the TX Power Here in the CC1101 register...
-
-    //If we have both bytes 1st bytes set or none, this isnt a preset we can deal with here.
     if(fm_byte && !am_byte) {
-        //Use FM Table
+
         if(tx_power) {
             preset_data[preset_data_size - PRESET_POWER_OFFSET_FM] =
                 tx_pa_table[TX_PATABLE_OFFSET_AM + tx_power];
         } else {
             preset_data[preset_data_size - PRESET_POWER_OFFSET_FM] =
-                tx_pa_table[1]; //Max Power 0xC0 10dBm
+                tx_pa_table[1];
         }
     } else if(am_byte && !fm_byte) {
-        //Use AM Table
+
         if(tx_power) {
             preset_data[preset_data_size - PRESET_POWER_OFFSET_AM] = tx_pa_table[tx_power];
         } else {
             preset_data[preset_data_size - PRESET_POWER_OFFSET_AM] =
-                tx_pa_table[1]; //Max Power 0xC0 12dBm
+                tx_pa_table[1];
         }
     }
 
-    //Pass back the preset_so we can call one liners.
     return preset_data;
 }
 
@@ -260,6 +248,8 @@ static uint32_t subghz_txrx_rx(SubGhzTxRx* instance, uint32_t frequency) {
         instance->txrx_state != SubGhzTxRxStateRx && instance->txrx_state != SubGhzTxRxStateSleep);
 
     subghz_devices_idle(instance->radio_device);
+
+    subghz_txrx_receiver_apply_modulation_filter(instance);
 
     uint32_t value = subghz_devices_set_frequency(
         instance->radio_device, (uint32_t)((int64_t)frequency + instance->frequency_offset));
@@ -365,7 +355,7 @@ SubGhzTxRxStartTxState subghz_txrx_tx_start(SubGhzTxRx* instance, FlipperFormat*
                 }
 
                 if(ret == SubGhzTxRxStartTxStateOk) {
-                    //Start TX
+
                     subghz_devices_start_async_tx(
                         instance->radio_device, subghz_transmitter_yield, instance->transmitter);
                 }
@@ -409,12 +399,11 @@ void subghz_txrx_set_need_save_callback(
 static void subghz_txrx_tx_stop(SubGhzTxRx* instance) {
     furi_assert(instance);
     furi_assert(instance->txrx_state == SubGhzTxRxStateTx);
-    //Stop TX
+
     subghz_devices_stop_async_tx(instance->radio_device);
     subghz_transmitter_stop(instance->transmitter);
     subghz_transmitter_free(instance->transmitter);
 
-    //if protocol dynamic then we save the last upload
     if(instance->decoder_result->protocol->type == SubGhzProtocolTypeDynamic) {
         if(instance->need_save_callback) {
             instance->need_save_callback(instance->need_save_context);
@@ -468,13 +457,11 @@ void subghz_txrx_hopper_update(SubGhzTxRx* instance, float stay_threshold) {
     default:
         break;
     }
-    //    Init value isn't using
-    //    float rssi = -127.0f;
+
     if(instance->hopper_state != SubGhzHopperStateRSSITimeOut) {
-        // See RSSI Calculation timings in CC1101 17.3 RSSI
+
         float rssi = subghz_devices_get_rssi(instance->radio_device);
 
-        // Stay if RSSI is high enough
         if(rssi > stay_threshold) {
             instance->hopper_timeout = 10;
             instance->hopper_state = SubGhzHopperStateRSSITimeOut;
@@ -483,7 +470,7 @@ void subghz_txrx_hopper_update(SubGhzTxRx* instance, float stay_threshold) {
     } else {
         instance->hopper_state = SubGhzHopperStateRunning;
     }
-    // Select next frequency
+
     if(instance->hopper_idx_frequency <
        subghz_setting_get_hopper_frequency_count(instance->setting) - 1) {
         instance->hopper_idx_frequency++;
@@ -781,6 +768,51 @@ bool subghz_txrx_protocol_is_transmittable(SubGhzTxRx* instance, bool check_type
            protocol->encoder->deserialize;
 }
 
+#define SUBGHZ_CC1101_REG_MDMCFG2        0x12U
+#define SUBGHZ_CC1101_MOD_FORMAT_MASK    0x70U
+#define SUBGHZ_CC1101_MOD_FORMAT_ASK_OOK 0x30U
+
+static bool subghz_txrx_preset_try_get_register(
+    const uint8_t* data,
+    size_t size,
+    uint8_t reg,
+    uint8_t* value) {
+    if(!data || !value || (size < 2U)) {
+        return false;
+    }
+    for(size_t i = 0; i + 1U < size; i += 2U) {
+        const uint8_t address = data[i];
+        const uint8_t reg_data = data[i + 1U];
+        if((address == 0x00U) && (reg_data == 0x00U)) {
+            break;
+        }
+        if(address == reg) {
+            *value = reg_data;
+            return true;
+        }
+    }
+    return false;
+}
+
+void subghz_txrx_receiver_apply_modulation_filter(SubGhzTxRx* instance) {
+    furi_assert(instance);
+    SubGhzProtocolFlag modulation = 0;
+    uint8_t mdmcfg2 = 0U;
+    if(subghz_txrx_preset_try_get_register(
+           instance->preset->data,
+           instance->preset->data_size,
+           SUBGHZ_CC1101_REG_MDMCFG2,
+           &mdmcfg2)) {
+        modulation =
+            ((mdmcfg2 & SUBGHZ_CC1101_MOD_FORMAT_MASK) == SUBGHZ_CC1101_MOD_FORMAT_ASK_OOK) ?
+                SubGhzProtocolFlag_AM :
+                SubGhzProtocolFlag_FM;
+    } else {
+        FURI_LOG_W(TAG, "Preset missing MDMCFG2, modulation gate disabled");
+    }
+    subghz_receiver_set_modulation_filter(instance->receiver, modulation);
+}
+
 void subghz_txrx_receiver_set_filter(SubGhzTxRx* instance, SubGhzProtocolFlag filter) {
     furi_assert(instance);
     subghz_receiver_set_filter(instance->receiver, filter);
@@ -851,9 +883,7 @@ SubGhzRadioDeviceType
         instance->radio_device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME);
         instance->radio_device_type = SubGhzRadioDeviceTypeInternal;
         if(radio_device_type == SubGhzRadioDeviceTypeExternalCC1101) {
-            // Actually checked for one and didn't find it - a plain request
-            // for Internal (that never asked about External) leaves the
-            // flag alone instead.
+
             fox_cc1101_ext_status_write(false);
         }
     }
@@ -882,20 +912,10 @@ bool subghz_txrx_radio_device_is_frequency_valid(SubGhzTxRx* instance, uint32_t 
 }
 
 bool subghz_txrx_radio_device_is_tx_allowed(SubGhzTxRx* instance, uint32_t frequency) {
-    // TODO: Remake this function to check if the frequency is allowed on specific module - for modules not based on CC1101
+
     furi_assert(instance);
     UNUSED(frequency);
-    /*
-    furi_assert(instance->txrx_state != SubGhzTxRxStateSleep);
 
-    subghz_devices_idle(instance->radio_device);
-    subghz_devices_set_frequency(instance->radio_device, frequency);
-
-    bool ret = subghz_devices_set_tx(instance->radio_device);
-    subghz_devices_idle(instance->radio_device);
-
-    return ret;
-    */
     return true;
 }
 
@@ -950,19 +970,15 @@ const char* subghz_txrx_set_preset_internal(
     uint8_t tx_power) {
     furi_assert(instance);
 
-    //Grab the prset name.
     SubGhzSetting* setting = subghz_txrx_get_setting(instance);
     const char* preset_name = subghz_setting_get_preset_name(setting, index);
     subghz_setting_set_default_frequency(setting, frequency);
 
-    //Get the preset data now so we can set TX power.
     uint8_t* preset_data = subghz_setting_get_preset_data(setting, index);
     size_t preset_data_size = subghz_setting_get_preset_data_size(setting, index);
 
-    //Edit TX power, if necessary.
     subghz_txrx_set_tx_power(preset_data, preset_data_size, tx_power);
 
-    //Set the Updated Preset.
     subghz_txrx_set_preset(instance, preset_name, frequency, preset_data, preset_data_size);
 
     return preset_name;

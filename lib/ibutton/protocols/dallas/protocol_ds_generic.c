@@ -40,11 +40,11 @@ const iButtonProtocolDallasBase ibutton_protocol_ds_generic = {
 
     .read = ds_generic_read,
     .write_id = ds_generic_write_id,
-    .write_copy = NULL, /* No data to write a copy */
+    .write_copy = NULL,
     .emulate = ds_generic_emulate,
     .save = ds_generic_save,
     .load = ds_generic_load,
-    .render_data = NULL, /* No data to render */
+    .render_data = NULL,
     .render_uid = ds_generic_render_uid,
     .render_brief_data = ds_generic_render_brief_data,
     .render_error = ds_generic_render_error,
@@ -88,7 +88,6 @@ static bool ds_generic_command_callback(uint8_t command, void* context) {
         break;
     }
 
-    // No support for multiple consecutive commands
     return false;
 }
 

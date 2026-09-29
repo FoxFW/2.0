@@ -4,11 +4,6 @@
 #include <gpio_remap/gpio_remap_settings.h>
 #else
 
-/* FoxFW2.0's shared gpio_remap service isn't available on this firmware -
- * fall back to a private, per-app copy of the same setting so the pin
- * choice still persists locally. Only the cross-app sync FoxFW2.0 gets
- * from the shared service is lost here. */
-
 #include <furi.h>
 #include <saved_struct.h>
 #include <storage/storage.h>

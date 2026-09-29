@@ -4,12 +4,6 @@
 #include <furi.h>
 #include <desktop/helpers/pin_code.h>
 
-/* NOTE: notification/notification_messages.h removed.
- * notification_message, sequence_single_vibro are notification-service symbols
- * whose SDK export status we cannot verify without the service's application.fam.
- * Vibration on PIN mismatch is replaced with a no-op; the error display via
- * desktop_settings_view_numeric_pin_set_error() still gives visual feedback. */
-
 static uint8_t first_pass_digits[8];
 static uint8_t first_pass_len = 0;
 static uint8_t fail_attempts = 0;
@@ -88,8 +82,7 @@ bool desktop_settings_scene_pin_setup_on_event(void* context, SceneManagerEvent 
                     scene_manager_next_scene(
                         app->scene_manager, DesktopSettingsAppScenePinSetupDone);
                 } else {
-                    /* PIN mismatch — show error state in the numeric pin view.
-                     * Notification vibration removed (uncertain API export). */
+
                     desktop_settings_view_numeric_pin_set_error(app->numeric_pin_view, true);
                 }
                 consumed = true;

@@ -31,38 +31,29 @@ PacsFuzzerApp* fuzzer_app_alloc() {
 
     app->file_path = furi_string_alloc();
 
-    // GUI
     app->gui = furi_record_open(RECORD_GUI);
 
-    // Dialog
     app->dialogs = furi_record_open(RECORD_DIALOGS);
 
-    // Open Notification record
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
 
-    // View Dispatcher
     app->view_dispatcher = view_dispatcher_alloc();
 
-    // Popup
     app->popup = popup_alloc();
     view_dispatcher_add_view(app->view_dispatcher, FuzzerViewIDPopup, popup_get_view(app->popup));
 
-    // TextInput
     app->text_input = text_input_alloc();
     view_dispatcher_add_view(
         app->view_dispatcher, FuzzerViewIDTextInput, text_input_get_view(app->text_input));
 
-    // Main view
     app->main_view = fuzzer_view_main_alloc();
     view_dispatcher_add_view(
         app->view_dispatcher, FuzzerViewIDMain, fuzzer_view_main_get_view(app->main_view));
 
-    // Attack view
     app->attack_view = fuzzer_view_attack_alloc();
     view_dispatcher_add_view(
         app->view_dispatcher, FuzzerViewIDAttack, fuzzer_view_attack_get_view(app->attack_view));
 
-    // FieldEditor view
     app->field_editor_view = fuzzer_view_field_editor_alloc();
     view_dispatcher_add_view(
         app->view_dispatcher,
@@ -89,36 +80,28 @@ PacsFuzzerApp* fuzzer_app_alloc() {
 void fuzzer_app_free(PacsFuzzerApp* app) {
     furi_assert(app);
 
-    // Remote view
     view_dispatcher_remove_view(app->view_dispatcher, FuzzerViewIDMain);
     fuzzer_view_main_free(app->main_view);
 
-    // Attack view
     view_dispatcher_remove_view(app->view_dispatcher, FuzzerViewIDAttack);
     fuzzer_view_attack_free(app->attack_view);
 
-    // FieldEditor view
     view_dispatcher_remove_view(app->view_dispatcher, FuzzerViewIDFieldEditor);
     fuzzer_view_field_editor_free(app->field_editor_view);
 
-    // Popup
     view_dispatcher_remove_view(app->view_dispatcher, FuzzerViewIDPopup);
     popup_free(app->popup);
 
-    // TextInput
     view_dispatcher_remove_view(app->view_dispatcher, FuzzerViewIDTextInput);
     text_input_free(app->text_input);
 
     scene_manager_free(app->scene_manager);
     view_dispatcher_free(app->view_dispatcher);
 
-    // Dialog
     furi_record_close(RECORD_DIALOGS);
 
-    // Close records
     furi_record_close(RECORD_GUI);
 
-    // Notifications
     furi_record_close(RECORD_NOTIFICATION);
     app->notifications = NULL;
 

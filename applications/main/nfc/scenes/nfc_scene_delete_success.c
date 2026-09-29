@@ -8,9 +8,8 @@ void nfc_scene_delete_success_popup_callback(void* context) {
 void nfc_scene_delete_success_on_enter(void* context) {
     NfcApp* nfc = context;
 
-    // Setup view
     Popup* popup = nfc->popup;
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 2, &I_DolphinMafia_119x62);
+
     popup_set_header(popup, "Deleted", 80, 19, AlignLeft, AlignBottom);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, nfc);
@@ -49,6 +48,5 @@ bool nfc_scene_delete_success_on_event(void* context, SceneManagerEvent event) {
 void nfc_scene_delete_success_on_exit(void* context) {
     NfcApp* nfc = context;
 
-    // Clear view
     popup_reset(nfc->popup);
 }

@@ -75,8 +75,7 @@ static void ds_gpio_changed(VariableItem* item) {
     uint8_t index = variable_item_get_current_value_index(item);
     app->settings.lock_disconnect_gpio = index;
     variable_item_set_current_value_text(item, on_off_text[index]);
-    // TODO: call furi_hal_serial_control_disable/enable in desktop_lock/unlock
-    //       once the correct ARF API function name is identified.
+
     ds_push_settings(app);
 }
 
@@ -96,7 +95,7 @@ static void ds_usb_changed(VariableItem* item) {
 static void ds_enter_callback(void* context, uint32_t index) {
     UNUSED(context);
     UNUSED(index);
-    // No navigation items in this scene — all are variable items.
+
 }
 
 void desktop_settings_scene_disconnect_services_on_enter(void* context) {
@@ -131,9 +130,7 @@ void desktop_settings_scene_disconnect_services_on_enter(void* context) {
         s_usb_item, enabled ? usb_level_text[app->settings.lock_usb_level] : "N/A");
 
     variable_item_list_set_enter_callback(var_list, ds_enter_callback, app);
-    // Always start at the top — same shared-widget index issue as the parent
-    // Security & Privacy menu. Without this the list opens wherever the index
-    // happened to be left from whatever scene last used this widget.
+
     variable_item_list_set_selected_item(var_list, 0);
     view_dispatcher_switch_to_view(app->view_dispatcher, DesktopSettingsAppViewVarItemList);
 }

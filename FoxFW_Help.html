@@ -327,6 +327,7 @@
       <li><a href="#fox-settings">Fox Settings</a>
         <ul class="sub">
           <li><a href="#security">Security &amp; Privacy</a></li>
+          <li><a href="#usb-mode">USB Mode</a></li>
           <li><a href="#lock-display">Lock Screen Display</a></li>
           <li><a href="#wallpaper">Custom Wallpaper</a></li>
           <li><a href="#name">Change Flipper Name</a></li>
@@ -342,8 +343,9 @@
         </ul>
       </li>
       <li><a href="#fox-esp32-apps">Fox ESP32 Apps</a></li>
+      <li><a href="#fox-usb-apps">Fox USB Drive Apps</a></li>
     </ol>
-    <ol start="8">
+    <ol start="10">
       <li><a href="#subghz">Sub-GHz</a>
         <ul class="sub">
           <li><a href="#read">Read</a></li>
@@ -400,6 +402,7 @@
     <li>An extended <strong>Custom Wallpaper</strong> system with a factory-seeded template that generates automatically if missing.</li>
     <li>A <strong>Sub-Ghz Mode</strong> picker on launch — choose Automotive or Garage/Gate/Other, each opening the same familiar Sub-GHz screen scoped to that protocol set, plus dedicated rows for RF Jammer, TPMS Read/Edit, and Radio Settings.</li>
     <li>A <strong>Sub-GHz Bruteforcer</strong> app in the App Menu for brute-forcing fixed-code remotes across common protocols.</li>
+    <li>A <strong>Sub-GHz Randomized Attack (SubRATT)</strong> app — a novelty sibling to the Bruteforcer for keyspaces too large to ever finish sequentially, transmitting random candidate keys forever and logging every key tried to SD card as it runs, so a key that works while you're away is never lost.</li>
     <li>A built-in <strong>Screenshot Tool</strong> — hold Back+Up on any screen to save what's currently displayed as a standard <code>.xbm</code> file, no computer or qFlipper connection required.</li>
     <li>A full <strong>Fox ESP32 companion suite</strong> — FoxHub, Chat, Portal, Detector, Flasher, and Chameleon — turning a wired ESP32 into a WiFi/BLE/HTTP extension of your Flipper. Powered by the separate <a href="https://github.com/FoxFW/Fox_ESP32_FW" style="color:#80c890;">Fox ESP32 Firmware</a>.</li>
   </ul>
@@ -407,7 +410,7 @@
 </section>
 
 
-<!-- ══════════════════ 1b · WEB FLASHER ══════════════════ -->
+<!-- ══════════════════ 2 · WEB FLASHER ══════════════════ -->
 <section class="section" id="web-flasher">
   <div class="chapter-label">Chapter 2</div>
   <h2>Web Installer <span class="badge">New</span></h2>
@@ -457,9 +460,9 @@
 </section>
 
 
-<!-- ══════════════════ 1c · FAP COMPILER ══════════════════ -->
+<!-- ══════════════════ 3 · FAP COMPILER ══════════════════ -->
 <section class="section" id="fap-compiler-info">
-  <div class="chapter-label">Chapter 2b</div>
+  <div class="chapter-label">Chapter 3</div>
   <h2>FAP Compiler <span class="badge">New</span></h2>
   <p>
     Want to run a third-party app that isn't bundled with FoxFW? Paste its GitHub
@@ -499,9 +502,9 @@
 </section>
 
 
-<!-- ══════════════════ 2 · FIRST BOOT ══════════════════ -->
+<!-- ══════════════════ 4 · FIRST BOOT ══════════════════ -->
 <section class="section" id="first-boot">
-  <div class="chapter-label">Chapter 3</div>
+  <div class="chapter-label">Chapter 4</div>
   <h2>First Boot — Fox Setup Wizard</h2>
   <p>
     After installing FoxFW (or after a firmware update that includes a wizard
@@ -558,9 +561,9 @@
 </section>
 
 
-<!-- ══════════════════ 3 · DESKTOP ══════════════════ -->
+<!-- ══════════════════ 5 · DESKTOP ══════════════════ -->
 <section class="section" id="desktop">
-  <div class="chapter-label">Chapter 4</div>
+  <div class="chapter-label">Chapter 5</div>
   <h2>Desktop Overview</h2>
   <p>
     The FoxFW desktop is the idle screen you see after booting. FoxFW uses a
@@ -750,9 +753,9 @@
 </section>
 
 
-<!-- ══════════════════ 4 · FFB ══════════════════ -->
+<!-- ══════════════════ 6 · FFB ══════════════════ -->
 <section class="section" id="ffb">
-  <div class="chapter-label">Chapter 5</div>
+  <div class="chapter-label">Chapter 6</div>
   <h2>Fox File Browser <span class="badge">FoxFW Exclusive</span></h2>
   <p>
     The <strong>Fox File Browser (FFB)</strong> replaces the stock Archive app
@@ -874,9 +877,9 @@
 </section>
 
 
-<!-- ══════════════════ 5 · FOX SETTINGS ══════════════════ -->
+<!-- ══════════════════ 7 · FOX SETTINGS ══════════════════ -->
 <section class="section" id="fox-settings">
-  <div class="chapter-label">Chapter 6</div>
+  <div class="chapter-label">Chapter 7</div>
   <h2>Fox Settings</h2>
   <p>
     Fox Settings is found in the main App Menu under Settings. It contains all
@@ -1019,6 +1022,32 @@
       to USB — handy for desk sessions with qFlipper.
     </div>
     <div class="values">Options: <span>OFF · ON</span></div>
+  </div>
+
+  <!-- ── USB MODE ── -->
+  <h3 id="usb-mode">USB Mode <span class="badge">New</span></h3>
+  <p>
+    Fox Settings &rarr; <em>USB Mode</em> chooses what the Flipper's USB port is for.
+    <strong>qFlipper Mode</strong> (the default, and what every boot starts in) is the
+    normal serial/RPC connection used by qFlipper and the CLI. <strong>Mass Storage
+    Mode</strong> shares the SD card itself with your computer as a removable drive, so
+    you can copy files on and off without pulling the card. The mode that is currently
+    active shows the 7&times;7 OK marker to its left.
+  </p>
+  <p>
+    Selecting Mass Storage takes effect immediately: Fox Settings closes and the Mass
+    Storage app takes over the screen, any open qFlipper or CLI session is closed, and the
+    card is handed to the computer. While the <em>Mass Storage Mode</em> screen is showing,
+    nothing on the Flipper can use the SD card and qFlipper cannot connect. Eject the drive
+    on your computer, then press <strong>Disconnect</strong> (OK or Back) to return to
+    qFlipper Mode instantly &mdash; the card is remounted, qFlipper can reconnect, and you
+    are back on the desktop. Ejecting from the computer also returns to qFlipper Mode. The
+    choice is not saved: the Flipper always boots in qFlipper Mode.
+  </p>
+  <div class="keys">
+    <div class="key-row"><span class="key-badge">&uarr; &darr;</span><span class="key-desc">Move between qFlipper Mode and Mass Storage Mode</span></div>
+    <div class="key-row"><span class="key-badge">OK</span><span class="key-desc">Switch to the highlighted mode</span></div>
+    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Return to Fox Settings</span></div>
   </div>
 
   <!-- ── LOCK SCREEN DISPLAY ── -->
@@ -1374,8 +1403,9 @@
 </section>
 
 
-<!-- ══════════════════ 5.5 · FOX ESP32 APPS ══════════════════ -->
+<!-- ══════════════════ 8 · FOX ESP32 APPS ══════════════════ -->
 <section class="section" id="fox-esp32-apps">
+  <div class="chapter-label">Chapter 8</div>
   <h2>Fox ESP32 Apps <span class="badge">FoxFW Exclusive</span></h2>
   <p>
     FoxFW ships a full suite of apps that pair with a wired ESP32 to extend
@@ -1485,9 +1515,60 @@
 </section>
 
 
-<!-- ══════════════════ 6 · SUBGHZ ══════════════════ -->
+<!-- ══════════ 9 · FOX USB DRIVE APPS ══════════ -->
+<section class="section" id="fox-usb-apps">
+  <div class="chapter-label">Chapter 9</div>
+  <h2>Fox USB Drive Apps — MP3 &amp; Media <span class="badge">New</span></h2>
+  <p>
+    Two apps turn a folder on your SD card into a small <strong>read-only USB
+    drive named FOX</strong> that you plug straight into a Bluetooth speaker, car
+    head unit, or TV — no PC in the middle. Unlike <a href="#usb-mode">Mass
+    Storage Mode</a> (which shares your whole SD card), these expose only one
+    chosen folder, so the device on the other end sees just your media.
+  </p>
+  <ul>
+    <li><strong>Fox MP3 USB</strong> — serves everything in the <code>/MP3/</code>
+      folder at the root of the FOX drive.</li>
+    <li><strong>Fox Media USB</strong> — serves the <code>/MEDIA/</code> folder and
+      its <code>MUSIC</code>, <code>VIDEO</code> and <code>PICTURE</code> sub-folders
+      (created for you automatically the first time you run it).</li>
+  </ul>
+  <p>
+    <strong>How to use:</strong> copy your files into <code>/MP3/</code> (or the
+    <code>/MEDIA/</code> sub-folders) first — over qFlipper, Fox File Browser, or a
+    card reader — then launch the app. It builds the drive from whatever is in the
+    folder and presents it over USB as <strong>FOX</strong>. Plug the Flipper into
+    the speaker or TV and it reads your files like an ordinary thumb drive.
+  </p>
+  <div class="box tip">
+    <strong>Built instantly — nothing is copied.</strong> The drive is generated
+    from the folder's current contents the moment you open the app; even a large
+    library is ready in a second or two, because the files are served in place
+    rather than duplicated onto a separate image. Add or remove files in the
+    folder, relaunch, and the drive reflects the change.
+  </div>
+  <div class="box info">
+    <strong>Read-only by design.</strong> The FOX drive cannot be written to from
+    the speaker, TV, or PC side — the connected device can only read your files,
+    never add, change, or delete them. Long file names are handled automatically.
+  </div>
+  <p>
+    While the drive is active the screen shows the FOX drive with live read
+    counters and a brief <strong>LOADING</strong> hint while the other device opens
+    it. Press <strong>Disconnect</strong> (OK) or <strong>Back</strong> to end the
+    session and return to normal — qFlipper reconnects on its own.
+  </p>
+  <div class="keys">
+    <div class="key-row"><span class="key-badge">OK</span><span class="key-desc">Disconnect the drive and exit</span></div>
+    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Disconnect the drive and exit</span></div>
+  </div>
+  <div class="back-top"><a href="#top">↑ Back to top</a></div>
+</section>
+
+
+<!-- ══════════════════ 10 · SUBGHZ ══════════════════ -->
 <section class="section" id="subghz">
-  <div class="chapter-label">Chapter 7</div>
+  <div class="chapter-label">Chapter 10</div>
   <h2>Sub-GHz</h2>
   <p>
     The Sub-GHz app lets your Flipper interact with radio-frequency devices
@@ -1517,19 +1598,22 @@
     continuously in real time), Garage/Gate/Other's Read now records the
     incoming signal raw first and only runs it through the protocol
     decoders once the transmission has actually finished — the listening
-    screen looks and behaves like Read RAW's own recording screen. A
-    signal has to clear the RSSI Threshold set in Receiver Config before
+    screen looks and behaves like Read RAW's own recording screen. The
+    decode pass tries every enabled <a href="#radio-settings">Protocol
+    Group</a> against the capture in turn, fast enough that it still feels
+    instant, until one decodes it or none do. A signal has to clear the
+    RSSI Threshold set in Receiver Config before
     Read starts treating it as an actual transmission, so ambient RF noise
     alone won't trigger a capture. If the signal decodes successfully
     you're taken straight to its info screen to save or discard it; if
     nothing matches, a "No Match" screen offers Back (return to the Start
-    screen) or Save (keep the raw capture and load it into the RAW
-    editor). Nothing is written to SD card unless you choose to save.
+    screen with the Start button ready, not counting down) or Save (keep
+    the raw capture and load it into the RAW editor). Nothing is written to SD card unless you choose to save.
   </p>
   <div class="keys">
     <div class="key-row"><span class="key-badge">OK</span><span class="key-desc">Start listening (from the Start screen)</span></div>
     <div class="key-row"><span class="key-badge">←</span><span class="key-desc">Open Receiver Config (frequency, modulation, hopping, RSSI threshold, and more) — from the Start screen or while listening</span></div>
-    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Stop and return to menu</span></div>
+    <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">While listening: stop the read and return to the Start screen (no countdown). During the Start countdown: cancel it, leaving Start selected. From the Start screen: return to menu</span></div>
   </div>
   <div class="box info">
     <strong>Garage/Gate/Other mode</strong> shows a reduced Receiver Config —
@@ -1537,6 +1621,16 @@
     Automotive mode's Receiver Config additionally has per-protocol
     Ignore toggles, Preset Hopping, Delete Old Signals, Reset to Default, and
     Lock Keyboard, none of which Garage/Gate/Other needs.
+  </div>
+  <div class="box info">
+    <strong>Auto-Save Every Signal</strong> <span class="badge">New</span> —
+    a toggle in the main Sub-GHz Read's Receiver Config (Automotive mode). With
+    it on, every signal Read decodes is written straight to your Sub-GHz folder
+    as its own .sub file the moment it lands in the history — no need to open
+    each capture and save it by hand. Files are named automatically from the
+    protocol name and a date/time stamp (plus any File Prefix you've set), and a
+    double-buzz confirms each save. Leave it off to keep the normal
+    save-only-what-you-choose behavior.
   </div>
   <div class="box info">
     <strong>Flipper RAM warning</strong> <span class="badge">New</span> — if
@@ -1761,7 +1855,7 @@
   <div class="box info">
     <strong>Garage/Gate/Other mode</strong> doesn't have this menu — its
     preset needs are already minimal and tied to whichever
-    <a href="#radio-settings">Protocol Group</a> is selected (only Group 8
+    <a href="#radio-settings">Protocol Groups</a> are enabled (only Group 8
     "Germany" needs anything beyond the everyday AM650/FM476 presets), so a
     separate manual toggle screen was redundant and has been removed there.
   </div>
@@ -1978,13 +2072,16 @@
     <strong>Garage/Gate/Other mode</strong> shows a different screen here
     instead, opened from the app's own full-width <strong>Protocol
     Group</strong> button — one double-row button per <a
-    href="#radio-settings">Protocol Group</a>, since only one group is ever
-    loaded at a time (see <a href="#mode-picker">below</a>). Each button
-    shows the group's name in bold with its member protocols scrolling
-    underneath. Up/Down move the highlight to browse groups; pressing OK on
-    a group makes it the active one for Read, marked with a small icon on
-    the left. This is the only place to change the active group — Radio
-    Settings no longer has a duplicate control for it.
+    href="#radio-settings">Protocol Group</a>. Each button shows the
+    group's name in bold with its member protocols scrolling underneath.
+    Up/Down move the highlight to browse groups; pressing OK on a group
+    toggles it ON or OFF independently of every other group, shown with a
+    small icon on the left (filled = enabled, hollow = disabled) — at
+    least one group must stay enabled. Only one group's protocols are
+    ever resident in RAM at a time (see <a href="#mode-picker">below</a>),
+    but Read's decode pass tries every enabled group in turn against a
+    captured signal, so you don't have to pre-pick a single group before
+    capturing — only rule out the ones you're not interested in.
   </p>
 
   <!-- MODE PICKER -->
@@ -2062,9 +2159,11 @@
     <tr><td>PSA (Peugeot / Citroën / DS)</td><td>PSA GROUP</td><td>433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Ford</td><td>Ford V0</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Ford</td><td>Ford V1</td><td>315 / 433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>General Motors (Chevrolet / GMC / Buick / Cadillac)</td><td>GM</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
     <tr><td>Fiat</td><td>Fiat SpA</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Fiat</td><td>Marelli / Delphi</td><td>433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>✓</td></tr>
     <tr><td>Renault (older models)</td><td>Marelli</td><td>433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>—</td></tr>
+    <tr><td>Renault (Hitag2)</td><td>Renault V1</td><td>315 / 433 / 868 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
     <tr><td>Mazda</td><td>Siemens 5WK49365D</td><td>315 / 433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Kia / Hyundai</td><td>KIA/HYU V0</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Kia / Hyundai</td><td>KIA/HYU V1</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
@@ -2076,6 +2175,7 @@
     <tr><td>Subaru</td><td>Subaru</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
     <tr><td>Suzuki</td><td>Suzuki</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Mitsubishi</td><td>Mitsubishi V0</td><td>868 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Mitsubishi</td><td>Mitsubishi V0-a</td><td>315 / 433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Honda</td><td>Honda Type A / B</td><td>433 MHz</td><td>FM (custom)</td><td>✓</td><td>✓</td><td>—</td></tr>
     <tr><td>Honda</td><td>Honda Static</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
     <tr><td>Chrysler / Dodge / Jeep</td><td>FOBIK GQ43VT</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
@@ -2126,8 +2226,9 @@
   <h3>Gate &amp; Access Control Protocols <span class="badge">Garage/Gate/Other</span></h3>
   <p>
     The <strong>Group</strong> column shows which Protocol Group each
-    protocol belongs to — select that group from the app's own
-    <a href="#mode-picker">Protocols screen</a> to have Read listen for it.
+    protocol belongs to — make sure that group is enabled on the app's own
+    <a href="#mode-picker">Protocols screen</a> for Read to try it (every
+    group is enabled by default).
   </p>
   <table>
     <tr><th>Protocol</th><th>Frequency</th><th>Mod</th><th>Encode</th><th>Decode</th><th>CRC</th><th>Group</th></tr>
@@ -2223,9 +2324,9 @@
 </section>
 
 
-<!-- ══════════════════ 7 · UX ══════════════════ -->
+<!-- ══════════════════ 11 · UX ══════════════════ -->
 <section class="section" id="ux">
-  <div class="chapter-label">Chapter 8</div>
+  <div class="chapter-label">Chapter 11</div>
   <h2>System UX — Bounce Scroll &amp; Text Rendering <span class="badge">FoxFW Exclusive</span></h2>
   <p>
     FoxFW replaces the stock single-direction text scroll with a
@@ -2254,9 +2355,9 @@
 </section>
 
 
-<!-- ══════════════════ 8b · SCREENSHOT TOOL ══════════════════ -->
+<!-- ══════════════════ 12 · SCREENSHOT TOOL ══════════════════ -->
 <section class="section" id="screenshot">
-  <div class="chapter-label">Chapter 9</div>
+  <div class="chapter-label">Chapter 12</div>
   <h2>Screenshot Tool <span class="badge">FoxFW Exclusive</span></h2>
   <p>
     Capture exactly what's on screen, from anywhere in the firmware — no
@@ -2287,9 +2388,9 @@
 </section>
 
 
-<!-- ══════════════════ 8 · FIRMWARE UPDATE ══════════════════ -->
+<!-- ══════════════════ 13 · FIRMWARE UPDATE ══════════════════ -->
 <section class="section" id="firmware-update">
-  <div class="chapter-label">Chapter 10</div>
+  <div class="chapter-label">Chapter 13</div>
   <h2>Installing Firmware Updates</h2>
   <p>There are four ways to install a FoxFW update:</p>
 
@@ -2372,9 +2473,9 @@
 </section>
 
 
-<!-- ══════════════════ 9 · LOCKOUT ══════════════════ -->
+<!-- ══════════════════ 14 · LOCKOUT ══════════════════ -->
 <section class="section" id="lockout">
-  <div class="chapter-label">Chapter 11</div>
+  <div class="chapter-label">Chapter 14</div>
   <h2>Lockout &amp; Recovery</h2>
 
   <h3>I forgot my PIN</h3>

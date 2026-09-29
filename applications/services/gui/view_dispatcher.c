@@ -48,24 +48,24 @@ ViewDispatcher* view_dispatcher_alloc_ex(FuriEventLoop* loop) {
 }
 
 void view_dispatcher_free(ViewDispatcher* view_dispatcher) {
-    // Detach from gui
+
     if(view_dispatcher->gui) {
         gui_remove_view_port(view_dispatcher->gui, view_dispatcher->view_port);
     }
-    // Detached above, so nothing can be drawing it now
+
     if(view_dispatcher->loading) {
         View* view = loading_get_view(view_dispatcher->loading);
         if(view_dispatcher->current_view == view) view_dispatcher->current_view = NULL;
         if(view_dispatcher->ongoing_input_view == view) view_dispatcher->ongoing_input_view = NULL;
         loading_free(view_dispatcher->loading);
     }
-    // Crash if not all views were freed
+
     furi_check(!ViewDict_size(view_dispatcher->views));
 
     ViewDict_clear(view_dispatcher->views);
-    // Free ViewPort
+
     view_port_free(view_dispatcher->view_port);
-    // Free internal queue
+
     furi_event_loop_unsubscribe(view_dispatcher->event_loop, view_dispatcher->input_queue);
     furi_event_loop_unsubscribe(view_dispatcher->event_loop, view_dispatcher->event_queue);
 
@@ -73,7 +73,7 @@ void view_dispatcher_free(ViewDispatcher* view_dispatcher) {
     furi_message_queue_free(view_dispatcher->event_queue);
 
     if(view_dispatcher->is_event_loop_owned) furi_event_loop_free(view_dispatcher->event_loop);
-    // Free dispatcher
+
     free(view_dispatcher);
 }
 
@@ -131,7 +131,6 @@ void view_dispatcher_run(ViewDispatcher* view_dispatcher) {
 
     furi_event_loop_run(view_dispatcher->event_loop);
 
-    // Wait till all input events delivered
     InputEvent input;
     while(view_dispatcher->ongoing_input) {
         furi_message_queue_get(view_dispatcher->input_queue, &input, FuriWaitForever);
@@ -152,10 +151,9 @@ void view_dispatcher_stop(ViewDispatcher* view_dispatcher) {
 void view_dispatcher_add_view(ViewDispatcher* view_dispatcher, uint32_t view_id, View* view) {
     furi_check(view_dispatcher);
     furi_check(view);
-    // Check if view id is not used and register view
+
     furi_check(ViewDict_get(view_dispatcher->views, view_id) == NULL);
 
-    // Lock gui
     if(view_dispatcher->gui) {
         gui_lock(view_dispatcher->gui);
     }
@@ -164,7 +162,6 @@ void view_dispatcher_add_view(ViewDispatcher* view_dispatcher, uint32_t view_id,
     view_set_update_callback(view, view_dispatcher_update);
     view_set_update_callback_context(view, view_dispatcher);
 
-    // Unlock gui
     if(view_dispatcher->gui) {
         gui_unlock(view_dispatcher->gui);
     }
@@ -173,28 +170,25 @@ void view_dispatcher_add_view(ViewDispatcher* view_dispatcher, uint32_t view_id,
 void view_dispatcher_remove_view(ViewDispatcher* view_dispatcher, uint32_t view_id) {
     furi_check(view_dispatcher);
 
-    // Lock gui
     if(view_dispatcher->gui) {
         gui_lock(view_dispatcher->gui);
     }
-    // Get View by ID
+
     View* view = *ViewDict_get(view_dispatcher->views, view_id);
 
-    // Disable the view if it is active
     if(view_dispatcher->current_view == view) {
         view_dispatcher_set_current_view(view_dispatcher, NULL);
     }
-    // Check if view is receiving input
+
     if(view_dispatcher->ongoing_input_view == view) {
         view_dispatcher->ongoing_input_view = NULL;
     }
-    // Remove view
+
     furi_check(ViewDict_erase(view_dispatcher->views, view_id));
 
     view_set_update_callback(view, NULL);
     view_set_update_callback_context(view, NULL);
 
-    // Unlock gui
     if(view_dispatcher->gui) {
         gui_unlock(view_dispatcher->gui);
     }
@@ -205,10 +199,7 @@ void view_dispatcher_show_loading(ViewDispatcher* view_dispatcher) {
 
     if(!view_dispatcher->loading) {
         view_dispatcher->loading = loading_alloc();
-        // Wired the way view_dispatcher_add_view() would, but kept out of the view dictionary so
-        // it costs the application no view id and nothing to remove. Wiring it once is only safe
-        // because the View never escapes: view_stack_add_view() rewrites the update callback of
-        // anything put on a stack, and nothing can reach this one to do that.
+
         View* view = loading_get_view(view_dispatcher->loading);
         view_set_update_callback(view, view_dispatcher_update);
         view_set_update_callback_context(view, view_dispatcher);
@@ -261,6 +252,15 @@ void view_dispatcher_attach_to_gui(
     view_dispatcher->gui = gui;
 }
 
+void view_dispatcher_detach_from_gui(ViewDispatcher* view_dispatcher) {
+    furi_check(view_dispatcher);
+
+    if(view_dispatcher->gui) {
+        gui_remove_view_port(view_dispatcher->gui, view_dispatcher->view_port);
+        view_dispatcher->gui = NULL;
+    }
+}
+
 void view_dispatcher_draw_callback(Canvas* canvas, void* context) {
     ViewDispatcher* view_dispatcher = context;
     if(view_dispatcher->current_view) {
@@ -276,7 +276,7 @@ void view_dispatcher_input_callback(InputEvent* event, void* context) {
 }
 
 void view_dispatcher_handle_input(ViewDispatcher* view_dispatcher, InputEvent* event) {
-    // Check input complementarity
+
     uint8_t key_bit = (1 << event->key);
     if(event->type == InputTypePress) {
         view_dispatcher->ongoing_input |= key_bit;
@@ -292,27 +292,24 @@ void view_dispatcher_handle_input(ViewDispatcher* view_dispatcher, InputEvent* e
         return;
     }
 
-    // Set ongoing input view if this is event is first press event
     if(!(view_dispatcher->ongoing_input & ~key_bit) && event->type == InputTypePress) {
         view_dispatcher->ongoing_input_view = view_dispatcher->current_view;
     }
 
-    // Deliver event
     if(view_dispatcher->current_view &&
        view_dispatcher->ongoing_input_view == view_dispatcher->current_view) {
-        // Dispatch input to current view
+
         bool is_consumed = view_input(view_dispatcher->current_view, event);
 
-        // Navigate if input is not consumed
         if(!is_consumed && (event->key == InputKeyBack) &&
            (event->type == InputTypeShort || event->type == InputTypeLong)) {
-            // Navigate to previous
+
             uint32_t view_id = view_previous(view_dispatcher->current_view);
             if(view_id != VIEW_IGNORE) {
-                // Switch to returned view
+
                 view_dispatcher_switch_to_view(view_dispatcher, view_id);
             } else if(view_dispatcher->navigation_event_callback) {
-                // Dispatch navigation event
+
                 if(!view_dispatcher->navigation_event_callback(view_dispatcher->event_context)) {
                     view_dispatcher_stop(view_dispatcher);
                     return;
@@ -344,7 +341,7 @@ void view_dispatcher_handle_custom_event(ViewDispatcher* view_dispatcher, uint32
     if(view_dispatcher->current_view) {
         is_consumed = view_custom(view_dispatcher->current_view, event);
     }
-    // If custom event is not consumed in View, call callback
+
     if(!is_consumed && view_dispatcher->custom_event_callback) {
         view_dispatcher->custom_event_callback(view_dispatcher->event_context, event);
     }
@@ -367,34 +364,26 @@ static const ViewPortOrientation view_dispatcher_view_port_orientation_table[] =
 
 void view_dispatcher_set_current_view(ViewDispatcher* view_dispatcher, View* view) {
     furi_check(view_dispatcher);
-    // Leaving the loading view. Whatever queued up while it was current was aimed at a view that
-    // eats every key, and handle_input() binds an event to the view current when it is processed,
-    // not when it arrived - so without this those keys land on the screen that replaces it, and a
-    // stray Left or Right on a variable item list silently changes a setting.
-    //
-    // Only when no sequence is in flight: a key already counted in ongoing_input owns a Release
-    // that the drain at the end of view_dispatcher_run() waits for, and eating it would hang the
-    // application on exit. Such a sequence is bound to the loading view anyway, so the delivery
-    // check below already keeps it off the next one.
+
     if(view_dispatcher->loading && !view_dispatcher->ongoing_input) {
         View* loading_view = loading_get_view(view_dispatcher->loading);
         if(view != loading_view && view_dispatcher->current_view == loading_view) {
             furi_message_queue_reset(view_dispatcher->input_queue);
         }
     }
-    // Dispatch view exit event
+
     if(view_dispatcher->current_view) {
         view_exit(view_dispatcher->current_view);
     }
-    // Set current view
+
     view_dispatcher->current_view = view;
-    // Dispatch view enter event
+
     if(view_dispatcher->current_view) {
         ViewPortOrientation orientation =
             view_dispatcher_view_port_orientation_table[view->orientation];
         if(view_port_get_orientation(view_dispatcher->view_port) != orientation) {
             view_port_set_orientation(view_dispatcher->view_port, orientation);
-            // we just rotated input keys, now it's time to sacrifice some input
+
             view_dispatcher->ongoing_input = 0;
         }
         view_enter(view_dispatcher->current_view);

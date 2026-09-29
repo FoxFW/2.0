@@ -22,7 +22,6 @@ static void detect_reader_draw_callback(Canvas* canvas, void* model) {
     DetectReaderViewModel* m = model;
     char text[32] = {};
 
-    // Draw header and icon
     canvas_draw_icon(canvas, 0, 16, &I_Modern_reader_18x34);
     if(m->state == DetectReaderStateStart) {
         snprintf(text, sizeof(text), "Touch the reader");
@@ -41,7 +40,6 @@ static void detect_reader_draw_callback(Canvas* canvas, void* model) {
 
     canvas_draw_str_aligned(canvas, 64, 0, AlignCenter, AlignTop, text);
 
-    // Draw collected nonces
     if(m->state == DetectReaderStateStart) {
         canvas_set_font(canvas, FontPrimary);
         canvas_draw_str_aligned(canvas, 51, 22, AlignLeft, AlignTop, "Emulating...");
@@ -60,7 +58,7 @@ static void detect_reader_draw_callback(Canvas* canvas, void* model) {
         snprintf(text, sizeof(text), "Nonce pairs: %d/%d", m->nonces, m->nonces_max);
         canvas_draw_str_aligned(canvas, 51, 35, AlignLeft, AlignTop, text);
     }
-    // Draw button
+
     if(m->nonces > 0) {
         elements_button_center(canvas, "Done");
     }

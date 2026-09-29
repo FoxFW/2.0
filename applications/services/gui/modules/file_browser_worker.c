@@ -32,8 +32,8 @@ typedef enum {
     (WorkerEvtStop | WorkerEvtLoad | WorkerEvtFolderEnter | WorkerEvtFolderExit | \
      WorkerEvtFolderRefresh | WorkerEvtConfigChange)
 
-ARRAY_DEF(IdxLastArray, int32_t) //-V658
-ARRAY_DEF(ExtFilterArray, FuriString*, FURI_STRING_OPLIST) //-V658
+ARRAY_DEF(IdxLastArray, int32_t)
+ARRAY_DEF(ExtFilterArray, FuriString*, FURI_STRING_OPLIST)
 
 struct BrowserWorker {
     FuriThread* thread;
@@ -107,7 +107,7 @@ static void browser_parse_ext_filter(ExtFilterArray_t ext_filter, const char* fi
 }
 
 static bool browser_filter_by_name(BrowserWorker* browser, FuriString* name, bool is_folder) {
-    // Skip dot files if enabled
+
     if(browser->hide_dot_files) {
         if(furi_string_start_with_str(name, ".")) {
             return false;
@@ -115,14 +115,14 @@ static bool browser_filter_by_name(BrowserWorker* browser, FuriString* name, boo
     }
 
     if(is_folder) {
-        // Skip assets folders (if enabled)
+
         if(browser->skip_assets) {
             return (furi_string_cmp_str(name, ASSETS_DIR) == 0) ? (false) : (true);
         } else {
             return true;
         }
     } else {
-        // Filter files by extension
+
         if(ExtFilterArray_size(browser->ext_filter) == 0) {
             return true;
         }
@@ -152,7 +152,7 @@ static bool browser_folder_check_and_switch(FuriString* path) {
     }
 
     while(1) {
-        // Check if folder is existing and navigate back if not
+
         if(storage_common_stat(storage, furi_string_get_cstr(path), &file_info) == FSE_OK) {
             if(file_info_is_dir(&file_info)) {
                 break;
@@ -205,7 +205,7 @@ static bool browser_folder_init(
                     (*item_cnt)++;
                 }
                 if(total_files_cnt == LONG_LOAD_THRESHOLD) {
-                    // There are too many files in folder and counting them will take some time - send callback to app
+
                     if(browser->long_load_cb) {
                         browser->long_load_cb(browser->cb_ctx);
                     }
@@ -224,7 +224,6 @@ static bool browser_folder_init(
     return state;
 }
 
-// Load files list by chunks, like it was originally, not compatible with sorting, sorting needs to be disabled to use this
 static bool browser_folder_load_chunked(
     BrowserWorker* browser,
     FuriString* path,
@@ -306,7 +305,6 @@ static bool browser_folder_load_chunked(
     return items_cnt == count;
 }
 
-// Load all files at once, may cause memory overflow so need to limit that to about 400 files
 static bool browser_folder_load_full(BrowserWorker* browser, FuriString* path) {
     FileInfo file_info;
 
@@ -376,7 +374,7 @@ static int32_t browser_worker(void* context) {
         furi_check((flags & FuriFlagError) == 0);
 
         if(flags & WorkerEvtConfigChange) {
-            // If start path is a path to the file - try finding index of this file in a folder
+
             if(browser_path_is_file(browser->path_next)) {
                 path_extract_filename(browser->path_next, filename, false);
             }
@@ -389,7 +387,6 @@ static int32_t browser_worker(void* context) {
             furi_string_set(path, browser->path_next);
             bool is_root = browser_folder_check_and_switch(path);
 
-            // Push previous selected item index to history array
             IdxLastArray_push_back(browser->idx_last, browser->item_sel_idx);
 
             int32_t file_idx = 0;
@@ -414,7 +411,7 @@ static int32_t browser_worker(void* context) {
             int32_t file_idx = 0;
             browser_folder_init(browser, path, filename, &items_cnt, &file_idx);
             if(IdxLastArray_size(browser->idx_last) > 0) {
-                // Pop previous selected item index from history array
+
                 IdxLastArray_pop_back(&file_idx, browser->idx_last);
             }
             furi_string_set(browser->path_current, path);
@@ -496,13 +493,14 @@ BrowserWorker* file_browser_worker_alloc(
     furi_thread_start(browser->thread);
 
     return browser;
-} //-V773
+}
 
 void file_browser_worker_free(BrowserWorker* browser) {
     furi_check(browser);
 
     furi_thread_flags_set(furi_thread_get_id(browser->thread), WorkerEvtStop);
     furi_thread_join(browser->thread);
+    furi_kernel_lock();
     furi_thread_free(browser->thread);
 
     furi_string_free(browser->path_next);
@@ -513,6 +511,7 @@ void file_browser_worker_free(BrowserWorker* browser) {
     ExtFilterArray_clear(browser->ext_filter);
 
     free(browser);
+    furi_kernel_unlock();
 }
 
 void file_browser_worker_set_callback_context(BrowserWorker* browser, void* context) {

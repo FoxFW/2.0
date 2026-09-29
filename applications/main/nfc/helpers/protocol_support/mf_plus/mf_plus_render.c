@@ -3,8 +3,6 @@
 #include "../iso14443_3a/iso14443_3a_render.h"
 #include "../iso14443_4a/iso14443_4a_render.h"
 
-// SL3 recovery progress, in sectors like MIFARE Classic ("Keys Found / Sectors Read"). Only an SL3
-// card recovers any keys/blocks, so it is the only level that shows these lines.
 static void nfc_render_mf_plus_recovery_stats(const MfPlusData* data, FuriString* str) {
     if(data->security_level != MfPlusSecurityLevel3) return;
 
@@ -21,18 +19,13 @@ void nfc_render_mf_plus_info(
     const MfPlusData* data,
     NfcProtocolFormatType format_type,
     FuriString* str) {
-    // MIFARE-Classic-style header: [Tech (full only)] + UID + [ATQA/SAK (full only)]. tech_type
-    // reports "ISO 14443-4" because the base 3a layer advertises ISO14443-4 support. The deeper
-    // ISO14443-4 protocol detail (ATS, bit rates) lives in "More info", not on this screen.
+
     const Iso14443_3aData* iso3 = iso14443_4a_get_base_data(mf_plus_get_base_data(data));
     nfc_render_iso14443_3a_info(iso3, format_type, str);
 
     nfc_render_mf_plus_recovery_stats(data, str);
 }
 
-// Append `len` bytes as space-separated 2-byte groups (like the MIFARE Classic dump), or "??" per
-// byte when the value was never recovered. The 2-byte grouping matches the Classic dump's layout and
-// keeps long lines readable in the monospace dump view.
 static void nfc_render_mf_plus_hex_or_unknown(
     const uint8_t* bytes,
     size_t len,
@@ -48,10 +41,6 @@ static void nfc_render_mf_plus_hex_or_unknown(
     }
 }
 
-// MIFARE-Classic-style block dump: every block as hex, but a sector trailer shows the recovered
-// Key A + the trailer block's access bits (its bytes 6-9) + the recovered Key B. SL3 keeps the AES
-// keys in a separate keyspace (not in the trailer block), so the raw trailer's key bytes are
-// meaningless -- substituting the recovered keys is what makes this read like a Classic dump.
 static void nfc_render_mf_plus_blocks(const MfPlusData* data, FuriString* str) {
     const uint8_t sectors = mf_plus_get_sector_count(data->size);
     if(sectors == 0) return;
@@ -61,8 +50,7 @@ static void nfc_render_mf_plus_blocks(const MfPlusData* data, FuriString* str) {
         const uint16_t first = mf_plus_sector_get_first_block(s);
         const uint16_t trailer = first + mf_plus_sector_get_block_count(s) - 1;
         for(uint16_t b = first; b <= trailer; b++) {
-            // Block number on its own line, hex below -- a 16-byte block then wraps to two even
-            // 2-byte-group lines instead of colliding with the "N:" prefix.
+
             furi_string_cat_printf(str, "%u:\n", b);
             if(b == trailer) {
                 nfc_render_mf_plus_hex_or_unknown(
@@ -94,10 +82,6 @@ void nfc_render_mf_plus_dump(const MfPlusData* data, FuriString* str) {
         return;
     }
 
-    // The full dump is several KB. Reserve it in one shot so the many furi_string_cat calls below
-    // don't grow the buffer by doubling -- that transient ~2x realloc can fail on the memory-tight
-    // NFC thread (~30 KB free), which showed up as intermittent OOM when opening this view. ~64
-    // bytes/block comfortably covers a labelled data block; trailers cost more but are outnumbered.
     furi_string_reserve(str, (size_t)mf_plus_get_block_count(data->size) * 64 + 2048);
 
     nfc_render_mf_plus_blocks(data, str);

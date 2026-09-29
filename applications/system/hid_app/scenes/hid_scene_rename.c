@@ -34,7 +34,7 @@ void hid_scene_rename_on_enter(void* context) {
     text_input_set_header_text(app->text_input, "Bluetooth Name");
 
     // Rename success popup view
-    // [NO_DOLPHIN] popup_set_icon(app->popup, 48, 6, &I_DolphinDone_80x58);
+    // [NO_FOX] popup_set_icon(app->popup, 48, 6, &I_DolphinDone_80x58);
     popup_set_header(app->popup, "Done", 14, 15, AlignLeft, AlignTop);
     popup_set_timeout(app->popup, 1500);
     popup_set_context(app->popup, app);

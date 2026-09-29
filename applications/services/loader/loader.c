@@ -11,6 +11,11 @@
 #include <loader/firmware_api/firmware_api.h>
 #include <furi/core/memmgr.h>
 #include <furi/core/memmgr_heap.h>
+#include <furi/core/kernel.h>
+#include <toolbox/heap_alloc_guard.h>
+#include <lib/subghz/devices/devices.h>
+#include <stdio.h>
+#include <gui/icon.h>
 
 #define TAG "Loader"
 
@@ -18,43 +23,226 @@
 
 #define LOADER_LOAD_WATCHDOG_TIMEOUT_MS 7000
 #define LOADER_LOAD_WARN_THRESHOLD_MS 2000
+#define LOADER_STILL_LOADING_WAIT_MS 5000
+#define LOADER_STILL_LOADING_SPIN_INTERVAL_MS 50
+#define LOADER_STILL_LOADING_BAR_H 16
 
-static void loader_still_loading_draw_callback(Canvas* canvas, void* model) {
-    UNUSED(model);
-    canvas_clear(canvas);
+typedef struct {
+    uint8_t spin_frame;
+    bool buttons_visible;
+    bool show_wait_button;
+    bool focus_left;
+} LoaderStillLoadingModel;
+
+static const int8_t loader_still_loading_spin_dx[8] = {0, 8, 11, 8, 0, -8, -11, -8};
+static const int8_t loader_still_loading_spin_dy[8] = {-11, -8, 0, 8, 11, 8, 0, -8};
+
+static void loader_still_loading_draw_spinner(Canvas* canvas, uint8_t frame) {
     canvas_set_color(canvas, ColorBlack);
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str_aligned(canvas, 64, 6, AlignCenter, AlignTop, "App is Still Loading");
-    canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str_aligned(canvas, 64, 24, AlignCenter, AlignTop, "Please Wait OR");
-    canvas_draw_str_aligned(canvas, 64, 38, AlignCenter, AlignTop, "Press and Hold Back");
-    canvas_draw_str_aligned(canvas, 64, 50, AlignCenter, AlignTop, "To Try Again");
+    for(uint8_t i = 0; i < 8; i++) {
+        int32_t x = 64 + loader_still_loading_spin_dx[i];
+        int32_t y = 32 + loader_still_loading_spin_dy[i];
+        uint8_t age = (uint8_t)((8u + frame - i) % 8u);
+        if(age == 0) {
+            canvas_draw_disc(canvas, x, y, 3);
+        } else if(age == 1) {
+            canvas_draw_disc(canvas, x, y, 2);
+        } else if(age == 2) {
+            canvas_draw_disc(canvas, x, y, 1);
+        } else {
+            canvas_draw_dot(canvas, x, y);
+        }
+    }
 }
 
-static void loader_still_loading_exit_timer_callback(void* context) {
+static void loader_still_loading_draw_two_buttons(
+    Canvas* canvas, bool focus_left, const char* left_label, const char* right_label) {
+    int32_t bar_y = 64 - LOADER_STILL_LOADING_BAR_H;
+    int32_t btn_gap = 4;
+    int32_t btn_w = (128 - btn_gap * 3) / 2;
+    int32_t left_x = btn_gap;
+    int32_t right_x = btn_gap * 2 + btn_w;
+
+    canvas_set_color(canvas, ColorBlack);
+    if(focus_left) {
+        canvas_draw_rbox(canvas, left_x, bar_y, btn_w, LOADER_STILL_LOADING_BAR_H, 3);
+        canvas_set_color(canvas, ColorWhite);
+        canvas_draw_str_aligned(
+            canvas,
+            left_x + btn_w / 2,
+            bar_y + LOADER_STILL_LOADING_BAR_H / 2,
+            AlignCenter,
+            AlignCenter,
+            left_label);
+        canvas_set_color(canvas, ColorBlack);
+        canvas_draw_rframe(canvas, right_x, bar_y, btn_w, LOADER_STILL_LOADING_BAR_H, 3);
+        canvas_draw_str_aligned(
+            canvas,
+            right_x + btn_w / 2,
+            bar_y + LOADER_STILL_LOADING_BAR_H / 2,
+            AlignCenter,
+            AlignCenter,
+            right_label);
+    } else {
+        canvas_draw_rframe(canvas, left_x, bar_y, btn_w, LOADER_STILL_LOADING_BAR_H, 3);
+        canvas_draw_str_aligned(
+            canvas,
+            left_x + btn_w / 2,
+            bar_y + LOADER_STILL_LOADING_BAR_H / 2,
+            AlignCenter,
+            AlignCenter,
+            left_label);
+        canvas_draw_rbox(canvas, right_x, bar_y, btn_w, LOADER_STILL_LOADING_BAR_H, 3);
+        canvas_set_color(canvas, ColorWhite);
+        canvas_draw_str_aligned(
+            canvas,
+            right_x + btn_w / 2,
+            bar_y + LOADER_STILL_LOADING_BAR_H / 2,
+            AlignCenter,
+            AlignCenter,
+            right_label);
+        canvas_set_color(canvas, ColorBlack);
+    }
+}
+
+static void loader_still_loading_draw_one_button(Canvas* canvas, const char* label) {
+    int32_t bar_y = 64 - LOADER_STILL_LOADING_BAR_H;
+    const Icon* icon = &I_ButtonCenter_7x7;
+    int32_t icon_w = icon_get_width(icon);
+    int32_t icon_h = icon_get_height(icon);
+    int32_t icon_gap = 3;
+    int32_t pad_x = 10;
+    int32_t content_w = icon_w + icon_gap + (int32_t)canvas_string_width(canvas, label);
+    int32_t btn_w = content_w + pad_x * 2;
+    int32_t x = (128 - btn_w) / 2;
+
+    canvas_set_color(canvas, ColorBlack);
+    canvas_draw_rbox(canvas, x, bar_y, btn_w, LOADER_STILL_LOADING_BAR_H, 3);
+    canvas_set_color(canvas, ColorWhite);
+
+    int32_t gx = x + (btn_w - content_w) / 2;
+    int32_t gy_icon = bar_y + (LOADER_STILL_LOADING_BAR_H - icon_h) / 2;
+    canvas_draw_icon(canvas, gx, gy_icon, icon);
+    canvas_draw_str_aligned(
+        canvas,
+        gx + icon_w + icon_gap,
+        bar_y + LOADER_STILL_LOADING_BAR_H / 2,
+        AlignLeft,
+        AlignCenter,
+        label);
+
+    canvas_set_color(canvas, ColorBlack);
+}
+
+static void loader_still_loading_draw_callback(Canvas* canvas, void* model) {
+    LoaderStillLoadingModel* m = model;
+    canvas_clear(canvas);
+    loader_still_loading_draw_spinner(canvas, m->spin_frame);
+
+    if(!m->buttons_visible) {
+        return;
+    }
+
+    if(m->show_wait_button) {
+        loader_still_loading_draw_two_buttons(canvas, m->focus_left, "Restart", "Wait");
+    } else {
+        loader_still_loading_draw_one_button(canvas, "Restart");
+    }
+}
+
+static void loader_still_loading_spin_timer_callback(void* context) {
     Loader* loader = context;
-    FURI_LOG_W(TAG, "User exited still-loading screen (load continues in background)");
-    view_holder_set_view(loader->view_holder, NULL);
+    with_view_model(
+        loader->still_loading_view,
+        LoaderStillLoadingModel* model,
+        { model->spin_frame = (uint8_t)((model->spin_frame + 1u) % 8u); },
+        true);
+}
+
+static void loader_still_loading_wait_timer_callback(void* context) {
+    Loader* loader = context;
+    with_view_model(
+        loader->still_loading_view,
+        LoaderStillLoadingModel* model,
+        {
+            model->buttons_visible = true;
+            model->show_wait_button = false;
+        },
+        true);
+}
+
+static void loader_still_loading_enter_callback(void* context) {
+    Loader* loader = context;
+    with_view_model(
+        loader->still_loading_view,
+        LoaderStillLoadingModel* model,
+        {
+            model->spin_frame = 0;
+            model->buttons_visible = true;
+            model->show_wait_button = true;
+            model->focus_left = false;
+        },
+        false);
+    furi_timer_start(
+        loader->still_loading_spin_timer,
+        furi_ms_to_ticks(LOADER_STILL_LOADING_SPIN_INTERVAL_MS));
+}
+
+static void loader_still_loading_exit_callback(void* context) {
+    Loader* loader = context;
+    furi_timer_stop(loader->still_loading_spin_timer);
+    furi_timer_stop(loader->still_loading_wait_timer);
 }
 
 static bool loader_still_loading_input_callback(InputEvent* event, void* context) {
     Loader* loader = context;
-    if(event->key == InputKeyBack && event->type == InputTypeLong) {
-        // Just walk away from the stuck screen - do NOT reset the device.
-        // The blocked load in loader_srv can't be cancelled and keeps
-        // running in the background; it'll finish on its own (success or
-        // failure) and the existing cleanup path handles that when it does.
-        // If the app is tapped again before that happens, the new request
-        // simply queues behind the still-running one rather than starting
-        // a second attempt.
-        //
-        // Deferred to still_loading_exit_timer instead of calling
-        // view_holder_set_view() here directly - see that field's comment
-        // in loader_i.h for why a direct call deadlocks the GUI thread.
-        furi_timer_start(loader->still_loading_exit_timer, 1);
+    if(event->type != InputTypeShort) {
+        return true;
     }
-    // Consume everything else, including short Back: exiting only happens
-    // on the deliberate long-press gesture above.
+
+    bool do_reset = false;
+    bool start_wait_timer = false;
+
+    with_view_model(
+        loader->still_loading_view,
+        LoaderStillLoadingModel* model,
+        {
+            if(model->buttons_visible && model->show_wait_button) {
+                switch(event->key) {
+                case InputKeyLeft:
+                    model->focus_left = true;
+                    break;
+                case InputKeyRight:
+                    model->focus_left = false;
+                    break;
+                case InputKeyOk:
+                    if(model->focus_left) {
+                        do_reset = true;
+                    } else {
+                        model->buttons_visible = false;
+                        start_wait_timer = true;
+                    }
+                    break;
+                default:
+                    break;
+                }
+            } else if(model->buttons_visible && !model->show_wait_button) {
+                if(event->key == InputKeyOk) {
+                    do_reset = true;
+                }
+            }
+        },
+        true);
+
+    if(start_wait_timer) {
+        furi_timer_start(
+            loader->still_loading_wait_timer, furi_ms_to_ticks(LOADER_STILL_LOADING_WAIT_MS));
+    }
+
+    if(do_reset) {
+        furi_hal_power_reset();
+    }
+
     return true;
 }
 
@@ -85,8 +273,6 @@ static void loader_load_watchdog_disarm(Loader* loader) {
     furi_timer_stop(loader->load_watchdog);
 }
 
-// helpers
-
 static const char* loader_find_external_application_by_name(const char* app_name) {
     for(size_t i = 0; i < FLIPPER_EXTERNAL_APPS_COUNT; i++) {
         if(strcmp(FLIPPER_EXTERNAL_APPS[i].name, app_name) == 0) {
@@ -102,8 +288,6 @@ static const char* loader_find_external_application_by_name(const char* app_name
 
     return NULL;
 }
-
-// API
 
 static LoaderMessageLoaderStatusResult loader_start_internal(
     Loader* loader,
@@ -141,9 +325,6 @@ static const LoaderError err_missing_imports =
     {"Missing Imports", "Update firmware or app", "err_04", &I_err_04};
 static const LoaderError err_hw_target_mismatch =
     {"HW Target\nMismatch", "App not supported", "err_05", &I_err_05};
-/*static const LoaderError err_outdated_app = {"Outdated App", "Update the app", "err_06", &I_err_06};
-static const LoaderError err_outdated_firmware =
-    {"Outdated\nFirmware", "Update firmware", "err_07", &I_err_07};*/
 
 static void loader_dialog_prepare_and_show(DialogsApp* dialogs, const LoaderError* err) {
     FuriString* header = furi_string_alloc_printf("Error: %s", err->error);
@@ -171,7 +352,7 @@ static void loader_show_gui_error(
 
     if(status.value == LoaderStatusErrorUnknownApp &&
        loader_find_external_application_by_name(name) != NULL) {
-        // Special case for external apps
+
         const char* header = NULL;
         const char* text = NULL;
         Storage* storage = furi_record_open(RECORD_STORAGE);
@@ -184,14 +365,13 @@ static void loader_show_gui_error(
         }
         furi_record_close(RECORD_STORAGE);
         dialog_message_set_header(message, header, 64, 3, AlignCenter, AlignTop);
-        // [NO_DOLPHIN] dialog_message_set_icon(message, &I_WarningDolphinFlip_45x42, 83, 22);
+
         dialog_message_set_text(message, text, 3, 26, AlignLeft, AlignTop);
         dialog_message_show(dialogs, message);
     } else if(status.value == LoaderStatusErrorUnknownApp) {
         loader_dialog_prepare_and_show(dialogs, &err_app_not_found);
     } else if(status.value == LoaderStatusErrorInternal) {
-        // TODO FL-3522: we have many places where we can emit a double start, ex: desktop, menu
-        // so i prefer to not show LoaderStatusErrorAppStarted error message for now
+
         switch(status.error) {
         case LoaderStatusErrorInvalidFile:
             loader_dialog_prepare_and_show(dialogs, &err_invalid_flie);
@@ -205,12 +385,7 @@ static void loader_show_gui_error(
         case LoaderStatusErrorHWMismatch:
             loader_dialog_prepare_and_show(dialogs, &err_hw_target_mismatch);
             break;
-        /*case LoaderStatusErrorOutdatedApp:
-            loader_dialog_prepare_and_show(dialogs, &err_outdated_app);
-            break;
-        case LoaderStatusErrorOutdatedFirmware:
-            loader_dialog_prepare_and_show(dialogs, &err_outdated_firmware);
-            break;*/
+
         case LoaderStatusErrorOutOfMemory:
             dialog_message_set_header(
                 message, "Error: Out of Memory", 64, 0, AlignCenter, AlignTop);
@@ -227,7 +402,7 @@ static void loader_show_gui_error(
             }
             break;
         default:
-            // Generic error
+
             dialog_message_set_header(message, "Error", 64, 0, AlignCenter, AlignTop);
 
             furi_string_replace(error_message, ":", "\n");
@@ -251,6 +426,23 @@ static void loader_generic_synchronous_request(Loader* loader, LoaderMessage* me
     message->api_lock = api_lock_alloc_locked();
     furi_message_queue_put(loader->queue, message, FuriWaitForever);
     api_lock_wait_unlock_and_free(message->api_lock);
+}
+
+static bool loader_generic_synchronous_request_with_timeout(
+    Loader* loader,
+    LoaderMessage* message,
+    uint32_t timeout) {
+    furi_check(loader);
+    message->api_lock = api_lock_alloc_locked();
+    if(furi_message_queue_put(loader->queue, message, timeout) != FuriStatusOk) {
+        api_lock_free(message->api_lock);
+        return false;
+    }
+    if(api_lock_wait_unlock_with_timeout(message->api_lock, timeout) & FuriFlagError) {
+        return false;
+    }
+    api_lock_free(message->api_lock);
+    return true;
 }
 
 LoaderStatus
@@ -325,11 +517,28 @@ void loader_show_menu(Loader* loader) {
     furi_message_queue_put(loader->queue, &message, FuriWaitForever);
 }
 
+void loader_ensure_menu_built(Loader* loader) {
+    LoaderMessage message = {
+        .type = LoaderMessageTypeEnsureMenuBuilt,
+    };
+    if(!loader_generic_synchronous_request_with_timeout(
+           loader, &message, furi_ms_to_ticks(2000))) {
+        FURI_LOG_W(TAG, "ensure_menu_built timed out");
+    }
+}
+
+void loader_release_hidden_menu(Loader* loader) {
+    furi_check(loader);
+
+    LoaderMessage message;
+    message.type = LoaderMessageTypeReleaseHiddenMenu;
+
+    furi_message_queue_put(loader->queue, &message, FuriWaitForever);
+}
+
 FuriPubSub* loader_get_pubsub(Loader* loader) {
     furi_check(loader);
-    // it's safe to return pubsub without locking
-    // because it's never freed and loader is never exited
-    // also the loader instance cannot be obtained until the pubsub is created
+
     return loader->pubsub;
 }
 
@@ -402,8 +611,6 @@ void loader_clear_launch_queue(Loader* loader) {
     loader_generic_synchronous_request(loader, &message);
 }
 
-// callbacks
-
 static void loader_menu_closed_callback(void* context) {
     Loader* loader = context;
     LoaderMessage message;
@@ -432,8 +639,6 @@ static void
     }
 }
 
-// implementation
-
 static Loader* loader_alloc(void) {
     Loader* loader = malloc(sizeof(Loader));
     loader->pubsub = furi_pubsub_alloc();
@@ -445,11 +650,17 @@ static Loader* loader_alloc(void) {
     view_holder_attach_to_gui(loader->view_holder, loader->gui);
     loader->load_watchdog =
         furi_timer_alloc(loader_load_watchdog_callback, FuriTimerTypeOnce, loader);
-    loader->still_loading_exit_timer =
-        furi_timer_alloc(loader_still_loading_exit_timer_callback, FuriTimerTypeOnce, loader);
+    loader->still_loading_wait_timer =
+        furi_timer_alloc(loader_still_loading_wait_timer_callback, FuriTimerTypeOnce, loader);
+    loader->still_loading_spin_timer = furi_timer_alloc(
+        loader_still_loading_spin_timer_callback, FuriTimerTypePeriodic, loader);
     loader->still_loading_view = view_alloc();
+    view_allocate_model(
+        loader->still_loading_view, ViewModelTypeLocking, sizeof(LoaderStillLoadingModel));
     view_set_draw_callback(loader->still_loading_view, loader_still_loading_draw_callback);
     view_set_input_callback(loader->still_loading_view, loader_still_loading_input_callback);
+    view_set_enter_callback(loader->still_loading_view, loader_still_loading_enter_callback);
+    view_set_exit_callback(loader->still_loading_view, loader_still_loading_exit_callback);
     view_set_context(loader->still_loading_view, loader);
     return loader;
 }
@@ -489,7 +700,7 @@ static const FlipperInternalApplication* loader_find_application_by_name(const c
 }
 
 static void loader_start_app_thread(Loader* loader, FlipperInternalApplicationFlag flags) {
-    // setup heap trace
+
     FuriHalRtcHeapTrackMode mode = furi_hal_rtc_get_heap_track_mode();
     if(mode > FuriHalRtcHeapTrackModeNone) {
         furi_thread_enable_heap_trace(loader->app.thread);
@@ -497,7 +708,6 @@ static void loader_start_app_thread(Loader* loader, FlipperInternalApplicationFl
         furi_thread_disable_heap_trace(loader->app.thread);
     }
 
-    // setup insomnia
     if(!(flags & FlipperInternalApplicationFlagInsomniaSafe)) {
         furi_hal_power_insomnia_enter();
         loader->app.insomniac = true;
@@ -505,11 +715,9 @@ static void loader_start_app_thread(Loader* loader, FlipperInternalApplicationFl
         loader->app.insomniac = false;
     }
 
-    // setup thread state callbacks
     furi_thread_set_state_context(loader->app.thread, loader);
     furi_thread_set_state_callback(loader->app.thread, loader_thread_state_callback);
 
-    // start app thread
     furi_thread_start(loader->app.thread);
 }
 
@@ -519,7 +727,6 @@ static void loader_start_internal_app(
     const char* args) {
     FURI_LOG_I(TAG, "Starting %s", app->name);
 
-    // store args
     furi_assert(loader->app.args == NULL);
     if(args && strlen(args) > 0) {
         loader->app.args = strdup(args);
@@ -595,6 +802,12 @@ static LoaderStatusError
     }
 }
 
+static void loader_wait_for_storage_ready(void) {
+    while(!furi_record_exists(RECORD_STORAGE)) {
+        furi_delay_ms(10);
+    }
+}
+
 static LoaderMessageLoaderStatusResult loader_start_external_app(
     Loader* loader,
     Storage* storage,
@@ -607,6 +820,8 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
     result.error = LoaderStatusErrorUnknown;
 
     do {
+        heap_alloc_guard_lock();
+
         loader->app.fap = flipper_application_alloc(storage, firmware_api_interface);
         size_t start = furi_get_tick();
 
@@ -619,6 +834,9 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
 
         FlipperApplicationPreloadStatus preload_res =
             flipper_application_preload(loader->app.fap, path);
+
+        heap_alloc_guard_unlock();
+
         {
             size_t preload_ms = furi_get_tick() - start;
             if(preload_ms >= LOADER_LOAD_WARN_THRESHOLD_MS) {
@@ -630,7 +848,7 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
                (preload_res == FlipperApplicationPreloadStatusApiTooNew)) {
                 if(!ignore_api_mismatch) {
                     DialogsApp* dialogs = furi_record_open(RECORD_DIALOGS);
-                    // Successful map, but found api mismatch -> warn user
+
                     const FlipperApplicationManifest* manifest =
                         flipper_application_get_manifest(loader->app.fap);
 
@@ -675,6 +893,8 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
             }
         }
 
+        heap_alloc_guard_lock();
+
         size_t map_start = furi_get_tick();
         FlipperApplicationLoadStatus load_status =
             flipper_application_map_to_memory(loader->app.fap);
@@ -685,6 +905,7 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
             }
         }
         if(load_status != FlipperApplicationLoadStatusSuccess) {
+            heap_alloc_guard_unlock();
             const char* err_msg = flipper_application_load_status_to_string(load_status);
             result.value = loader_make_status_error(
                 LoaderStatusErrorInternal, error_message, "Load failed, %s: %s", path, err_msg);
@@ -699,6 +920,7 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
         FURI_LOG_I(TAG, "Loaded in %zums", total_ms);
 
         if(flipper_application_is_plugin(loader->app.fap)) {
+            heap_alloc_guard_unlock();
             result.value = loader_make_status_error(
                 LoaderStatusErrorInternal, error_message, "Plugin %s is not runnable", path);
             break;
@@ -710,19 +932,21 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
         furi_thread_set_appid(loader->app.thread, furi_string_get_cstr(app_name));
         furi_string_free(app_name);
 
-        /* This flag is set by the debugger - to break on app start */
         if(furi_hal_debug_is_gdb_session_active()) {
             FURI_LOG_W(TAG, "Triggering BP for debugger");
-            /* After hitting this, you can set breakpoints in the .fap's code
-             * Note that you have to toggle breakpoints that were set before */
+
             __asm volatile("bkpt 0");
         }
 
         loader_start_app_thread(loader, FlipperInternalApplicationFlagDefault);
+
+        heap_alloc_guard_unlock();
     } while(0);
 
     if(result.value != LoaderStatusOk) {
+        heap_alloc_guard_lock();
         flipper_application_free(loader->app.fap);
+        heap_alloc_guard_unlock();
         loader->app.fap = NULL;
         LoaderEvent event;
         event.type = LoaderEventTypeApplicationLoadFailed;
@@ -732,12 +956,12 @@ static LoaderMessageLoaderStatusResult loader_start_external_app(
     return result;
 }
 
-// process messages
-
 static void loader_do_menu_show(Loader* loader) {
     if(!loader->loader_menu) {
         loader->loader_menu = loader_menu_alloc(loader_menu_closed_callback, loader);
     }
+    loader_menu_show(loader->loader_menu);
+    loader->menu_shown = true;
 }
 
 static void loader_do_menu_closed(Loader* loader) {
@@ -745,6 +969,21 @@ static void loader_do_menu_closed(Loader* loader) {
         loader_menu_free(loader->loader_menu);
         loader->loader_menu = NULL;
     }
+    loader->menu_shown = false;
+}
+
+static void loader_do_ensure_menu_built(Loader* loader) {
+    if(!loader->loader_menu) {
+        loader->loader_menu = loader_menu_alloc(loader_menu_closed_callback, loader);
+    }
+}
+
+static void loader_do_release_hidden_menu(Loader* loader) {
+    if(!loader->loader_menu || loader->menu_shown) {
+        return;
+    }
+    loader_menu_free(loader->loader_menu);
+    loader->loader_menu = NULL;
 }
 
 static void loader_do_applications_show(Loader* loader) {
@@ -777,7 +1016,7 @@ static LoaderMessageLoaderStatusResult loader_do_start_by_name(
     if(name == NULL) return status;
 
     do {
-        // check lock
+
         if(loader_do_is_locked(loader)) {
             if(loader->app.thread == (FuriThread*)LOADER_MAGIC_THREAD_VALUE) {
                 status.value = loader_make_status_error(
@@ -795,28 +1034,30 @@ static LoaderMessageLoaderStatusResult loader_do_start_by_name(
             break;
         }
 
-        // check Applications
         if(strcmp(name, LOADER_APPLICATIONS_NAME) == 0) {
+            heap_alloc_guard_lock();
             loader_do_applications_show(loader);
+            heap_alloc_guard_unlock();
             status.value = loader_make_success_status(error_message);
             break;
         }
 
         LoaderEvent event;
         event.type = LoaderEventTypeApplicationBeforeLoad;
+
         furi_pubsub_publish(loader->pubsub, &event);
 
-        // check internal apps
         {
             const FlipperInternalApplication* app = loader_find_application_by_name(name);
             if(app) {
+                heap_alloc_guard_lock();
                 loader_start_internal_app(loader, app, args);
+                heap_alloc_guard_unlock();
                 status.value = loader_make_success_status(error_message);
                 break;
             }
         }
 
-        // check External Applications
         {
             const char* path = loader_find_external_application_by_name(name);
             if(path) {
@@ -824,7 +1065,6 @@ static LoaderMessageLoaderStatusResult loader_do_start_by_name(
             }
         }
 
-        // check Faps
         {
             Storage* storage = furi_record_open(RECORD_STORAGE);
             if(storage_file_exists(storage, name)) {
@@ -845,6 +1085,9 @@ static LoaderMessageLoaderStatusResult loader_do_start_by_name(
     } while(false);
 
     if(status.value == LoaderStatusOk) {
+        if(loader->app.launch_path) {
+            furi_string_free(loader->app.launch_path);
+        }
         loader->app.launch_path = furi_string_alloc_set_str(name);
     }
 
@@ -878,14 +1121,65 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
 static void loader_do_next_deferred_launch_if_available(Loader* loader) {
     LoaderDeferredLaunchRecord record;
     if(loader_queue_pop(&loader->launch_queue, &record)) {
-        loader_do_deferred_launch(loader, &record, true /* was_queued */);
+        loader_do_deferred_launch(loader, &record, true );
         loader_queue_item_clear(&record);
     } else {
-        /* Queue empty — clear any spinner keep_loading_view left active. */
+
         loader_load_watchdog_disarm(loader);
         view_holder_set_view(loader->view_holder, NULL);
+
         loader_do_emit_queue_empty_event(loader);
+
     }
+}
+
+#define LOADER_WHEEL_STACK_SIZE_THRESHOLD (4 * 1024)
+
+static const char* const loader_wheel_force_include[] = {
+    "subghz",
+    "subghz_randomattack",
+    "fox_rf_jammer",
+};
+
+static const char* const loader_wheel_force_exclude[] = {
+    "ffb",
+    "fox_xbm_converter",
+    "fox_hitag2_hell",
+    "fox_chill",
+    "subghz_frequency_analyzer",
+    "subghz_modulation_analyzer",
+    "subghz_raw_edit",
+};
+
+static bool loader_wheel_name_matches_appid(const char* app_name, const char* appid) {
+    if(strcmp(app_name, appid) == 0) return true;
+
+    size_t name_len = strlen(app_name);
+    size_t id_len = strlen(appid);
+    size_t suffix_len = id_len + 4;
+    if(name_len < suffix_len) return false;
+
+    const char* suffix = app_name + (name_len - suffix_len);
+    if(suffix != app_name && *(suffix - 1) != '/') return false;
+    return strncmp(suffix, appid, id_len) == 0 && strcmp(suffix + id_len, ".fap") == 0;
+}
+
+static bool loader_wheel_should_skip(const char* app_name) {
+    if(!app_name) return false;
+
+    for(size_t i = 0; i < COUNT_OF(loader_wheel_force_include); i++) {
+        if(loader_wheel_name_matches_appid(app_name, loader_wheel_force_include[i])) return false;
+    }
+    for(size_t i = 0; i < COUNT_OF(loader_wheel_force_exclude); i++) {
+        if(loader_wheel_name_matches_appid(app_name, loader_wheel_force_exclude[i])) return true;
+    }
+
+    const FlipperInternalApplication* internal_app = loader_find_application_by_name(app_name);
+    if(internal_app) {
+        return internal_app->stack_size < LOADER_WHEEL_STACK_SIZE_THRESHOLD;
+    }
+
+    return false;
 }
 
 static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord* record, bool was_queued) {
@@ -895,22 +1189,8 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
     bool is_successful = false;
     FuriString* error_message = furi_string_alloc();
 
-    /* FA/MA/RAW FAPs show their own blank transition — skip the loader spinner
-     * to avoid an extra flash between two screens that already cover it. */
-    bool skip_loading_view = false;
-    if(record->name_or_path) {
-        if(strstr(record->name_or_path, "subghz_frequency_analyzer") ||
-           strstr(record->name_or_path, "subghz_modulation_analyzer") ||
-           strstr(record->name_or_path, "subghz_raw_edit")) {
-            skip_loading_view = true;
-        }
-    }
+    bool skip_loading_view = loader_wheel_should_skip(record->name_or_path);
 
-    /* Keep spinner visible for queued SubGHz relaunches — SubGHz's viewport
-     * covers it once registered; clearing early would flash the Desktop. */
-    // Exact match only - a substring check here also matches subghz_garage.fap
-    // (and any other subghz_*.fap path), which left the spinner/watchdog
-    // armed for the app's entire runtime instead of just this transition.
     bool keep_loading_view = false;
     if(was_queued && record->name_or_path && strcmp(record->name_or_path, "subghz") == 0) {
         keep_loading_view = true;
@@ -919,8 +1199,8 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
     if(!skip_loading_view) {
         view_holder_set_view(loader->view_holder, loading_get_view(loader->loading));
         view_holder_send_to_front(loader->view_holder);
-        loader_load_watchdog_arm(loader, record->name_or_path);
     }
+    loader_load_watchdog_arm(loader, record->name_or_path);
 
     do {
         const char* app_name_str = record->name_or_path;
@@ -940,13 +1220,7 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
         loader_do_next_deferred_launch_if_available(loader);
     } while(false);
 
-    // Watchdog's only job is catching a hang during the load itself - once
-    // loader_do_start_by_name() has returned (success or failure), it has
-    // nothing left to catch and must not stay armed, regardless of whether
-    // the spinner view is being kept up for visual masking.
-    if(!skip_loading_view) {
-        loader_load_watchdog_disarm(loader);
-    }
+    loader_load_watchdog_disarm(loader);
     if(!skip_loading_view && !keep_loading_view) {
         view_holder_set_view(loader->view_holder, NULL);
     }
@@ -954,26 +1228,11 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
     return is_successful;
 }
 
-// Covers the same gap for callers that reach loader_do_start_by_name()
-// directly instead of through the deferred-launch queue above: the main
-// menu, Archive, Desktop favorites/hold-buttons and RPC all launch this
-// way, and previously saw nothing on screen while a large external .fap
-// (NFC's is the worst case) was read off the SD card.
 static void loader_show_loading_for_launch(Loader* loader, const char* app_name) {
-    /* FFB ("ffb" appid, applications/fox/fox_file_browser) is a small, fast-
-     * loading .fap - by the time the spinner would appear, FFB's own start
-     * screen is usually already ready, so all the 400ms minimum-show floor
-     * in loading.c (added for other apps' flashing) accomplishes here is
-     * forcing a spinner to sit on screen for up to 400ms *after* FFB could
-     * have just been shown, making launch feel slower rather than smoother.
-     * Skip the spinner entirely for FFB specifically; every other app
-     * launched through this path keeps it, since a slow SD read can
-     * otherwise leave a blank screen for a while with nothing to indicate
-     * it's not just an outright hang. */
-    if(app_name && strstr(app_name, "ffb")) return;
-
-    view_holder_set_view(loader->view_holder, loading_get_view(loader->loading));
-    view_holder_send_to_front(loader->view_holder);
+    if(!loader_wheel_should_skip(app_name)) {
+        view_holder_set_view(loader->view_holder, loading_get_view(loader->loading));
+        view_holder_send_to_front(loader->view_holder);
+    }
     loader_load_watchdog_arm(loader, app_name);
 }
 
@@ -985,16 +1244,24 @@ static void loader_hide_loading_for_launch(Loader* loader) {
 static void loader_do_app_closed(Loader* loader) {
     furi_assert(loader->app.thread);
 
+    char app_path_copy[64];
+    strncpy(
+        app_path_copy,
+        loader->app.launch_path ? furi_string_get_cstr(loader->app.launch_path) : "?",
+        sizeof(app_path_copy) - 1);
+    app_path_copy[sizeof(app_path_copy) - 1] = '\0';
+
     furi_thread_join(loader->app.thread);
     FURI_LOG_I(TAG, "App returned: %li", furi_thread_get_return_code(loader->app.thread));
 
+    if(loader->app.insomniac) {
+        furi_hal_power_insomnia_exit();
+    }
+
+    furi_kernel_lock();
     if(loader->app.args) {
         free(loader->app.args);
         loader->app.args = NULL;
-    }
-
-    if(loader->app.insomniac) {
-        furi_hal_power_insomnia_exit();
     }
 
     if(loader->app.fap) {
@@ -1007,6 +1274,8 @@ static void loader_do_app_closed(Loader* loader) {
     }
 
     furi_string_free(loader->app.launch_path);
+    loader->app.launch_path = NULL;
+    furi_kernel_unlock();
 
     FURI_LOG_I(TAG, "Application stopped. Free heap: %zu", memmgr_get_free_heap());
 
@@ -1060,11 +1329,11 @@ static bool loader_do_get_application_launch_path(Loader* loader, FuriString* pa
     return false;
 }
 
-// app
-
 int32_t loader_srv(void* p) {
     UNUSED(p);
     Loader* loader = loader_alloc();
+    heap_alloc_guard_init();
+    subghz_devices_preinit();
     furi_record_create(RECORD_LOADER, loader);
 
     FURI_LOG_I(TAG, "Executing system start hooks");
@@ -1083,12 +1352,13 @@ int32_t loader_srv(void* p) {
         if(furi_message_queue_get(loader->queue, &message, FuriWaitForever) == FuriStatusOk) {
             switch(message.type) {
             case LoaderMessageTypeStartByName: {
+                loader_wait_for_storage_ready();
                 loader_show_loading_for_launch(loader, message.start.name);
                 LoaderMessageLoaderStatusResult status = loader_do_start_by_name(
                     loader,
                     message.start.name,
                     message.start.args,
-                    message.start.error_message); //-V595
+                    message.start.error_message);
                 loader_hide_loading_for_launch(loader);
                 *(message.status_value) = status;
                 if(status.value != LoaderStatusOk) loader_do_emit_queue_empty_event(loader);
@@ -1097,9 +1367,10 @@ int32_t loader_srv(void* p) {
             }
             case LoaderMessageTypeStartByNameDetachedWithGuiError: {
                 FuriString* error_message = furi_string_alloc();
+                loader_wait_for_storage_ready();
                 loader_show_loading_for_launch(loader, message.start.name);
                 LoaderMessageLoaderStatusResult status = loader_do_start_by_name(
-                    loader, message.start.name, message.start.args, error_message); //-V595
+                    loader, message.start.name, message.start.args, error_message);
                 loader_hide_loading_for_launch(loader);
                 loader_show_gui_error(status, message.start.name, error_message);
                 if(status.value != LoaderStatusOk) loader_do_emit_queue_empty_event(loader);
@@ -1109,10 +1380,27 @@ int32_t loader_srv(void* p) {
                 break;
             }
             case LoaderMessageTypeShowMenu:
+                loader_wait_for_storage_ready();
+                heap_alloc_guard_lock();
                 loader_do_menu_show(loader);
+                heap_alloc_guard_unlock();
                 break;
             case LoaderMessageTypeMenuClosed:
+                heap_alloc_guard_lock();
                 loader_do_menu_closed(loader);
+                heap_alloc_guard_unlock();
+                break;
+            case LoaderMessageTypeEnsureMenuBuilt:
+                loader_wait_for_storage_ready();
+                heap_alloc_guard_lock();
+                loader_do_ensure_menu_built(loader);
+                heap_alloc_guard_unlock();
+                api_lock_unlock(message.api_lock);
+                break;
+            case LoaderMessageTypeReleaseHiddenMenu:
+                heap_alloc_guard_lock();
+                loader_do_release_hidden_menu(loader);
+                heap_alloc_guard_unlock();
                 break;
             case LoaderMessageTypeIsLocked:
                 message.bool_value->value = loader_do_is_locked(loader);
@@ -1153,17 +1441,13 @@ int32_t loader_srv(void* p) {
                 break;
             case LoaderMessageTypeEnqueueLaunch:
                 furi_check(loader_queue_push(&loader->launch_queue, &message.defer_start));
-                /* Inbound→FAP: blank screen covers the viewport gap.
-                 * Outbound→SubGHz: spinner shown; keep_loading_view holds it. */
+
                 if(message.defer_start.name_or_path) {
                     const char* p = message.defer_start.name_or_path;
                     bool is_fap = strstr(p, "subghz_frequency") ||
                                   strstr(p, "subghz_modulation") ||
                                   strstr(p, "subghz_raw");
-                    // Exact match only - a substring check here also matches
-                    // subghz_garage.fap (and any other subghz_*.fap path),
-                    // wrongly treating a fresh launch of those apps as a
-                    // return to core subghz.
+
                     bool is_subghz = strcmp(p, "subghz") == 0;
                     if(is_fap) {
                         view_holder_set_view(

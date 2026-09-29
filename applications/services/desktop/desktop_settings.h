@@ -29,23 +29,20 @@ typedef struct {
 
 typedef enum {
     LockUsbLevelOff = 0,
-    LockUsbLevelSessionBlock = 1,   // "CLI + RPC" — USB stays connected, sessions blocked
-    LockUsbLevelFullDisconnect = 2, // "Full Disconnect" — physical USB teardown
+    LockUsbLevelSessionBlock = 1,
+    LockUsbLevelFullDisconnect = 2,
 } LockUsbLevel;
 
 typedef enum {
-    MenuThemeClassic  = 0, // original 3-item scrolling list
-    MenuThemeFox      = 1, // FoxFW 3×2 grid
-    MenuThemeCarousel = 2, // single scrolling row, Left/Right only
-    MenuThemeSlider   = 3, // wraparound 5-item row, Left/Right only
-    MenuThemeTiny     = 4, // 3×5 icon-only grid, app name top-left
+    MenuThemeClassic  = 0,
+    MenuThemeFox      = 1,
+    MenuThemeCarousel = 2,
+    MenuThemeSlider   = 3,
+    MenuThemeTiny     = 4,
 } MenuTheme;
 
 #define FOX_ALARM_MAX_COUNT 8
 
-/* Bitmask values for FoxAlarm.days_mask - which days a recurring alarm
- * repeats on. Unused when recurring == 0 (one-time alarms just fire at
- * their next matching hour:minute, whatever day that lands on). */
 #define FOX_ALARM_DAY_SUN (1 << 0)
 #define FOX_ALARM_DAY_MON (1 << 1)
 #define FOX_ALARM_DAY_TUE (1 << 2)
@@ -55,12 +52,12 @@ typedef enum {
 #define FOX_ALARM_DAY_SAT (1 << 6)
 
 typedef struct {
-    uint8_t hour;      /* 0-23 */
-    uint8_t minute;    /* 0-59 */
-    uint8_t days_mask; /* FOX_ALARM_DAY_* bitmask, only meaningful when recurring */
-    uint8_t active;    /* 1 = enabled */
-    uint8_t recurring; /* 1 = repeats weekly on days_mask; 0 = fires once at the
-                         * next matching time then auto-deactivates */
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t days_mask;
+    uint8_t active;
+    uint8_t recurring;
+
 } FoxAlarm;
 
 typedef struct {
@@ -76,24 +73,22 @@ typedef struct {
     uint8_t lock_disconnect_ble;
     uint8_t lock_disconnect_gpio;
     uint8_t lock_usb_level;
-    uint8_t menu_theme;       /* MenuTheme enum */
-    uint8_t wifi_icon_hidden; /* 0 = show (default), 1 = hide */
-    char wallpaper_filename[64]; /* selected file in /ext/wallpapers, e.g. "Default.xbm" */
-    uint8_t allow_poweroff_locked; /* 0 = OFF (default), 1 = long-press Back on lock screen powers off */
-    uint8_t lock_show_time;        /* Big clock on the lock screen itself */
-    uint8_t lock_show_seconds;     /* Append :SS to the lock screen clock */
-    uint8_t lock_show_date;        /* Show date on the lock screen */
-    uint8_t lock_show_statusbar;   /* 0 = hide clock/wifi/stealth status icons while locked */
-    uint8_t lock_unlock_prompt;    /* 0 = hide the "Back x3 to unlock" / "Unlocked" hint text */
-    uint8_t statusbar_show_icons;      /* 0 = hide all status bar icons */
-    uint8_t clock_midnight_zero;       /* 12h format at midnight: 0 = show "12" (default), 1 = show "0" */
+    uint8_t menu_theme;
+    uint8_t wifi_icon_hidden;
+    char wallpaper_filename[64];
+    uint8_t allow_poweroff_locked;
+    uint8_t lock_show_time;
+    uint8_t lock_show_seconds;
+    uint8_t lock_show_date;
+    uint8_t lock_show_statusbar;
+    uint8_t lock_unlock_prompt;
+    uint8_t statusbar_show_icons;
+    uint8_t clock_midnight_zero;
 
-    /* Fox Alarm Clock (Fox Settings). Fires in the background regardless of
-     * which app is running - see desktop.c's alarm_check_timer. */
     FoxAlarm alarms[FOX_ALARM_MAX_COUNT];
-    uint8_t alarm_count;                    /* alarms[0..alarm_count-1] are in use */
-    uint8_t alarm_keep_backlight_all_night; /* 1 = backlight stays on while Fox Clock is
-                                              * showing instead of timing out normally */
+    uint8_t alarm_count;
+    uint8_t alarm_keep_backlight_all_night;
+
     uint8_t alarm_beep_enabled;
     uint8_t alarm_vibrate_enabled;
 } DesktopSettings;

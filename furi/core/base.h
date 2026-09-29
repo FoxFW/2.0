@@ -14,36 +14,36 @@ typedef enum {
 } FuriWait;
 
 typedef enum {
-    FuriFlagWaitAny = 0x00000000U, ///< Wait for any flag (default).
-    FuriFlagWaitAll = 0x00000001U, ///< Wait for all flags.
-    FuriFlagNoClear = 0x00000002U, ///< Do not clear flags which have been specified to wait for.
+    FuriFlagWaitAny = 0x00000000U,
+    FuriFlagWaitAll = 0x00000001U,
+    FuriFlagNoClear = 0x00000002U,
 
-    FuriFlagError = 0x80000000U, ///< Error indicator.
-    FuriFlagErrorUnknown = 0xFFFFFFFFU, ///< FuriStatusError (-1).
-    FuriFlagErrorTimeout = 0xFFFFFFFEU, ///< FuriStatusErrorTimeout (-2).
-    FuriFlagErrorResource = 0xFFFFFFFDU, ///< FuriStatusErrorResource (-3).
-    FuriFlagErrorParameter = 0xFFFFFFFCU, ///< FuriStatusErrorParameter (-4).
-    FuriFlagErrorISR = 0xFFFFFFFAU, ///< FuriStatusErrorISR (-6).
+    FuriFlagError = 0x80000000U,
+    FuriFlagErrorUnknown = 0xFFFFFFFFU,
+    FuriFlagErrorTimeout = 0xFFFFFFFEU,
+    FuriFlagErrorResource = 0xFFFFFFFDU,
+    FuriFlagErrorParameter = 0xFFFFFFFCU,
+    FuriFlagErrorISR = 0xFFFFFFFAU,
 } FuriFlag;
 
 typedef enum {
-    FuriStatusOk = 0, ///< Operation completed successfully.
+    FuriStatusOk = 0,
     FuriStatusError =
-        -1, ///< Unspecified RTOS error: run-time error but no other error message fits.
-    FuriStatusErrorTimeout = -2, ///< Operation not completed within the timeout period.
-    FuriStatusErrorResource = -3, ///< Resource not available.
-    FuriStatusErrorParameter = -4, ///< Parameter error.
+        -1,
+    FuriStatusErrorTimeout = -2,
+    FuriStatusErrorResource = -3,
+    FuriStatusErrorParameter = -4,
     FuriStatusErrorNoMemory =
-        -5, ///< System is out of memory: it was impossible to allocate or reserve memory for the operation.
+        -5,
     FuriStatusErrorISR =
-        -6, ///< Not allowed in ISR context: the function cannot be called from interrupt service routines.
-    FuriStatusReserved = 0x7FFFFFFF ///< Prevents enum down-size compiler optimization.
+        -6,
+    FuriStatusReserved = 0x7FFFFFFF
 } FuriStatus;
 
 typedef enum {
-    FuriSignalExit, /**< Request (graceful) exit. */
-    // Other standard signals may be added in the future
-    FuriSignalCustom = 100, /**< Custom signal values start from here. */
+    FuriSignalExit,
+
+    FuriSignalCustom = 100,
 } FuriSignal;
 
 #ifdef __cplusplus

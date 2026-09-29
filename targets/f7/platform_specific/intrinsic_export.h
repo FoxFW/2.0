@@ -10,11 +10,6 @@ void __clear_cache(void*, void*);
 void* __aeabi_uldivmod(uint64_t, uint64_t);
 double __aeabi_f2d(float);
 
-/* Double-precision soft-float helpers: the F7 target's FPU is single-
- * precision only, so any `double` math an app does gets emulated in
- * software by these libgcc routines. Exporting them lets an app declare
- * fap_exclude_libs=["gcc"] and pull them from the firmware instead of
- * statically linking its own copy. */
 double __adddf3(double, double);
 void __aeabi_cdcmpeq(double, double);
 void __aeabi_cdcmple(double, double);

@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 #include <picopass_keys.h>
 
 #define TAG "PicopassSceneDeviceInfo"
@@ -24,7 +23,6 @@ void picopass_scene_device_info_on_enter(void* context) {
     FuriString* info_str = furi_string_alloc();
     FuriString* key_str = furi_string_alloc();
 
-    dolphin_deed(DolphinDeedNfcReadSuccess);
 
     // Setup view
     PicopassBlock* card_data = picopass->dev->dev_data.card_data;

@@ -14,11 +14,10 @@
 #define INFRARED_POLARITY_SHIFT         1
 
 #define INFRARED_TX_CCMR_HIGH \
-    (TIM_CCMR2_OC3PE | LL_TIM_OCMODE_PWM2) /* Mark time - enable PWM2 mode */
+    (TIM_CCMR2_OC3PE | LL_TIM_OCMODE_PWM2)
 #define INFRARED_TX_CCMR_LOW \
-    (TIM_CCMR2_OC3PE | LL_TIM_OCMODE_FORCED_INACTIVE) /* Space time - force low */
+    (TIM_CCMR2_OC3PE | LL_TIM_OCMODE_FORCED_INACTIVE)
 
-/* DMA Channels definition */
 #define INFRARED_DMA             DMA2
 #define INFRARED_DMA_CH1_CHANNEL LL_DMA_CHANNEL_1
 #define INFRARED_DMA_CH2_CHANNEL LL_DMA_CHANNEL_2
@@ -27,13 +26,11 @@
 #define INFRARED_DMA_CH1_DEF     INFRARED_DMA, INFRARED_DMA_CH1_CHANNEL
 #define INFRARED_DMA_CH2_DEF     INFRARED_DMA, INFRARED_DMA_CH2_CHANNEL
 
-/* Timers definition */
 #define INFRARED_RX_TIMER      TIM2
 #define INFRARED_DMA_TIMER     TIM1
 #define INFRARED_RX_TIMER_BUS  FuriHalBusTIM2
 #define INFRARED_DMA_TIMER_BUS FuriHalBusTIM1
 
-/* Misc */
 #define INFRARED_RX_GPIO_ALT GpioAltFn1TIM2
 #define INFRARED_RX_IRQ      FuriHalInterruptIdTIM2
 
@@ -62,18 +59,18 @@ typedef struct {
     InfraredTxBuf buffer[2];
     FuriSemaphore* stop_semaphore;
     uint32_t
-        tx_timing_rest_duration; /** if timing is too long (> 0xFFFF), send it in few iterations */
+        tx_timing_rest_duration;
     bool tx_timing_rest_level;
     FuriHalInfraredTxGetDataState tx_timing_rest_status;
 } InfraredTimTx;
 
 typedef enum {
-    InfraredStateIdle, /** Furi Hal Infrared is ready to start RX or TX */
-    InfraredStateAsyncRx, /** Async RX started */
-    InfraredStateAsyncTx, /** Async TX started, DMA and timer is on */
-    InfraredStateAsyncTxStopReq, /** Async TX started, async stop request received */
-    InfraredStateAsyncTxStopInProgress, /** Async TX started, stop request is processed and we wait for last data to be sent */
-    InfraredStateAsyncTxStopped, /** Async TX complete, cleanup needed */
+    InfraredStateIdle,
+    InfraredStateAsyncRx,
+    InfraredStateAsyncTx,
+    InfraredStateAsyncTxStopReq,
+    InfraredStateAsyncTxStopInProgress,
+    InfraredStateAsyncTxStopped,
     InfraredStateMAX,
 } InfraredState;
 
@@ -101,30 +98,22 @@ static void furi_hal_infrared_tim_rx_isr(void* context) {
 
     static uint32_t previous_captured_ch2 = 0;
 
-    /* Timeout */
     if(LL_TIM_IsActiveFlag_CC3(INFRARED_RX_TIMER)) {
         LL_TIM_ClearFlag_CC3(INFRARED_RX_TIMER);
         furi_check(furi_hal_infrared_state == InfraredStateAsyncRx);
 
-        /* Timers CNT register starts to counting from 0 to ARR, but it is
-         * reseted when Channel 1 catches interrupt. It is not reseted by
-         * channel 2, though, so we have to distract it's values (see TimerIRQSourceCCI1 ISR).
-         * This can cause false timeout: when time is over, but we started
-         * receiving new signal few microseconds ago, because CNT register
-         * is reseted once per period, not per sample. */
         if(LL_GPIO_IsInputPinSet(gpio_infrared_rx.port, gpio_infrared_rx.pin) != 0) {
             if(infrared_tim_rx.timeout_callback)
                 infrared_tim_rx.timeout_callback(infrared_tim_rx.timeout_context);
         }
     }
 
-    /* Rising Edge */
     if(LL_TIM_IsActiveFlag_CC1(INFRARED_RX_TIMER)) {
         LL_TIM_ClearFlag_CC1(INFRARED_RX_TIMER);
         furi_check(furi_hal_infrared_state == InfraredStateAsyncRx);
 
         if(READ_BIT(INFRARED_RX_TIMER->CCMR1, TIM_CCMR1_CC1S)) {
-            /* Low pin level is a Mark state of INFRARED signal. Invert level for further processing. */
+
             uint32_t duration = LL_TIM_IC_GetCaptureCH1(INFRARED_RX_TIMER) - previous_captured_ch2;
             if(infrared_tim_rx.capture_callback)
                 infrared_tim_rx.capture_callback(infrared_tim_rx.capture_context, 1, duration);
@@ -133,13 +122,12 @@ static void furi_hal_infrared_tim_rx_isr(void* context) {
         }
     }
 
-    /* Falling Edge */
     if(LL_TIM_IsActiveFlag_CC2(INFRARED_RX_TIMER)) {
         LL_TIM_ClearFlag_CC2(INFRARED_RX_TIMER);
         furi_check(furi_hal_infrared_state == InfraredStateAsyncRx);
 
         if(READ_BIT(INFRARED_RX_TIMER->CCMR1, TIM_CCMR1_CC2S)) {
-            /* High pin level is a Space state of INFRARED signal. Invert level for further processing. */
+
             uint32_t duration = LL_TIM_IC_GetCaptureCH2(INFRARED_RX_TIMER);
             previous_captured_ch2 = duration;
             if(infrared_tim_rx.capture_callback)
@@ -277,7 +265,7 @@ static void furi_hal_infrared_tx_dma_polarity_isr(void* context) {
             (furi_hal_infrared_state == InfraredStateAsyncTx) ||
             (furi_hal_infrared_state == InfraredStateAsyncTxStopReq) ||
             (furi_hal_infrared_state == InfraredStateAsyncTxStopInProgress));
-        /* actually TC2 is processed and buffer is next buffer */
+
         uint8_t next_buf_num = furi_hal_infrared_get_current_dma_tx_buffer();
         furi_hal_infrared_tx_dma_set_polarity(next_buf_num, 0);
     }
@@ -307,7 +295,7 @@ static void furi_hal_infrared_tx_dma_isr(void* context) {
                 LL_DMA_DisableIT_HT(INFRARED_DMA_CH2_DEF);
             }
         } else if(furi_hal_infrared_state == InfraredStateAsyncTxStopReq) {
-            /* fallthrough */
+
         } else {
             furi_crash();
         }
@@ -331,7 +319,7 @@ static void furi_hal_infrared_tx_dma_isr(void* context) {
             furi_hal_infrared_tx_fill_buffer_last(next_buf_num);
             furi_hal_infrared_tx_dma_set_buffer(next_buf_num);
         } else {
-            /* if it's not end of the packet - continue receiving */
+
             furi_hal_infrared_tx_dma_set_buffer(next_buf_num);
         }
         if(infrared_tim_tx.signal_sent_callback && infrared_tim_tx.buffer[buf_num].packet_end &&
@@ -360,7 +348,7 @@ static void furi_hal_infrared_configure_tim_pwm_tx(uint32_t freq, float duty_cyc
             INFRARED_DMA_TIMER,
             ((LL_TIM_GetAutoReload(INFRARED_DMA_TIMER) + 1) * (1.0f - duty_cycle)));
         LL_TIM_OC_EnablePreload(INFRARED_DMA_TIMER, LL_TIM_CHANNEL_CH3);
-        /* LL_TIM_OCMODE_PWM2 set by DMA */
+
         LL_TIM_OC_SetMode(INFRARED_DMA_TIMER, LL_TIM_CHANNEL_CH3, LL_TIM_OCMODE_FORCED_INACTIVE);
         LL_TIM_OC_SetPolarity(INFRARED_DMA_TIMER, LL_TIM_CHANNEL_CH3N, LL_TIM_OCPOLARITY_HIGH);
         LL_TIM_OC_DisableFast(INFRARED_DMA_TIMER, LL_TIM_CHANNEL_CH3);
@@ -371,7 +359,7 @@ static void furi_hal_infrared_configure_tim_pwm_tx(uint32_t freq, float duty_cyc
             INFRARED_DMA_TIMER,
             ((LL_TIM_GetAutoReload(INFRARED_DMA_TIMER) + 1) * (1.0f - duty_cycle)));
         LL_TIM_OC_EnablePreload(INFRARED_DMA_TIMER, LL_TIM_CHANNEL_CH1);
-        /* LL_TIM_OCMODE_PWM2 set by DMA */
+
         LL_TIM_OC_SetMode(INFRARED_DMA_TIMER, LL_TIM_CHANNEL_CH1, LL_TIM_OCMODE_FORCED_INACTIVE);
         LL_TIM_OC_SetPolarity(INFRARED_DMA_TIMER, LL_TIM_CHANNEL_CH1N, LL_TIM_OCPOLARITY_HIGH);
         LL_TIM_OC_DisableFast(INFRARED_DMA_TIMER, LL_TIM_CHANNEL_CH1);
@@ -399,7 +387,7 @@ static void furi_hal_infrared_configure_tim_cmgr2_dma_tx(void) {
     dma_config.Mode = LL_DMA_MODE_NORMAL;
     dma_config.PeriphOrM2MSrcIncMode = LL_DMA_PERIPH_NOINCREMENT;
     dma_config.MemoryOrM2MDstIncMode = LL_DMA_MEMORY_INCREMENT;
-    /* fill word to have other bits set to 0 */
+
     dma_config.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_WORD;
     dma_config.MemoryOrM2MDstDataSize = LL_DMA_MDATAALIGN_BYTE;
     dma_config.NbData = 0;
@@ -465,9 +453,9 @@ static void furi_hal_infrared_tx_fill_buffer_last(uint8_t buf_num) {
     furi_check(buffer->polarity != NULL);
     (void)buffer->polarity;
 
-    infrared_tim_tx.buffer[buf_num].data[0] = 0; // 1 pulse
+    infrared_tim_tx.buffer[buf_num].data[0] = 0;
     infrared_tim_tx.buffer[buf_num].polarity[0] = INFRARED_TX_CCMR_LOW;
-    infrared_tim_tx.buffer[buf_num].data[1] = 0; // 1 pulse
+    infrared_tim_tx.buffer[buf_num].data[1] = 0;
     infrared_tim_tx.buffer[buf_num].polarity[1] = INFRARED_TX_CCMR_LOW;
     infrared_tim_tx.buffer[buf_num].size = 2;
     infrared_tim_tx.buffer[buf_num].last_packet_end = true;
@@ -516,14 +504,12 @@ static void furi_hal_infrared_tx_fill_buffer(uint8_t buf_num, uint8_t polarity_s
         const float num_of_impulses_f =
             duration / infrared_tim_tx.cycle_duration + infrared_tim_tx.cycle_remainder;
         const uint32_t num_of_impulses = roundf(num_of_impulses_f);
-        // Save the remainder (in carrier periods) for later use
+
         infrared_tim_tx.cycle_remainder = num_of_impulses_f - num_of_impulses;
 
         if(num_of_impulses == 0) {
             if((*size == 0) && (status == FuriHalInfraredTxGetDataStateDone)) {
-                /* if this is one sample in current buffer, but we
-                 * have more to send - continue
-                 */
+
                 status = FuriHalInfraredTxGetDataStateOk;
             }
         } else if((num_of_impulses - 1) > UINT16_MAX) {
@@ -544,7 +530,7 @@ static void furi_hal_infrared_tx_fill_buffer(uint8_t buf_num, uint8_t polarity_s
     buffer->packet_end = buffer->last_packet_end || (status == FuriHalInfraredTxGetDataStateDone);
 
     if(*size == 0) {
-        buffer->data[0] = 0; // 1 pulse
+        buffer->data[0] = 0;
         buffer->polarity[0] = INFRARED_TX_CCMR_LOW;
         buffer->size = 1;
     }
@@ -575,7 +561,6 @@ static void furi_hal_infrared_tx_dma_set_buffer(uint8_t buf_num) {
     InfraredTxBuf* buffer = &infrared_tim_tx.buffer[buf_num];
     furi_check(buffer->data != NULL);
 
-    /* non-circular mode requires disabled channel before setup */
     FURI_CRITICAL_ENTER();
     bool channel_enabled = LL_DMA_IsEnabledChannel(INFRARED_DMA_CH2_DEF);
     if(channel_enabled) {
@@ -655,16 +640,16 @@ void furi_hal_infrared_async_tx_start(uint32_t freq, float duty_cycle) {
     LL_DMA_EnableChannel(INFRARED_DMA_CH1_DEF);
     LL_DMA_EnableChannel(INFRARED_DMA_CH2_DEF);
     furi_delay_us(5);
-    LL_TIM_GenerateEvent_UPDATE(INFRARED_DMA_TIMER); /* DMA -> TIMx_RCR */
+    LL_TIM_GenerateEvent_UPDATE(INFRARED_DMA_TIMER);
     furi_delay_us(5);
 
     const GpioPin* tx_gpio = infrared_tx_pins[infrared_tx_output];
-    LL_GPIO_ResetOutputPin(tx_gpio->port, tx_gpio->pin); /* when disable it prevents false pulse */
+    LL_GPIO_ResetOutputPin(tx_gpio->port, tx_gpio->pin);
     furi_hal_gpio_init_ex(
         tx_gpio, GpioModeAltFunctionPushPull, GpioPullNo, GpioSpeedHigh, GpioAltFn1TIM1);
 
     FURI_CRITICAL_ENTER();
-    LL_TIM_GenerateEvent_UPDATE(INFRARED_DMA_TIMER); /* TIMx_RCR -> Repetition counter */
+    LL_TIM_GenerateEvent_UPDATE(INFRARED_DMA_TIMER);
     LL_TIM_EnableCounter(INFRARED_DMA_TIMER);
     FURI_CRITICAL_EXIT();
 }
@@ -708,7 +693,7 @@ void furi_hal_infrared_async_tx_set_signal_sent_isr_callback(
 }
 
 FuriHalInfraredTxPin furi_hal_infrared_detect_tx_output(void) {
-    for(FuriHalInfraredTxPin pin = FuriHalInfraredTxPinInternal + 1; //-V1008
+    for(FuriHalInfraredTxPin pin = FuriHalInfraredTxPinInternal + 1;
         pin < FuriHalInfraredTxPinMax;
         ++pin) {
         const GpioPin* gpio = infrared_tx_pins[pin];

@@ -44,7 +44,6 @@ bool fsk_osc_next(FSKOsc* osc, bool bit, uint32_t* period) {
 bool fsk_osc_next_half(FSKOsc* osc, bool bit, bool* level, uint32_t* duration) {
     bool advance = false;
 
-    // if pulse is zero, we need to output high, otherwise we need to output low
     if(osc->pulse == 0) {
         uint32_t length;
         advance = fsk_osc_next(osc, bit, &length);
@@ -52,7 +51,7 @@ bool fsk_osc_next_half(FSKOsc* osc, bool bit, bool* level, uint32_t* duration) {
         osc->pulse = *duration;
         *level = true;
     } else {
-        // output low half and reset pulse
+
         *duration = osc->pulse;
         osc->pulse = 0;
         *level = false;

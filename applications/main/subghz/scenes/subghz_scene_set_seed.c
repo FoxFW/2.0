@@ -26,7 +26,7 @@ void subghz_scene_set_seed_on_enter(void* context) {
         byte_ptr = (uint8_t*)&subghz->gen_info->keeloq_bft.seed;
         byte_count = sizeof(subghz->gen_info->keeloq_bft.seed);
         break;
-    // Not needed for these types
+
     case GenKeeloq:
     case GenAlutechAt4n:
     case GenSomfyTelis:
@@ -47,9 +47,8 @@ void subghz_scene_set_seed_on_enter(void* context) {
     furi_assert(byte_ptr);
     furi_assert(byte_count > 0);
 
-    *((uint32_t*)byte_ptr) = __bswap32(*((uint32_t*)byte_ptr)); // Convert
+    *((uint32_t*)byte_ptr) = __bswap32(*((uint32_t*)byte_ptr));
 
-    // Setup view
     ByteInput* byte_input = subghz->byte_input;
     byte_input_set_header_text(byte_input, "Enter SEED in hex");
     byte_input_set_result_callback(
@@ -88,7 +87,7 @@ bool subghz_scene_set_seed_on_event(void* context, SceneManagerEvent event) {
                     subghz->gen_info->keeloq_bft.seed,
                     subghz->gen_info->keeloq_bft.manuf);
                 break;
-            // Not needed for these types
+
             case GenKeeloq:
             case GenAlutechAt4n:
             case GenSomfyTelis:
@@ -127,7 +126,6 @@ bool subghz_scene_set_seed_on_event(void* context, SceneManagerEvent event) {
 void subghz_scene_set_seed_on_exit(void* context) {
     SubGhz* subghz = context;
 
-    // Clear view
     byte_input_set_result_callback(subghz->byte_input, NULL, NULL, NULL, NULL, 0);
     byte_input_set_header_text(subghz->byte_input, "");
 }

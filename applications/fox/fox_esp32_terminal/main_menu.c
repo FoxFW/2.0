@@ -36,10 +36,10 @@ static void main_menu_draw_cb(Canvas* canvas, void* model) {
         bool selected = (i == app->main_menu_selected);
 
         if(selected) {
-            canvas_draw_rbox(canvas, 2, by, 120, bh, 3);
+            canvas_draw_rbox(canvas, 8, by, 112, bh, 3);
             canvas_set_color(canvas, ColorWhite);
         } else {
-            canvas_draw_rframe(canvas, 2, by, 120, bh, 3);
+            canvas_draw_rframe(canvas, 8, by, 112, bh, 3);
         }
 
         canvas_set_font(canvas, FontPrimary);
@@ -50,8 +50,7 @@ static void main_menu_draw_cb(Canvas* canvas, void* model) {
     }
 
     if(MainMenuItemCount > MAIN_MENU_ROW_VIS) {
-        // Dotted track + solid position block, matching FOX_CHILL's
-        // scrollbar style instead of a plain solid bar with no track.
+
         int available_h = 64 - MAIN_MENU_HEADER_H;
         elements_scrollbar_pos(
             canvas,

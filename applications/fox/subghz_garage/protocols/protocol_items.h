@@ -13,7 +13,7 @@
 #include "somfy_telis.h"
 #include "somfy_keytis.h"
 #include "gate_tx.h"
-#include <lib/subghz/protocols/raw.h> /* subghz_txrx.h already includes this absolute path; using the same path here (instead of a local duplicate) avoids -Werror=redundant-decls */
+#include <lib/subghz/protocols/raw.h>
 #include "linear.h"
 #include "linear_delta3.h"
 #include "secplus_v2.h"
@@ -45,14 +45,6 @@
 #include "x10.h"
 #include "jarolift.h"
 
-/* Dormant protocols: source present, not wired into any group's registry or
- * application.fam sources= list, so fbt never compiles them. Mirrors ARF's
- * own disabled-by-default UNLEASHED_PORT pattern - land the source now,
- * activate later once a group has spare capacity. */
 #include "nord_ice.h"
 #include "allstar_firefly.h"
 #include "ditec_gol4.h"
-
-/* The combined registry that used to live here has been split into 8
- * per-group registries (see protocol_groups.h) so the protocol plugin can
- * be loaded a group at a time instead of all 42 protocols at once. */

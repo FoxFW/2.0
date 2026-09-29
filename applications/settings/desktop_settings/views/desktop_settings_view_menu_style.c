@@ -4,15 +4,6 @@
 #include "desktop_settings_icons.h"
 #include <furi.h>
 
-/* Double-row Fox-style list, 3 of the 5 options visible per page with
- * elements_scrollbar() on the right - same box geometry/scrolling as
- * subghz_garage's Protocol Group list and main/subghz's Mode Picker
- * (subghz_view_protocol_groups.c, subghz_view_mode_picker.c). Up/Down move
- * the cursor, OK makes that row the active style, marked with a filled 7x7
- * OK icon (a hollow circle on the other rows so every row still reads as
- * selectable). Every row's text starts at the same fixed indent regardless
- * of which one is active, so picking a different style never shifts any
- * label sideways. */
 #define ROW_COUNT     5
 #define ROWS_VISIBLE  3
 #define BOX_X         4
@@ -24,17 +15,13 @@
 
 static const uint8_t k_slot_y[ROWS_VISIBLE] = {2, 22, 42};
 
-/* Display order top-to-bottom is Fox Theme, Carousel, Slider, Tiny, Classic -
- * Classic always last - independent of fox_theme's own style_index
- * numbering (0=Classic, 1=Fox Theme, 2=Carousel, 3=Slider, 4=Tiny), so this
- * maps between the two. */
 static const char* const k_row_label[ROW_COUNT] =
     {"Fox Theme", "Carousel", "Slider", "Tiny", "Classic"};
 static const uint8_t k_row_style_index[ROW_COUNT] = {1, 2, 3, 4, 0};
 
 typedef struct {
     uint8_t cursor;
-    uint8_t active; /* display-slot index (0..2), not the raw style_index */
+    uint8_t active;
 } DesktopSettingsMenuStyleModel;
 
 struct DesktopSettingsViewMenuStyle {

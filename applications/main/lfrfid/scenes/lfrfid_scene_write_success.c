@@ -5,7 +5,7 @@ void lfrfid_scene_write_success_on_enter(void* context) {
     Popup* popup = app->popup;
 
     popup_set_header(popup, "Success!", 75, 10, AlignLeft, AlignTop);
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 9, &I_DolphinSuccess_91x55);
+
     popup_set_context(popup, app);
     popup_set_callback(popup, lfrfid_popup_timeout_callback);
     popup_set_timeout(popup, 1500);

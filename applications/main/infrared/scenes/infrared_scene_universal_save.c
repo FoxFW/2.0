@@ -17,12 +17,10 @@ static void infrared_scene_universal_save_add_to_existing(InfraredApp* infrared)
     dialog_file_browser_set_basic_options(&browser_options, INFRARED_APP_EXTENSION, &I_ir_10px);
     browser_options.base_path = INFRARED_APP_FOLDER;
 
-    // The browser opens at whatever the path holds, and an empty one lands at /ext.
     if(furi_string_empty(infrared->file_path)) {
         furi_string_set(infrared->file_path, INFRARED_APP_FOLDER);
     }
 
-    // Backing out of the browser just puts the user back on this menu.
     if(!dialog_file_browser_show(
            infrared->dialogs, infrared->file_path, infrared->file_path, &browser_options)) {
         return;
@@ -48,8 +46,6 @@ void infrared_scene_universal_save_on_enter(void* context) {
     InfraredApp* infrared = context;
     Submenu* submenu = infrared->submenu;
 
-    // The header is the name of the button being brute forced, which is also the
-    // name the signal will be saved under.
     submenu_set_header(submenu, infrared->text_store[1]);
     submenu_add_item(
         submenu,

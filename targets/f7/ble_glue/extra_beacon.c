@@ -8,8 +8,6 @@
 
 #define GAP_MS_TO_SCAN_INTERVAL(x) ((uint16_t)((x) / 0.625))
 
-// AN5289: 4.7, in order to use flash controller interval must be at least 25ms + advertisement, which is 30 ms
-// Since we don't use flash controller anymore interval can be lowered to 20ms
 #define GAP_MIN_ADV_INTERVAL_MS (20U)
 
 typedef struct {
@@ -24,7 +22,7 @@ static ExtraBeacon extra_beacon = {0};
 
 void gap_extra_beacon_init(void) {
     if(extra_beacon.state_mutex) {
-        // Already initialized - restore state if needed
+
         FURI_LOG_I(TAG, "Restoring state");
         gap_extra_beacon_set_data(
             extra_beacon.extra_beacon_data, extra_beacon.extra_beacon_data_len);
@@ -34,7 +32,7 @@ void gap_extra_beacon_init(void) {
         }
 
     } else {
-        // First time init
+
         FURI_LOG_I(TAG, "Init");
         extra_beacon.extra_beacon_state = GapExtraBeaconStateStopped;
         extra_beacon.extra_beacon_data_len = 0;

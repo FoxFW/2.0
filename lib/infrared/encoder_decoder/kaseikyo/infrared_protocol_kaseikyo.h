@@ -2,20 +2,6 @@
 
 #include "../infrared_i.h"
 
-/***************************************************************************************************
-*   Kaseikyo protocol description
-*   https://github.com/Arduino-IRremote/Arduino-IRremote/blob/master/src/ir_Kaseikyo.hpp
-****************************************************************************************************
-*     Preamble   Preamble      Pulse Distance/Width          Pause       Preamble   Preamble
-*       mark      space            Modulation             up to period    repeat     repeat
-*                                                                          mark       space
-*
-*        3360      1665               48 bit              ...130000        3456       1728
-*     __________          _ _ _ _  _  _  _ _ _  _  _ _ _                ___________
-* ____          __________ _ _ _ __ __ __ _ _ __ __ _ _ ________________           ___________
-*
-***************************************************************************************************/
-
 void* infrared_decoder_kaseikyo_alloc(void);
 void infrared_decoder_kaseikyo_reset(void* decoder);
 void infrared_decoder_kaseikyo_free(void* decoder);

@@ -19,9 +19,8 @@
 #include "SK6805.h"
 #include <furi_hal.h>
 
-/* Настройки */
-#define SK6805_LED_COUNT 3 //Количество светодиодов на плате подсветки
-#define SK6805_LED_PIN   &led_pin //Порт подключения светодиодов
+#define SK6805_LED_COUNT 3
+#define SK6805_LED_PIN   &led_pin
 
 #ifdef FURI_DEBUG
 #define DEBUG_PIN &gpio_ext_pa7
@@ -60,37 +59,37 @@ void SK6805_update(void) {
     FURI_CRITICAL_ENTER();
     furi_delay_us(150);
     uint32_t end;
-    /* Последовательная отправка цветов светодиодов */
+
     for(uint8_t lednumber = 0; lednumber < SK6805_LED_COUNT; lednumber++) {
-        //Последовательная отправка цветов светодиода
+
         for(uint8_t color = 0; color < 3; color++) {
-            //Последовательная отправка битов цвета
+
             uint8_t i = 0b10000000;
             while(i != 0) {
                 if(led_buffer[lednumber][color] & (i)) {
                     furi_hal_gpio_write(SK6805_LED_PIN, true);
                     DEBUG_SET_HIGH();
                     end = DWT->CYCCNT + 30;
-                    //T1H 600 us (615 us)
+
                     while(DWT->CYCCNT < end) {
                     }
                     furi_hal_gpio_write(SK6805_LED_PIN, false);
                     DEBUG_SET_LOW();
                     end = DWT->CYCCNT + 26;
-                    //T1L  600 us (587 us)
+
                     while(DWT->CYCCNT < end) {
                     }
                 } else {
                     furi_hal_gpio_write(SK6805_LED_PIN, true);
                     DEBUG_SET_HIGH();
                     end = DWT->CYCCNT + 11;
-                    //T0H 300 ns (312 ns)
+
                     while(DWT->CYCCNT < end) {
                     }
                     furi_hal_gpio_write(SK6805_LED_PIN, false);
                     DEBUG_SET_LOW();
                     end = DWT->CYCCNT + 43;
-                    //T0L 900 ns (890 ns)
+
                     while(DWT->CYCCNT < end) {
                     }
                 }

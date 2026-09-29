@@ -1,5 +1,4 @@
 #include "../picopass_i.h"
-#include <dolphin/dolphin.h>
 
 static NfcCommand
     picopass_scene_loclass_listener_callback(PicopassListenerEvent event, void* context) {
@@ -30,7 +29,6 @@ static void picopass_loclass_result_callback(void* context) {
 void picopass_scene_loclass_on_enter(void* context) {
     Picopass* picopass = context;
 
-    dolphin_deed(DolphinDeedNfcEmulate);
 
     scene_manager_set_scene_state(picopass->scene_manager, PicopassSceneLoclass, 0);
 

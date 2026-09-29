@@ -9,7 +9,6 @@ void nfc_scene_set_uid_on_enter(void* context) {
     const uint8_t* uid = nfc_device_get_uid(instance->nfc_device, &uid_len);
     memcpy(instance->byte_input_store, uid, uid_len);
 
-    // Setup view
     ByteInput* byte_input = instance->byte_input;
     byte_input_set_header_text(byte_input, "Enter UID in hex");
     byte_input_set_result_callback(
@@ -54,7 +53,6 @@ bool nfc_scene_set_uid_on_event(void* context, SceneManagerEvent event) {
 void nfc_scene_set_uid_on_exit(void* context) {
     NfcApp* instance = context;
 
-    // Clear view
     byte_input_set_result_callback(instance->byte_input, NULL, NULL, NULL, NULL, 0);
     byte_input_set_header_text(instance->byte_input, "");
 }

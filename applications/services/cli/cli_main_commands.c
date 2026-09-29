@@ -13,8 +13,8 @@
 #include <lib/toolbox/args.h>
 #include <lib/toolbox/strint.h>
 #include <toolbox/pipe.h>
+#include <storage/storage.h>
 
-// Close to ISO, `date +'%Y-%m-%d %H:%M:%S %u'`
 #define CLI_DATE_FORMAT "%.4d-%.2d-%.2d %.2d:%.2d:%.2d %d"
 
 void cli_command_info_callback(const char* key, const char* value, bool last, void* context) {
@@ -23,19 +23,6 @@ void cli_command_info_callback(const char* key, const char* value, bool last, vo
     printf("%-30s: %s\r\n", key, value);
 }
 
-/** Info Command
- *
- * This command is intended to be used by humans
- *
- * Arguments:
- * - device - print device info
- * - power - print power info
- * - power_debug - print power debug info
- *
- * @param      cli      The cli instance
- * @param      args     The arguments
- * @param      context  The context
- */
 void cli_command_info(PipeSide* pipe, FuriString* args, void* context) {
     UNUSED(pipe);
 
@@ -82,8 +69,6 @@ void cli_command_date(PipeSide* pipe, FuriString* args, void* context) {
             &seconds,
             &weekday);
 
-        // Some variables are going to discard upper byte
-        // There will be some funky behaviour which is not breaking anything
         datetime.hour = hours;
         datetime.minute = minutes;
         datetime.second = seconds;
@@ -107,7 +92,7 @@ void cli_command_date(PipeSide* pipe, FuriString* args, void* context) {
         }
 
         furi_hal_rtc_set_datetime(&datetime);
-        // Verification
+
         furi_hal_rtc_get_datetime(&datetime);
         printf(
             "New datetime is: " CLI_DATE_FORMAT,
@@ -191,7 +176,7 @@ void cli_command_log(PipeSide* pipe, FuriString* args, void* context) {
     furi_log_remove_handler(log_handler);
 
     if(restore_log_level) {
-        // There will be strange behaviour if log level is set from settings while log command is running
+
         furi_log_set_level(previous_level);
     }
 }
@@ -301,7 +286,7 @@ void cli_command_vibro(PipeSide* pipe, FuriString* args, void* context) {
 void cli_command_led(PipeSide* pipe, FuriString* args, void* context) {
     UNUSED(pipe);
     UNUSED(context);
-    // Get first word as light name
+
     NotificationMessage notification_led_message;
     FuriString* light_name;
     light_name = furi_string_alloc();
@@ -315,7 +300,7 @@ void cli_command_led(PipeSide* pipe, FuriString* args, void* context) {
         furi_string_right(args, ws);
         furi_string_trim(args);
     }
-    // Check light name
+
     if(!furi_string_cmp(light_name, "r")) {
         notification_led_message.type = NotificationMessageTypeLedRed;
     } else if(!furi_string_cmp(light_name, "g")) {
@@ -330,7 +315,7 @@ void cli_command_led(PipeSide* pipe, FuriString* args, void* context) {
         return;
     }
     furi_string_free(light_name);
-    // Read light value from the rest of the string
+
     uint32_t value;
     if(strint_to_uint32(furi_string_get_cstr(args), NULL, &value, 0) != StrintParseNoError ||
        value >= 256) {
@@ -338,16 +323,13 @@ void cli_command_led(PipeSide* pipe, FuriString* args, void* context) {
         return;
     }
 
-    // Set led value
     notification_led_message.data.led.value = value;
 
-    // Form notification sequence
     const NotificationSequence notification_sequence = {
         &notification_led_message,
         NULL,
     };
 
-    // Send notification
     NotificationApp* notification = furi_record_open(RECORD_NOTIFICATION);
     notification_internal_message_block(notification, &notification_sequence);
     furi_record_close(RECORD_NOTIFICATION);
@@ -445,6 +427,76 @@ void cli_command_free_blocks(PipeSide* pipe, FuriString* args, void* context) {
     memmgr_heap_printf_free_blocks();
 }
 
+static void cli_command_heap_map_write_callback(void* context, const char* data, size_t length) {
+    File* file = context;
+    storage_file_write(file, data, length);
+}
+
+#define CLI_HEAP_MAP_LABEL_MAX_LEN 24
+
+static void cli_command_heap_map_sanitize_label(const char* raw, char* out, size_t out_size) {
+    size_t out_len = 0;
+    if(out_size == 0) {
+        return;
+    }
+    if(raw != NULL) {
+        for(size_t i = 0;
+            raw[i] != '\0' && out_len < out_size - 1 &&
+            out_len < (size_t)CLI_HEAP_MAP_LABEL_MAX_LEN;
+            i++) {
+            char c = raw[i];
+            bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                      c == '-' || c == '_';
+            out[out_len++] = ok ? c : '_';
+        }
+    }
+    out[out_len] = '\0';
+}
+
+void cli_command_heap_map(PipeSide* pipe, FuriString* args, void* context) {
+    UNUSED(pipe);
+    UNUSED(context);
+
+    FuriString* label_string = furi_string_alloc();
+    args_read_probably_quoted_string_and_trim(args, label_string);
+    const char* raw_label = furi_string_get_cstr(label_string);
+
+    char safe_label[CLI_HEAP_MAP_LABEL_MAX_LEN + 1];
+    cli_command_heap_map_sanitize_label(raw_label, safe_label, sizeof(safe_label));
+
+    uint32_t tick = furi_get_tick();
+
+    char path[128];
+    if(safe_label[0] != '\0') {
+        snprintf(
+            path,
+            sizeof(path),
+            "/ext/apps_data/heap_map/heap_map_%lu_%s.txt",
+            (unsigned long)tick,
+            safe_label);
+    } else {
+        snprintf(
+            path, sizeof(path), "/ext/apps_data/heap_map/heap_map_%lu.txt", (unsigned long)tick);
+    }
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    storage_simply_mkdir(storage, "/ext/apps_data");
+    storage_simply_mkdir(storage, "/ext/apps_data/heap_map");
+    File* file = storage_file_alloc(storage);
+    if(storage_file_open(file, path, FSAM_WRITE, FSOM_OPEN_APPEND)) {
+        memmgr_heap_write_fragmentation_map(
+            cli_command_heap_map_write_callback, file, raw_label);
+        printf("Heap fragmentation map written to %s\r\n", path);
+    } else {
+        printf("Failed to open %s for writing (SD card missing or full?)\r\n", path);
+    }
+    storage_file_close(file);
+    storage_file_free(file);
+    furi_record_close(RECORD_STORAGE);
+
+    furi_string_free(label_string);
+}
+
 void cli_command_i2c(PipeSide* pipe, FuriString* args, void* context) {
     UNUSED(pipe);
     UNUSED(args);
@@ -468,9 +520,6 @@ void cli_command_i2c(PipeSide* pipe, FuriString* args, void* context) {
     furi_hal_i2c_release(&furi_hal_i2c_handle_external);
 }
 
-/**
- * Echoes any bytes it receives except ASCII ETX (0x03, Ctrl+C)
- */
 void cli_command_echo(PipeSide* pipe, FuriString* args, void* context) {
     UNUSED(args);
     UNUSED(context);
@@ -489,17 +538,6 @@ void cli_command_echo(PipeSide* pipe, FuriString* args, void* context) {
     }
 }
 
-/**
- * @brief Pause for a specified duration or until Ctrl+C is pressed or the
- * session is terminated.
- *
- * The duration can be specified in various units such as milliseconds (ms),
- * seconds (s), minutes (m), or hours (h). If the unit is not specified, the
- * second is used by default.
- *
- * Example:
- *   sleep 5s
- */
 void cli_command_sleep(PipeSide* pipe, FuriString* args, void* context) {
     UNUSED(context);
     FuriString* duration_string;
@@ -536,6 +574,8 @@ void cli_main_commands_init(CliRegistry* registry) {
     cli_registry_add_command(registry, "free", CliCommandFlagParallelSafe, cli_command_free, NULL);
     cli_registry_add_command(
         registry, "free_blocks", CliCommandFlagParallelSafe, cli_command_free_blocks, NULL);
+    cli_registry_add_command(
+        registry, "heap_map", CliCommandFlagParallelSafe, cli_command_heap_map, NULL);
     cli_registry_add_command(registry, "echo", CliCommandFlagParallelSafe, cli_command_echo, NULL);
     cli_registry_add_command(
         registry, "sleep", CliCommandFlagParallelSafe, cli_command_sleep, NULL);

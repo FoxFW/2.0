@@ -21,7 +21,6 @@ const char* const charge_supress_percent_text[CHARGE_SUPRESS_PERCENT_COUNT] =
 
 const uint32_t charge_supress_percent_value[CHARGE_SUPRESS_PERCENT_COUNT] = {0, 90, 85, 80, 75, 70};
 
-// change variable_item_list visible text and charge_supress_percent_settings when user change item in variable_item_list
 static void power_settings_scene_start_charge_supress_percent_changed(VariableItem* item) {
     PowerSettingsApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
@@ -30,7 +29,6 @@ static void power_settings_scene_start_charge_supress_percent_changed(VariableIt
     app->settings.charge_supress_percent = charge_supress_percent_value[index];
 }
 
-// change variable_item_list visible text and app_poweroff_delay_time_settings when user change item in variable_item_list
 static void power_settings_scene_start_auto_poweroff_delay_changed(VariableItem* item) {
     PowerSettingsApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
@@ -40,7 +38,7 @@ static void power_settings_scene_start_auto_poweroff_delay_changed(VariableItem*
 }
 
 static void power_settings_scene_start_submenu_callback(void* context, uint32_t index) {
-    //show selected menu screen by index
+
     furi_assert(context);
     PowerSettingsApp* app = context;
     view_dispatcher_send_custom_event(app->view_dispatcher, index);

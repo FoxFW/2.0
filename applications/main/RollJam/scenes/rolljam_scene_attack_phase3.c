@@ -2,11 +2,6 @@
 #include "../helpers/rolljam_cc1101_ext.h"
 #include "../helpers/rolljam_receiver.h"
 
-// ============================================================
-// Phase 3: STOP jam + REPLAY first signal
-// The victim device opens. We keep the 2nd (newer) code.
-// ============================================================
-
 void rolljam_scene_attack_phase3_on_enter(void* context) {
     RollJamApp* app = context;
 

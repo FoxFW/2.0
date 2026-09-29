@@ -135,10 +135,9 @@ static void date_time_input_draw_hour_12hr_callback(Canvas* canvas, DateTimeInpu
     canvas_set_font(canvas, FontPrimary);
 
     uint8_t hour = model->datetime->hour % 12;
-    // Show 12:00 instead of 00:00 for 12-hour time
+
     if(hour == 0) hour = 12;
 
-    // Placeholder spaces to make room for AM/PM since FontBigNumbers can't draw letters
     date_time_input_draw_block(
         canvas, 8, ROW_1_Y, 50, ROW_1_H, FontBigNumbers, get_state(model, 1, 0, hour), buffer);
     canvas_draw_box(canvas, 60, ROW_1_Y + ROW_1_H - 7, 2, 2);
@@ -148,7 +147,6 @@ static void date_time_input_draw_hour_12hr_callback(Canvas* canvas, DateTimeInpu
     date_time_input_draw_text(
         canvas, 8, ROW_1_Y, 30, ROW_1_H, FontBigNumbers, get_state(model, 1, 0, hour), buffer);
 
-    // The AM and PM text shift by 1 pixel so compensate to make them line up
     if(model->datetime->hour < 12) {
         date_time_input_draw_text(
             canvas, 30, ROW_1_Y + 3, 30, ROW_1_H, FontPrimary, get_state(model, 1, 0, hour), "AM");
@@ -163,7 +161,6 @@ static void date_time_input_draw_time_callback(Canvas* canvas, DateTimeInputMode
 
     char buffer[4];
 
-    // Draw hour depending on RTC time format
     if(furi_hal_rtc_get_locale_timeformat() == FuriHalRtcLocaleTimeFormat24h) {
         date_time_input_draw_hour_24hr_callback(canvas, model);
     } else {
@@ -371,10 +368,6 @@ static bool date_time_input_view_input_callback(InputEvent* event, void* context
     return consumed;
 }
 
-/** Reset all input-related data in model
- *
- * @param      model  The model
- */
 static void date_time_input_reset_model_input_data(DateTimeInputModel* model) {
     model->row = 0;
     model->column = 0;
@@ -463,15 +456,14 @@ void date_time_input_set_editable_fields(
             model->editable.minute = minute;
             model->editable.second = second;
 
-            // Select first editable field
             model->row = 0;
             model->column = 0;
             while(!is_allowed_to_edit(model)) {
-                // Cycle to next column and wrap around at end
+
                 model->column = (model->column + 1) % COLUMN_COUNT;
-                // If the column is 0, we wrapped, so go to next row
+
                 if(model->column == 0) model->row++;
-                // If we passed the last row, give up
+
                 if(model->row >= ROW_COUNT) break;
             };
         },

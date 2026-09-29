@@ -4,17 +4,20 @@
 
 #include <m-array.h>
 
+#include <core/kernel.h>
+
 typedef struct {
     SubGhzProtocolEncoderBase* base;
     size_t registry_index;
 } SubGhzReceiverSlot;
 
-ARRAY_DEF(SubGhzReceiverSlotArray, SubGhzReceiverSlot, M_POD_OPLIST); //-V658
+ARRAY_DEF(SubGhzReceiverSlotArray, SubGhzReceiverSlot, M_POD_OPLIST);
 #define M_OPL_SubGhzReceiverSlotArray_t() ARRAY_OPLIST(SubGhzReceiverSlotArray, M_POD_OPLIST)
 
 struct SubGhzReceiver {
     SubGhzReceiverSlotArray_t slots;
     SubGhzProtocolFlag filter;
+    SubGhzProtocolFlag modulation_filter;
 
     SubGhzReceiverCallback callback;
     void* context;
@@ -44,6 +47,7 @@ SubGhzReceiver* subghz_receiver_alloc_init(SubGhzEnvironment* environment) {
     instance->context = NULL;
     instance->protocol_enabled_callback = NULL;
     instance->protocol_enabled_context = NULL;
+    instance->modulation_filter = 0;
     return instance;
 }
 
@@ -53,7 +57,7 @@ void subghz_receiver_free(SubGhzReceiver* instance) {
     instance->callback = NULL;
     instance->context = NULL;
 
-    // Release allocated slots
+    furi_kernel_lock();
     for
         M_EACH(slot, instance->slots, SubGhzReceiverSlotArray_t) {
             slot->base->protocol->decoder->free(slot->base);
@@ -62,6 +66,7 @@ void subghz_receiver_free(SubGhzReceiver* instance) {
     SubGhzReceiverSlotArray_clear(instance->slots);
 
     free(instance);
+    furi_kernel_unlock();
 }
 
 void subghz_receiver_decode(SubGhzReceiver* instance, bool level, uint32_t duration) {
@@ -70,7 +75,12 @@ void subghz_receiver_decode(SubGhzReceiver* instance, bool level, uint32_t durat
 
     for
         M_EACH(slot, instance->slots, SubGhzReceiverSlotArray_t) {
-            if((slot->base->protocol->flag & instance->filter) != 0 &&
+            const SubGhzProtocolFlag protocol_flag = slot->base->protocol->flag;
+            const SubGhzProtocolFlag protocol_modulation =
+                protocol_flag & (SubGhzProtocolFlag_AM | SubGhzProtocolFlag_FM);
+            if((protocol_flag & instance->filter) != 0 &&
+               (instance->modulation_filter == 0 || protocol_modulation == 0 ||
+                (protocol_modulation & instance->modulation_filter) != 0) &&
                (!instance->protocol_enabled_callback ||
                 instance->protocol_enabled_callback(
                     instance->protocol_enabled_context,
@@ -117,6 +127,13 @@ void subghz_receiver_set_rx_callback(
 void subghz_receiver_set_filter(SubGhzReceiver* instance, SubGhzProtocolFlag filter) {
     furi_check(instance);
     instance->filter = filter;
+}
+
+void subghz_receiver_set_modulation_filter(
+    SubGhzReceiver* instance,
+    SubGhzProtocolFlag modulation_filter) {
+    furi_check(instance);
+    instance->modulation_filter = modulation_filter;
 }
 
 void subghz_receiver_set_protocol_enabled_callback(

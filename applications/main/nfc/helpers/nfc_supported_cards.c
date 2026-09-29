@@ -27,7 +27,7 @@ typedef struct {
     NfcSupportedCardsPluginFeature feature;
 } NfcSupportedCardsPluginCache;
 
-ARRAY_DEF(NfcSupportedCardsPluginCache, NfcSupportedCardsPluginCache, M_POD_OPLIST); //-V658
+ARRAY_DEF(NfcSupportedCardsPluginCache, NfcSupportedCardsPluginCache, M_POD_OPLIST);
 
 typedef enum {
     NfcSupportedCardsLoadStateIdle,
@@ -153,14 +153,13 @@ static const NfcSupportedCardsPlugin* nfc_supported_cards_get_next_plugin(
         if(memcmp(
                &instance->file_name[suffix_start_pos],
                NFC_SUPPORTED_CARDS_PLUGIN_SUFFIX,
-               suffix_len) != 0) //-V1051
+               suffix_len) != 0)
             break;
 
-        // Trim suffix from file_name to save memory. The suffix will be concatenated on plugin load.
         instance->file_name[suffix_start_pos] = '\0';
 
         plugin = nfc_supported_cards_get_plugin(instance, instance->file_name, api_interface);
-    } while(plugin == NULL); //-V654
+    } while(plugin == NULL);
 
     return plugin;
 }
@@ -180,9 +179,9 @@ void nfc_supported_cards_load_cache(NfcSupportedCards* instance) {
                 composite_api_resolver_get(instance->api_resolver);
             const NfcSupportedCardsPlugin* plugin =
                 nfc_supported_cards_get_next_plugin(instance->load_context, api_interface);
-            if(plugin == NULL) break; //-V547
+            if(plugin == NULL) break;
 
-            NfcSupportedCardsPluginCache plugin_cache = {}; //-V779
+            NfcSupportedCardsPluginCache plugin_cache = {};
             plugin_cache.name = furi_string_alloc_set(instance->load_context->file_name);
             plugin_cache.protocol = plugin->protocol;
             if(plugin->verify) {

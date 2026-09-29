@@ -14,18 +14,13 @@
 #include <string.h>
 #include <subghz/devices/devices.h>
 #include <lib/subghz/subghz_tx_rx_worker.h>
-#include "fox_rf_jammer_icons.h"
 
 #define TAG            "FoxRFJammer"
 #define FREQ_MIN       300000000UL
 #define FREQ_MAX       928000000UL
 #define TX_BUFFER_SIZE 1024
 
-#define FOX_SPLASH_TICK_MS    40
-#define FOX_SPLASH_HOLD_MS    2000
-#define FOX_SPLASH_FADE_MS    666
-#define FOX_SPLASH_GRID_SIDE  16
-#define FOX_SPLASH_GRID_TOTAL (FOX_SPLASH_GRID_SIDE * FOX_SPLASH_GRID_SIDE)
+#define FOX_LOADING_TIMER_MS 50u
 
 static FuriHalRegion s_unlocked_region = {
     .country_code = "FTW",
@@ -47,7 +42,8 @@ static const FreqBand s_bands[] = {
 
 static const int DIGIT_TO_CHAR[CURSOR_FREQ_DIGITS] = {0, 1, 2, 4, 5, 6};
 
-static void     fox_splash_draw_cb(Canvas* canvas, void* ctx);
+static void     fox_loading_draw_cb(Canvas* canvas, void* ctx);
+static void     fox_loading_timer_cb(void* ctx);
 static void     fox_main_draw_cb(Canvas* canvas, void* ctx);
 static void     fox_input_cb(InputEvent* ev, void* ctx);
 static int32_t  fox_tx_thread(void* ctx);
@@ -177,53 +173,29 @@ static void fox_start_tx(FoxRFJammer* app) {
     furi_thread_start(app->tx_thread);
 }
 
-static uint8_t s_splash_block_order[FOX_SPLASH_GRID_TOTAL];
-static uint32_t s_splash_elapsed_ms;
+static const int8_t s_loading_spin_dx[8] = {  0,  8, 11,  8,  0, -8,-11, -8};
+static const int8_t s_loading_spin_dy[8] = {-11, -8,  0,  8, 11,  8,  0, -8};
 
-static void fox_splash_shuffle_blocks(void) {
-    for(uint32_t i = 0; i < FOX_SPLASH_GRID_TOTAL; i++) {
-        s_splash_block_order[i] = (uint8_t)i;
-    }
-    uint32_t seed = (uint32_t)furi_get_tick() | 1;
-    for(uint32_t i = FOX_SPLASH_GRID_TOTAL - 1; i > 0; i--) {
-        seed ^= seed << 13;
-        seed ^= seed >> 17;
-        seed ^= seed << 5;
-        uint32_t j = seed % (i + 1);
-        uint8_t tmp = s_splash_block_order[i];
-        s_splash_block_order[i] = s_splash_block_order[j];
-        s_splash_block_order[j] = tmp;
+static void fox_loading_draw_cb(Canvas* canvas, void* ctx) {
+    FoxRFJammer* app = ctx;
+    canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
+    uint8_t frame = app->loading_frame;
+    for(uint8_t i = 0; i < 8; i++) {
+        uint8_t x = (uint8_t)(64 + s_loading_spin_dx[i]);
+        uint8_t y = (uint8_t)(32 + s_loading_spin_dy[i]);
+        uint8_t age = (uint8_t)((8u + frame - i) % 8u);
+        if(age == 0)      canvas_draw_disc(canvas, x, y, 3);
+        else if(age == 1) canvas_draw_disc(canvas, x, y, 2);
+        else if(age == 2) canvas_draw_disc(canvas, x, y, 1);
+        else              canvas_draw_dot(canvas, x, y);
     }
 }
 
-static void fox_splash_draw_cb(Canvas* canvas, void* ctx) {
-    UNUSED(ctx);
-    canvas_clear(canvas);
-
-    uint8_t icon_w = icon_get_width(&I_fox_64x64);
-    uint8_t icon_h = icon_get_height(&I_fox_64x64);
-    int32_t x = (128 - (int32_t)icon_w) / 2;
-    int32_t y = (64 - (int32_t)icon_h) / 2;
-    canvas_draw_icon(canvas, x, y, &I_fox_64x64);
-
-    if(s_splash_elapsed_ms <= FOX_SPLASH_HOLD_MS) return;
-
-    uint32_t fade_elapsed = s_splash_elapsed_ms - FOX_SPLASH_HOLD_MS;
-    uint32_t revealed =
-        (uint32_t)(((uint64_t)fade_elapsed * FOX_SPLASH_GRID_TOTAL) / FOX_SPLASH_FADE_MS);
-    if(revealed > FOX_SPLASH_GRID_TOTAL) revealed = FOX_SPLASH_GRID_TOTAL;
-
-    uint8_t block_px = (uint8_t)(icon_w / FOX_SPLASH_GRID_SIDE);
-    if(block_px == 0) block_px = 1;
-
-    canvas_set_color(canvas, ColorWhite);
-    for(uint32_t i = 0; i < revealed; i++) {
-        uint8_t block = s_splash_block_order[i];
-        uint8_t bx = block % FOX_SPLASH_GRID_SIDE;
-        uint8_t by = block / FOX_SPLASH_GRID_SIDE;
-        canvas_draw_box(canvas, x + bx * block_px, y + by * block_px, block_px, block_px);
-    }
-    canvas_set_color(canvas, ColorBlack);
+static void fox_loading_timer_cb(void* ctx) {
+    FoxRFJammer* app = ctx;
+    app->loading_frame = (uint8_t)((app->loading_frame + 1u) % 8u);
+    view_port_update(app->view_port);
 }
 
 static void fox_main_draw_cb(Canvas* canvas, void* ctx) {
@@ -324,14 +296,19 @@ FoxRFJammer* fox_rf_jammer_alloc(void) {
     app->device          = NULL;
     app->subghz_txrx     = NULL;
     app->tx_thread       = NULL;
+    app->loading_frame   = 0;
+    app->loading_timer   = NULL;
 
     app->event_queue = furi_message_queue_alloc(8, sizeof(InputEvent));
     app->view_port   = view_port_alloc();
     app->gui         = furi_record_open(RECORD_GUI);
 
-    view_port_draw_callback_set(app->view_port, fox_main_draw_cb, app);
+    view_port_draw_callback_set(app->view_port, fox_loading_draw_cb, app);
     view_port_input_callback_set(app->view_port, fox_input_cb, app);
     gui_add_view_port(app->gui, app->view_port, GuiLayerFullscreen);
+
+    app->loading_timer = furi_timer_alloc(fox_loading_timer_cb, FuriTimerTypePeriodic, app);
+    furi_timer_start(app->loading_timer, furi_ms_to_ticks(FOX_LOADING_TIMER_MS));
 
     furi_hal_region_set(&s_unlocked_region);
     furi_hal_power_suppress_charge_enter();
@@ -345,6 +322,11 @@ FoxRFJammer* fox_rf_jammer_alloc(void) {
 void fox_rf_jammer_free(FoxRFJammer* app) {
     furi_assert(app);
     fox_stop_tx(app);
+    if(app->loading_timer) {
+        furi_timer_stop(app->loading_timer);
+        furi_timer_free(app->loading_timer);
+        app->loading_timer = NULL;
+    }
     if(app->subghz_txrx) {
         if(subghz_tx_rx_worker_is_running(app->subghz_txrx))
             subghz_tx_rx_worker_stop(app->subghz_txrx);
@@ -375,17 +357,6 @@ int32_t fox_rf_jammer_app(void* p) {
     FoxRFJammer* app = fox_rf_jammer_alloc();
     if(!app) return -1;
 
-    view_port_draw_callback_set(app->view_port, fox_splash_draw_cb, app);
-    fox_splash_shuffle_blocks();
-    s_splash_elapsed_ms = 0;
-    uint32_t splash_total_ms = FOX_SPLASH_HOLD_MS + FOX_SPLASH_FADE_MS;
-    while(s_splash_elapsed_ms < splash_total_ms) {
-        view_port_update(app->view_port);
-        furi_delay_ms(FOX_SPLASH_TICK_MS);
-        s_splash_elapsed_ms += FOX_SPLASH_TICK_MS;
-    }
-    view_port_draw_callback_set(app->view_port, fox_main_draw_cb, app);
-
     app->device = radio_device_loader_set(NULL, SubGhzRadioDeviceTypeExternalCC1101);
     if(!app->device)
         app->device = radio_device_loader_set(NULL, SubGhzRadioDeviceTypeInternal);
@@ -394,6 +365,12 @@ int32_t fox_rf_jammer_app(void* p) {
     subghz_devices_reset(app->device);
     subghz_devices_idle(app->device);
     fox_apply_mod_preset(app);
+
+    furi_timer_stop(app->loading_timer);
+    furi_timer_free(app->loading_timer);
+    app->loading_timer = NULL;
+
+    view_port_draw_callback_set(app->view_port, fox_main_draw_cb, app);
     view_port_update(app->view_port);
 
     InputEvent ev;

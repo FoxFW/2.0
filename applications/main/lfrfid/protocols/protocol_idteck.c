@@ -3,11 +3,6 @@
 #include <bit_lib/bit_lib.h>
 #include "lfrfid_protocols.h"
 
-// Example: 4944544B 351FBE4B
-// 01001001 01000100 01010100 01001011       00110101 00011111 10111110 01001011
-// 4    9    4    4    5    4    4    B      3    5    1    F    B    E    4    B
-// 0100 1001 0100 0100 0101 0100 0100 1011   0011 0101 0001 1111 1011 1110 0100 1011
-
 #define IDTECK_PREAMBLE_BIT_SIZE  (32)
 #define IDTECK_PREAMBLE_DATA_SIZE (8)
 
@@ -60,7 +55,7 @@ void protocol_idteck_decoder_start(ProtocolIdteck* protocol) {
 }
 
 static bool protocol_idteck_check_preamble(uint8_t* data, size_t bit_index) {
-    // Preamble 01001001 01000100 01010100 01001011
+
     if(*(uint32_t*)&data[bit_index / 8] != 0b01001011010101000100010001001001) return false;
     return true;
 }
@@ -114,7 +109,7 @@ bool protocol_idteck_decoder_feed(ProtocolIdteck* protocol, bool level, uint32_t
     }
 
     if(duration > (IDTECK_US_PER_BIT / 4)) {
-        // Try to decode wrong phase synced data
+
         if(level) {
             duration += 120;
         } else {
@@ -191,14 +186,12 @@ LevelDuration protocol_idteck_encoder_yield(ProtocolIdteck* protocol) {
     return level_duration;
 }
 
-// factory code
 static uint32_t get_fc(const uint8_t* data) {
     uint32_t fc = 0;
     fc = bit_lib_get_bits_32(data, 0, 32);
     return fc;
 }
 
-// card number
 static uint32_t get_card(const uint8_t* data) {
     uint32_t cn = 0;
     cn = bit_lib_get_bits_32(data, 32, 32);

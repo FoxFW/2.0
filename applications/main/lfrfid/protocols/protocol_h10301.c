@@ -65,31 +65,20 @@ static void protocol_h10301_decoder_store_data(ProtocolH10301* protocol, bool da
 static bool protocol_h10301_can_be_decoded(const uint32_t* card_data) {
     const uint8_t* encoded_data = (const uint8_t*)card_data;
 
-    // packet preamble
-    // raw data
     if(*(encoded_data + 3) != 0x1D) {
         return false;
     }
 
-    // encoded company/oem
-    // coded with 01 = 0, 10 = 1 transitions
-    // stored in word 0
     if((*card_data >> 10 & 0x3FFF) != 0x1556) {
         return false;
     }
 
-    // encoded format/length
-    // coded with 01 = 0, 10 = 1 transitions
-    // stored in word 0 and word 1
     if((((*card_data & 0x3FF) << 12) | ((*(card_data + 1) >> 20) & 0xFFF)) != 0x155556) {
         return false;
     }
 
-    // data decoding
     uint32_t result = 0;
 
-    // decode from word 1
-    // coded with 01 = 0, 10 = 1 transitions
     for(int8_t i = 9; i >= 0; i--) {
         switch((*(card_data + 1) >> (2 * i)) & 0b11) {
         case 0b01:
@@ -104,8 +93,6 @@ static bool protocol_h10301_can_be_decoded(const uint32_t* card_data) {
         }
     }
 
-    // decode from word 2
-    // coded with 01 = 0, 10 = 1 transitions
     for(int8_t i = 15; i >= 0; i--) {
         switch((*(card_data + 2) >> (2 * i)) & 0b11) {
         case 0b01:
@@ -120,7 +107,6 @@ static bool protocol_h10301_can_be_decoded(const uint32_t* card_data) {
         }
     }
 
-    // trailing parity (odd) test
     uint8_t parity_sum = 0;
     for(int8_t i = 0; i < 13; i++) {
         if(((result >> i) & 1) == 1) {
@@ -132,7 +118,6 @@ static bool protocol_h10301_can_be_decoded(const uint32_t* card_data) {
         return false;
     }
 
-    // leading parity (even) test
     parity_sum = 0;
     for(int8_t i = 13; i < 26; i++) {
         if(((result >> i) & 1) == 1) {
@@ -148,11 +133,9 @@ static bool protocol_h10301_can_be_decoded(const uint32_t* card_data) {
 }
 
 static void protocol_h10301_decode(const uint32_t* card_data, uint8_t* decoded_data) {
-    // data decoding
+
     uint32_t result = 0;
 
-    // decode from word 1
-    // coded with 01 = 0, 10 = 1 transitions
     for(int8_t i = 9; i >= 0; i--) {
         switch((*(card_data + 1) >> (2 * i)) & 0b11) {
         case 0b01:
@@ -166,8 +149,6 @@ static void protocol_h10301_decode(const uint32_t* card_data, uint8_t* decoded_d
         }
     }
 
-    // decode from word 2
-    // coded with 01 = 0, 10 = 1 transitions
     for(int8_t i = 15; i >= 0; i--) {
         switch((*(card_data + 2) >> (2 * i)) & 0b11) {
         case 0b01:
@@ -227,7 +208,6 @@ void protocol_h10301_encode(const uint8_t* decoded_data, uint8_t* encoded_data) 
 
     uint32_t fc_cn = (decoded_data[0] << 16) | (decoded_data[1] << 8) | decoded_data[2];
 
-    // even parity sum calculation (high 12 bits of data)
     uint8_t even_parity_sum = 0;
     for(int8_t i = 12; i < 24; i++) {
         if(((fc_cn >> i) & 1) == 1) {
@@ -235,7 +215,6 @@ void protocol_h10301_encode(const uint8_t* decoded_data, uint8_t* encoded_data) 
         }
     }
 
-    // odd parity sum calculation (low 12 bits of data)
     uint8_t odd_parity_sum = 1;
     for(int8_t i = 0; i < 12; i++) {
         if(((fc_cn >> i) & 1) == 1) {
@@ -243,7 +222,6 @@ void protocol_h10301_encode(const uint8_t* decoded_data, uint8_t* encoded_data) 
         }
     }
 
-    // 0x1D preamble
     protocol_h10301_write_raw_bit(0, 0, card_data);
     protocol_h10301_write_raw_bit(0, 1, card_data);
     protocol_h10301_write_raw_bit(0, 2, card_data);
@@ -253,7 +231,6 @@ void protocol_h10301_encode(const uint8_t* decoded_data, uint8_t* encoded_data) 
     protocol_h10301_write_raw_bit(0, 6, card_data);
     protocol_h10301_write_raw_bit(1, 7, card_data);
 
-    // company / OEM code 1
     protocol_h10301_write_bit(0, 8, card_data);
     protocol_h10301_write_bit(0, 10, card_data);
     protocol_h10301_write_bit(0, 12, card_data);
@@ -262,7 +239,6 @@ void protocol_h10301_encode(const uint8_t* decoded_data, uint8_t* encoded_data) 
     protocol_h10301_write_bit(0, 18, card_data);
     protocol_h10301_write_bit(1, 20, card_data);
 
-    // card format / length 1
     protocol_h10301_write_bit(0, 22, card_data);
     protocol_h10301_write_bit(0, 24, card_data);
     protocol_h10301_write_bit(0, 26, card_data);
@@ -275,15 +251,12 @@ void protocol_h10301_encode(const uint8_t* decoded_data, uint8_t* encoded_data) 
     protocol_h10301_write_bit(0, 40, card_data);
     protocol_h10301_write_bit(1, 42, card_data);
 
-    // even parity bit
     protocol_h10301_write_bit((even_parity_sum % 2), 44, card_data);
 
-    // data
     for(uint8_t i = 0; i < 24; i++) {
         protocol_h10301_write_bit((fc_cn >> (23 - i)) & 1, 46 + (i * 2), card_data);
     }
 
-    // odd parity bit
     protocol_h10301_write_bit((odd_parity_sum % 2), 94, card_data);
 
     memcpy(encoded_data, &card_data, H10301_ENCODED_DATA_SIZE);
@@ -301,15 +274,13 @@ LevelDuration protocol_h10301_encoder_yield(ProtocolH10301* protocol) {
     bool level = 0;
     uint32_t duration = 0;
 
-    // if pulse is zero, we need to output high, otherwise we need to output low
     if(protocol->encoder.pulse == 0) {
-        // get bit
+
         uint8_t bit =
             (protocol->encoded_data[protocol->encoder.encoded_index / H10301_BIT_SIZE] >>
              ((H10301_BIT_SIZE - 1) - (protocol->encoder.encoded_index % H10301_BIT_SIZE))) &
             1;
 
-        // get pulse from oscillator
         bool advance = fsk_osc_next(protocol->encoder.fsk_osc, bit, &duration);
 
         if(advance) {
@@ -319,12 +290,11 @@ LevelDuration protocol_h10301_encoder_yield(ProtocolH10301* protocol) {
             }
         }
 
-        // duration diveded by 2 because we need to output high and low
         duration = duration / 2;
         protocol->encoder.pulse = duration;
         level = true;
     } else {
-        // output low half and reset pulse
+
         duration = protocol->encoder.pulse;
         protocol->encoder.pulse = 0;
         level = false;
@@ -337,7 +307,6 @@ bool protocol_h10301_write_data(ProtocolH10301* protocol, void* data) {
     LFRFIDWriteRequest* request = (LFRFIDWriteRequest*)data;
     bool result = false;
 
-    // Correct protocol data by redecoding
     protocol_h10301_encoder_start(protocol);
     protocol_h10301_decode(protocol->encoded_data, protocol->data);
 

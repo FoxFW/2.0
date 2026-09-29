@@ -21,7 +21,7 @@ typedef struct {
     SubGhzRadioDeviceType device_type;
     FuriString* temp_button_id;
     bool draw_temp_button;
-    /* Pre-computed button labels (set by the scene on enter) */
+
     char btn_center[14];
     char btn_up[14];
     char btn_down[14];
@@ -59,7 +59,7 @@ void subghz_view_transmitter_add_data_to_show(
             furi_string_set(model->frequency_str, frequency_str);
             furi_string_set(model->preset_str, preset_str);
             model->show_button   = show_button;
-            model->draw_temp_button = false; /* clear stale page indicator */
+            model->draw_temp_button = false;
             furi_string_reset(model->temp_button_id);
         },
         true);
@@ -99,7 +99,7 @@ bool txv_btn_label_extract(const char* s, char* d, size_t n) {
     d[i]=0;
     return i>0;
 }
-/* Draw a single button box */
+
 static void txv_btn_box(
     Canvas* canvas, uint8_t x, uint8_t y, uint8_t w, uint8_t h,
     const char* label, bool filled) {
@@ -145,9 +145,6 @@ void subghz_view_transmitter_draw(Canvas* canvas, SubGhzViewTransmitterModel* mo
         canvas_draw_str_aligned(canvas, 64, 13, AlignCenter, AlignTop, line2);
     }
 
-    /* ── F / Modulation / CRC on one line ──────────────────────────────
-     * "F:433.92 FM476 CRC:3" = ~20 chars × 5.5px ≈ 110px — fits in 128px.
-     * Drop " (OK)" suffix to stay within width; valid subs always pass CRC. */
     char crc_short[8] = {0};
     const char* crc_p2 = strstr(key, "CRC:");
     if(crc_p2) {
@@ -163,14 +160,11 @@ void subghz_view_transmitter_draw(Canvas* canvas, SubGhzViewTransmitterModel* mo
         snprintf(line3, sizeof(line3), "F:%-10s %s", freq, mod);
     canvas_draw_str_aligned(canvas, 64, 22, AlignCenter, AlignTop, line3);
 
-    /* ── Button area — CRC now on info line, full height buttons ────────
-     * row1=31, row2=43, row3=55, bh=9 → 55+9=64 fits exactly ✓ */
     if(has_custom) {
         const uint8_t bw=34, bh=9;
         const uint8_t cx=47, lx=4, rx=90;
         const uint8_t row1=31, row2=43, row3=55;
 
-        /* Determine labels — use pre-computed if ready, else fall back */
         const char* clabel = model->labels_ready ? model->btn_center : "SEND";
         const char* ulabel = model->labels_ready ? model->btn_up    : "UP";
         const char* dlabel = model->labels_ready ? model->btn_down  : "DOWN";
@@ -184,20 +178,12 @@ void subghz_view_transmitter_draw(Canvas* canvas, SubGhzViewTransmitterModel* mo
 
         if(up_vis) txv_btn_box(canvas, cx, row1, bw, bh, ulabel, false);
         if(lt_vis) txv_btn_box(canvas, lx, row2, bw, bh, llabel, false);
-        txv_btn_box(canvas, cx, row2, bw, bh, clabel, true);  /* OK — always shown */
+        txv_btn_box(canvas, cx, row2, bw, bh, clabel, true);
         if(rt_vis) txv_btn_box(canvas, rx, row2, bw, bh, rlabel, false);
         if(dn_vis) txv_btn_box(canvas, cx, row3, bw, bh, dlabel, false);
 
-        /* Radio device shown in info row (F:/mod), no separate indicator needed */
-
     } else if(model->show_button) {
-        /* Protocol has no custom-button remap data - draw the same d-pad
-         * grid as above for visual consistency across every protocol's
-         * transmit screen, but leave Up/Left/Right/Down blank. They're
-         * already genuine no-ops at the input layer (the real remap
-         * handling is gated behind subghz_custom_btn_is_allowed(), which
-         * is false here) - this just makes that visible instead of
-         * silently doing nothing when pressed. */
+
         const uint8_t bw=34, bh=9;
         const uint8_t cx=47, lx=4, rx=90;
         const uint8_t row1=31, row2=43, row3=55;
@@ -208,12 +194,8 @@ void subghz_view_transmitter_draw(Canvas* canvas, SubGhzViewTransmitterModel* mo
         txv_btn_box(canvas, cx, row3, bw, bh, "", false);
     }
 
-    /* Page / temp-button indicator */
     if(model->draw_temp_button) {
-        /* FontBatteryPercent (applications/services/gui/canvas.h): ARF/
-         * Unleashed/Momentum each carry it in their own Font enum; Stock's
-         * copy stops at FontBigNumbers. Falls back to FontSecondary there -
-         * same small text, just not the tighter battery-percent leading. */
+
 #ifdef SUBGHZ_GARAGE_HAS_FONT_BATTERY_PERCENT
         canvas_set_font(canvas, FontBatteryPercent);
 #else
@@ -223,14 +205,13 @@ void subghz_view_transmitter_draw(Canvas* canvas, SubGhzViewTransmitterModel* mo
     }
 }
 
-
 bool subghz_view_transmitter_input(InputEvent* event, void* context) {
     furi_assert(context);
     SubGhzViewTransmitter* subghz_transmitter = context;
     bool can_be_sent = false;
 
     if(event->key == InputKeyBack && event->type == InputTypeLong) {
-        // Reset view model
+
         with_view_model(
             subghz_transmitter->view,
             SubGhzViewTransmitterModel * model,
@@ -244,7 +225,7 @@ bool subghz_view_transmitter_input(InputEvent* event, void* context) {
             },
             false);
         return false;
-    } // Finish "Back" key processing
+    }
 
     with_view_model(
         subghz_transmitter->view,
@@ -257,7 +238,7 @@ bool subghz_view_transmitter_input(InputEvent* event, void* context) {
         true);
 
     if(can_be_sent) {
-        // Long press d-pad: set custom btn + long flag (no send here, send happens below)
+
         if(event->type == InputTypeLong) {
             if(event->key == InputKeyUp) {
                 subghz_custom_btn_set(SUBGHZ_CUSTOM_BTN_UP);
@@ -274,15 +255,14 @@ bool subghz_view_transmitter_input(InputEvent* event, void* context) {
             }
         }
 
-        // OK button handling
         if(event->key == InputKeyOk) {
             if(event->type == InputTypePress) {
                 if(subghz_custom_btn_has_pages()) {
-                    // Multi-page protocol: cycle pages, do NOT send
+
                     uint8_t max_pages = subghz_custom_btn_get_max_pages();
                     uint8_t next_page = (subghz_custom_btn_get_page() + 1) % max_pages;
                     subghz_custom_btn_set_page(next_page);
-                    // Reset d-pad selection to OK so display shows original btn
+
                     subghz_custom_btn_set(SUBGHZ_CUSTOM_BTN_OK);
                     with_view_model(
                         subghz_transmitter->view,
@@ -293,12 +273,12 @@ bool subghz_view_transmitter_input(InputEvent* event, void* context) {
                             model->draw_temp_button = true;
                         },
                         true);
-                    // Refresh display with new page mapping
+
                     subghz_transmitter->callback(
                         SubGhzCustomEventViewTransmitterPageChange, subghz_transmitter->context);
                     return true;
                 }
-                // Normal protocol: send original button
+
                 subghz_custom_btn_set(SUBGHZ_CUSTOM_BTN_OK);
                 with_view_model(
                     subghz_transmitter->view,
@@ -312,14 +292,14 @@ bool subghz_view_transmitter_input(InputEvent* event, void* context) {
                     SubGhzCustomEventViewTransmitterSendStart, subghz_transmitter->context);
                 return true;
             } else if(event->type == InputTypeRelease) {
-                // Only stop TX if we actually started it (not a page toggle)
+
                 if(!subghz_custom_btn_has_pages()) {
                     subghz_transmitter->callback(
                         SubGhzCustomEventViewTransmitterSendStop, subghz_transmitter->context);
                 }
                 return true;
             }
-        } // Finish "OK" key processing
+        }
 
         if(subghz_custom_btn_is_allowed()) {
             uint8_t temp_btn_id;
@@ -332,7 +312,7 @@ bool subghz_view_transmitter_input(InputEvent* event, void* context) {
             } else if(event->key == InputKeyRight) {
                 temp_btn_id = SUBGHZ_CUSTOM_BTN_RIGHT;
             } else {
-                // Finish processing if the button is different
+
                 return true;
             }
 
@@ -393,7 +373,6 @@ void subghz_view_transmitter_set_btn_labels(
         true);
 }
 
-
 void subghz_view_transmitter_reset_labels(SubGhzViewTransmitter* t) {
     furi_assert(t);
     with_view_model(
@@ -442,7 +421,6 @@ bool subghz_view_transmitter_is_labels_ready(SubGhzViewTransmitter* t) {
     return ready;
 }
 
-
 void subghz_view_transmitter_enter(void* context) {
     furi_assert(context);
 }
@@ -454,7 +432,6 @@ void subghz_view_transmitter_exit(void* context) {
 SubGhzViewTransmitter* subghz_view_transmitter_alloc(void) {
     SubGhzViewTransmitter* subghz_transmitter = malloc(sizeof(SubGhzViewTransmitter));
 
-    // View allocation and configuration
     subghz_transmitter->view = view_alloc();
     view_allocate_model(
         subghz_transmitter->view, ViewModelTypeLocking, sizeof(SubGhzViewTransmitterModel));

@@ -2,13 +2,6 @@
 
 #include "base.h"
 
-/*
- * Ditec GOL4 rolling-code gate remote. 400us short / 1100us long timing,
- * 54-bit frame, ~22*te_long start gap, start bit = 2*te_short HIGH. Rolling
- * code via an LCG-based scramble (not AES) over a 7-byte raw block packing
- * a 32-bit serial, 4-bit button, and 16-bit counter. Includes its own d-pad
- * custom-button remap (Up/Down/Left/Right/OK), ported as-is from ARF.
- */
 #define SUBGHZ_PROTOCOL_DITEC_GOL4_NAME "Ditec GOL4"
 
 typedef struct SubGhzProtocolDecoderDitecGOL4 SubGhzProtocolDecoderDitecGOL4;

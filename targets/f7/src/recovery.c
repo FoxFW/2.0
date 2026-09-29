@@ -11,7 +11,7 @@
 
 static void flipper_boot_recovery_draw_progress(Canvas* canvas, size_t progress) {
     if(progress < COUNTER_VALUE) {
-        // Fill the progress bar while the progress is going down
+
         canvas_draw_rframe(canvas, 59, 41, 69, 8, 2);
         size_t width = (COUNTER_VALUE - progress) * 68 / COUNTER_VALUE;
         canvas_draw_box(canvas, 60, 42, width, 6);
@@ -37,7 +37,6 @@ void flipper_boot_recovery_draw_splash(Canvas* canvas) {
 void flipper_boot_recovery_exec(void) {
     Canvas* canvas = canvas_init();
 
-    // Show recovery splashscreen
     flipper_boot_recovery_draw_splash(canvas);
 
     size_t counter = COUNTER_VALUE;

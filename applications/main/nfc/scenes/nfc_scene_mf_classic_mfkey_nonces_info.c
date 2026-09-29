@@ -67,6 +67,5 @@ void nfc_scene_mf_classic_mfkey_nonces_info_on_exit(void* context) {
 
     mfkey32_logger_free(instance->mfkey32_logger);
 
-    // Clear view
     widget_reset(instance->widget);
 }

@@ -8,16 +8,8 @@
 
 #define TAG "SubGhzProtocolTelcomaEdge"
 
-/* Upload buffer capacity (LevelDuration entries). Worst case is a 33-bit
- * channel frame: 33*2 half-bits + 1 stop + 1 guard gap = 68, well under this. */
 #define TELCOMA_EDGE_UPLOAD_SIZE 128
 
-/*
- * Timing + framing constants, taken from real captures and validated against
- * a Python reference decoder (9/9 frames -> 0xFF309FC0) in the upstream port.
- * te_delta is deliberately wide because the half-bit is long and the cheap
- * remote's timing jitters a fair bit.
- */
 static const SubGhzBlockConst subghz_protocol_telcoma_edge_const = {
     .te_short = 1270,
     .te_long = 2540,
@@ -31,8 +23,8 @@ struct SubGhzProtocolDecoderTelcomaEdge {
     SubGhzBlockDecoder decoder;
     SubGhzBlockGeneric generic;
 
-    bool half_pending; /* a half-bit sample is buffered, awaiting its pair */
-    bool half_level; /* level of the buffered half-bit */
+    bool half_pending;
+    bool half_level;
 };
 
 struct SubGhzProtocolEncoderTelcomaEdge {
@@ -74,8 +66,6 @@ const SubGhzProtocol subghz_protocol_telcoma_edge = {
     .encoder = &subghz_protocol_telcoma_edge_encoder,
 };
 
-/* ------------------------------- encoder -------------------------------- */
-
 void* subghz_protocol_encoder_telcoma_edge_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderTelcomaEdge* instance = malloc(sizeof(SubGhzProtocolEncoderTelcomaEdge));
@@ -98,15 +88,6 @@ void subghz_protocol_encoder_telcoma_edge_free(void* context) {
     free(instance);
 }
 
-/**
- * Channel-aware reconstruction (validated to reproduce every captured
- * channel pulse-for-pulse):
- *   - gate (channel field 0): 32 Manchester bits + 1 HIGH stop half-bit.
- *   - any other channel:      33 Manchester bits (key << 1), NO stop.
- * The << 1 restores the on-wire one-hot channel marker that the decoder
- * folded into the canonical key's low bits.
- * @param instance Pointer to a SubGhzProtocolEncoderTelcomaEdge instance
- */
 static bool
     subghz_protocol_encoder_telcoma_edge_get_upload(SubGhzProtocolEncoderTelcomaEdge* instance) {
     furi_assert(instance);
@@ -128,17 +109,11 @@ static bool
         add_stop = false;
     }
 
-    /* Worst case: 2 half-bits per bit + 1 stop half-bit + 1 guard gap.
-     * Coalescing (below) only reduces this, so this is a safe upper bound. */
     if((size_t)(nbits * 2 + 2) > TELCOMA_EDGE_UPLOAD_SIZE) {
         FURI_LOG_E(TAG, "Upload buffer too small");
         return false;
     }
 
-    /* Emit a half-bit at the given level, COALESCING with the previous entry
-     * when the level matches. Manchester naturally produces 2*TE runs at
-     * same-bit boundaries; merging them reproduces the exact waveform that
-     * was verified on hardware (a strictly level-alternating upload). */
 #define TELCOMA_EDGE_PUSH(lvl)                                                                    \
     do {                                                                                          \
         if(index > 0 && level_duration_get_level(instance->encoder.upload[index - 1]) == (lvl)) { \
@@ -152,24 +127,21 @@ static bool
     for(int i = nbits - 1; i >= 0; i--) {
         uint8_t bit = (value >> i) & 1;
         if(bit) {
-            /* 1 -> high, then low (matches the validated decoder convention) */
+
             TELCOMA_EDGE_PUSH(true);
             TELCOMA_EDGE_PUSH(false);
         } else {
-            /* 0 -> low, then high */
+
             TELCOMA_EDGE_PUSH(false);
             TELCOMA_EDGE_PUSH(true);
         }
     }
     if(add_stop) {
-        /* Trailing HIGH stop half-bit - only the gate channel carries it; it
-         * completes the gate's 65-half-bit frame and is REQUIRED there (a
-         * frame without it was rejected by the gate on real hardware). */
+
         TELCOMA_EDGE_PUSH(true);
     }
 #undef TELCOMA_EDGE_PUSH
 
-    /* inter-frame guard (~4 * TE low), matches the gap seen between bursts */
     instance->encoder.upload[index++] = level_duration_make(false, te * 4);
 
     instance->encoder.size_upload = index;
@@ -221,8 +193,6 @@ LevelDuration subghz_protocol_encoder_telcoma_edge_yield(void* context) {
     return ret;
 }
 
-/* ------------------------------- decoder -------------------------------- */
-
 void* subghz_protocol_decoder_telcoma_edge_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderTelcomaEdge* instance = malloc(sizeof(SubGhzProtocolDecoderTelcomaEdge));
@@ -246,16 +216,6 @@ void subghz_protocol_decoder_telcoma_edge_reset(void* context) {
     instance->half_pending = false;
 }
 
-/*
- * Manchester decode: expand each pulse into half-bit samples (TE -> one
- * sample, 2*TE -> two samples of the same level) and pair consecutive
- * samples. A high->low pair is a 1, low->high is a 0; a same-level pair is a
- * phase violation and is dropped. Pairing re-aligns at every inter-frame gap.
- *
- * POLARITY: high->low = 1 yields the validated 0xFF309FC0. If a build ever
- * decodes the bitwise complement (0x00CF603F), swap the two bit assignments
- * below.
- */
 static void subghz_protocol_decoder_telcoma_edge_add_half(
     SubGhzProtocolDecoderTelcomaEdge* instance,
     bool level) {
@@ -266,11 +226,11 @@ static void subghz_protocol_decoder_telcoma_edge_add_half(
     }
     instance->half_pending = false;
     if(instance->half_level && !level) {
-        subghz_protocol_blocks_add_bit(&instance->decoder, 1); /* high -> low = 1 */
+        subghz_protocol_blocks_add_bit(&instance->decoder, 1);
     } else if(!instance->half_level && level) {
-        subghz_protocol_blocks_add_bit(&instance->decoder, 0); /* low -> high = 0 */
+        subghz_protocol_blocks_add_bit(&instance->decoder, 0);
     }
-    /* same-level pair: phase violation, emit no bit (matches the reference) */
+
 }
 
 void subghz_protocol_decoder_telcoma_edge_feed(void* context, bool level, volatile uint32_t duration) {
@@ -286,19 +246,12 @@ void subghz_protocol_decoder_telcoma_edge_feed(void* context, bool level, volati
         subghz_protocol_decoder_telcoma_edge_add_half(instance, level);
         subghz_protocol_decoder_telcoma_edge_add_half(instance, level);
     } else {
-        /* End of a burst (inter-frame gap): publish a complete frame.
-         *
-         * Channel framing (derived from clean multi-channel captures): the
-         * gate channel decodes as 32 Manchester bits; every other channel
-         * carries a one-hot marker that adds one bit, so it decodes as 33
-         * bits. Normalise both to a canonical 32-bit key (drop the extra
-         * trailing bit on 33-bit frames) so data/count stay uniform; the
-         * channel then lives in the low bits. The encoder reverses this. */
+
         uint32_t count = instance->decoder.decode_count_bit;
         if(count == 32 || count == 33) {
             uint32_t key = (count == 33) ? (uint32_t)(instance->decoder.decode_data >> 1) :
                                             (uint32_t)instance->decoder.decode_data;
-            /* Reject noise/partial frames: a valid frame starts with 0xFF. */
+
             if((key >> 24) == 0xFF) {
                 instance->generic.data = key;
                 instance->generic.data_count_bit =
@@ -344,9 +297,8 @@ void subghz_protocol_decoder_telcoma_edge_get_string(void* context, FuriString* 
     furi_assert(context);
     SubGhzProtocolDecoderTelcomaEdge* instance = context;
     uint32_t data = (uint32_t)(instance->generic.data & 0xFFFFFFFF);
-    uint32_t payload = data & 0xFFFFFF; /* 24-bit, 0xFF preamble stripped */
-    /* Canonical 32-bit key layout: payload[23:3] = per-remote serial/address,
-     * payload[2:0] = one-hot channel select (gate = 0, others = 0x1/0x2/0x4). */
+    uint32_t payload = data & 0xFFFFFF;
+
     uint32_t serial = (payload >> 3) & 0x1FFFFF;
     uint8_t channel = payload & 0x07;
     furi_string_cat_printf(

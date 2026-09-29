@@ -29,8 +29,4 @@ SubGhzProtocolStatus
 
 void tpms_protocol_decoder_citroen_get_string(void* context, FuriString* output);
 
-/** Re-pack generic's data word from its id/pressure/temperature/battery_low
- * and recompute the XOR parity byte. The 80-bit wire frame's leading state
- * byte doesn't fit in data's 64 bits, but it was never decoded into any
- * generic field either, so nothing is lost by not persisting it. */
 void tpms_protocol_citroen_pack(TPMSBlockGeneric* generic);

@@ -11,41 +11,26 @@
 
 typedef enum {
     DesktopSettingsPinSetup           = 0,
-    DesktopSettingsMenuStyle          = 1,
-    DesktopSettingsWallpaper          = 2,
-    DesktopSettingsChangeName         = 3,
-    DesktopSettingsMainMenu           = 4,
-    DesktopSettingsAlarmClock         = 5,
-    DesktopSettingsRgbBacklight       = 6,
-    DesktopSettingsVgmOptions         = 7,
-    /* 8 = Battery View (inline callback, no sub-scene) */
-    /* 9 = Show Clock (inline callback, no sub-scene) */
-    /* 10 = Midnight Format (inline callback, no sub-scene) */
-    /* 11 = WiFi Status Icon (inline callback, no sub-scene) */
-    /* 12 = Battery & SD Icons (inline callback, no sub-scene) */
-    /* 13 = Shell Color (inline callback, no sub-scene) */
-    /* 14 = ESP32 UART (inline callback, no sub-scene) */
-    DesktopSettingsFavoriteLeftShort  = 15,
-    DesktopSettingsFavoriteLeftLong   = 16,
-    DesktopSettingsFavoriteRightShort = 17,
-    DesktopSettingsFavoriteOkLong     = 18,
-    /* Favorite - Right Long is no longer user-configurable here - long-press
-     * Right on the idle desktop is now hardcoded to cycle custom wallpapers
-     * (see desktop_cycle_wallpaper() in desktop.c). The FavoriteAppRightLong
-     * storage slot is kept allocated (unused) rather than removed, since
-     * shrinking FavoriteAppNumber would retroactively resize every
-     * versioned DesktopSettings migration struct in desktop_settings.c. */
+    DesktopSettingsUsbMode            = 1,
+    DesktopSettingsMenuStyle          = 2,
+    DesktopSettingsWallpaper          = 3,
+    DesktopSettingsChangeName         = 4,
+    DesktopSettingsMainMenu           = 5,
+    DesktopSettingsAlarmClock         = 6,
+    DesktopSettingsRgbBacklight       = 7,
+    DesktopSettingsVgmOptions         = 8,
+
+    DesktopSettingsFavoriteLeftShort  = 16,
+    DesktopSettingsFavoriteLeftLong   = 17,
+    DesktopSettingsFavoriteRightShort = 18,
+    DesktopSettingsFavoriteOkLong     = 19,
+
 } DesktopSettingsEntry;
 
 #define CLOCK_ENABLE_COUNT 2
 static const char* const clock_enable_text[CLOCK_ENABLE_COUNT]  = {"OFF", "ON"};
 static const uint32_t    clock_enable_value[CLOCK_ENABLE_COUNT] = {0, 1};
 
-/* wifi_icon_hidden: 0 = show (ON), 1 = hide (OFF) — index maps directly.
- * Same viewport/setting now covers both the WiFi and CC1101 status icons -
- * whichever one currently applies shows there, see
- * desktop_wifi_icon_draw_callback() in desktop.c - so this one toggle hides
- * or shows both. */
 #define WIFI_ICON_COUNT 2
 static const char* const wifi_icon_text[WIFI_ICON_COUNT] = {"ON", "OFF"};
 
@@ -60,10 +45,6 @@ static const char* const shell_color_text[SHELL_COLOR_COUNT] = {
     "Orange", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"};
 static CliSettings s_cli_settings;
 
-/* Global ESP32 UART pin choice - shared with commander, terminal, flasher and
- * uart_terminal's own "UART Pins" settings. Changing it here (or in any of
- * those apps) updates the same file, so the others pick it up next time they
- * (re)open their own connection settings. */
 #define GPIO_PINS_COUNT 2
 static const char* const gpio_pins_text[GPIO_PINS_COUNT] = {"13/14", "15/16"};
 static GpioRemapSettings s_gpio_remap;
@@ -89,8 +70,7 @@ static void desktop_settings_scene_start_battery_view_changed(VariableItem* item
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, battery_view_text[index]);
     app->settings.displayBatteryPercentage = index;
-    /* Save and push to desktop handled at app exit by desktop_settings_app(),
-     * same as display_clock and all other settings — making it instant. */
+
 }
 
 static void desktop_settings_scene_start_clock_enable_changed(VariableItem* item) {
@@ -104,7 +84,7 @@ static void desktop_settings_scene_start_wifi_icon_changed(VariableItem* item) {
     DesktopSettingsApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, wifi_icon_text[index]);
-    app->settings.wifi_icon_hidden = index; /* 0=ON(show), 1=OFF(hide) */
+    app->settings.wifi_icon_hidden = index;
 }
 
 static void desktop_settings_scene_start_midnight_format_changed(VariableItem* item) {
@@ -141,9 +121,6 @@ void desktop_settings_scene_start_on_enter(void* context) {
     VariableItem* item;
     uint8_t value_index;
 
-    /* Keep app->settings.menu_theme in sync with fox_theme's own live style
-     * so this scene's on_exit re-applies the right one even if the Menu
-     * Style sub-scene was never opened this session. */
     {
         uint8_t ms_idx = fox_theme_get_style();
         if(ms_idx > 4) ms_idx = 0;
@@ -151,6 +128,7 @@ void desktop_settings_scene_start_on_enter(void* context) {
     }
 
     variable_item_list_add(list, "Security & Privacy", 0, NULL, NULL);
+    variable_item_list_add(list, "USB Mode", 0, NULL, NULL);
     variable_item_list_add(list, "Menu Style", 0, NULL, NULL);
     variable_item_list_add(list, "Custom Wallpaper", 0, NULL, NULL);
     variable_item_list_add(list, "Change Flipper Name", 0, NULL, app);
@@ -218,9 +196,6 @@ void desktop_settings_scene_start_on_enter(void* context) {
     variable_item_list_set_enter_callback(
         list, desktop_settings_scene_start_var_list_enter_callback, app);
 
-    /* Restore the item that was selected before navigating into a sub-scene.
-     * On a fresh app launch the scene_state is 0 so the list starts at the top.
-     * On return from a sub-scene it holds the index of the item that was pressed. */
     uint32_t saved_pos = scene_manager_get_scene_state(
         app->scene_manager, DesktopSettingsAppSceneStart);
     variable_item_list_set_selected_item(list, (uint8_t)saved_pos);
@@ -233,16 +208,16 @@ bool desktop_settings_scene_start_on_event(void* context, SceneManagerEvent even
     bool consumed = false;
 
     if(event.type == SceneManagerEventTypeCustom) {
-        /* The custom event value IS the VariableItemList item index.
-         * Save it now so on_enter can restore the scroll position when the
-         * user returns from a sub-scene (Back key from Favorite editor etc.).
-         * On a fresh app launch the state is 0 so the list starts at the top. */
+
         scene_manager_set_scene_state(
             app->scene_manager, DesktopSettingsAppSceneStart, event.event);
 
         switch(event.event) {
         case DesktopSettingsPinSetup:
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppScenePinMenu);
+            break;
+        case DesktopSettingsUsbMode:
+            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneUsbMode);
             break;
         case DesktopSettingsMenuStyle:
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneMenuStyle);

@@ -3,15 +3,10 @@
 #include "../desktop_settings_app.h"
 #include "desktop_settings_scene.h"
 
-/* Menu Style picker - single-row style-3 list of Fox Theme/Carousel/Slider/
- * Tiny/Classic, replacing the old inline left/right cycling item on the
- * Start list. */
-
 static void desktop_settings_scene_menu_style_changed(void* context, uint8_t style_index) {
     DesktopSettingsApp* app = context;
     app->settings.menu_theme = style_index;
-    /* Use set_style(), not the boolean set() - that would collapse Carousel
-     * (2) down to Fox Theme (1). */
+
     fox_theme_set_style(style_index);
 }
 

@@ -1,4 +1,4 @@
-#include "../subghz_i.h" // IWYU pragma: keep
+#include "../subghz_i.h"
 #include "../helpers/subghz_custom_event.h"
 
 void subghz_scene_delete_success_popup_callback(void* context) {
@@ -10,10 +10,9 @@ void subghz_scene_delete_success_popup_callback(void* context) {
 void subghz_scene_delete_success_on_enter(void* context) {
     SubGhz* subghz = context;
 
-    // Setup view
     subghz_ensure_popup(subghz);
     Popup* popup = subghz->popup;
-    // [NO_DOLPHIN] popup_set_icon(popup, 0, 2, &I_DolphinMafia_119x62);
+
     popup_set_header(popup, "Deleted", 80, 19, AlignLeft, AlignBottom);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, subghz);
@@ -31,8 +30,7 @@ bool subghz_scene_delete_success_on_event(void* context, SceneManagerEvent event
                 if(scene_manager_search_and_switch_to_previous_scene(
                        subghz->scene_manager, SubGhzSceneSaved)) {
                 } else {
-                    scene_manager_search_and_switch_to_previous_scene(
-                        subghz->scene_manager, SubGhzSceneStart);
+                    subghz_return_to_launcher(subghz);
                 }
             } else {
                 subghz_rx_key_state_set(subghz, SubGhzRxKeyStateIDLE);
@@ -40,8 +38,7 @@ bool subghz_scene_delete_success_on_event(void* context, SceneManagerEvent event
                 if(scene_manager_search_and_switch_to_previous_scene(
                        subghz->scene_manager, SubGhzSceneReadRAW)) {
                 } else {
-                    scene_manager_search_and_switch_to_previous_scene(
-                        subghz->scene_manager, SubGhzSceneStart);
+                    subghz_return_to_launcher(subghz);
                 }
             }
 

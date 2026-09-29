@@ -12,7 +12,6 @@
 void furi_hal_mpu_init(void) {
     furi_hal_mpu_enable();
 
-    // NULL pointer dereference protection
     furi_hal_mpu_protect_no_access(FuriHalMpuRegionNULL, 0x00, FuriHalMPURegionSize1MB);
     furi_hal_mpu_protect_no_access(
         FuriHalMpuRegionMainStack,
@@ -61,7 +60,7 @@ void furi_hal_mpu_protect_disable(FuriHalMpuRegion region) {
 }
 
 void furi_hal_mpu_set_stack_protection(uint32_t* stack) {
-    // Protection area address must be aligned to region size
+
     uint32_t stack_ptr = (uint32_t)stack;
     uint32_t mask = ((1 << (FURI_HAL_MPU_STACK_PROTECT_REGION + 2)) - 1);
     stack_ptr &= ~mask;

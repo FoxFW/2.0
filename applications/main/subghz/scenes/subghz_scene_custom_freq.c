@@ -86,9 +86,6 @@ static bool subghz_scene_custom_freq_read(
     return file_exists;
 }
 
-/* Full-rewrite of the managed keys only. Only called when `locked` is false,
- * i.e. the file has no Custom_preset_name/Hopping_Preset entries to risk
- * losing. */
 static bool subghz_scene_custom_freq_write(
     Storage* storage,
     bool add_standard,
@@ -124,7 +121,6 @@ static bool subghz_scene_custom_freq_write(
     return result;
 }
 
-/* Safe in every case: only appends, never touches existing content. */
 static bool subghz_scene_custom_freq_append(Storage* storage, const char* key, uint32_t value) {
     FlipperFormat* fff = flipper_format_file_alloc(storage);
     bool result = false;
