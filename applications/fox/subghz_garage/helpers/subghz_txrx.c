@@ -62,6 +62,7 @@ static void subghz_txrx_ensure_radio_init(SubGhzTxRx* instance) {
         } else {
             subghz_txrx_radio_device_power_off(instance);
         }
+        subghz_debug_log_write("Radio init: external connected=%d", (int)is_connected);
 
         Storage* ext_flag_storage = furi_record_open(RECORD_STORAGE);
         File* ext_flag_file = storage_file_alloc(ext_flag_storage);
@@ -706,6 +707,7 @@ static void subghz_txrx_reverify_external_or_fallback(SubGhzTxRx* instance) {
     if(instance->radio_device_type == SubGhzRadioDeviceTypeExternalCC1101 &&
        !subghz_devices_is_connect(instance->radio_device)) {
         FURI_LOG_W(TAG, "External CC1101 stopped answering - falling back to Internal");
+        subghz_debug_log_write("External CC1101 stopped answering - falling back to Internal");
         subghz_txrx_radio_device_power_off(instance);
         subghz_devices_end(instance->radio_device);
         instance->radio_device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME);
@@ -1347,10 +1349,12 @@ SubGhzRadioDeviceType
 
     if(radio_device_type == SubGhzRadioDeviceTypeExternalCC1101 &&
        subghz_txrx_radio_device_is_external_connected(instance, SUBGHZ_DEVICE_CC1101_EXT_NAME)) {
-        subghz_txrx_radio_device_power_on(instance);
-        instance->radio_device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);
-        subghz_devices_begin(instance->radio_device);
-        instance->radio_device_type = SubGhzRadioDeviceTypeExternalCC1101;
+        if(instance->radio_device_type != SubGhzRadioDeviceTypeExternalCC1101) {
+            subghz_txrx_radio_device_power_on(instance);
+            instance->radio_device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);
+            subghz_devices_begin(instance->radio_device);
+            instance->radio_device_type = SubGhzRadioDeviceTypeExternalCC1101;
+        }
     } else {
         subghz_txrx_radio_device_power_off(instance);
         if(instance->radio_device_type != SubGhzRadioDeviceTypeInternal) {
@@ -1360,6 +1364,10 @@ SubGhzRadioDeviceType
         instance->radio_device_type = SubGhzRadioDeviceTypeInternal;
     }
 
+    subghz_debug_log_write(
+        "radio_device_set: requested %d, now %d",
+        (int)radio_device_type,
+        (int)instance->radio_device_type);
     return instance->radio_device_type;
 }
 

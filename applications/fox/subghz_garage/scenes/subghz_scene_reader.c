@@ -528,6 +528,8 @@ static void subghz_scene_receiver_start_listening(SubGhz* subghz, bool switch_vi
             return;
         }
         subghz->state_notifications = SubGhzNotificationStateRx;
+        subghz_read_raw_set_radio_device_type(
+            subghz->subghz_read_raw, subghz_txrx_radio_device_get(subghz->txrx));
 
         subghz_txrx_hopper_set_state(
             subghz->txrx,
@@ -1139,6 +1141,10 @@ static bool subghz_scene_reader_read_on_event(void* context, SceneManagerEvent e
 
             if(!s_auto_has_activity) {
                 subghz_txrx_hopper_update(subghz->txrx, subghz->last_settings->hopping_threshold);
+                if(subghz->last_settings->enable_hopping) {
+                    subghz_read_raw_set_radio_device_type(
+                        subghz->subghz_read_raw, subghz_txrx_radio_device_get(subghz->txrx));
+                }
             }
         } else if(auto_state == SubGhzReceiverAutoStateStart && !s_auto_start_cancelled) {
 
@@ -1622,6 +1628,8 @@ bool subghz_scene_read_raw_on_event(void* context, SceneManagerEvent event) {
                 SubGhzRadioPreset preset = subghz_txrx_get_preset(subghz->txrx);
                 if(subghz_protocol_raw_save_to_file_init(decoder_raw, RAW_FILE_NAME, &preset)) {
                     subghz_txrx_rx_start(subghz->txrx);
+                    subghz_read_raw_set_radio_device_type(
+                        subghz->subghz_read_raw, subghz_txrx_radio_device_get(subghz->txrx));
                     subghz->state_notifications = SubGhzNotificationStateRx;
 
                     subghz_rx_key_state_set(subghz, SubGhzRxKeyStateAddKey);

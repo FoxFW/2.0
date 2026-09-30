@@ -258,9 +258,9 @@ bool subghz_device_cc1101_ext_is_connect(void) {
         subghz_device_cc1101_ext_free();
     } else {
         furi_hal_spi_acquire(subghz_device_cc1101_ext->spi_bus_handle);
-        uint8_t partnumber = cc1101_get_partnumber(subghz_device_cc1101_ext->spi_bus_handle);
+        uint8_t version = cc1101_get_version(subghz_device_cc1101_ext->spi_bus_handle);
         furi_hal_spi_release(subghz_device_cc1101_ext->spi_bus_handle);
-        ret = (partnumber != 0) && (partnumber != 0xFF);
+        ret = (version != 0) && (version != 0xFF);
     }
 
     return ret;
