@@ -764,8 +764,8 @@ SubGhzProtocolStatus
         subghz_block_generic_deserialize(&instance->generic, flipper_format);
     if(ret == SubGhzProtocolStatusOk) {
         const uint16_t want = subghz_protocol_kia_v5_const.min_count_bit_for_found;
-        if(instance->generic.data_count_bit == 64 ||
-           instance->generic.data_count_bit == want) {
+        if(instance->generic.data_count_bit >= 64 &&
+           instance->generic.data_count_bit <= want) {
             instance->generic.data_count_bit = want;
         } else {
             ret = SubGhzProtocolStatusErrorValueBitCount;

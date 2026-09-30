@@ -16,6 +16,32 @@
 #define CC1101_PROBE_RELAUNCH_PATH EXT_PATH("subghz/.cc1101_probe_relaunch")
 #define SUBGHZ_GARAGE_FAP_PATH EXT_PATH("apps/Sub-GHz/subghz_garage.fap")
 
+static const char* subghz_protopirate_name_alias(const char* name) {
+    static const struct {
+        const char* pp;
+        const char* sub;
+    } map[] = {
+        {"Chrysler V0", "Chrysler"},
+        {"Ford V0", "FORD V0"},
+        {"Kia V0", "KIA/HYU V0"},
+        {"Kia V1", "KIA/HYU V1"},
+        {"Kia V2", "KIA/HYU V2"},
+        {"Kia V3", "KIA/HYU V3/V4"},
+        {"Kia V4", "KIA/HYU V3/V4"},
+        {"Kia V3/V4", "KIA/HYU V3/V4"},
+        {"Kia V5", "KIA/HYU V5"},
+        {"Kia V6", "KIA/HYU V6"},
+        {"Porsche Touareg", "Porsche AG"},
+        {"PSA", "PSA GROUP"},
+        {"Subaru", "SUBARU"},
+        {"VAG", "VAG GROUP"},
+    };
+    for(size_t i = 0; i < COUNT_OF(map); i++) {
+        if(!strcmp(name, map[i].pp)) return map[i].sub;
+    }
+    return NULL;
+}
+
 void subghz_blank_transition_draw_cb(Canvas* canvas, void* ctx);
 
 void subghz_blink_start(SubGhz* subghz) {
@@ -154,6 +180,11 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
         if(!flipper_format_read_string(fff_data_file, "Protocol", temp_str)) {
             FURI_LOG_E(TAG, "Missing Protocol");
             break;
+        }
+
+        const char* pp_alias = subghz_protopirate_name_alias(furi_string_get_cstr(temp_str));
+        if(pp_alias) {
+            furi_string_set_str(temp_str, pp_alias);
         }
 
         FlipperFormat* fff_data = subghz_txrx_get_fff_data(subghz->txrx);

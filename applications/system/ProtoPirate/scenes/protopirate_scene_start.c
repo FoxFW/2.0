@@ -4,7 +4,7 @@
 
 #include "proto_pirate_icons.h"
 
-#define TAG "ProtoPirateSceneStart"
+#define TAG "PPSceneStart"
 
 typedef enum {
     SubmenuIndexProtoPirateReceiver,
@@ -79,6 +79,10 @@ void protopirate_scene_start_on_enter(void* context) {
         app->submenu, scene_manager_get_scene_state(app->scene_manager, ProtoPirateSceneStart));
 
     view_dispatcher_switch_to_view(app->view_dispatcher, ProtoPirateViewSubmenu);
+
+    //Kill Config if it exists now to save memory.
+    protopirate_variable_item_list_free(app);
+    protopirate_widget_free(app);
 }
 
 bool protopirate_scene_start_on_event(void* context, SceneManagerEvent event) {
@@ -87,6 +91,7 @@ bool protopirate_scene_start_on_event(void* context, SceneManagerEvent event) {
     bool consumed = false;
 
     if(event.type == SceneManagerEventTypeCustom) {
+        scene_manager_set_scene_state(app->scene_manager, ProtoPirateSceneStart, event.event);
         if(event.event == SubmenuIndexProtoPirateAbout) {
             scene_manager_next_scene(app->scene_manager, ProtoPirateSceneAbout);
             consumed = true;
@@ -97,6 +102,8 @@ bool protopirate_scene_start_on_event(void* context, SceneManagerEvent event) {
             scene_manager_next_scene(app->scene_manager, ProtoPirateSceneSaved);
             consumed = true;
         } else if(event.event == SubmenuIndexProtoPirateReceiverConfig) {
+            //Hide the lock keyboard option.
+            scene_manager_set_scene_state(app->scene_manager, ProtoPirateSceneReceiverConfig, 0);
             scene_manager_next_scene(app->scene_manager, ProtoPirateSceneReceiverConfig);
             consumed = true;
         }
@@ -108,18 +115,18 @@ bool protopirate_scene_start_on_event(void* context, SceneManagerEvent event) {
 #endif
 #ifdef ENABLE_TIMING_TUNER_SCENE
         else if(event.event == SubmenuIndexProtoPirateTimingTuner) {
+            //Hide the lock keyboard option.
+            scene_manager_set_scene_state(app->scene_manager, ProtoPirateSceneReceiverConfig, 0);
             scene_manager_next_scene(app->scene_manager, ProtoPirateSceneTimingTuner);
             consumed = true;
         }
 #endif
-        scene_manager_set_scene_state(app->scene_manager, ProtoPirateSceneStart, event.event);
     }
 
     return consumed;
 }
 
 void protopirate_scene_start_on_exit(void* context) {
-    furi_check(context);
     ProtoPirateApp* app = context;
     submenu_reset(app->submenu);
 }
