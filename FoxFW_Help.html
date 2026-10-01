@@ -1600,11 +1600,18 @@
     decoders once the transmission has actually finished — the listening
     screen looks and behaves like Read RAW's own recording screen. The
     decode pass tries every enabled <a href="#radio-settings">Protocol
-    Group</a> against the capture in turn, fast enough that it still feels
-    instant, until one decodes it or none do. A signal has to clear the
+    Group</a> against the capture in turn until one decodes it or none do.
+    While that runs, a Decoding screen shows a progress bar and which
+    Protocol Group is being tried (for example 3/11); Back cancels and
+    returns to the Start screen. A signal has to clear the
     RSSI Threshold set in Receiver Config before
     Read starts treating it as an actual transmission, so ambient RF noise
-    alone won't trigger a capture. If the signal decodes successfully
+    alone won't trigger a capture. Read also measures the background level
+    of the radio it is using as listening starts: if that background sits
+    close to or above your threshold (some amplified external modules do
+    this), the bar is raised above it automatically for that Read. A burst
+    of only a few stray pulses is ignored and Read keeps listening, and a
+    single capture ends after 5 seconds at most. If the signal decodes successfully
     you're taken straight to its info screen to save or discard it; if
     nothing matches, a "No Match" screen offers Back (return to the Start
     screen with the Start button ready, not counting down) or Save (keep

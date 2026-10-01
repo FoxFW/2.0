@@ -76,6 +76,12 @@ static void desktop_cli_vcp_session_lock_release(void) {
 #define FOX_SETUP_FLAG_EXT_PATH  "/ext/System/.fox_setup.done"
 #define FOX_SETUP_AUTO_ARG   "auto"
 
+#define FOX_UPDATE_2011_FLAG_PATH        "/ext/System/.fox_update_2011.done"
+#define FOX_UPDATE_SUBGHZ_SETTINGS_PATH  EXT_PATH("subghz/assets/last_subghz.settings")
+#define FOX_UPDATE_SUBGHZ_RSSI_KEY       "RSSI"
+#define FOX_UPDATE_SUBGHZ_RSSI           (-65.0f)
+#define FOX_UPDATE_WALLPAPER_BACKUP_MAX  100
+
 #define FOX_ESP32_WIFI_STATUS_PATH EXT_PATH("apps_data/fox_esp32/wifi_status.txt")
 #define FOX_ESP32_WIFI_POLL_MS 2000
 
@@ -1182,6 +1188,55 @@ static bool desktop_wallpaper_header_is_128x64(Storage* storage, const char* pat
     return ok;
 }
 
+static void desktop_apply_one_time_update(Desktop* desktop) {
+    if(storage_sd_status(desktop->storage) != FSE_OK) return;
+    if(storage_file_exists(desktop->storage, FOX_UPDATE_2011_FLAG_PATH)) return;
+
+    char default_path[96];
+    snprintf(default_path, sizeof(default_path), "%s/%s", WALLPAPER_DIR, DEFAULT_WALLPAPER_NAME);
+
+    if(storage_file_exists(desktop->storage, default_path)) {
+        uint8_t* bits = malloc(WALLPAPER_SIZE);
+        bool is_stock = desktop_parse_xbm_file(desktop->storage, default_path, bits) &&
+                        memcmp(bits, s_sample_wallpaper_xbm, WALLPAPER_SIZE) == 0;
+        free(bits);
+
+        if(!is_stock) {
+            char backup_path[96];
+            for(uint8_t n = 2; n < FOX_UPDATE_WALLPAPER_BACKUP_MAX; n++) {
+                snprintf(
+                    backup_path, sizeof(backup_path), "%s/Default%u.xbm", WALLPAPER_DIR, (unsigned)n);
+                if(!storage_file_exists(desktop->storage, backup_path)) {
+                    FS_Error error =
+                        storage_common_rename(desktop->storage, default_path, backup_path);
+                    FURI_LOG_I(
+                        TAG,
+                        "One-time update: old default wallpaper kept as %s (%d)",
+                        backup_path,
+                        (int)error);
+                    break;
+                }
+            }
+        }
+    }
+
+    FlipperFormat* settings = flipper_format_file_alloc(desktop->storage);
+    if(flipper_format_file_open_existing(settings, FOX_UPDATE_SUBGHZ_SETTINGS_PATH)) {
+        float rssi = FOX_UPDATE_SUBGHZ_RSSI;
+        bool updated =
+            flipper_format_update_float(settings, FOX_UPDATE_SUBGHZ_RSSI_KEY, &rssi, 1);
+        FURI_LOG_I(TAG, "One-time update: Sub-GHz RSSI threshold reset (%d)", (int)updated);
+    }
+    flipper_format_free(settings);
+
+    storage_simply_mkdir(desktop->storage, "/ext/System");
+    File* flag = storage_file_alloc(desktop->storage);
+    if(storage_file_open(flag, FOX_UPDATE_2011_FLAG_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+        storage_file_close(flag);
+    }
+    storage_file_free(flag);
+}
+
 #define WALLPAPER_CYCLE_NAME_MAX 64
 #define WALLPAPER_CYCLE_LIST_MAX 64
 
@@ -1279,10 +1334,6 @@ void desktop_cycle_wallpaper(Desktop* desktop) {
 static void desktop_load_wallpaper(Desktop* desktop) {
     furi_assert(desktop);
 
-    // wallpaper_enabled now only decides WHICH file gets loaded -- the user's chosen custom
-    // file when enabled, the compiled-in default (fox logo) file otherwise -- never whether
-    // anything gets loaded at all. desktop_wallpaper_draw_callback draws unconditionally
-    // whenever wallpaper_data is non-NULL, so this must always resolve to a real file.
     const char* filename = (desktop->settings.wallpaper_enabled &&
                              desktop->settings.wallpaper_filename[0] != '\0') ?
                                 desktop->settings.wallpaper_filename :
@@ -1295,8 +1346,6 @@ static void desktop_load_wallpaper(Desktop* desktop) {
     bool ok = desktop_parse_xbm_file(desktop->storage, path, out);
 
     if(!ok && strcmp(filename, DEFAULT_WALLPAPER_NAME) != 0) {
-        // Chosen custom file missing or unreadable: fall back to the default picture rather
-        // than leaving the idle screen with nothing to draw.
         char default_path[96];
         snprintf(
             default_path, sizeof(default_path), "%s/%s", WALLPAPER_DIR, DEFAULT_WALLPAPER_NAME);
@@ -1928,6 +1977,7 @@ int32_t desktop_srv(void* p) {
         }
     }
 
+    desktop_apply_one_time_update(desktop);
     desktop_ensure_wallpaper(desktop);
 
     {

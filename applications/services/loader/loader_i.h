@@ -46,6 +46,8 @@ struct Loader {
 
     FuriTimer* still_loading_wait_timer;
     FuriTimer* still_loading_spin_timer;
+
+    FuriApiLock ensure_menu_lock;
 };
 
 typedef enum {

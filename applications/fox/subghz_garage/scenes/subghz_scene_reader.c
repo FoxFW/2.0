@@ -248,6 +248,20 @@ static void subghz_scene_read_raw_load_envelope_zoomed(
 
 #define SUBGHZ_AUTO_READ_SILENCE_TICKS 3
 
+#define SUBGHZ_AUTO_READ_SETTLE_TICKS 3
+
+#define SUBGHZ_AUTO_READ_MIN_SAMPLES 32
+
+#define SUBGHZ_AUTO_READ_SHORT_CAPTURE_LOG_MAX 3
+
+#define SUBGHZ_AUTO_READ_MAX_CAPTURE_TICKS 50
+
+#define SUBGHZ_AUTO_READ_NOISE_MARGIN_DB 10.0f
+
+#define SUBGHZ_AUTO_READ_NOISE_RISE_DB 0.5f
+
+#define SUBGHZ_AUTO_READ_NOISE_GATE_MAX (-50.0f)
+
 #define SUBGHZ_AUTO_READ_DECODE_SAMPLES_PER_TICK 400
 
 #define SUBGHZ_AUTO_START_COUNTDOWN_SEC 3
@@ -272,7 +286,20 @@ static uint16_t s_auto_history_count_before_decode = 0;
 
 static uint8_t s_auto_decode_group_cursor = 0;
 
+static uint8_t s_auto_decode_group_ordinal = 0;
+static uint8_t s_auto_decode_group_total = 0;
+static uint32_t s_auto_decode_samples_total = 0;
+static uint32_t s_auto_decode_samples_done = 0;
+
 static uint32_t s_auto_tick_count = 0;
+
+static uint32_t s_auto_activity_start_samples = 0;
+
+static uint32_t s_auto_short_capture_count = 0;
+
+static uint32_t s_auto_activity_start_tick = 0;
+
+static float s_auto_noise_floor = 0.0f;
 
 static uint32_t s_low_ram_tick_count = 0;
 
@@ -427,6 +454,10 @@ static void subghz_scene_receiver_start_listening(SubGhz* subghz, bool switch_vi
     s_auto_silence_ticks = 0;
     s_auto_has_activity = false;
     s_auto_tick_count = 0;
+    s_auto_activity_start_samples = 0;
+    s_auto_short_capture_count = 0;
+    s_auto_activity_start_tick = 0;
+    s_auto_noise_floor = 0.0f;
     s_low_ram_tick_count = 0;
 
     subghz_threshold_rssi_reset(subghz->threshold_rssi);
@@ -590,11 +621,33 @@ static bool subghz_scene_receiver_decode_next(SubGhz* subghz) {
                 return true;
             }
             subghz_receiver_decode(receiver, level, duration);
+            s_auto_decode_samples_done++;
         } else {
             return false;
         }
     }
     return true;
+}
+
+static void subghz_scene_receiver_decode_show_progress(SubGhz* subghz) {
+    uint32_t group_pct = 100;
+    if(s_auto_decode_samples_total > 0) {
+        group_pct = (s_auto_decode_samples_done * 100) / s_auto_decode_samples_total;
+        if(group_pct > 100) {
+            group_pct = 100;
+        }
+    }
+    uint32_t group_total = s_auto_decode_group_total ? s_auto_decode_group_total : 1;
+    uint32_t groups_done = s_auto_decode_group_ordinal ? (s_auto_decode_group_ordinal - 1u) : 0u;
+    uint32_t pct = (groups_done * 100 + group_pct) / group_total;
+    if(pct > 100) {
+        pct = 100;
+    }
+    subghz_read_raw_set_decoding(
+        subghz->subghz_read_raw,
+        s_auto_decode_group_ordinal,
+        (uint8_t)group_total,
+        (uint8_t)pct);
 }
 
 static void subghz_scene_receiver_no_match_widget_cb(
@@ -629,6 +682,7 @@ static void subghz_scene_receiver_show_decode_failed_popup(SubGhz* subghz) {
 
 static void subghz_scene_receiver_decode_finish(SubGhz* subghz) {
     subghz_debug_log_write("decode_finish: enter");
+    subghz_read_raw_clear_decoding(subghz->subghz_read_raw);
     if(subghz->last_settings->auto_save) {
         subghz_scene_receiver_process_auto_save(subghz);
     }
@@ -674,6 +728,10 @@ static bool subghz_scene_receiver_decode_open_next_group(SubGhz* subghz, uint8_t
     while(subghz_garage_protocol_group_next_enabled(
         subghz->last_settings->protocol_groups_enabled, search_from, &candidate)) {
         search_from = (uint8_t)candidate + 1;
+
+        s_auto_decode_group_ordinal++;
+        s_auto_decode_samples_done = 0;
+        subghz_scene_receiver_decode_show_progress(subghz);
 
         if(!subghz_txrx_ensure_protocol_group(subghz->txrx, candidate)) {
             subghz_debug_log_write(
@@ -769,6 +827,20 @@ static void subghz_scene_receiver_stop_and_decode(SubGhz* subghz) {
         "stop_and_decode: history_count_before=%d, allocating file encoder worker",
         s_auto_history_count_before_decode);
 
+    s_auto_decode_group_ordinal = 0;
+    s_auto_decode_group_total = 0;
+    s_auto_decode_samples_total = spl_count;
+    s_auto_decode_samples_done = 0;
+    {
+        SubGhzGarageProtocolGroup group;
+        uint8_t search_from = 0;
+        while(subghz_garage_protocol_group_next_enabled(
+            subghz->last_settings->protocol_groups_enabled, search_from, &group)) {
+            s_auto_decode_group_total++;
+            search_from = (uint8_t)group + 1;
+        }
+    }
+
     if(!subghz_scene_receiver_decode_open_next_group(subghz, 0)) {
         FURI_LOG_E(TAG, "stop_and_decode: no enabled protocol group could be loaded");
         subghz_debug_log_write(
@@ -783,9 +855,6 @@ static void subghz_scene_receiver_stop_and_decode(SubGhz* subghz) {
     scene_manager_set_scene_state(
         subghz->scene_manager, SubGhzSceneReceiver, SubGhzReceiverAutoStateDecoding);
 
-    subghz_read_raw_set_status(
-        subghz->subghz_read_raw, SubGhzReadRAWStatusIDLE, "",
-        subghz_threshold_rssi_get(subghz->threshold_rssi));
     FURI_LOG_I(TAG, "stop_and_decode: decoding started, %zu samples", spl_count);
     subghz_debug_log_write("stop_and_decode: decoding started, %zu samples", spl_count);
 }
@@ -1086,53 +1155,100 @@ static bool subghz_scene_reader_read_on_event(void* context, SceneManagerEvent e
             subghz_read_raw_update_sample_write(subghz->subghz_read_raw, sample_count);
 
             float rssi_value = subghz_txrx_radio_device_get_rssi(subghz->txrx);
-            SubGhzThresholdRssiData ret_rssi =
-                subghz_threshold_get_rssi_data(subghz->threshold_rssi, rssi_value);
+            SubGhzThresholdRssiData ret_rssi = {.rssi = rssi_value, .is_above = false};
+            float user_rssi = subghz_threshold_rssi_get(subghz->threshold_rssi);
+            float gate_rssi = user_rssi;
+            if(s_auto_tick_count < SUBGHZ_AUTO_READ_SETTLE_TICKS) {
+                s_auto_noise_floor = rssi_value;
+            } else {
+                if(rssi_value < s_auto_noise_floor) {
+                    s_auto_noise_floor = rssi_value;
+                } else if(!s_auto_has_activity) {
+                    s_auto_noise_floor += SUBGHZ_AUTO_READ_NOISE_RISE_DB;
+                    if(s_auto_noise_floor > rssi_value) {
+                        s_auto_noise_floor = rssi_value;
+                    }
+                }
+                float noise_gate = s_auto_noise_floor + SUBGHZ_AUTO_READ_NOISE_MARGIN_DB;
+                if(noise_gate > SUBGHZ_AUTO_READ_NOISE_GATE_MAX) {
+                    noise_gate = SUBGHZ_AUTO_READ_NOISE_GATE_MAX;
+                }
+                if(noise_gate > gate_rssi) {
+                    gate_rssi = noise_gate;
+                }
+                ret_rssi = subghz_threshold_get_rssi_data(
+                    subghz->threshold_rssi, rssi_value - (gate_rssi - user_rssi));
+                ret_rssi.rssi = rssi_value;
+            }
             subghz_read_raw_add_data_rssi(subghz->subghz_read_raw, ret_rssi.rssi, true);
 
-            if(sample_count > s_auto_last_sample_count) {
-
-                if(s_auto_has_activity || ret_rssi.is_above) {
-                    if(!s_auto_has_activity) {
-
-                        float threshold_rssi =
-                            subghz_threshold_rssi_get(subghz->threshold_rssi);
+            if(sample_count > s_auto_last_sample_count && ret_rssi.is_above) {
+                if(!s_auto_has_activity) {
+                    s_auto_activity_start_samples = s_auto_last_sample_count;
+                    s_auto_activity_start_tick = s_auto_tick_count;
+                    if(s_auto_short_capture_count < SUBGHZ_AUTO_READ_SHORT_CAPTURE_LOG_MAX) {
                         FURI_LOG_I(
                             TAG,
-                            "listening: activity started at tick %lu, rssi=%d.%d threshold_rssi=%d.%d sample_count=%zu",
+                            "listening: activity started at tick %lu, rssi=%d gate=%d floor=%d threshold=%d samples=%zu",
                             (unsigned long)s_auto_tick_count,
-                            (int)ret_rssi.rssi,
-                            (int)fabsf((ret_rssi.rssi - (int)ret_rssi.rssi) * 10),
-                            (int)threshold_rssi,
-                            (int)fabsf((threshold_rssi - (int)threshold_rssi) * 10),
+                            (int)rssi_value,
+                            (int)gate_rssi,
+                            (int)s_auto_noise_floor,
+                            (int)user_rssi,
                             sample_count);
                         subghz_debug_log_write(
-                            "listening: activity started at tick %lu, rssi=%d.%d threshold_rssi=%d.%d sample_count=%zu",
+                            "listening: activity started at tick %lu, rssi=%d gate=%d floor=%d threshold=%d samples=%zu",
                             (unsigned long)s_auto_tick_count,
-                            (int)ret_rssi.rssi,
-                            (int)fabsf((ret_rssi.rssi - (int)ret_rssi.rssi) * 10),
-                            (int)threshold_rssi,
-                            (int)fabsf((threshold_rssi - (int)threshold_rssi) * 10),
+                            (int)rssi_value,
+                            (int)gate_rssi,
+                            (int)s_auto_noise_floor,
+                            (int)user_rssi,
                             sample_count);
                     }
-                    s_auto_has_activity = true;
-                    s_auto_silence_ticks = 0;
                 }
+                s_auto_has_activity = true;
+                s_auto_silence_ticks = 0;
             } else if(s_auto_has_activity) {
                 s_auto_silence_ticks++;
             }
             s_auto_last_sample_count = sample_count;
             s_auto_tick_count++;
 
-            if(s_auto_has_activity && s_auto_silence_ticks >= SUBGHZ_AUTO_READ_SILENCE_TICKS) {
+            bool capture_done =
+                s_auto_has_activity &&
+                (s_auto_silence_ticks >= SUBGHZ_AUTO_READ_SILENCE_TICKS ||
+                 (s_auto_tick_count - s_auto_activity_start_tick) >=
+                     SUBGHZ_AUTO_READ_MAX_CAPTURE_TICKS);
+
+            if(capture_done &&
+               (sample_count - s_auto_activity_start_samples) < SUBGHZ_AUTO_READ_MIN_SAMPLES) {
+                if(s_auto_short_capture_count < SUBGHZ_AUTO_READ_SHORT_CAPTURE_LOG_MAX) {
+                    FURI_LOG_I(
+                        TAG,
+                        "listening: only %lu samples since activity start at tick %lu - too short to be a signal, still listening",
+                        (unsigned long)(sample_count - s_auto_activity_start_samples),
+                        (unsigned long)s_auto_tick_count);
+                    subghz_debug_log_write(
+                        "listening: only %lu samples since activity start at tick %lu - too short to be a signal, still listening",
+                        (unsigned long)(sample_count - s_auto_activity_start_samples),
+                        (unsigned long)s_auto_tick_count);
+                }
+                s_auto_short_capture_count++;
+                s_auto_has_activity = false;
+                s_auto_silence_ticks = 0;
+                subghz_threshold_rssi_reset(subghz->threshold_rssi);
+                notification_message(subghz->notifications, &sequence_blink_cyan_10);
+            } else if(capture_done) {
                 FURI_LOG_I(
                     TAG,
-                    "listening: silence threshold reached at tick %lu, %zu samples captured",
+                    "listening: capture ended at tick %lu, quiet ticks %lu, %zu samples",
                     (unsigned long)s_auto_tick_count,
+                    (unsigned long)s_auto_silence_ticks,
                     sample_count);
                 subghz_debug_log_write(
-                    "listening: silence threshold reached at tick %lu, %zu samples captured",
+                    "listening: capture ended at tick %lu, quiet ticks %lu, %zu samples",
                     (unsigned long)s_auto_tick_count,
+                    (unsigned long)s_auto_silence_ticks,
                     sample_count);
                 subghz_scene_receiver_stop_and_decode(subghz);
             } else {
@@ -1179,6 +1295,9 @@ static bool subghz_scene_reader_read_on_event(void* context, SceneManagerEvent e
             subghz_debug_log_write("decode tick: calling decode_next");
             bool more = subghz_scene_receiver_decode_next(subghz);
             subghz_debug_log_write("decode tick: decode_next returned %d", (int)more);
+            if(more) {
+                subghz_scene_receiver_decode_show_progress(subghz);
+            }
             if(!more) {
 
                 uint16_t history_count = subghz_history_get_item(subghz->history);

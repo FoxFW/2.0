@@ -14,7 +14,7 @@ struct SubGhzThresholdRssi {
 SubGhzThresholdRssi* subghz_threshold_rssi_alloc(void) {
     SubGhzThresholdRssi* instance = malloc(sizeof(SubGhzThresholdRssi));
 
-    instance->threshold_rssi = -75.0f;
+    instance->threshold_rssi = SUBGHZ_RAW_THRESHOLD_DEFAULT;
     instance->threshold_rssi_low_count = THRESHOLD_RSSI_LOW_COUNT;
     return instance;
 }

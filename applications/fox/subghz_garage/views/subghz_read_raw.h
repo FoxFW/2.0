@@ -20,6 +20,8 @@ typedef enum {
     SubGhzReadRAWStatusLoadKeyTXRepeat,
     SubGhzReadRAWStatusLoadKeyTXPaused,
     SubGhzReadRAWStatusSaveKey,
+
+    SubGhzReadRAWStatusDecoding,
 } SubGhzReadRAWStatus;
 
 typedef enum {
@@ -57,6 +59,14 @@ void subghz_read_raw_set_status(
     float raw_threshold_rssi);
 
 void subghz_read_raw_set_start_countdown(SubGhzReadRAW* instance, uint8_t seconds_left);
+
+void subghz_read_raw_set_decoding(
+    SubGhzReadRAW* instance,
+    uint8_t group,
+    uint8_t group_total,
+    uint8_t pct);
+
+void subghz_read_raw_clear_decoding(SubGhzReadRAW* instance);
 
 SubGhzReadRAWStatus subghz_read_raw_get_status(SubGhzReadRAW* instance);
 

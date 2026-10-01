@@ -273,6 +273,18 @@ static void loader_load_watchdog_disarm(Loader* loader) {
     furi_timer_stop(loader->load_watchdog);
 }
 
+#define LOADER_GARAGE_APPID       "subghz_garage"
+#define LOADER_GARAGE_PROBE_APPID "subghz_garage_cc1101_check"
+
+static void loader_cover_release(Loader* loader) {
+    if(loader_menu_settings_return_pending()) {
+        view_holder_set_view(loader->view_holder, empty_screen_get_view(loader->empty_screen));
+        view_holder_send_to_back(loader->view_holder);
+    } else {
+        view_holder_set_view(loader->view_holder, NULL);
+    }
+}
+
 static const char* loader_find_external_application_by_name(const char* app_name) {
     for(size_t i = 0; i < FLIPPER_EXTERNAL_APPS_COUNT; i++) {
         if(strcmp(FLIPPER_EXTERNAL_APPS[i].name, app_name) == 0) {
@@ -428,23 +440,6 @@ static void loader_generic_synchronous_request(Loader* loader, LoaderMessage* me
     api_lock_wait_unlock_and_free(message->api_lock);
 }
 
-static bool loader_generic_synchronous_request_with_timeout(
-    Loader* loader,
-    LoaderMessage* message,
-    uint32_t timeout) {
-    furi_check(loader);
-    message->api_lock = api_lock_alloc_locked();
-    if(furi_message_queue_put(loader->queue, message, timeout) != FuriStatusOk) {
-        api_lock_free(message->api_lock);
-        return false;
-    }
-    if(api_lock_wait_unlock_with_timeout(message->api_lock, timeout) & FuriFlagError) {
-        return false;
-    }
-    api_lock_free(message->api_lock);
-    return true;
-}
-
 LoaderStatus
     loader_start(Loader* loader, const char* name, const char* args, FuriString* error_message) {
     furi_check(loader);
@@ -518,11 +513,19 @@ void loader_show_menu(Loader* loader) {
 }
 
 void loader_ensure_menu_built(Loader* loader) {
+    furi_check(loader);
     LoaderMessage message = {
+        .api_lock = loader->ensure_menu_lock,
         .type = LoaderMessageTypeEnsureMenuBuilt,
     };
-    if(!loader_generic_synchronous_request_with_timeout(
-           loader, &message, furi_ms_to_ticks(2000))) {
+    const uint32_t timeout = furi_ms_to_ticks(2000);
+
+    api_lock_relock(loader->ensure_menu_lock);
+    if(furi_message_queue_put(loader->queue, &message, timeout) != FuriStatusOk) {
+        FURI_LOG_W(TAG, "ensure_menu_built timed out");
+        return;
+    }
+    if(api_lock_wait_unlock_with_timeout(loader->ensure_menu_lock, timeout) & FuriFlagError) {
         FURI_LOG_W(TAG, "ensure_menu_built timed out");
     }
 }
@@ -643,6 +646,7 @@ static Loader* loader_alloc(void) {
     Loader* loader = malloc(sizeof(Loader));
     loader->pubsub = furi_pubsub_alloc();
     loader->queue = furi_message_queue_alloc(1, sizeof(LoaderMessage));
+    loader->ensure_menu_lock = api_lock_alloc_locked();
     loader->gui = furi_record_open(RECORD_GUI);
     loader->view_holder = view_holder_alloc();
     loader->loading = loading_alloc();
@@ -960,8 +964,30 @@ static void loader_do_menu_show(Loader* loader) {
     if(!loader->loader_menu) {
         loader->loader_menu = loader_menu_alloc(loader_menu_closed_callback, loader);
     }
+    loader_menu_take_settings_return();
     loader_menu_show(loader->loader_menu);
     loader->menu_shown = true;
+}
+
+static bool loader_do_menu_show_settings_if_pending(Loader* loader) {
+    if(loader->app.thread == (FuriThread*)LOADER_MAGIC_THREAD_VALUE) {
+        loader_menu_take_settings_return();
+        view_holder_set_view(loader->view_holder, NULL);
+        return false;
+    }
+    if(loader->app.thread || loader->menu_shown) {
+        return false;
+    }
+    const char* settings_item = loader_menu_take_settings_return();
+    if(!settings_item) {
+        return false;
+    }
+    if(!loader->loader_menu) {
+        loader->loader_menu = loader_menu_alloc(loader_menu_closed_callback, loader);
+    }
+    loader_menu_show_settings(loader->loader_menu, settings_item);
+    loader->menu_shown = true;
+    return true;
 }
 
 static void loader_do_menu_closed(Loader* loader) {
@@ -970,6 +996,9 @@ static void loader_do_menu_closed(Loader* loader) {
         loader->loader_menu = NULL;
     }
     loader->menu_shown = false;
+    if(!loader_do_menu_show_settings_if_pending(loader) && !loader->app.thread) {
+        view_holder_set_view(loader->view_holder, NULL);
+    }
 }
 
 static void loader_do_ensure_menu_built(Loader* loader) {
@@ -1126,7 +1155,7 @@ static void loader_do_next_deferred_launch_if_available(Loader* loader) {
     } else {
 
         loader_load_watchdog_disarm(loader);
-        view_holder_set_view(loader->view_holder, NULL);
+        loader_cover_release(loader);
 
         loader_do_emit_queue_empty_event(loader);
 
@@ -1195,6 +1224,10 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
     if(was_queued && record->name_or_path && strcmp(record->name_or_path, "subghz") == 0) {
         keep_loading_view = true;
     }
+    if(record->name_or_path &&
+       loader_wheel_name_matches_appid(record->name_or_path, LOADER_GARAGE_PROBE_APPID)) {
+        keep_loading_view = true;
+    }
 
     if(!skip_loading_view) {
         view_holder_set_view(loader->view_holder, loading_get_view(loader->loading));
@@ -1221,8 +1254,11 @@ static bool loader_do_deferred_launch(Loader* loader, LoaderDeferredLaunchRecord
     } while(false);
 
     loader_load_watchdog_disarm(loader);
-    if(!skip_loading_view && !keep_loading_view) {
-        view_holder_set_view(loader->view_holder, NULL);
+    if(!is_successful) {
+        keep_loading_view = false;
+    }
+    if(!keep_loading_view && (!skip_loading_view || loader_menu_settings_return_pending())) {
+        loader_cover_release(loader);
     }
     furi_string_free(error_message);
     return is_successful;
@@ -1236,9 +1272,13 @@ static void loader_show_loading_for_launch(Loader* loader, const char* app_name)
     loader_load_watchdog_arm(loader, app_name);
 }
 
-static void loader_hide_loading_for_launch(Loader* loader) {
+static void loader_hide_loading_for_launch(Loader* loader, const char* app_name, bool started) {
     loader_load_watchdog_disarm(loader);
-    view_holder_set_view(loader->view_holder, NULL);
+    if(started && app_name &&
+       loader_wheel_name_matches_appid(app_name, LOADER_GARAGE_PROBE_APPID)) {
+        return;
+    }
+    loader_cover_release(loader);
 }
 
 static void loader_do_app_closed(Loader* loader) {
@@ -1284,6 +1324,10 @@ static void loader_do_app_closed(Loader* loader) {
     furi_pubsub_publish(loader->pubsub, &event);
 
     loader_do_next_deferred_launch_if_available(loader);
+
+    heap_alloc_guard_lock();
+    loader_do_menu_show_settings_if_pending(loader);
+    heap_alloc_guard_unlock();
 }
 
 static bool loader_is_application_running(Loader* loader) {
@@ -1359,7 +1403,8 @@ int32_t loader_srv(void* p) {
                     message.start.name,
                     message.start.args,
                     message.start.error_message);
-                loader_hide_loading_for_launch(loader);
+                loader_hide_loading_for_launch(
+                    loader, message.start.name, status.value == LoaderStatusOk);
                 *(message.status_value) = status;
                 if(status.value != LoaderStatusOk) loader_do_emit_queue_empty_event(loader);
                 api_lock_unlock(message.api_lock);
@@ -1371,7 +1416,8 @@ int32_t loader_srv(void* p) {
                 loader_show_loading_for_launch(loader, message.start.name);
                 LoaderMessageLoaderStatusResult status = loader_do_start_by_name(
                     loader, message.start.name, message.start.args, error_message);
-                loader_hide_loading_for_launch(loader);
+                loader_hide_loading_for_launch(
+                    loader, message.start.name, status.value == LoaderStatusOk);
                 loader_show_gui_error(status, message.start.name, error_message);
                 if(status.value != LoaderStatusOk) loader_do_emit_queue_empty_event(loader);
                 if(message.start.name) free((void*)message.start.name);
@@ -1441,6 +1487,7 @@ int32_t loader_srv(void* p) {
                 break;
             case LoaderMessageTypeEnqueueLaunch:
                 furi_check(loader_queue_push(&loader->launch_queue, &message.defer_start));
+                loader_menu_take_settings_return();
 
                 if(message.defer_start.name_or_path) {
                     const char* p = message.defer_start.name_or_path;
@@ -1449,12 +1496,15 @@ int32_t loader_srv(void* p) {
                                   strstr(p, "subghz_raw");
 
                     bool is_subghz = strcmp(p, "subghz") == 0;
+                    bool is_garage =
+                        loader_wheel_name_matches_appid(p, LOADER_GARAGE_APPID) ||
+                        loader_wheel_name_matches_appid(p, LOADER_GARAGE_PROBE_APPID);
                     if(is_fap) {
                         view_holder_set_view(
                             loader->view_holder,
                             empty_screen_get_view(loader->empty_screen));
                         view_holder_send_to_front(loader->view_holder);
-                    } else if(is_subghz) {
+                    } else if(is_subghz || is_garage) {
                         view_holder_set_view(
                             loader->view_holder,
                             loading_get_view(loader->loading));

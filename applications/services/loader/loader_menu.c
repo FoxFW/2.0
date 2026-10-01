@@ -31,7 +31,12 @@ struct LoaderMenu {
     void* context;
     FuriApiLock built_lock;
     ViewDispatcher* view_dispatcher;
+    const char* settings_item;
 };
+
+static const char* loader_menu_settings_return_item = NULL;
+
+static const char loader_menu_fox_settings_marker = 0;
 
 static int32_t loader_menu_thread(void* p);
 
@@ -62,6 +67,22 @@ void loader_menu_show(LoaderMenu* loader_menu) {
     furi_thread_flags_set(furi_thread_get_id(loader_menu->thread), LoaderMenuThreadFlagShow);
 }
 
+void loader_menu_show_settings(LoaderMenu* loader_menu, const char* settings_item) {
+    furi_assert(loader_menu);
+    loader_menu->settings_item = settings_item;
+    furi_thread_flags_set(furi_thread_get_id(loader_menu->thread), LoaderMenuThreadFlagShow);
+}
+
+const char* loader_menu_take_settings_return(void) {
+    const char* settings_item = loader_menu_settings_return_item;
+    loader_menu_settings_return_item = NULL;
+    return settings_item;
+}
+
+bool loader_menu_settings_return_pending(void) {
+    return loader_menu_settings_return_item != NULL;
+}
+
 typedef enum {
     LoaderMenuViewPrimary,
     LoaderMenuViewSettings,
@@ -83,13 +104,14 @@ typedef struct {
 
 #define LoaderMenuCustomEventRefreshPins 0
 
-static void loader_menu_start(LoaderMenu* menu, const char* name) {
+static bool loader_menu_start(LoaderMenu* menu, const char* name) {
     Loader* loader = furi_record_open(RECORD_LOADER);
     LoaderStatus status = loader_start_with_gui_error(loader, name, NULL);
     furi_record_close(RECORD_LOADER);
     if(status == LoaderStatusOk && menu->view_dispatcher) {
         view_dispatcher_stop(menu->view_dispatcher);
     }
+    return status == LoaderStatusOk;
 }
 
 static void loader_menu_apps_callback(void* context, uint32_t index) {
@@ -158,7 +180,10 @@ static void
     loader_menu_settings_menu_callback(void* context, InputType input_type, uint32_t index) {
     LoaderMenu* menu = context;
     if(input_type == InputTypeShort) {
-        loader_menu_start(menu, (const char*)index);
+        loader_menu_settings_return_item = (const char*)index;
+        if(!loader_menu_start(menu, (const char*)index)) {
+            loader_menu_settings_return_item = NULL;
+        }
     } else if(input_type == InputTypeLong) {
         archive_favorites_handle_setting_pin_unpin((const char*)index, NULL);
     }
@@ -167,7 +192,10 @@ static void
 static void loader_menu_fox_settings_callback(void* context, uint32_t index) {
     UNUSED(index);
     LoaderMenu* menu = context;
-    loader_menu_start(menu, "/ext/apps/Fox/desktop_settings.fap");
+    loader_menu_settings_return_item = &loader_menu_fox_settings_marker;
+    if(!loader_menu_start(menu, "/ext/apps/Fox/desktop_settings.fap")) {
+        loader_menu_settings_return_item = NULL;
+    }
 }
 
 static void loader_menu_switch_to_settings(void* context, uint32_t index) {
@@ -380,7 +408,20 @@ static int32_t loader_menu_thread(void* p) {
 
 
         loader_menu_refresh_pins_if_changed(app);
-        view_dispatcher_switch_to_view(app->view_dispatcher, LoaderMenuViewPrimary);
+        const char* settings_item = loader_menu->settings_item;
+        loader_menu->settings_item = NULL;
+        const uint32_t fox_settings_position =
+            app->pins.count + FLIPPER_APPS_COUNT + FLIPPER_EXTERNAL_APPS_COUNT + 1;
+        if(settings_item == &loader_menu_fox_settings_marker) {
+            menu_set_selected_item(app->primary_menu, fox_settings_position);
+            view_dispatcher_switch_to_view(app->view_dispatcher, LoaderMenuViewPrimary);
+        } else if(settings_item) {
+            menu_set_selected_item(app->primary_menu, fox_settings_position + 1);
+            submenu_set_selected_item(app->settings_menu, (uint32_t)settings_item);
+            view_dispatcher_switch_to_view(app->view_dispatcher, LoaderMenuViewSettings);
+        } else {
+            view_dispatcher_switch_to_view(app->view_dispatcher, LoaderMenuViewPrimary);
+        }
         view_dispatcher_attach_to_gui(
             app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 

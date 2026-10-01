@@ -58,6 +58,10 @@ typedef struct {
     bool     auto_capture_mode;
 
     uint8_t  start_countdown_sec;
+
+    uint8_t  decode_group;
+    uint8_t  decode_group_total;
+    uint8_t  decode_pct;
 } SubGhzReadRAWModel;
 
 void subghz_read_raw_set_callback(
@@ -542,6 +546,22 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
     canvas_set_color(canvas, ColorBlack);
     canvas_set_font(canvas, FontSecondary);
 
+    if(model->status == SubGhzReadRAWStatusDecoding) {
+        canvas_set_font(canvas, FontPrimary);
+        canvas_draw_str_aligned(canvas, 64, 12, AlignCenter, AlignTop, "Decoding");
+        elements_progress_bar(canvas, 14, 28, 100, (float)model->decode_pct / 100.0f);
+        canvas_set_font(canvas, FontSecondary);
+        char group_str[32];
+        snprintf(
+            group_str,
+            sizeof(group_str),
+            "Protocol group %u/%u",
+            (unsigned)model->decode_group,
+            (unsigned)model->decode_group_total);
+        canvas_draw_str_aligned(canvas, 64, 42, AlignCenter, AlignTop, group_str);
+        return;
+    }
+
     bool auto_listening =
         (model->status == SubGhzReadRAWStatusREC && model->auto_capture_mode);
     bool auto_start_idle =
@@ -713,6 +733,17 @@ void subghz_read_raw_draw(Canvas* canvas, SubGhzReadRAWModel* model) {
 bool subghz_read_raw_input(InputEvent* event, void* context) {
     furi_assert(context);
     SubGhzReadRAW* instance = context;
+
+    bool decoding = false;
+    with_view_model(instance->view, SubGhzReadRAWModel * model, {
+        decoding = (model->status == SubGhzReadRAWStatusDecoding);
+    }, false);
+    if(decoding) {
+        if(event->key == InputKeyBack && event->type == InputTypeShort) {
+            instance->callback(SubGhzCustomEventViewReadRAWBack, instance->context);
+        }
+        return true;
+    }
 
     if(event->key == InputKeyOk && event->type == InputTypePress) {
         uint8_t ret = false;
@@ -894,6 +925,29 @@ bool subghz_read_raw_input(InputEvent* event, void* context) {
     return true;
 }
 
+void subghz_read_raw_set_decoding(
+    SubGhzReadRAW* instance,
+    uint8_t group,
+    uint8_t group_total,
+    uint8_t pct) {
+    furi_assert(instance);
+    with_view_model(instance->view, SubGhzReadRAWModel * model, {
+        model->status = SubGhzReadRAWStatusDecoding;
+        model->decode_group = group;
+        model->decode_group_total = group_total;
+        model->decode_pct = (pct > 100) ? 100 : pct;
+    }, true);
+}
+
+void subghz_read_raw_clear_decoding(SubGhzReadRAW* instance) {
+    furi_assert(instance);
+    with_view_model(instance->view, SubGhzReadRAWModel * model, {
+        if(model->status == SubGhzReadRAWStatusDecoding) {
+            model->status = SubGhzReadRAWStatusIDLE;
+        }
+    }, false);
+}
+
 void subghz_read_raw_set_status(
     SubGhzReadRAW* instance,
     SubGhzReadRAWStatus status,
@@ -969,7 +1023,8 @@ void subghz_read_raw_exit(void* context) {
     with_view_model(instance->view, SubGhzReadRAWModel * model, {
         if(model->status != SubGhzReadRAWStatusIDLE &&
            model->status != SubGhzReadRAWStatusStart &&
-           model->status != SubGhzReadRAWStatusLoadKeyIDLE) {
+           model->status != SubGhzReadRAWStatusLoadKeyIDLE &&
+           model->status != SubGhzReadRAWStatusDecoding) {
             instance->callback(SubGhzCustomEventViewReadRAWIDLE, instance->context);
             model->status = SubGhzReadRAWStatusStart;
         }

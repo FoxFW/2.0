@@ -3,9 +3,6 @@
 #include <loader/loader.h>
 #include <lib/subghz/devices/devices.h>
 #include <applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h>
-#include <gui/gui.h>
-#include <gui/view_port.h>
-#include <gui/canvas.h>
 
 #define TAG "SubGhzGarageCC1101Check"
 #define CC1101_EXT_STATUS_PATH     EXT_PATH("subghz/.cc1101_ext_status")
@@ -41,19 +38,8 @@ static bool subghz_garage_cc1101_check_relaunch_garage_if_requested(void) {
     return true;
 }
 
-static void subghz_garage_cc1101_check_blank_draw_cb(Canvas* canvas, void* ctx) {
-    UNUSED(ctx);
-    canvas_clear(canvas);
-}
-
 int32_t subghz_garage_cc1101_check_app(void* p) {
     UNUSED(p);
-
-    Gui* gui = furi_record_open(RECORD_GUI);
-    ViewPort* blank_viewport = view_port_alloc();
-    view_port_draw_callback_set(blank_viewport, subghz_garage_cc1101_check_blank_draw_cb, NULL);
-    gui_add_view_port(gui, blank_viewport, GuiLayerFullscreen);
-    view_port_update(blank_viewport);
 
     bool connected = false;
 
@@ -87,10 +73,6 @@ int32_t subghz_garage_cc1101_check_app(void* p) {
         loader_enqueue_launch(loader, SUBGHZ_GARAGE_FAP_PATH, NULL, LoaderDeferredLaunchFlagNone);
         furi_record_close(RECORD_LOADER);
     }
-
-    gui_remove_view_port(gui, blank_viewport);
-    view_port_free(blank_viewport);
-    furi_record_close(RECORD_GUI);
 
     return 0;
 }

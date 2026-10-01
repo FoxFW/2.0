@@ -13,6 +13,12 @@ void loader_menu_free(LoaderMenu* loader_menu);
 
 void loader_menu_show(LoaderMenu* loader_menu);
 
+void loader_menu_show_settings(LoaderMenu* loader_menu, const char* settings_item);
+
+const char* loader_menu_take_settings_return(void);
+
+bool loader_menu_settings_return_pending(void);
+
 #ifdef __cplusplus
 }
 #endif

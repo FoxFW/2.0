@@ -20,7 +20,7 @@ App(
             name="fatfs",
             fap_include_paths=["."],
             sources=["*.c"],
-            cflags=["-Wno-error"],
+            cflags=["-Wno-error", "-Wno-misleading-indentation"],
         ),
     ],
 )

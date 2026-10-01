@@ -56,7 +56,7 @@ void subghz_last_settings_load(SubGhzLastSettings* instance, size_t preset_count
     instance->frequency_analyzer_trigger = SUBGHZ_LAST_SETTING_FREQUENCY_ANALYZER_TRIGGER;
 
     instance->filter = SubGhzProtocolFlag_Decodable;
-    instance->rssi = -75.0f;
+    instance->rssi = SUBGHZ_RAW_THRESHOLD_DEFAULT;
     instance->rssi_force_applied = false;
     instance->auto_save = false;
     instance->hopping_threshold = -90.0f;
@@ -283,7 +283,7 @@ void subghz_last_settings_load(SubGhzLastSettings* instance, size_t preset_count
     }
 
     if(float_is_equal(instance->rssi, SUBGHZ_RAW_THRESHOLD_MIN)) {
-        instance->rssi = -75.0f;
+        instance->rssi = SUBGHZ_RAW_THRESHOLD_DEFAULT;
     }
 
     furi_string_free(temp_str);
@@ -321,7 +321,7 @@ void subghz_last_settings_load(SubGhzLastSettings* instance, size_t preset_count
     }
 
     if(!instance->rssi_force_applied) {
-        instance->rssi = -75.0f;
+        instance->rssi = SUBGHZ_RAW_THRESHOLD_DEFAULT;
         instance->rssi_force_applied = true;
         subghz_last_settings_save(instance);
     }

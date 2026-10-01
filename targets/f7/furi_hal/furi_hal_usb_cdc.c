@@ -19,6 +19,18 @@
 
 #define IF_NUM_MAX 2
 
+#define CDC_PROD_DESC_CHARS   FURI_HAL_VERSION_DEVICE_NAME_LENGTH
+#define CDC_SERIAL_PREFIX_LEN 5
+#define CDC_SERIAL_DESC_CHARS (FURI_HAL_VERSION_ARRAY_NAME_LENGTH + CDC_SERIAL_PREFIX_LEN)
+
+static uint16_t cdc_prod_desc_buf[1 + CDC_PROD_DESC_CHARS];
+static uint16_t cdc_serial_desc_buf[1 + CDC_SERIAL_DESC_CHARS];
+
+static_assert(CDC_PROD_DESC_CHARS >= FURI_HAL_VERSION_DEVICE_NAME_LENGTH);
+static_assert(CDC_SERIAL_DESC_CHARS >= FURI_HAL_VERSION_ARRAY_NAME_LENGTH + CDC_SERIAL_PREFIX_LEN);
+static_assert(sizeof(cdc_prod_desc_buf) <= UINT8_MAX);
+static_assert(sizeof(cdc_serial_desc_buf) <= UINT8_MAX);
+
 struct CdcIadDescriptor {
     struct usb_iad_descriptor comm_iad;
     struct usb_interface_descriptor comm;
@@ -433,7 +445,11 @@ static void cdc_init(usbd_device* dev, FuriHalUsbInterface* intf, void* ctx) {
 
     char* name = (char*)furi_hal_version_get_device_name_ptr();
     uint8_t len = (name == NULL) ? (0) : (strlen(name));
-    struct usb_string_descriptor* dev_prod_desc = malloc(len * 2 + 2);
+    if(len > CDC_PROD_DESC_CHARS) {
+        len = CDC_PROD_DESC_CHARS;
+    }
+    struct usb_string_descriptor* dev_prod_desc =
+        (struct usb_string_descriptor*)cdc_prod_desc_buf;
     dev_prod_desc->bLength = len * 2 + 2;
     dev_prod_desc->bDescriptorType = USB_DTYPE_STRING;
     for(uint8_t i = 0; i < len; i++) {
@@ -442,12 +458,16 @@ static void cdc_init(usbd_device* dev, FuriHalUsbInterface* intf, void* ctx) {
 
     name = (char*)furi_hal_version_get_name_ptr();
     len = (name == NULL) ? (0) : (strlen(name));
-    struct usb_string_descriptor* dev_serial_desc = malloc((len + 5) * 2 + 2);
-    dev_serial_desc->bLength = (len + 5) * 2 + 2;
+    if(len > CDC_SERIAL_DESC_CHARS - CDC_SERIAL_PREFIX_LEN) {
+        len = CDC_SERIAL_DESC_CHARS - CDC_SERIAL_PREFIX_LEN;
+    }
+    struct usb_string_descriptor* dev_serial_desc =
+        (struct usb_string_descriptor*)cdc_serial_desc_buf;
+    dev_serial_desc->bLength = (len + CDC_SERIAL_PREFIX_LEN) * 2 + 2;
     dev_serial_desc->bDescriptorType = USB_DTYPE_STRING;
-    memcpy(dev_serial_desc->wString, "f\0l\0i\0p\0_\0", 5 * 2);
+    memcpy(dev_serial_desc->wString, "f\0l\0i\0p\0_\0", CDC_SERIAL_PREFIX_LEN * 2);
     for(uint8_t i = 0; i < len; i++) {
-        dev_serial_desc->wString[i + 5] = name[i];
+        dev_serial_desc->wString[i + CDC_SERIAL_PREFIX_LEN] = name[i];
     }
 
     cdc_if_cur->str_prod_descr = dev_prod_desc;
@@ -462,9 +482,6 @@ static void cdc_init(usbd_device* dev, FuriHalUsbInterface* intf, void* ctx) {
 static void cdc_deinit(usbd_device* dev) {
     usbd_reg_config(dev, NULL);
     usbd_reg_control(dev, NULL);
-
-    free(cdc_if_cur->str_prod_descr);
-    free(cdc_if_cur->str_serial_descr);
 
     cdc_if_cur = NULL;
 }
