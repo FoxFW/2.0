@@ -15,6 +15,8 @@ const char* const subghz_garage_protocol_group_paths[SUBGHZ_GARAGE_PROTOCOL_GROU
     APP_ASSETS_PATH("plugins/grp_g9.fal"),
     APP_ASSETS_PATH("plugins/grp_g10.fal"),
     APP_ASSETS_PATH("plugins/grp_g11.fal"),
+    APP_ASSETS_PATH("plugins/grp_g12.fal"),
+    APP_ASSETS_PATH("plugins/grp_g13.fal"),
 };
 
 bool subghz_garage_protocol_group_next_enabled(

@@ -8,6 +8,15 @@ const SubGhzProtocol* const subghz_protocol_registry_items[] = {
 
     &subghz_protocol_bin_raw,
 
+    // Generic KeeLoq decoder (v2.0.12): some cars use KeeLoq rolling-code fobs,
+    // so register it here too (keys live in this app's keeloq_mfcodes) so a
+    // KeeLoq signal decodes whichever app the user opens. This activates the
+    // internal app's existing KeeLoq key/decrypt/BF2 UI. Decoders run in
+    // parallel, so a KeeLoq-based automotive signal may additionally raise a
+    // "KeeLoq" entry alongside its specific decode (e.g. KIA) - additive, never
+    // a replacement. Confirm history behaviour on hardware.
+    &subghz_protocol_keeloq,
+
     &subghz_protocol_vag,
     &subghz_protocol_porsche_cayenne,
     &subghz_protocol_ford_v0,

@@ -256,10 +256,17 @@ static bool ford_v0_process_data(SubGhzProtocolDecoderFordV0* instance) {
     if(instance->bit_count == 80) {
         uint16_t key2_raw = (uint16_t)(instance->data_low & 0xFFFF);
         uint16_t key2 = ~key2_raw;
-        
-        decode_ford_v0(instance->key1, instance->key2, &instance->serial, &instance->button, &instance->count);
+
+        // FIX (v2.0.12): assign this frame's key2 BEFORE decoding. decode_ford_v0's
+        // button/count descramble branches on parity(key2>>8); previously the decode
+        // ran with the stale instance->key2 (0 on the first frame, or the previous
+        // frame's value), so a frame whose checksum byte has odd parity showed the
+        // wrong button/count on live receive. The load path already assigned key2
+        // first, which is why saved+reloaded signals read correctly.
         instance->key2 = key2;
-        
+
+        decode_ford_v0(instance->key1, instance->key2, &instance->serial, &instance->button, &instance->count);
+
         instance->crc_valid = ford_v0_verify_crc(instance->key1, instance->key2);
         
         return true;

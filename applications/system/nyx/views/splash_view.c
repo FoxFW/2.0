@@ -20,6 +20,9 @@
 #define SPLASH_EYE_CY     27
 #define SPLASH_EYE_HALF_W 30 // eye half-width
 #define SPLASH_EYE_HALF_H 14 // eye half-height when fully open
+/* First row the wordmark occupies. FontPrimary sits in [baseline-7 .. baseline]
+ * and the wordmark's baseline is 52, so nothing decorative may reach row 44. */
+#define SPLASH_TEXT_TOP 42
 #define SPLASH_OPEN_TICKS 8
 #define SPLASH_DONE_TICKS 16
 
@@ -48,6 +51,21 @@ static void draw_lid(Canvas* canvas, float open, int sign) {
     }
 }
 
+/* A ring of dots rather than canvas_draw_circle, because a full circle at these
+ * radii sweeps down through the wordmark and the tagline and strikes them
+ * through — the rings have to stop where the type starts. Plotting the ring
+ * point by point is the only way to clip it; the canvas has no clip region, and
+ * the dotted texture suits light spilling outward anyway. */
+static void draw_wave_ring(Canvas* canvas, int radius) {
+    for(int deg = 0; deg < 360; deg += 7) {
+        float t = (float)deg * (float)M_PI / 180.0f;
+        int x = SPLASH_EYE_CX + (int)(cosf(t) * (float)radius);
+        int y = SPLASH_EYE_CY + (int)(sinf(t) * (float)radius);
+        if(y > SPLASH_TEXT_TOP || y < 0 || x < 0 || x > 127) continue;
+        canvas_draw_dot(canvas, x, y);
+    }
+}
+
 static void splash_view_draw(Canvas* canvas, void* model) {
     SplashModel* m = model;
     uint8_t a = m->anim;
@@ -58,11 +76,7 @@ static void splash_view_draw(Canvas* canvas, void* model) {
     if(a >= 4) {
         for(int r = 0; r < 3; r++) {
             int radius = ((a * 4) + r * 10) % 44;
-            if(radius > 6) {
-                /* clip the ring to the eye's vertical span so it reads as light
-                 * pouring through the opening, not a full-screen circle */
-                canvas_draw_circle(canvas, SPLASH_EYE_CX, SPLASH_EYE_CY, radius);
-            }
+            if(radius > 6) draw_wave_ring(canvas, radius);
         }
     }
 
@@ -130,6 +144,11 @@ void splash_view_set_done_callback(SplashView* v, SplashViewCallback cb, void* c
     furi_assert(v);
     v->done_cb = cb;
     v->done_ctx = context;
+}
+
+void splash_view_reset(SplashView* v) {
+    furi_assert(v);
+    with_view_model(v->view, SplashModel * m, { m->anim = 0; }, true);
 }
 
 bool splash_view_tick(SplashView* v) {

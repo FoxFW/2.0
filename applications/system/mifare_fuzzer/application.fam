@@ -1,0 +1,19 @@
+App(
+    appid="mifare_fuzzer",
+    name="MIFARE Fuzzer",
+    apptype=FlipperAppType.EXTERNAL,
+    targets=["f7"],
+    entry_point="mifare_fuzzer_app",
+    # FoxFW: externalized MIFARE Fuzzer (UID / card emulation fuzzing), moved out
+    # of nfc.fap to cut its resident RAM footprint. nfc.fap launches this via the
+    # loader (the "Fuzzer" item on the NFC start menu) and fully exits while it
+    # runs. Uses the firmware's NFC engine + ISO14443-3A listener (both in the
+    # firmware API), so no protocol code is bundled here.
+    icon="A_NFC_14",
+    stack_size=8 * 1024,
+    order=20,
+    fap_category="NFC",
+    fap_icon="icon.png",
+    fap_description="Fuzz MIFARE Classic / Ultralight UIDs by emulation",
+    fap_version=(1, 0),
+)

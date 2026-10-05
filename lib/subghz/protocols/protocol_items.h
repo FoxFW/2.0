@@ -98,3 +98,9 @@
 #include "land_rover_v0.h"
 #include "toyota.h"
 #include "x10.h"
+// Dormant decoders ported from ARF (2026-10-03) — headers declared so the
+// commented-out registry entries in protocol_items.c are ready to enable.
+#include "mercedes.h"
+#include "mazda_infinity.h"
+#include "audi.h"
+#include "hundai.h"

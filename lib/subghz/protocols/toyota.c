@@ -2,6 +2,7 @@
 
 #include "../blocks/const.h"
 #include "../blocks/decoder.h"
+#include "../blocks/encoder.h"
 #include "../blocks/generic.h"
 #include "../blocks/math.h"
 
@@ -109,6 +110,20 @@ const SubGhzProtocolDecoder subghz_protocol_toyota_decoder = {
     .get_string    = subghz_protocol_decoder_toyota_get_string,
 };
 
+// TX encoder (v2.0.12): replay of a captured frame via the captured variant's line
+// coding. Variant B (Tundra, NRZ 200/390) and variant C (Prius / Corolla Verso, PWM
+// on the high pulse) are implemented and host-verified to round-trip through this
+// file's own decoder. Variant A (Corolla, Manchester 400/800) is unreachable from
+// the decoder's reset state (see subghz_protocol_decoder_toyota_feed) so no real
+// capture carries it; a cnt==0 file is emitted with the B coding.
+const SubGhzProtocolEncoder subghz_protocol_toyota_encoder = {
+    .alloc       = subghz_protocol_encoder_toyota_alloc,
+    .free        = subghz_protocol_encoder_toyota_free,
+    .deserialize = subghz_protocol_encoder_toyota_deserialize,
+    .stop        = subghz_protocol_encoder_toyota_stop,
+    .yield       = subghz_protocol_encoder_toyota_yield,
+};
+
 const SubGhzProtocol subghz_protocol_toyota = {
     .name    = SUBGHZ_PROTOCOL_TOYOTA_NAME,
     .type    = SubGhzProtocolTypeDynamic,
@@ -117,9 +132,10 @@ const SubGhzProtocol subghz_protocol_toyota = {
                SubGhzProtocolFlag_AM  |
                SubGhzProtocolFlag_Decodable |
                SubGhzProtocolFlag_Load |
-               SubGhzProtocolFlag_Save,
+               SubGhzProtocolFlag_Save |
+               SubGhzProtocolFlag_Send,
     .decoder = &subghz_protocol_toyota_decoder,
-    .encoder = NULL,
+    .encoder = &subghz_protocol_toyota_encoder,
 };
 
 static inline bool te_is_short(uint32_t d, const SubGhzBlockConst* c) {
@@ -228,6 +244,11 @@ static void toyota_decode_and_fire(SubGhzProtocolDecoderToyota* inst) {
         ((uint64_t)inst->hop    << 32) |
         ((uint64_t)inst->serial <<  4) |
         ((uint64_t)inst->button & 0x0F);
+    // Frames are 67/68 bits but generic.data holds the 64 extracted bits only; keep
+    // the trailing (bit_count-64) bits in data_2 so a saved capture can be replayed
+    // bit-for-bit by the encoder (v2.0.12 TX support).
+    inst->generic.data_2 = (inst->bit_count > 64) ?
+        toyota_extract(inst, 64, (uint8_t)(inst->bit_count - 64)) : 0;
 
     inst->generic.data_count_bit = inst->bit_count;
     inst->generic.serial         = inst->serial;
@@ -479,6 +500,9 @@ static void toyota_decode_and_fire_c(SubGhzProtocolDecoderToyota* inst) {
         ((uint64_t)inst->hop    << 32) |
         ((uint64_t)inst->serial <<  4) |
         ((uint64_t)inst->button & 0x0F);
+    // Keep the trailing (bit_count-64) bits for bit-for-bit replay (see variant A/B).
+    inst->generic.data_2 = (inst->bit_count > 64) ?
+        toyota_extract(inst, 64, (uint8_t)(inst->bit_count - 64)) : 0;
 
     inst->generic.data_count_bit = inst->bit_count;
     inst->generic.serial         = inst->serial;
@@ -630,7 +654,19 @@ SubGhzProtocolStatus subghz_protocol_decoder_toyota_serialize(
     furi_assert(context);
     SubGhzProtocolDecoderToyota* inst = context;
     inst->generic.cnt = inst->variant;
-    return subghz_block_generic_serialize(&inst->generic, flipper_format, preset);
+    SubGhzProtocolStatus ret =
+        subghz_block_generic_serialize(&inst->generic, flipper_format, preset);
+    // Persist the trailing frame bits (data_2) so the encoder can replay the full
+    // 67/68-bit frame. Optional on load for backward compatibility with older
+    // captures (which then replay without their trailing bits).
+    if(ret == SubGhzProtocolStatusOk) {
+        uint32_t tail = (uint32_t)inst->generic.data_2;
+        if(!flipper_format_write_uint32(flipper_format, "Tail", &tail, 1)) {
+            FURI_LOG_E(TAG, "Unable to add Tail");
+            ret = SubGhzProtocolStatusErrorParserOthers;
+        }
+    }
+    return ret;
 }
 
 SubGhzProtocolStatus subghz_protocol_decoder_toyota_deserialize(
@@ -659,6 +695,15 @@ SubGhzProtocolStatus subghz_protocol_decoder_toyota_deserialize(
         inst->variant        = (inst->generic.cnt == 2) ? 2 :
                                ((inst->generic.cnt != 0) ? 1 : 0);
         inst->generic.cnt    = inst->variant;
+
+        // Optional trailing frame bits (absent in captures saved before v2.0.12).
+        uint32_t tail = 0;
+        if(!flipper_format_rewind(flipper_format) ||
+           !flipper_format_read_uint32(flipper_format, "Tail", &tail, 1)) {
+            tail = 0;
+        }
+        inst->generic.data_2 = tail;
+        flipper_format_rewind(flipper_format);
     }
 
     return ret;
@@ -686,4 +731,166 @@ void subghz_protocol_decoder_toyota_get_string(void* context, FuriString* output
         (unsigned long)serial,
         button,
         toyota_button_name(button, var));
+}
+
+/* ========================================================================== */
+/* Encoder (v2.0.12) - replay of a captured frame                              */
+/*                                                                            */
+/* Reconstructs the on-air frame from generic.data (the 64 extracted bits,    */
+/* MSB first = frame bits 0..63) followed by generic.data_2 (the trailing     */
+/* bit_count-64 bits, MSB first), and emits it with the captured variant's    */
+/* line coding. Both codings were host-verified to round-trip through this    */
+/* file's decoder. RF acceptance by a vehicle still requires a bench test.    */
+/* ========================================================================== */
+
+#define TOYOTA_ENC_UPLOAD_SIZE 256
+
+/* Variant C (Prius / Corolla Verso): PWM on the HIGH pulse, low separators.   */
+/* Values sit mid-window of the decoder's accept ranges (see TOYOTA_C_*).      */
+#define TOYOTA_C_TX_PRE_HIGH  375u
+#define TOYOTA_C_TX_PRE_LOW   425u
+#define TOYOTA_C_TX_SEP_LOW   425u
+#define TOYOTA_C_TX_BIT1_HIGH 800u
+#define TOYOTA_C_TX_BIT0_HIGH 400u
+
+typedef struct {
+    SubGhzProtocolEncoderBase  base;
+    SubGhzProtocolBlockEncoder encoder;
+    SubGhzBlockGeneric         generic;
+} SubGhzProtocolEncoderToyota;
+
+void* subghz_protocol_encoder_toyota_alloc(SubGhzEnvironment* environment) {
+    UNUSED(environment);
+    SubGhzProtocolEncoderToyota* inst = malloc(sizeof(SubGhzProtocolEncoderToyota));
+    inst->base.protocol         = &subghz_protocol_toyota;
+    inst->generic.protocol_name = inst->base.protocol->name;
+    inst->encoder.repeat        = 5;
+    inst->encoder.size_upload   = TOYOTA_ENC_UPLOAD_SIZE;
+    inst->encoder.upload        = malloc(TOYOTA_ENC_UPLOAD_SIZE * sizeof(LevelDuration));
+    inst->encoder.front         = 0;
+    inst->encoder.is_running    = false;
+    return inst;
+}
+
+void subghz_protocol_encoder_toyota_free(void* context) {
+    furi_assert(context);
+    SubGhzProtocolEncoderToyota* inst = context;
+    free(inst->encoder.upload);
+    free(inst);
+}
+
+/* Frame bit j (0 = first on air). Bits 0..63 come from data (MSB first), the
+ * remainder from data_2 (MSB first over its bit_count-64 bits). */
+static inline uint8_t toyota_frame_bit(uint64_t data, uint64_t data_2, uint8_t bit_count, uint8_t j) {
+    if(j < 64) return (uint8_t)((data >> (63 - j)) & 1U);
+    uint8_t tb = (uint8_t)(bit_count - 64);
+    uint8_t k  = (uint8_t)(j - 64);               /* 0..tb-1 */
+    return (uint8_t)((data_2 >> (tb - 1 - k)) & 1U);
+}
+
+static bool subghz_protocol_encoder_toyota_get_upload(SubGhzProtocolEncoderToyota* inst) {
+    furi_assert(inst);
+    const uint8_t  bit_count = inst->generic.data_count_bit;
+    const uint64_t data      = inst->generic.data;
+    const uint64_t data_2    = inst->generic.data_2;
+    /* cnt carries the decoder's variant: 2 = C, otherwise B (A is unreachable) */
+    const bool     variant_c = (inst->generic.cnt == 2);
+
+    if(bit_count < 64 || bit_count > TOYOTA_C_FRAME_BITS) {
+        FURI_LOG_E(TAG, "Unsupported bit count %u", bit_count);
+        return false;
+    }
+
+    LevelDuration* up = inst->encoder.upload;
+    size_t idx = 0;
+    const size_t cap = TOYOTA_ENC_UPLOAD_SIZE;
+
+    if(variant_c) {
+        for(uint8_t i = 0; i < TOYOTA_C_PREAMBLE_MIN + 2 && idx + 2 <= cap; i++) {
+            up[idx++] = level_duration_make(true,  TOYOTA_C_TX_PRE_HIGH);
+            up[idx++] = level_duration_make(false, TOYOTA_C_TX_PRE_LOW);
+        }
+        up[idx++] = level_duration_make(true,  TOYOTA_C_TX_PRE_HIGH);
+        up[idx++] = level_duration_make(false, (TOYOTA_C_SYNC_MIN + TOYOTA_C_SYNC_MAX) / 2);
+        for(uint8_t j = 0; j < bit_count && idx + 2 <= cap; j++) {
+            uint8_t b = toyota_frame_bit(data, data_2, bit_count, j);
+            up[idx++] = level_duration_make(true,  b ? TOYOTA_C_TX_BIT1_HIGH : TOYOTA_C_TX_BIT0_HIGH);
+            up[idx++] = level_duration_make(false, TOYOTA_C_TX_SEP_LOW);
+        }
+        if(idx < cap) up[idx++] = level_duration_make(false, TOYOTA_C_END_LOW + 200);
+    } else {
+        const SubGhzBlockConst* c = &toyota_const_b;
+        for(uint8_t i = 0; i < TOYOTA_B_PREAMBLE_MIN + 2 && idx + 2 <= cap; i++) {
+            up[idx++] = level_duration_make(true,  c->te_short);
+            up[idx++] = level_duration_make(false, c->te_long);
+        }
+        up[idx++] = level_duration_make(true,  c->te_short);
+        up[idx++] = level_duration_make(false, (TOYOTA_B_SYNC_GAP_MIN + TOYOTA_B_SYNC_GAP_MAX) / 2);
+        /* NRZ: one pulse per bit, alternating level; width encodes the bit */
+        bool lvl = true;
+        for(uint8_t j = 0; j < bit_count && idx < cap; j++) {
+            uint8_t b = toyota_frame_bit(data, data_2, bit_count, j);
+            up[idx++] = level_duration_make(lvl, b ? c->te_long : c->te_short);
+            lvl = !lvl;
+        }
+        if(idx < cap) up[idx++] = level_duration_make(!lvl, TOYOTA_B_SYNC_GAP_MIN + 100);
+    }
+
+    inst->encoder.size_upload = idx;
+    return true;
+}
+
+SubGhzProtocolStatus
+    subghz_protocol_encoder_toyota_deserialize(void* context, FlipperFormat* flipper_format) {
+    furi_assert(context);
+    SubGhzProtocolEncoderToyota* inst = context;
+    SubGhzProtocolStatus ret = SubGhzProtocolStatusError;
+    do {
+        ret = subghz_block_generic_deserialize(&inst->generic, flipper_format);
+        if(ret != SubGhzProtocolStatusOk) break;
+        if(inst->generic.data_count_bit < TOYOTA_C_BITS) {
+            FURI_LOG_E(TAG, "Wrong number of bits in key");
+            ret = SubGhzProtocolStatusErrorValueBitCount;
+            break;
+        }
+        /* Optional trailing bits + optional Repeat */
+        uint32_t tail = 0;
+        if(!flipper_format_rewind(flipper_format) ||
+           !flipper_format_read_uint32(flipper_format, "Tail", &tail, 1)) {
+            tail = 0;
+        }
+        inst->generic.data_2 = tail;
+        flipper_format_rewind(flipper_format);
+        flipper_format_read_uint32(
+            flipper_format, "Repeat", (uint32_t*)&inst->encoder.repeat, 1);
+        flipper_format_rewind(flipper_format);
+
+        if(!subghz_protocol_encoder_toyota_get_upload(inst)) {
+            ret = SubGhzProtocolStatusErrorEncoderGetUpload;
+            break;
+        }
+        inst->encoder.front      = 0;
+        inst->encoder.is_running = true;
+        ret = SubGhzProtocolStatusOk;
+    } while(false);
+    return ret;
+}
+
+void subghz_protocol_encoder_toyota_stop(void* context) {
+    SubGhzProtocolEncoderToyota* inst = context;
+    inst->encoder.is_running = false;
+}
+
+LevelDuration subghz_protocol_encoder_toyota_yield(void* context) {
+    SubGhzProtocolEncoderToyota* inst = context;
+    if(inst->encoder.repeat == 0 || !inst->encoder.is_running) {
+        inst->encoder.is_running = false;
+        return level_duration_reset();
+    }
+    LevelDuration ret = inst->encoder.upload[inst->encoder.front];
+    if(++inst->encoder.front == inst->encoder.size_upload) {
+        if(!subghz_block_generic_global.endless_tx) inst->encoder.repeat--;
+        inst->encoder.front = 0;
+    }
+    return ret;
 }

@@ -9,6 +9,10 @@
 #include <flipper_format/flipper_format_i.h>
 #include <loader/loader.h>
 #include <storage/storage.h>
+#include <lib/subghz/blocks/generic.h>
+#include <lib/subghz/protocols/kia_v3_v4.h>
+#include <lib/subghz/protocols/psa.h>
+#include <lib/toolbox/hex.h>
 
 #define TAG "SubGhz"
 
@@ -40,6 +44,101 @@ static const char* subghz_protopirate_name_alias(const char* name) {
         if(!strcmp(name, map[i].pp)) return map[i].sub;
     }
     return NULL;
+}
+
+static bool subghz_key_load_has_preset(SubGhzSetting* setting, const char* preset_name) {
+    for(size_t i = 0; i < subghz_setting_get_preset_count(setting); i++) {
+        if(!strcmp(subghz_setting_get_preset_name(setting, i), preset_name)) return true;
+    }
+    return false;
+}
+
+static void subghz_key_load_normalize_key(FlipperFormat* fff_data) {
+    uint8_t key_data[sizeof(uint64_t)] = {0};
+    flipper_format_rewind(fff_data);
+    if(flipper_format_read_hex(fff_data, "Key", key_data, sizeof(key_data))) return;
+
+    FuriString* key_str = furi_string_alloc();
+    uint64_t key = 0;
+    flipper_format_rewind(fff_data);
+    if(flipper_format_read_string(fff_data, "Key", key_str) &&
+       furi_string_size(key_str) == sizeof(uint64_t) * 2 &&
+       hex_chars_to_uint64(furi_string_get_cstr(key_str), &key)) {
+        for(size_t i = 0; i < sizeof(uint64_t); i++) {
+            key_data[sizeof(uint64_t) - i - 1] = (key >> (i * 8)) & 0xFF;
+        }
+        flipper_format_rewind(fff_data);
+        flipper_format_update_hex(fff_data, "Key", key_data, sizeof(key_data));
+    }
+    furi_string_free(key_str);
+}
+
+static void subghz_key_load_normalize_preset(FlipperFormat* fff_data) {
+    FuriString* preset = furi_string_alloc();
+    FuriString* preset_long = furi_string_alloc();
+    flipper_format_rewind(fff_data);
+    if(flipper_format_read_string(fff_data, "Preset", preset) &&
+       !furi_string_start_with_str(preset, "FuriHalSubGhzPreset")) {
+        subghz_block_generic_get_preset_name(furi_string_get_cstr(preset), preset_long);
+        if(furi_string_cmp_str(preset_long, "FuriHalSubGhzPresetCustom")) {
+            flipper_format_rewind(fff_data);
+            flipper_format_update_string_cstr(
+                fff_data, "Preset", furi_string_get_cstr(preset_long));
+        }
+    }
+    furi_string_free(preset_long);
+    furi_string_free(preset);
+}
+
+static void subghz_key_load_psa_add_hex(
+    FlipperFormat* fff_data,
+    FuriString* str,
+    const char* key,
+    uint32_t value,
+    uint8_t bytes) {
+    furi_string_reset(str);
+    for(uint8_t i = bytes; i > 0; i--) {
+        if(i != bytes) furi_string_cat_str(str, " ");
+        furi_string_cat_printf(str, "%02X", (uint8_t)(value >> ((i - 1) * 8)));
+    }
+    flipper_format_write_string_cstr(fff_data, key, furi_string_get_cstr(str));
+}
+
+static void subghz_key_load_convert_psa(FlipperFormat* fff_data) {
+    static const char* const keys[] = {"Serial", "Btn", "Cnt", "Type", "CRC", "Seed"};
+    uint32_t value[COUNT_OF(keys)] = {0};
+    bool present[COUNT_OF(keys)] = {false};
+
+    for(size_t i = 0; i < COUNT_OF(keys); i++) {
+        flipper_format_rewind(fff_data);
+        present[i] = flipper_format_read_uint32(fff_data, keys[i], &value[i], 1);
+    }
+
+    const uint32_t type = value[3];
+    if(present[3] && (type == 23 || type == 36)) return;
+
+    for(size_t i = 0; i < COUNT_OF(keys); i++) {
+        flipper_format_rewind(fff_data);
+        flipper_format_delete_key(fff_data, keys[i]);
+    }
+
+    if(!(present[0] && present[1] && present[2] && present[3] && present[4]) ||
+       (type != 0x23 && type != 0x36)) {
+        return;
+    }
+
+    FuriString* str = furi_string_alloc();
+    stream_seek(flipper_format_get_raw_stream(fff_data), 0, StreamOffsetFromEnd);
+    subghz_key_load_psa_add_hex(fff_data, str, keys[0], value[0], 3);
+    subghz_key_load_psa_add_hex(
+        fff_data, str, keys[2], value[2] & 0x0FFFFFFF, (type == 0x23) ? 2 : 4);
+    subghz_key_load_psa_add_hex(fff_data, str, keys[1], value[1], 1);
+    subghz_key_load_psa_add_hex(fff_data, str, keys[3], type, 1);
+    subghz_key_load_psa_add_hex(fff_data, str, keys[4], value[4], (type == 0x23) ? 1 : 2);
+    if(present[5]) {
+        subghz_key_load_psa_add_hex(fff_data, str, keys[5], value[5], 3);
+    }
+    furi_string_free(str);
 }
 
 void subghz_blank_transition_draw_cb(Canvas* canvas, void* ctx);
@@ -102,6 +201,7 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
     SubGhzLoadKeyState load_key_state = SubGhzLoadKeyStateParseErr;
     FuriString* temp_str = furi_string_alloc();
     uint32_t temp_data32;
+    bool headerless = false;
 
     do {
         stream_clean(fff_data_stream);
@@ -111,19 +211,21 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
         }
 
         if(!flipper_format_read_header(fff_data_file, temp_str, &temp_data32)) {
-            FURI_LOG_E(TAG, "Missing or incorrect header");
-            break;
-        }
-
-        if(((!strcmp(furi_string_get_cstr(temp_str), SUBGHZ_KEY_FILE_TYPE)) ||
-            (!strcmp(furi_string_get_cstr(temp_str), SUBGHZ_RAW_FILE_TYPE))) &&
-           temp_data32 == SUBGHZ_KEY_FILE_VERSION) {
+            if(flipper_format_key_exist(fff_data_file, "Filetype")) {
+                FURI_LOG_E(TAG, "Missing or incorrect header");
+                break;
+            }
+            headerless = true;
+        } else if(((!strcmp(furi_string_get_cstr(temp_str), SUBGHZ_KEY_FILE_TYPE)) ||
+                   (!strcmp(furi_string_get_cstr(temp_str), SUBGHZ_RAW_FILE_TYPE))) &&
+                  temp_data32 == SUBGHZ_KEY_FILE_VERSION) {
         } else {
             FURI_LOG_E(TAG, "Type or version mismatch");
             break;
         }
 
-        if(!flipper_format_read_uint32(fff_data_file, "Frequency", &temp_data32, 1)) {
+        if(!flipper_format_rewind(fff_data_file) ||
+           !flipper_format_read_uint32(fff_data_file, "Frequency", &temp_data32, 1)) {
             FURI_LOG_E(TAG, "Missing Frequency");
             break;
         }
@@ -141,17 +243,20 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
             break;
         }
 
-        if(!flipper_format_read_string(fff_data_file, "Preset", temp_str)) {
+        if(!flipper_format_rewind(fff_data_file) ||
+           !flipper_format_read_string(fff_data_file, "Preset", temp_str)) {
             FURI_LOG_E(TAG, "Missing Preset");
             break;
         }
 
-        furi_string_set_str(
-            temp_str, subghz_txrx_get_preset_name(subghz->txrx, furi_string_get_cstr(temp_str)));
-        if(!strcmp(furi_string_get_cstr(temp_str), "")) {
+        SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
+        const char* preset_name =
+            subghz_txrx_get_preset_name(subghz->txrx, furi_string_get_cstr(temp_str));
+        if(strcmp(preset_name, "")) {
+            furi_string_set_str(temp_str, preset_name);
+        } else if(!subghz_key_load_has_preset(setting, furi_string_get_cstr(temp_str))) {
             break;
         }
-        SubGhzSetting* setting = subghz_txrx_get_setting(subghz->txrx);
 
         if(!strcmp(furi_string_get_cstr(temp_str), "CUSTOM")) {
 
@@ -177,7 +282,8 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
             preset_data,
             preset_data_size);
 
-        if(!flipper_format_read_string(fff_data_file, "Protocol", temp_str)) {
+        if(!flipper_format_rewind(fff_data_file) ||
+           !flipper_format_read_string(fff_data_file, "Protocol", temp_str)) {
             FURI_LOG_E(TAG, "Missing Protocol");
             break;
         }
@@ -185,6 +291,11 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
         const char* pp_alias = subghz_protopirate_name_alias(furi_string_get_cstr(temp_str));
         if(pp_alias) {
             furi_string_set_str(temp_str, pp_alias);
+        }
+
+        if(headerless && furi_string_cmp_str(temp_str, SUBGHZ_PROTOCOL_KIA_V3_V4_NAME)) {
+            FURI_LOG_E(TAG, "Missing or incorrect header");
+            break;
         }
 
         FlipperFormat* fff_data = subghz_txrx_get_fff_data(subghz->txrx);
@@ -195,9 +306,29 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
                 fff_data, file_path, subghz_txrx_radio_device_get_name(subghz->txrx));
         } else {
             subghz->load_type_file = SubGhzLoadTypeFileKey;
-            stream_copy_full(
-                flipper_format_get_raw_stream(fff_data_file),
-                flipper_format_get_raw_stream(fff_data));
+            if(headerless) {
+                Stream* file_stream = flipper_format_get_raw_stream(fff_data_file);
+                flipper_format_write_header_cstr(
+                    fff_data, SUBGHZ_KEY_FILE_TYPE, SUBGHZ_KEY_FILE_VERSION);
+                stream_rewind(file_stream);
+                stream_copy(
+                    file_stream,
+                    flipper_format_get_raw_stream(fff_data),
+                    stream_size(file_stream));
+            } else {
+                stream_copy_full(
+                    flipper_format_get_raw_stream(fff_data_file),
+                    flipper_format_get_raw_stream(fff_data));
+            }
+            subghz_key_load_normalize_preset(fff_data);
+            subghz_key_load_normalize_key(fff_data);
+            if(pp_alias) {
+                flipper_format_rewind(fff_data);
+                flipper_format_update_string_cstr(fff_data, "Protocol", pp_alias);
+                if(!strcmp(pp_alias, SUBGHZ_PROTOCOL_PSA_NAME)) {
+                    subghz_key_load_convert_psa(fff_data);
+                }
+            }
         }
 
         if(subghz_txrx_load_decoder_by_name_protocol(

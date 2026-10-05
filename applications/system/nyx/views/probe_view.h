@@ -17,3 +17,8 @@ void probe_view_update(
     bool detected,
     uint16_t mv);
 void probe_view_tick(ProbeView* v);
+
+/* Back to page 1 with a cleared peak. The view outlives the scene, so without
+ * this you re-open Probe Setup on whichever page you left and stare at a peak
+ * from a previous session. */
+void probe_view_reset(ProbeView* v);

@@ -50,8 +50,13 @@ static void board_draw(Canvas* canvas, void* model_ptr) {
 
         uint8_t ty = y + BOX_H / 2;
         canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str_aligned(canvas, 64, ty, AlignCenter, AlignCenter,
-                                k_flasher_boards[app->board_index].label);
+        canvas_draw_str_aligned(
+            canvas,
+            64,
+            ty,
+            AlignCenter,
+            AlignCenter,
+            app->board_auto ? "Auto Detect" : k_flasher_boards[app->board_index].label);
         canvas_draw_str_aligned(canvas, BOX_X + 6,         ty, AlignLeft,  AlignCenter, "<");
         canvas_draw_str_aligned(canvas, BOX_X + BOX_W - 6, ty, AlignRight, AlignCenter, ">");
         canvas_set_color(canvas, ColorBlack);
@@ -79,11 +84,23 @@ static bool board_input(InputEvent* event, void* context) {
         with_view_model(app->board_view, BoardModel* m, { row = m->row; }, false);
         if(row == 0) {
             if(event->key == InputKeyRight) {
-                app->board_index = (app->board_index + 1) % FLASHER_BOARD_COUNT;
+                if(app->board_auto) {
+                    app->board_auto  = false;
+                    app->board_index = 0;
+                } else if(app->board_index >= FLASHER_BOARD_COUNT - 1) {
+                    app->board_auto = true;
+                } else {
+                    app->board_index++;
+                }
             } else {
-                app->board_index = (app->board_index == 0)
-                                       ? FLASHER_BOARD_COUNT - 1
-                                       : app->board_index - 1;
+                if(app->board_auto) {
+                    app->board_auto  = false;
+                    app->board_index = FLASHER_BOARD_COUNT - 1;
+                } else if(app->board_index == 0) {
+                    app->board_auto = true;
+                } else {
+                    app->board_index--;
+                }
             }
             with_view_model(app->board_view, BoardModel* m, { UNUSED(m); }, true);
         }

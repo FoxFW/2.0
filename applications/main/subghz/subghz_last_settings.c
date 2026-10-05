@@ -300,7 +300,7 @@ void subghz_last_settings_load(SubGhzLastSettings* instance, size_t preset_count
         instance->preset_index = SUBGHZ_LAST_SETTING_DEFAULT_PRESET;
     }
 
-    if(instance->protocol_group >= 11) {
+    if(instance->protocol_group >= SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT) {
         instance->protocol_group = 0;
     }
 

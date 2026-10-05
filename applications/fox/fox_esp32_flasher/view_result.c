@@ -1,10 +1,15 @@
 #include "fox_esp32_flasher.h"
+#include <string.h>
 
 static FlasherApp* s_app = NULL;
+
+#define RESULT_LINE_LEN 27
 
 typedef struct {
     bool    success;
     uint8_t board_index;
+    char    chip[FLASHER_CHIP_NAME_LEN];
+    char    note[FLASHER_STATUS_LEN];
 } ResultModel;
 
 #define BTN_X 4
@@ -22,14 +27,35 @@ static void result_draw(Canvas* canvas, void* model_ptr) {
         canvas_draw_str_aligned(canvas, 64, 4, AlignCenter, AlignTop, "Flash Complete!");
         canvas_set_font(canvas, FontSecondary);
         canvas_draw_str_aligned(canvas, 64, 20, AlignCenter, AlignTop, "Fox ESP32 Firmware");
-        canvas_draw_str_aligned(canvas, 64, 30, AlignCenter, AlignTop, "installed successfully.");
+        if(m->chip[0]) {
+            char line[40];
+            snprintf(line, sizeof(line), "installed on %s.", m->chip);
+            canvas_draw_str_aligned(canvas, 64, 30, AlignCenter, AlignTop, line);
+        } else {
+            canvas_draw_str_aligned(
+                canvas, 64, 30, AlignCenter, AlignTop, "installed successfully.");
+        }
         canvas_draw_str_aligned(canvas, 64, 40, AlignCenter, AlignTop, "ESP32 is restarting...");
     } else {
         canvas_draw_str_aligned(canvas, 64, 4, AlignCenter, AlignTop, "Flash Failed");
         canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str_aligned(canvas, 64, 20, AlignCenter, AlignTop, "Check wiring and");
-        canvas_draw_str_aligned(canvas, 64, 30, AlignCenter, AlignTop, "board selection,");
-        canvas_draw_str_aligned(canvas, 64, 40, AlignCenter, AlignTop, "then try again.");
+        if(m->note[0] && strcmp(m->note, "Flash Failed") != 0) {
+            char note_short[RESULT_LINE_LEN];
+            strncpy(note_short, m->note, sizeof(note_short) - 1);
+            note_short[sizeof(note_short) - 1] = '\0';
+            canvas_draw_str_aligned(canvas, 64, 20, AlignCenter, AlignTop, note_short);
+            if(m->chip[0] && !strstr(m->note, m->chip)) {
+                char line[40];
+                snprintf(line, sizeof(line), "This board is %s.", m->chip);
+                canvas_draw_str_aligned(canvas, 64, 30, AlignCenter, AlignTop, line);
+            }
+            canvas_draw_str_aligned(
+                canvas, 64, 40, AlignCenter, AlignTop, "See Terminal for details.");
+        } else {
+            canvas_draw_str_aligned(canvas, 64, 20, AlignCenter, AlignTop, "Check wiring, put the");
+            canvas_draw_str_aligned(canvas, 64, 30, AlignCenter, AlignTop, "ESP32 in boot mode,");
+            canvas_draw_str_aligned(canvas, 64, 40, AlignCenter, AlignTop, "then try again.");
+        }
     }
 
     flasher_draw_ok_button(canvas, BTN_X, 50, BTN_W, BTN_H, BTN_R, "Continue");
@@ -57,6 +83,8 @@ View* view_result_alloc(FlasherApp* app) {
     with_view_model(v, ResultModel* m, {
         m->success     = false;
         m->board_index = 0;
+        m->chip[0]     = '\0';
+        m->note[0]     = '\0';
     }, false);
     return v;
 }
@@ -67,8 +95,20 @@ void view_result_free(View* v) {
 }
 
 void view_result_set(View* v, bool success, uint8_t board_index) {
+    char chip[FLASHER_CHIP_NAME_LEN];
+    char note[FLASHER_STATUS_LEN];
+    chip[0] = '\0';
+    note[0] = '\0';
+    if(s_app) {
+        snprintf(chip, sizeof(chip), "%s", s_app->detected_chip);
+        furi_mutex_acquire(s_app->worker_state.mutex, FuriWaitForever);
+        snprintf(note, sizeof(note), "%s", s_app->worker_state.status);
+        furi_mutex_release(s_app->worker_state.mutex);
+    }
     with_view_model(v, ResultModel* m, {
         m->success     = success;
         m->board_index = board_index;
+        snprintf(m->chip, sizeof(m->chip), "%s", chip);
+        snprintf(m->note, sizeof(m->note), "%s", note);
     }, true);
 }

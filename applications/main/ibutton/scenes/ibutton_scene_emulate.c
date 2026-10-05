@@ -19,19 +19,20 @@ void ibutton_scene_emulate_on_enter(void* context) {
     Widget* widget = ibutton->widget;
     FuriString* tmp = furi_string_alloc();
 
-    widget_add_icon_element(widget, 3, 10, &I_iButtonKey_49x44);
+    /* FoxFW: emulate screen — Fox logo fills the left (replacing the old key
+     * icon and the empty space left by a removed animation); the combined
+     * "Emulating / [proto] / key" status sits on the right. Mirrors the
+     * lfrfid emulate screen for consistent spacing across all emulate views. */
+    widget_add_icon_element(widget, 0, 0, &I_fox_64x64);
 
     furi_string_printf(
         tmp,
-        "[%s]\n%s",
+        "\e#Emulating\e#\n[%s]\n%s",
         ibutton_protocols_get_name(ibutton->protocols, ibutton_key_get_protocol_id(key)),
         furi_string_empty(ibutton->file_path) ? "Unsaved Key" : ibutton->key_name);
 
     widget_add_text_box_element(
-        widget, 52, 24, 75, 40, AlignCenter, AlignTop, furi_string_get_cstr(tmp), true);
-
-    widget_add_string_multiline_element(
-        widget, 88, 10, AlignCenter, AlignTop, FontPrimary, "Emulating");
+        widget, 66, 4, 60, 56, AlignCenter, AlignCenter, furi_string_get_cstr(tmp), false);
 
     ibutton_worker_emulate_set_callback(ibutton->worker, ibutton_scene_emulate_callback, ibutton);
     ibutton_worker_emulate_start(ibutton->worker, key);

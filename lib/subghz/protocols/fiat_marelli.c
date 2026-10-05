@@ -1,5 +1,6 @@
 #include "fiat_marelli.h"
 
+#include "fiat_v1.h" // reuse the verified Fiat V1 BCM-Hitag2 authenticator + key dictionary
 #include "../blocks/const.h"
 #include "../blocks/decoder.h"
 #include "../blocks/encoder.h"
@@ -57,6 +58,11 @@ struct SubGhzProtocolDecoderFiatMarelli {
     uint32_t te_sum;
     uint16_t te_count;
     uint32_t te_detected;
+    // Cached result of the Hitag2 manufacturer-key dictionary pass (computed
+    // lazily on first get_string; see fiat_marelli_find_hitag2_key).
+    bool hitag2_checked;
+    int16_t hitag2_key_index; // -1 = no known key matched; >=0 index into fiat_v1 keys
+    uint32_t hitag2_epoch;
 };
 
 struct SubGhzProtocolEncoderFiatMarelli {
@@ -364,6 +370,9 @@ void subghz_protocol_decoder_fiat_marelli_reset(void* context) {
     instance->te_count = 0;
     instance->te_detected = 0;
     instance->generic.data = 0;
+    instance->hitag2_checked = false;
+    instance->hitag2_key_index = -1;
+    instance->hitag2_epoch = 0;
     memset(instance->raw_data, 0, sizeof(instance->raw_data));
     instance->manchester_state = ManchesterStateMid1;
 }
@@ -611,6 +620,40 @@ static const char* fiat_marelli_button_name(uint8_t btn) {
     }
 }
 
+// Hitag2 manufacturer-key dictionary pass for a Fiat/Marelli frame. Marelli
+// shares the Fiat V1 BCM-Hitag2 cipher, so we reuse the verified fiat_v1
+// authenticator and key list. The Marelli field mapping (confirmed against the
+// community KeeLoq-RX recovery and a host round-trip) is:
+//   uid     = raw[2..5]
+//   button  = raw[6] >> 4
+//   control = ((raw[6] & 0x0F) << 5) | (raw[7] >> 3)   (exposed epoch4|counter5)
+//   hop(ks) = raw[8..11]
+// The frame's hidden high counter bits are modelled by the fiat_v1 epoch, swept
+// over a small window (epoch outermost). ~95 keys x 256 epochs is cheap enough
+// to run once on the info screen; the result is cached in the instance.
+#define FIAT_MARELLI_HITAG2_EPOCH_MAX 256U
+static int16_t
+    fiat_marelli_find_hitag2_key(const uint8_t* raw, uint32_t* out_epoch) {
+    uint32_t uid = ((uint32_t)raw[2] << 24) | ((uint32_t)raw[3] << 16) |
+                   ((uint32_t)raw[4] << 8) | (uint32_t)raw[5];
+    uint8_t button = (raw[6] >> 4) & 0x0FU;
+    uint16_t control = (uint16_t)((((uint16_t)(raw[6] & 0x0FU)) << 5U) | (raw[7] >> 3U));
+    uint32_t hop = ((uint32_t)raw[8] << 24) | ((uint32_t)raw[9] << 16) |
+                   ((uint32_t)raw[10] << 8) | (uint32_t)raw[11];
+
+    const uint8_t(*keys)[6] = subghz_protocol_fiat_v1_get_known_keys();
+    for(uint32_t epoch = 0U; epoch < FIAT_MARELLI_HITAG2_EPOCH_MAX; epoch++) {
+        for(uint8_t i = 0U; i < FIAT_V1_KNOWN_KEY_COUNT; i++) {
+            if(subghz_protocol_fiat_v1_compute_auth(uid, button, control, keys[i], epoch) ==
+               hop) {
+                if(out_epoch) *out_epoch = epoch;
+                return (int16_t)i;
+            }
+        }
+    }
+    return -1;
+}
+
 void subghz_protocol_decoder_fiat_marelli_get_string(void* context, FuriString* output) {
     furi_check(context);
     SubGhzProtocolDecoderFiatMarelli* instance = context;
@@ -625,9 +668,20 @@ void subghz_protocol_decoder_fiat_marelli_get_string(void* context, FuriString* 
     uint8_t fixed    =  instance->raw_data[7] & 0x1;
 
     const char* crc_str = "";
+    bool crc_ok = false;
     if(instance->bit_count >= 104) {
         uint8_t calc = fiat_marelli_crc8(instance->raw_data, 12);
-        crc_str = (calc == instance->raw_data[12]) ? " CRC:OK" : " CRC:FAIL";
+        crc_ok = (calc == instance->raw_data[12]);
+        crc_str = crc_ok ? " CRC:OK" : " CRC:FAIL";
+    }
+
+    // Once per decoded frame, try the Hitag2 manufacturer-key dictionary (only
+    // on a CRC-valid frame; the pass is otherwise meaningless). Cached so the
+    // ~95x256 authenticator run happens once, not on every screen refresh.
+    if(crc_ok && !instance->hitag2_checked) {
+        instance->hitag2_key_index =
+            fiat_marelli_find_hitag2_key(instance->raw_data, &instance->hitag2_epoch);
+        instance->hitag2_checked = true;
     }
 
     furi_string_cat_printf(
@@ -653,4 +707,16 @@ void subghz_protocol_decoder_fiat_marelli_get_string(void* context, FuriString* 
         fiat_marelli_button_name(instance->generic.btn),
         (unsigned)epoch,
         variant);
+
+    // Show the recovered manufacturer key when the dictionary pass authenticated
+    // the frame (proves it's a genuine BCM key, not just a structurally-valid
+    // capture). Nothing is shown when no known key matched.
+    if(instance->hitag2_key_index >= 0) {
+        const uint8_t(*keys)[6] = subghz_protocol_fiat_v1_get_known_keys();
+        const uint8_t* k = keys[instance->hitag2_key_index];
+        furi_string_cat_printf(
+            output,
+            "MfKey:%02X%02X%02X%02X%02X%02X Ep:%lu\r\n",
+            k[0], k[1], k[2], k[3], k[4], k[5], (unsigned long)instance->hitag2_epoch);
+    }
 }

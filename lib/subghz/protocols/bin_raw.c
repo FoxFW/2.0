@@ -516,6 +516,17 @@ static bool
         bin_raw_debug_tag(TAG, "Tinted sequence\r\n");
         ind = (BIN_RAW_BUF_DATA_SIZE * 8);
         uint16_t bit_count = 0;
+        /* FoxFW: guard gap_ind == 0. The do/while below runs `gap_ind--` BEFORE its
+         * test, so entering with gap_ind == 0 underflows this uint16_t to 65535 and
+         * then reads instance->data_raw[] tens of thousands of entries out of bounds
+         * -> MPU fault. gap_ind reaches 0 when the backward search above found no
+         * edge matching the detected gap (a noise pattern that yields a "gap" class
+         * with no matching sample); there is no data below the gap to extract, so
+         * bail. This is the Sub-GHz "Read crashes after minutes on noise" fault
+         * (both AM and FM; faster on FM, which floods far more edges per second). */
+        if(gap_ind == 0) {
+            return false;
+        }
         do {
             gap_ind--;
             data_temp = (int)(roundf((float)(instance->data_raw[gap_ind]) / instance->te));

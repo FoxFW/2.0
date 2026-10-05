@@ -84,7 +84,9 @@ void ir_sense_free(IrSense* s);
 void ir_sense_set_mode(IrSense* s, IrSenseMode mode);
 
 /* Sensitivity 0 = High, 1 = Medium, 2 = Low. Sets the noise floor a window must
- * clear to count, and the full-scale point of the meter. */
+ * clear to count, and the full-scale point of the meter. Safe to call while the
+ * sweep is running — the sweep screen's Left/Right keys do exactly that, and the
+ * next window picks the new value up. */
 void ir_sense_set_sensitivity(IrSense* s, uint8_t index);
 
 /* ADC pin for the probe, as an index into ir_sense_probe_pins(). */
@@ -92,6 +94,10 @@ void ir_sense_set_probe_pin(IrSense* s, uint8_t pin_index);
 
 void ir_sense_start(IrSense* s);
 void ir_sense_stop(IrSense* s);
+
+/* True only while a path is actually sensing. A worker that could not take the
+ * hardware clears this on its way out, so a caller cannot be told a dead sweep
+ * is live. */
 bool ir_sense_is_running(IrSense* s);
 
 /* Clear peak / hits / trace without dropping the sensor. */

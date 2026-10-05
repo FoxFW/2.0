@@ -28,9 +28,71 @@
 /* Silence timeout handed to the IR HAL, in microseconds. */
 #define ONBOARD_TIMEOUT_US 50000u
 
-/* Full-scale and noise floor per sensitivity index (0 High, 1 Med, 2 Low). */
+/* Presence needs persistence, not one loud window.
+ *
+ * Thresholding a single 100 ms window is wrong in both directions, and holding
+ * the device in front of a real camera shows why. Measured over 15 s with a
+ * dome camera's illuminator sitting directly in front of the receiver: 143 of
+ * 155 windows read exactly zero, and four read 10-15% of full scale. A
+ * per-window threshold turns those four blips into four separate "IR EMITTER"
+ * alarms with the tone and the LED, each dropping out a moment later. The
+ * detector chatters -- and worse, it claims a find it cannot stand behind.
+ *
+ * So presence asks a different question: has this kept happening? One bit per
+ * window in a shift register; assert once at least ASSERT_HITS of the last
+ * HISTORY_BITS windows cleared the floor, release only when the whole window is
+ * silent. Something genuinely there keeps producing activity and latches at
+ * once; a stray blip never does. Hysteretic by construction, no timer to tune,
+ * and immune to the tick counter wrapping because there is no clock in it.
+ *
+ * This deliberately makes Nyx quieter, not louder. An illuminator running at
+ * steady DC is invisible to the onboard TSOP at any threshold, and inventing a
+ * detection out of noise would be the dishonest way to look capable. That case
+ * is exactly what Probe mode exists for. */
+#define PRESENCE_HISTORY_BITS 16u // 1.6 s of windows
+#define PRESENCE_ASSERT_HITS  3u
+
+typedef struct {
+    uint16_t history; // one bit per window, newest in bit 0
+    bool asserted;
+} PresenceLatch;
+
+static bool presence_update(PresenceLatch* l, uint32_t value, uint32_t rise) {
+    l->history = (uint16_t)((l->history << 1) | (value >= rise ? 1u : 0u));
+    const uint8_t hits = (uint8_t)__builtin_popcount(l->history);
+
+    if(hits >= PRESENCE_ASSERT_HITS) {
+        l->asserted = true;
+    } else if(hits == 0) {
+        l->asserted = false; // only true silence clears it
+    }
+    return l->asserted;
+}
+
+/* Fast attack, slow release.
+ *
+ * A symmetric EMA collapses the meter between bursts, so the ring empties while
+ * you are still pointing at the source. Rising fast keeps the "getting warmer"
+ * cue responsive while you pan; falling slowly keeps the reading legible. */
+static uint8_t level_smooth(uint8_t prev, uint8_t raw) {
+    if(raw > prev) return (uint8_t)((prev + 3u * raw) / 4u);
+    return (uint8_t)((prev * 7u + raw) / 8u);
+}
+
+/* Full-scale per sensitivity index (0 High, 1 Med, 2 Low). */
 static const uint32_t onboard_full_scale_eps[3] = {400u, 1200u, 3000u}; // edges/sec
-static const uint32_t onboard_floor_eps[3] = {20u, 60u, 150u};
+
+/* Presence floor for the onboard path, as a percentage of full scale.
+ *
+ * This used to be an absolute edges/sec floor, which quietly disagreed with the
+ * meter: the meter reads whichever of edge-rate or output duty cycle is louder,
+ * but presence only ever looked at edge rate. A TSOP pointed at a strong source
+ * often holds its output asserted instead of toggling — high duty, almost no
+ * edges — so the ring would fill while the verdict still said nothing was
+ * there. Testing the same combined number the meter shows keeps the two
+ * honest with each other. 5% of full scale reproduces the old edges/sec floor
+ * exactly at every sensitivity (20/400, 60/1200, 150/3000). */
+#define ONBOARD_PRESENT_PCT 5u
 static const uint32_t probe_full_scale_mv[3] = {150u, 500u, 1500u};
 static const uint32_t probe_floor_mv[3] = {15u, 40u, 100u};
 
@@ -147,8 +209,13 @@ struct IrSense {
     volatile bool reset_req;
     volatile bool renull_req;
 
+    /* Config. `sensitivity` is changed live from the sweep screen while this
+     * worker is running, so it must be volatile or the compiler is free to
+     * hoist the read out of the sampling loop and the change never lands.
+     * A byte cannot tear on this core, so volatile is the right tool, not a
+     * mutex. `mode` and `probe_pin_index` are only read once at start. */
     IrSenseMode mode; // may be Auto
-    uint8_t sensitivity;
+    volatile uint8_t sensitivity;
     uint8_t probe_pin_index;
 
     /* written from the IR capture ISR, drained under a critical section */
@@ -244,6 +311,7 @@ static int32_t ir_sense_worker_onboard(IrSense* s) {
     furi_mutex_release(s->mutex);
 
     uint8_t ema = 0;
+    PresenceLatch latch = {0};
 
     while(s->running) {
         furi_delay_ms(WINDOW_MS);
@@ -266,14 +334,21 @@ static int32_t ir_sense_worker_onboard(IrSense* s) {
         if(duty > 100u) duty = 100u;
         uint8_t raw = (uint8_t)(activity > duty ? activity : duty);
 
-        ema = (uint8_t)((ema * 3u + raw) / 4u);
-        bool present = eps >= onboard_floor_eps[s->sensitivity];
+        ema = level_smooth(ema, raw);
+        bool present = presence_update(&latch, raw, ONBOARD_PRESENT_PCT);
 
         furi_mutex_acquire(s->mutex, FuriWaitForever);
         if(s->reset_req) {
             ir_stats_clear_counters(&s->stats);
+            /* Carry the current verdict across the clear. Zeroing it would make
+             * the commit below see a false rising edge and count the detection
+             * that is still in progress as a brand new one, so "OK zero" would
+             * leave HIT 1 on screen instead of HIT 0. */
+            s->stats.present = present;
             s->reset_req = false;
             ema = 0;
+            latch.history = 0;
+            latch.asserted = false;
         }
         s->stats.edges_per_sec = eps;
         /* Onboard only ever sees modulation — that is the whole limitation. */
@@ -366,6 +441,7 @@ static int32_t ir_sense_worker_probe(IrSense* s) {
 
     uint16_t baseline = 0;
     uint8_t ema = 0;
+    PresenceLatch latch = {0};
     bool nulled = false;
     uint32_t null_acc = 0;
     uint32_t null_n = 0;
@@ -378,6 +454,8 @@ static int32_t ir_sense_worker_probe(IrSense* s) {
             nulled = false;
             null_acc = 0;
             null_n = 0;
+            latch.history = 0;
+            latch.asserted = false;
             s->renull_req = false;
         }
 
@@ -405,8 +483,8 @@ static int32_t ir_sense_worker_probe(IrSense* s) {
         uint32_t lvl = ((uint32_t)excess * 100u) / full;
         if(lvl > 100u) lvl = 100u;
 
-        ema = (uint8_t)((ema * 3u + (uint8_t)lvl) / 4u);
-        bool present = excess >= probe_floor_mv[s->sensitivity];
+        ema = level_smooth(ema, (uint8_t)lvl);
+        bool present = presence_update(&latch, excess, probe_floor_mv[s->sensitivity]);
 
         IrSourceKind kind = IrSourceNone;
         if(present) {
@@ -422,8 +500,11 @@ static int32_t ir_sense_worker_probe(IrSense* s) {
         furi_mutex_acquire(s->mutex, FuriWaitForever);
         if(s->reset_req) {
             ir_stats_clear_counters(&s->stats);
+            s->stats.present = present; // see the onboard path for why
             s->reset_req = false;
             ema = 0;
+            latch.history = 0;
+            latch.asserted = false;
         }
         s->stats.baseline_mv = baseline ? baseline : 1; // never 0 once nulled
         s->stats.raw_mv = mean_mv;
@@ -457,6 +538,7 @@ static int32_t ir_sense_worker(void* context) {
         s->stats.active_mode = IrSenseModeProbe;
         s->stats.probe_present = false;
         furi_mutex_release(s->mutex);
+        s->running = false; // nothing is sensing; do not let the UI claim otherwise
         return 0;
     }
 
@@ -472,6 +554,9 @@ static int32_t ir_sense_worker(void* context) {
     s->stats.armed = false;
     s->stats.present = false;
     furi_mutex_release(s->mutex);
+    /* Covers the early-outs inside the two path workers (IR busy, ADC busy) as
+     * well as a normal stop: once we are here nothing is sensing any more. */
+    s->running = false;
     return rc;
 }
 
@@ -513,12 +598,23 @@ void ir_sense_set_probe_pin(IrSense* s, uint8_t pin_index) {
 
 void ir_sense_start(IrSense* s) {
     furi_assert(s);
-    if(s->running) return;
+    /* `running` alone is not enough: a worker that bailed out on an error
+     * clears it while its FuriThread is still allocated, and starting again
+     * would overwrite the handle and leak it. Reap that corpse first. */
+    if(s->thread) {
+        if(s->running) return; // already sensing
+        ir_sense_stop(s);
+    }
 
     furi_mutex_acquire(s->mutex, FuriWaitForever);
     ir_stats_clear_counters(&s->stats);
     s->stats.error = IrSenseErrorNone;
     s->stats.baseline_mv = 0;
+    /* The views outlive a single sweep, so a stale `armed` / `active_mode` from
+     * the previous run would be drawn for the first frame after re-entering. */
+    s->stats.armed = false;
+    s->stats.active_mode = IrSenseModeOnboard;
+    s->stats.probe_present = false;
     furi_mutex_release(s->mutex);
 
     s->reset_req = false;
@@ -527,18 +623,25 @@ void ir_sense_start(IrSense* s) {
     /* 4 KB: the probe path puts a 256-byte sample burst on this stack on top of
      * the ADC HAL call depth, so give it headroom over the usual 2 KB worker. */
     s->thread = furi_thread_alloc_ex("NyxIrSense", 4096, ir_sense_worker, s);
+    /* Below the GUI. The probe burst paces itself with furi_delay_us(), which
+     * the SDK documents as a non-yielding DWT busy-wait, so for ~32 ms of every
+     * 100 ms window this thread is spinning. At the system-default priority
+     * that competes with the view dispatcher for the core and input goes
+     * sluggish or drops; one step down and the UI preempts it every time. */
+    furi_thread_set_priority(s->thread, FuriThreadPriorityLow);
     furi_thread_start(s->thread);
 }
 
 void ir_sense_stop(IrSense* s) {
     furi_assert(s);
-    if(!s->running) return;
+    /* Keyed off the thread handle, not `running`: a worker that bailed out on
+     * an error clears `running` by itself, and testing that instead would leak
+     * the thread object. */
+    if(!s->thread) return;
     s->running = false;
-    if(s->thread) {
-        furi_thread_join(s->thread);
-        furi_thread_free(s->thread);
-        s->thread = NULL;
-    }
+    furi_thread_join(s->thread);
+    furi_thread_free(s->thread);
+    s->thread = NULL;
 }
 
 bool ir_sense_is_running(IrSense* s) {

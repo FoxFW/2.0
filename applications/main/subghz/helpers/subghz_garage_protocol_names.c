@@ -14,6 +14,8 @@ const char* const subghz_garage_protocol_group_names[SUBGHZ_GARAGE_PROTOCOL_GROU
     "Germany",
     "China / Gate Only",
     "Blinds / Shutters",
+    "More Gates 1",
+    "More Gates 2",
 };
 
 const char* const subghz_garage_protocol_group_members[SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT] = {
@@ -28,6 +30,8 @@ const char* const subghz_garage_protocol_group_members[SUBGHZ_GARAGE_PROTOCOL_GR
     "Dickert MAHS, Hormann HSM, Marantec, Marantec24",
     "GangQi, GateTX, Hay21, Revers RB2",
     "Somfy Telis, Somfy Keytis, Jarolift, Dooya",
+    "Nord ICE, Allstar/Firefly, Prastel",
+    "Ditec GOL4",
 };
 
 const char* const subghz_garage_protocol_names[] = {

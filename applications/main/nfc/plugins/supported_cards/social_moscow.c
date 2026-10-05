@@ -6,7 +6,7 @@
 #include <nfc/nfc_device.h>
 #include <bit_lib/bit_lib.h>
 #include <nfc/protocols/mf_classic/mf_classic_poller_sync.h>
-#include "../../api/mosgortrans/mosgortrans_util.h"
+#include "mosgortrans/mosgortrans_util.h"
 #include "furi_hal_rtc.h"
 
 #define TAG "Social_Moscow"

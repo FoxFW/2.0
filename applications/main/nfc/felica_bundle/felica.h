@@ -1,0 +1,317 @@
+#pragma once
+
+#include <toolbox/bit_buffer.h>
+#include <nfc/protocols/nfc_device_base_i.h>
+#include <mbedtls/include/mbedtls/des.h>
+#include <lib/toolbox/simple_array.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define FELICA_IDM_SIZE        (8U)
+#define FELICA_PMM_SIZE        (8U)
+#define FELICA_DATA_BLOCK_SIZE (16U)
+
+#define FELICA_CMD_READ_WITHOUT_ENCRYPTION  (0x06U)
+#define FELICA_CMD_WRITE_WITHOUT_ENCRYPTION (0x08U)
+
+#define FELICA_SERVICE_RW_ACCESS (0x0009U)
+#define FELICA_SERVICE_RO_ACCESS (0x000BU)
+
+#define FELICA_BLOCKS_TOTAL_COUNT    (28U)
+#define FELICA_BLOCK_INDEX_REG       (0x0EU)
+#define FELICA_BLOCK_INDEX_RC        (0x80U)
+#define FELICA_BLOCK_INDEX_MAC       (0x81U)
+#define FELICA_BLOCK_INDEX_ID        (0x82U)
+#define FELICA_BLOCK_INDEX_D_ID      (0x83U)
+#define FELICA_BLOCK_INDEX_SER_C     (0x84U)
+#define FELICA_BLOCK_INDEX_SYS_C     (0x85U)
+#define FELICA_BLOCK_INDEX_CKV       (0x86U)
+#define FELICA_BLOCK_INDEX_CK        (0x87U)
+#define FELICA_BLOCK_INDEX_MC        (0x88U)
+#define FELICA_BLOCK_INDEX_WCNT      (0x90U)
+#define FELICA_BLOCK_INDEX_MAC_A     (0x91U)
+#define FELICA_BLOCK_INDEX_STATE     (0x92U)
+#define FELICA_BLOCK_INDEX_CRC_CHECK (0xA0U)
+
+#define FELICA_STANDARD_MAX_BLOCK_COUNT (0xFFU)
+
+#define FELICA_GUARD_TIME_US    (20000U)
+#define FELICA_FDT_POLL_FC      (10000U)
+#define FELICA_POLL_POLL_MIN_US (1280U)
+
+#define FELICA_FDT_LISTEN_FC (0)
+
+#define FELICA_SYSTEM_CODE_CODE (0xFFFFU)
+#define FELICA_TIME_SLOT_1      (0x00U)
+#define FELICA_TIME_SLOT_2      (0x01U)
+#define FELICA_TIME_SLOT_4      (0x03U)
+#define FELICA_TIME_SLOT_8      (0x07U)
+#define FELICA_TIME_SLOT_16     (0x0FU)
+
+#define FELICA_CMD_LIST_SERVICE_CODE        0x0A
+#define FELICA_CMD_LIST_SERVICE_CODE_RESP   0x0B
+#define FELICA_CMD_REQUEST_SYSTEM_CODE      0x0C
+#define FELICA_CMD_REQUEST_SYSTEM_CODE_RESP 0x0D
+
+#define FELICA_SERVICE_ATTRIBUTE_UNAUTH_READ    (0b000001)
+#define FELICA_SERVICE_ATTRIBUTE_READ_ONLY      (0b000010)
+#define FELICA_SERVICE_ATTRIBUTE_RANDOM_ACCESS  (0b001000)
+#define FELICA_SERVICE_ATTRIBUTE_CYCLIC         (0b001100)
+#define FELICA_SERVICE_ATTRIBUTE_PURSE          (0b010000)
+#define FELICA_SERVICE_ATTRIBUTE_PURSE_SUBFIELD (0b000110)
+
+typedef enum {
+    FelicaErrorNone,
+    FelicaErrorNotPresent,
+    FelicaErrorColResFailed,
+    FelicaErrorBufferOverflow,
+    FelicaErrorCommunication,
+    FelicaErrorFieldOff,
+    FelicaErrorWrongCrc,
+    FelicaErrorProtocol,
+    FelicaErrorTimeout,
+    FelicaErrorFeatureUnsupported,
+} FelicaError;
+
+typedef enum {
+    FelicaUnknown,
+    FelicaStandard,
+    FelicaLite,
+} FelicaWorkflowType;
+
+typedef struct {
+    uint8_t data[FELICA_DATA_BLOCK_SIZE];
+} FelicaBlockData;
+
+typedef struct {
+    uint8_t data[FELICA_DATA_BLOCK_SIZE];
+} FelicaCardKey;
+
+typedef struct {
+    bool internal : 1;
+    bool external : 1;
+} FelicaAuthenticationStatus;
+
+typedef struct {
+    bool skip_auth;
+    FelicaCardKey
+        card_key;
+    FelicaAuthenticationStatus auth_status;
+} FelicaAuthenticationContext;
+
+typedef struct {
+    uint8_t data[FELICA_DATA_BLOCK_SIZE];
+} FelicaSessionKey;
+
+typedef struct {
+    mbedtls_des3_context des_context;
+    FelicaSessionKey session_key;
+    FelicaAuthenticationContext context;
+} FelicaAuthentication;
+
+typedef struct {
+    uint8_t data[FELICA_IDM_SIZE];
+} FelicaIDm;
+
+typedef struct {
+    uint8_t data[FELICA_PMM_SIZE];
+} FelicaPMm;
+
+typedef struct {
+    uint8_t SF1;
+    uint8_t SF2;
+    uint8_t data[FELICA_DATA_BLOCK_SIZE];
+} FelicaBlock;
+
+typedef struct {
+    FelicaBlock spad[14];
+    FelicaBlock reg;
+    FelicaBlock rc;
+    FelicaBlock mac;
+    FelicaBlock id;
+    FelicaBlock d_id;
+    FelicaBlock ser_c;
+    FelicaBlock sys_c;
+    FelicaBlock ckv;
+    FelicaBlock ck;
+    FelicaBlock mc;
+    FelicaBlock wcnt;
+    FelicaBlock mac_a;
+    FelicaBlock state;
+    FelicaBlock crc_check;
+} FelicaFileSystem;
+
+typedef union {
+    FelicaFileSystem fs;
+    uint8_t dump[sizeof(FelicaFileSystem)];
+} FelicaFSUnion;
+
+typedef struct {
+    uint16_t code;
+    uint8_t attr;
+} FelicaService;
+
+typedef struct {
+    uint16_t code;
+    uint16_t first_idx;
+    uint16_t last_idx;
+} FelicaArea;
+
+typedef struct {
+    FelicaBlock block;
+    uint16_t service_code;
+    uint8_t block_idx;
+} FelicaPublicBlock;
+
+typedef struct {
+    uint8_t system_code_idx;
+    uint16_t system_code;
+    SimpleArray* services;
+    SimpleArray* areas;
+    SimpleArray* public_blocks;
+} FelicaSystem;
+
+typedef struct {
+    FelicaIDm idm;
+    FelicaPMm pmm;
+    uint8_t blocks_total;
+    uint8_t blocks_read;
+    FelicaFSUnion data;
+
+    SimpleArray* systems;
+
+    FelicaWorkflowType workflow_type;
+} FelicaData;
+
+typedef struct FURI_PACKED {
+    uint8_t code;
+    FelicaIDm idm;
+    uint8_t service_num;
+    uint16_t service_code;
+    uint8_t block_count;
+} FelicaCommandHeader;
+
+typedef struct {
+    uint8_t length;
+    uint8_t response_code;
+    FelicaIDm idm;
+    uint8_t SF1;
+    uint8_t SF2;
+} FelicaCommandResponseHeader;
+
+#pragma pack(push, 1)
+typedef struct {
+    uint8_t length;
+    uint8_t command;
+    FelicaIDm idm;
+} FelicaCommandHeaderRaw;
+#pragma pack(pop)
+
+typedef struct {
+    uint8_t service_code : 4;
+    uint8_t access_mode  : 3;
+    uint8_t length       : 1;
+    uint8_t block_number;
+} FelicaBlockListElement;
+
+typedef struct {
+    uint8_t length;
+    uint8_t response_code;
+    FelicaIDm idm;
+    uint8_t SF1;
+    uint8_t SF2;
+    uint8_t block_count;
+    uint8_t data[];
+} FelicaPollerReadCommandResponse;
+
+typedef struct {
+    FelicaCommandResponseHeader header;
+    uint8_t block_count;
+    uint8_t data[];
+} FelicaListenerReadCommandResponse;
+
+typedef struct {
+    FelicaCommandHeaderRaw header;
+    uint8_t data[];
+} FelicaListServiceCommandResponse;
+
+typedef struct {
+    FelicaCommandHeaderRaw header;
+    uint8_t system_count;
+    uint8_t system_code[];
+} FelicaListSystemCodeCommandResponse;
+
+typedef FelicaCommandResponseHeader FelicaListenerWriteCommandResponse;
+
+typedef FelicaCommandResponseHeader FelicaPollerWriteCommandResponse;
+
+extern const NfcDeviceBase nfc_device_felica;
+
+FelicaData* felica_alloc(void);
+
+void felica_free(FelicaData* data);
+
+void felica_reset(FelicaData* data);
+
+void felica_copy(FelicaData* data, const FelicaData* other);
+
+bool felica_verify(FelicaData* data, const FuriString* device_type);
+
+bool felica_load(FelicaData* data, FlipperFormat* ff, uint32_t version);
+
+bool felica_save(const FelicaData* data, FlipperFormat* ff);
+
+bool felica_is_equal(const FelicaData* data, const FelicaData* other);
+
+const char* felica_get_device_name(const FelicaData* data, NfcDeviceNameType name_type);
+
+const uint8_t* felica_get_uid(const FelicaData* data, size_t* uid_len);
+
+bool felica_set_uid(FelicaData* data, const uint8_t* uid, size_t uid_len);
+
+FelicaData* felica_get_base_data(const FelicaData* data);
+
+void felica_calculate_session_key(
+    mbedtls_des3_context* ctx,
+    const uint8_t* ck,
+    const uint8_t* rc,
+    uint8_t* out);
+
+bool felica_check_mac(
+    mbedtls_des3_context* ctx,
+    const uint8_t* session_key,
+    const uint8_t* rc,
+    const uint8_t* blocks,
+    const uint8_t block_count,
+    uint8_t* data);
+
+void felica_calculate_mac_read(
+    mbedtls_des3_context* ctx,
+    const uint8_t* session_key,
+    const uint8_t* rc,
+    const uint8_t* blocks,
+    const uint8_t block_count,
+    const uint8_t* data,
+    uint8_t* mac);
+
+void felica_calculate_mac_write(
+    mbedtls_des3_context* ctx,
+    const uint8_t* session_key,
+    const uint8_t* rc,
+    const uint8_t* wcnt,
+    const uint8_t* data,
+    uint8_t* mac);
+
+void felica_write_directory_tree(const FelicaSystem* system, FuriString* str);
+
+void felica_get_workflow_type(FelicaData* data);
+
+void felica_get_ic_name(const FelicaData* data, FuriString* ic_name);
+
+void felica_service_get_attribute_string(const FelicaService* service, FuriString* str);
+
+#ifdef __cplusplus
+}
+#endif

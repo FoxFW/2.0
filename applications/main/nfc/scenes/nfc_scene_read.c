@@ -3,6 +3,11 @@
 
 void nfc_scene_read_on_enter(void* context) {
     NfcApp* instance = context;
+    /* FoxFW: belt-and-suspenders lock for any path that reaches Read directly
+     * (the Read button normally locks earlier, in nfc_scene_detect). Idempotent;
+     * restored at the Start menu (nfc_scene_start) / nfc_app_free, NOT on_exit, so
+     * qFlipper stays detached across the whole detect->read flow. */
+    nfc_cli_soft_lock(instance);
     nfc_show_loading_popup(instance, true);
     nfc_supported_cards_load_cache(instance->nfc_supported_cards);
     nfc_show_loading_popup(instance, false);

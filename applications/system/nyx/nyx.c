@@ -118,6 +118,7 @@ static NyxApp* nyx_app_alloc(void) {
     app->settings.sound = true;
     app->settings.vibro = true;
     app->settings.led = true;
+    app->settings.intro = true;
     nyx_store_settings_load(&app->settings);
 
     app->sense = ir_sense_alloc();

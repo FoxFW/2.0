@@ -1,4 +1,5 @@
 #include "allstar_firefly.h"
+#include "protocols_common.h"
 #include <lib/subghz/blocks/const.h>
 #include <lib/subghz/blocks/decoder.h>
 #include <lib/subghz/blocks/encoder.h>
@@ -67,6 +68,7 @@ const SubGhzProtocolDecoder subghz_protocol_allstar_firefly_decoder = {
     .get_string = subghz_protocol_decoder_allstar_firefly_get_string,
 };
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 const SubGhzProtocolEncoder subghz_protocol_allstar_firefly_encoder = {
     .alloc = subghz_protocol_encoder_allstar_firefly_alloc,
     .free = subghz_protocol_encoder_allstar_firefly_free,
@@ -75,6 +77,15 @@ const SubGhzProtocolEncoder subghz_protocol_allstar_firefly_encoder = {
     .stop = subghz_protocol_encoder_allstar_firefly_stop,
     .yield = subghz_protocol_encoder_allstar_firefly_yield,
 };
+#else
+const SubGhzProtocolEncoder subghz_protocol_allstar_firefly_encoder = {
+    .alloc = NULL,
+    .free = NULL,
+    .deserialize = NULL,
+    .stop = NULL,
+    .yield = NULL,
+};
+#endif
 
 const SubGhzProtocol subghz_protocol_allstar_firefly = {
     .name = SUBGHZ_PROTOCOL_ALLSTAR_FIREFLY_NAME,
@@ -86,6 +97,7 @@ const SubGhzProtocol subghz_protocol_allstar_firefly = {
     .encoder = &subghz_protocol_allstar_firefly_encoder,
 };
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 void* subghz_protocol_encoder_allstar_firefly_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderAllstarFirefly* instance =
@@ -179,6 +191,7 @@ LevelDuration subghz_protocol_encoder_allstar_firefly_yield(void* context) {
 
     return ret;
 }
+#endif // SUBGHZ_GARAGE_WITH_ENCODER
 
 void* subghz_protocol_decoder_allstar_firefly_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

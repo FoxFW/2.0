@@ -53,7 +53,7 @@ SubGhzProtocolStatus
 void subghz_protocol_encoder_fiat_v1_stop(void* context);
 LevelDuration subghz_protocol_encoder_fiat_v1_yield(void* context);
 
-#define FIAT_V1_KNOWN_KEY_COUNT 8U
+#define FIAT_V1_KNOWN_KEY_COUNT 95U
 
 uint32_t subghz_protocol_fiat_v1_compute_auth(
     uint32_t uid,

@@ -1,7 +1,7 @@
 #pragma once
 #include <lib/subghz/registry.h>
 
-#define SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT 11
+#define SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT 13
 
 typedef enum {
     SubGhzGarageProtocolGroup1 = 0,
@@ -15,6 +15,8 @@ typedef enum {
     SubGhzGarageProtocolGroup9 = 8,
     SubGhzGarageProtocolGroup10 = 9,
     SubGhzGarageProtocolGroup11 = 10,
+    SubGhzGarageProtocolGroup12 = 11,
+    SubGhzGarageProtocolGroup13 = 12,
 } SubGhzGarageProtocolGroup;
 
 extern const char* const subghz_garage_protocol_group_paths[SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT];
@@ -35,6 +37,8 @@ extern const SubGhzProtocolRegistry subghz_garage_protocol_registry_g8;
 extern const SubGhzProtocolRegistry subghz_garage_protocol_registry_g9;
 extern const SubGhzProtocolRegistry subghz_garage_protocol_registry_g10;
 extern const SubGhzProtocolRegistry subghz_garage_protocol_registry_g11;
+extern const SubGhzProtocolRegistry subghz_garage_protocol_registry_g12;
+extern const SubGhzProtocolRegistry subghz_garage_protocol_registry_g13;
 
 typedef enum {
     SubGhzGarageTxProtocolAlutechAt4n = 0,

@@ -48,3 +48,4 @@
 #include "nord_ice.h"
 #include "allstar_firefly.h"
 #include "ditec_gol4.h"
+#include "prastel.h"

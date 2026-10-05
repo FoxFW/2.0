@@ -1,0 +1,24 @@
+App(
+    appid="seed_capturer",
+    name="Seed Capturer",
+    apptype=FlipperAppType.EXTERNAL,
+    targets=["f7"],
+    entry_point="seed_capturer_app",
+    stack_size=4 * 1024,
+    requires=["gui", "storage"],
+    # FoxFW: FAAC SLH / KeeLoq decoders bundled into the .fap (flash-neutral,
+    # the externalization pattern) - faac_slh is gc'd from firmware (garage-side)
+    # and these symbols are not in the exported API, so the app carries its own.
+    sources=[
+        "seed_capturer.c",
+        "bundle/faac_slh.c",
+        "bundle/keeloq.c",
+        "bundle/keeloq_common.c",
+        "bundle/custom_btn.c",
+    ],
+    fap_icon="icon.png",
+    fap_category="Sub-GHz",
+    fap_author="xMasterX (MMX)",
+    fap_version="1.0",
+    fap_description="Collect Fix + Hop pairs from a FAAC SLH, Genius or Erreka remote and store them for offline seed recovery",
+)

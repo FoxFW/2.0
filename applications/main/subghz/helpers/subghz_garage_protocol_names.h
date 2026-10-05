@@ -43,7 +43,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#define SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT 11
+#define SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT 13
 
 extern const char* const subghz_garage_protocol_group_names[SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT];
 extern const char* const subghz_garage_protocol_group_members[SUBGHZ_GARAGE_PROTOCOL_GROUP_COUNT];

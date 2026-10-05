@@ -1,15 +1,46 @@
 #include "../nyx_i.h"
 
 static uint8_t tick_counter; // paces the "locked" LED blink
+static uint8_t entry_sensitivity; // what it was on the way in, to spot a change
 
-static void nyx_sweep_ok_cb(void* context) {
+static void nyx_sweep_event_cb(void* context, SweepViewEvent event) {
     NyxApp* app = context;
-    view_dispatcher_send_custom_event(app->view_dispatcher, NyxCustomEventReset);
+    uint32_t custom;
+    switch(event) {
+    case SweepViewEventResetPeak:
+        custom = NyxCustomEventReset;
+        break;
+    case SweepViewEventRenull:
+        custom = NyxCustomEventRenull;
+        break;
+    case SweepViewEventSensUp:
+        custom = NyxCustomEventSensUp;
+        break;
+    default:
+        custom = NyxCustomEventSensDown;
+        break;
+    }
+    /* Never touch app state from the input callback — hand it to the scene on
+     * the dispatcher thread instead. */
+    view_dispatcher_send_custom_event(app->view_dispatcher, custom);
 }
 
-static void nyx_sweep_long_ok_cb(void* context) {
-    NyxApp* app = context;
-    view_dispatcher_send_custom_event(app->view_dispatcher, NyxCustomEventRenull);
+/* Right raises the gain, so it walks the index down through High/Medium/Low.
+ * Applied to the running worker immediately: the point of putting this on the
+ * sweep screen is not having to stop and go to Settings while you are standing
+ * in the middle of a room with the lights off. */
+static void nyx_sweep_set_sensitivity(NyxApp* app, int delta) {
+    int next = (int)app->settings.sensitivity_index + delta;
+    if(next < 0) next = 0;
+    if(next > 2) next = 2;
+    if((uint8_t)next == app->settings.sensitivity_index) return;
+
+    app->settings.sensitivity_index = (uint8_t)next;
+    ir_sense_set_sensitivity(app->sense, app->settings.sensitivity_index);
+    /* The floor moved, so every peak and hit recorded under the old one is a
+     * different measurement. Start the count again rather than mixing them. */
+    ir_sense_reset(app->sense);
+    if(app->settings.sound) nyx_notify_click(app);
 }
 
 void nyx_scene_sweep_on_enter(void* context) {
@@ -18,13 +49,14 @@ void nyx_scene_sweep_on_enter(void* context) {
     app->was_present = false;
     app->last_click_tick = 0;
     tick_counter = 0;
+    entry_sensitivity = app->settings.sensitivity_index;
 
     ir_sense_set_mode(app->sense, (IrSenseMode)app->settings.mode_index);
     ir_sense_set_sensitivity(app->sense, app->settings.sensitivity_index);
     ir_sense_set_probe_pin(app->sense, app->settings.probe_pin_index);
 
-    sweep_view_set_ok_callback(app->sweep_view, nyx_sweep_ok_cb, app);
-    sweep_view_set_long_ok_callback(app->sweep_view, nyx_sweep_long_ok_cb, app);
+    sweep_view_set_callback(app->sweep_view, nyx_sweep_event_cb, app);
+    sweep_view_reset(app->sweep_view, app->settings.sensitivity_index);
 
     ir_sense_start(app->sense);
     view_dispatcher_switch_to_view(app->view_dispatcher, NyxViewSweep);
@@ -35,19 +67,32 @@ bool nyx_scene_sweep_on_event(void* context, SceneManagerEvent event) {
     bool consumed = false;
 
     if(event.type == SceneManagerEventTypeCustom) {
-        if(event.event == NyxCustomEventReset) {
+        switch(event.event) {
+        case NyxCustomEventReset:
             ir_sense_reset(app->sense);
             consumed = true;
-        } else if(event.event == NyxCustomEventRenull) {
+            break;
+        case NyxCustomEventRenull:
             ir_sense_renull(app->sense);
             consumed = true;
+            break;
+        case NyxCustomEventSensUp:
+            nyx_sweep_set_sensitivity(app, -1);
+            consumed = true;
+            break;
+        case NyxCustomEventSensDown:
+            nyx_sweep_set_sensitivity(app, +1);
+            consumed = true;
+            break;
+        default:
+            break;
         }
     } else if(event.type == SceneManagerEventTypeTick) {
         tick_counter++;
 
         IrStats st;
         ir_sense_get(app->sense, &st);
-        sweep_view_update(app->sweep_view, &st);
+        sweep_view_update(app->sweep_view, &st, app->settings.sensitivity_index);
         sweep_view_tick(app->sweep_view);
 
         /* edges */
@@ -79,4 +124,12 @@ bool nyx_scene_sweep_on_event(void* context, SceneManagerEvent event) {
 void nyx_scene_sweep_on_exit(void* context) {
     NyxApp* app = context;
     ir_sense_stop(app->sense);
+
+    /* A gain change made out here is a real preference, so keep it — but write
+     * it once on the way out, never mid-sweep: the card is slow and this is the
+     * dispatcher thread that also has to keep draining input. */
+    if(app->settings.sensitivity_index != entry_sensitivity) {
+        nyx_store_settings_save(&app->settings);
+        entry_sensitivity = app->settings.sensitivity_index;
+    }
 }

@@ -537,6 +537,16 @@ static bool
         bin_raw_debug_tag(TAG, "Tinted sequence\r\n");
         ind = (BIN_RAW_BUF_DATA_SIZE * 8);
         uint16_t bit_count = 0;
+        /* FoxFW: guard gap_ind == 0. The do/while below runs `gap_ind--` BEFORE its
+         * test, so entering with gap_ind == 0 underflows this uint16_t to 65535 and
+         * then reads instance->data_raw[] tens of thousands of entries out of bounds
+         * -> MPU fault. Same OOB fix as the main Sub-GHz app's bin_raw.c (the Garage
+         * app carries its own copy). gap_ind reaches 0 when the backward search found
+         * no edge matching the detected gap; there is nothing below the gap to
+         * extract, so bail. */
+        if(gap_ind == 0) {
+            return false;
+        }
         do {
             gap_ind--;
             data_temp = (int)(roundf((float)(instance->data_raw[gap_ind]) / instance->te));

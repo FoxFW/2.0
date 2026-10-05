@@ -58,6 +58,7 @@ typedef struct {
 extern const FlasherBoard k_flasher_boards[FLASHER_BOARD_COUNT];
 
 #define FLASHER_STATUS_LEN 80
+#define FLASHER_CHIP_NAME_LEN 12
 
 typedef struct {
     volatile uint8_t  progress;
@@ -94,7 +95,9 @@ struct FlasherApp {
     uint8_t connect_selected;
 
     uint8_t board_index;
+    bool    board_auto;
     bool    board_custom;
+    char    detected_chip[FLASHER_CHIP_NAME_LEN];
 
     char file_bootloader[FLASHER_PATH_LEN];
     char file_partitions[FLASHER_PATH_LEN];

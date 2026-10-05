@@ -829,7 +829,11 @@ void subghz_protocol_decoder_kia_v5_get_string(void* context, FuriString* output
     furi_assert(context);
     SubGhzProtocolDecoderKiaV5* instance = context;
 
-    uint8_t calculated_crc = kia_v5_calculate_crc(instance->yek);
+    // The trailing CRC is sent over the air-raw payload (generic.data), which is
+    // exactly what the encoder CRCs (kia_v5_rebuild_data -> replay_crc). It must
+    // NOT be computed over the byte-bit-reversed `yek`, or a valid frame (incl.
+    // our own generated one) always shows (FAIL). (Fix 2026-10-03.)
+    uint8_t calculated_crc = kia_v5_calculate_crc(instance->generic.data);
     bool crc_valid = (instance->crc == calculated_crc);
 
     subghz_custom_btn_set_max(4);

@@ -1,6 +1,7 @@
 #include "nfc_poller.h"
 
 #include <nfc/protocols/nfc_poller_defs.h>
+#include "nfc_group_manager.h"
 
 #include <furi.h>
 
@@ -28,17 +29,23 @@ struct NfcPoller {
     NfcPollerList list;
     NfcPollerSessionState session_state;
     bool protocol_detected;
+    bool list_valid;
 
     NfcGenericCallbackEx callback;
     void* context;
 };
 
 static void nfc_poller_list_alloc(NfcPoller* instance) {
+    instance->list_valid = true;
+
     instance->list.head = malloc(sizeof(NfcPollerListElement));
     instance->list.head->protocol = instance->protocol;
-    instance->list.head->poller_api = nfc_pollers_api[instance->protocol];
+    instance->list.head->poller = NULL;
+    nfc_group_ensure_loaded(instance->protocol);
+    instance->list.head->poller_api = nfc_poller_get_base(instance->protocol);
     instance->list.head->child = NULL;
     instance->list.tail = instance->list.head;
+    if(instance->list.head->poller_api == NULL) instance->list_valid = false;
 
     do {
         NfcProtocol parent_protocol = nfc_protocol_get_parent(instance->list.head->protocol);
@@ -46,10 +53,23 @@ static void nfc_poller_list_alloc(NfcPoller* instance) {
 
         NfcPollerListElement* parent = malloc(sizeof(NfcPollerListElement));
         parent->protocol = parent_protocol;
-        parent->poller_api = nfc_pollers_api[parent_protocol];
+        parent->poller = NULL;
+        nfc_group_ensure_loaded(parent_protocol);
+        parent->poller_api = nfc_poller_get_base(parent_protocol);
         parent->child = instance->list.head;
         instance->list.head = parent;
+        if(parent->poller_api == NULL) instance->list_valid = false;
     } while(true);
+
+    /* An external protocol group that could not be loaded (e.g. missing .fal or
+     * out of heap) leaves a NULL poller_api. Do NOT build/deref the chain —
+     * leave pollers NULL and let detect/start/get_data no-op gracefully, so a
+     * failed group degrades to "that card type unavailable" instead of crashing. */
+    if(!instance->list_valid) {
+        FURI_LOG_E("NfcPoller", "chain build failed (group load failed) for protocol %d",
+            instance->protocol);
+        return;
+    }
 
     NfcPollerListElement* iter = instance->list.head;
     iter->poller = iter->poller_api->alloc(instance->nfc);
@@ -66,7 +86,10 @@ static void nfc_poller_list_alloc(NfcPoller* instance) {
 
 static void nfc_poller_list_free(NfcPoller* instance) {
     do {
-        instance->list.head->poller_api->free(instance->list.head->poller);
+        if(instance->list.head->poller_api != NULL && instance->list.head->poller != NULL) {
+            instance->list.head->poller_api->free(instance->list.head->poller);
+        }
+        nfc_group_release(instance->list.head->protocol);
         NfcPollerListElement* child = instance->list.head->child;
         free(instance->list.head);
         if(child == NULL) break;
@@ -122,6 +145,7 @@ void nfc_poller_start(NfcPoller* instance, NfcGenericCallback callback, void* co
     furi_check(instance);
     furi_check(callback);
     furi_check(instance->session_state == NfcPollerSessionStateIdle);
+    if(!instance->list_valid) return;
 
     NfcPollerListElement* tail_poller = instance->list.tail;
     tail_poller->poller_api->set_callback(tail_poller->poller, callback, context);
@@ -184,6 +208,7 @@ void nfc_poller_start_ex(NfcPoller* instance, NfcGenericCallbackEx callback, voi
     furi_check(callback);
     furi_check(instance->session_state == NfcPollerSessionStateIdle);
 
+    if(!instance->list_valid) return;
     instance->callback = callback;
     instance->context = context;
 
@@ -249,6 +274,7 @@ static NfcCommand nfc_poller_detect_head_callback(NfcEvent event, void* context)
 bool nfc_poller_detect(NfcPoller* instance) {
     furi_check(instance);
     furi_check(instance->session_state == NfcPollerSessionStateIdle);
+    if(!instance->list_valid) return false;
 
     instance->session_state = NfcPollerSessionStateActive;
     NfcPollerListElement* tail_poller = instance->list.tail;
@@ -279,6 +305,7 @@ NfcProtocol nfc_poller_get_protocol(const NfcPoller* instance) {
 
 const NfcDeviceData* nfc_poller_get_data(const NfcPoller* instance) {
     furi_check(instance);
+    if(!instance->list_valid) return NULL;
 
     NfcPollerListElement* tail_poller = instance->list.tail;
     return tail_poller->poller_api->get_data(tail_poller->poller);

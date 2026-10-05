@@ -5802,3 +5802,53 @@ FFEEDDCCBBAA
 00005AF3CDEE
 00005AF3CBEE
 00005AF4CCEE
+
+# -----------------------------------------------------------------------------
+# FoxFW 2026-10-04 reconcile (FoxFW2.0 v2.0.12):
+#   Verified this dict is a superset of unleashed, ARF, Momentum, the SD-card
+#   user dicts, AND the full current Proxmark3 set (mfc_default/bmp/icbmp/mrzd).
+#   Added the only 2 keys not already present, from Proxmark3 upstream master.
+# -----------------------------------------------------------------------------
+248B4520504D
+25F4745425D4
+
+# -----------------------------------------------------------------------------
+# Flipper Zero Community 'Non-Prox' keys (Strelka/transit/hotel/keyfob sets) not
+# present in the Proxmark-derived set above. NOTE: several are EMV AID-style
+# values (A0.../B0...) rather than proven card keys - kept per quantity-over-
+# quality. Remove this block if a tighter file is preferred.
+# -----------------------------------------------------------------------------
+A00000000007
+A00000000075
+A00000000113
+A00000000137
+A00000012684
+A000000301FA
+A00000030F1A
+A00001000096
+A00001000DAB
+A000010012F8
+A00002000057
+A00002000084
+A00002000503
+A00003000036
+A00005000021
+A00005000468
+A00006010A9B
+A00008000AEA
+A00009000064
+A00009150B0C
+A0000A000057
+A0000C040BB8
+A0000F000036
+A00012000036
+A00027000030
+A0002D00014B
+A0002F000099
+A00030000028
+A00031000057
+A00038000036
+A00039000036
+A0003A070099
+A0003D000030
+B00000000048

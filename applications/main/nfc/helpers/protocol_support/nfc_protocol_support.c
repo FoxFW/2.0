@@ -178,6 +178,12 @@ static const NfcProtocolSupportBase*
     return instance->protocol_support->base;
 }
 
+void nfc_protocol_support_preload(NfcProtocol protocol, void* context) {
+    /* FoxFW: warm the GUI plugin now (into a clean heap) so later heap churn
+     * cannot starve its load. Subsequent scene calls to get() reuse it. */
+    nfc_protocol_support_get(protocol, context);
+}
+
 static const NfcProtocolSupportExtraScene*
     nfc_protocol_support_extra_scene(NfcApp* instance, NfcProtocol protocol, size_t index) {
     if(instance->protocol_support == NULL) return NULL;
@@ -835,8 +841,7 @@ static void nfc_protocol_support_scene_emulate_on_enter(NfcApp* instance) {
     FuriString* temp_str = furi_string_alloc();
 
     if(nfc_protocol_support_has_feature(protocol, instance, NfcProtocolFeatureEmulateUid)) {
-        widget_add_string_element(
-            widget, 90, 26, AlignCenter, AlignCenter, FontPrimary, "Emulating UID");
+        furi_string_set(temp_str, "\e#Emulating UID\e#\n");
 
         size_t uid_len;
         const uint8_t* uid = nfc_device_get_uid(instance->nfc_device, &uid_len);
@@ -848,25 +853,28 @@ static void nfc_protocol_support_scene_emulate_on_enter(NfcApp* instance) {
         furi_string_trim(temp_str);
 
     } else {
-        widget_add_string_element(
-            widget, 90, 26, AlignCenter, AlignCenter, FontPrimary, "Emulating");
         if(!furi_string_empty(instance->file_name)) {
             furi_string_printf(
                 temp_str,
-                "%s\n%s",
+                "\e#Emulating\e#\n%s\n%s",
                 nfc_device_get_name(instance->nfc_device, NfcDeviceNameTypeFull),
                 furi_string_get_cstr(instance->file_name));
         } else {
             furi_string_printf(
                 temp_str,
-                "Unsaved\n%s",
+                "\e#Emulating\e#\nUnsaved\n%s",
                 nfc_device_get_name(instance->nfc_device, NfcDeviceNameTypeFull));
             furi_string_replace_str(temp_str, "Mifare", "MIFARE");
         }
     }
 
+    /* FoxFW: Fox logo on the NFC emulate screen (left, filling the space the old
+     * animation-free layout left open); status text on the right. Mirrors the
+     * lfrfid / ibutton emulate layout for a consistent look across all emulate
+     * screens. Per user: worth the small RAM cost here. */
+    widget_add_icon_element(widget, 0, 0, &I_fox_64x64);
     widget_add_text_box_element(
-        widget, 50, 33, 78, 31, AlignCenter, AlignTop, furi_string_get_cstr(temp_str), false);
+        widget, 66, 4, 60, 56, AlignCenter, AlignCenter, furi_string_get_cstr(temp_str), false);
 
     furi_string_free(temp_str);
 

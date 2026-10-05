@@ -1,11 +1,12 @@
 #include "ditec_gol4.h"
+#include "protocols_common.h"
 #include <lib/subghz/blocks/const.h>
 #include <lib/subghz/blocks/decoder.h>
 #include <lib/subghz/blocks/encoder.h>
 #include <lib/subghz/blocks/generic.h>
 #include "../helpers/subghz_generic_global_compat.h"
 #include <lib/subghz/blocks/math.h>
-#include <lib/subghz/blocks/custom_btn_i.h>
+#include "../helpers/subghz_custom_btn_i_compat.h"
 
 #include <string.h>
 
@@ -55,6 +56,7 @@ const SubGhzProtocolDecoder subghz_protocol_ditec_gol4_decoder = {
     .get_string = subghz_protocol_decoder_ditec_gol4_get_string,
 };
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 const SubGhzProtocolEncoder subghz_protocol_ditec_gol4_encoder = {
     .alloc = subghz_protocol_encoder_ditec_gol4_alloc,
     .free = subghz_protocol_encoder_ditec_gol4_free,
@@ -63,6 +65,15 @@ const SubGhzProtocolEncoder subghz_protocol_ditec_gol4_encoder = {
     .stop = subghz_protocol_encoder_ditec_gol4_stop,
     .yield = subghz_protocol_encoder_ditec_gol4_yield,
 };
+#else
+const SubGhzProtocolEncoder subghz_protocol_ditec_gol4_encoder = {
+    .alloc = NULL,
+    .free = NULL,
+    .deserialize = NULL,
+    .stop = NULL,
+    .yield = NULL,
+};
+#endif
 
 const SubGhzProtocol subghz_protocol_ditec_gol4 = {
     .name = SUBGHZ_PROTOCOL_DITEC_GOL4_NAME,
@@ -74,7 +85,9 @@ const SubGhzProtocol subghz_protocol_ditec_gol4 = {
     .encoder = &subghz_protocol_ditec_gol4_encoder,
 };
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 static uint8_t subghz_protocol_ditec_gol4_get_btn_code(void);
+#endif
 
 static uint8_t gol4_bit_reverse(uint8_t b) {
     b &= 0xFF;
@@ -86,6 +99,7 @@ static uint8_t gol4_bit_reverse(uint8_t b) {
     return result;
 }
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 static uint8_t gol4_bit_parity(uint8_t b) {
     uint8_t p = 0;
     for(uint8_t i = 0; i < 8; i++) {
@@ -93,6 +107,7 @@ static uint8_t gol4_bit_parity(uint8_t b) {
     }
     return p;
 }
+#endif
 
 static uint8_t gol4_lcg_step(uint8_t seed, uint8_t steps) {
     uint8_t x = seed & 0xFF;
@@ -152,6 +167,7 @@ static bool gol4_rolling_decode(uint8_t* raw) {
     return gol4_decode_lcg_xor(raw);
 }
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 static bool gol4_encode_lcg_xor(uint8_t* raw) {
     uint8_t dec5 = (uint8_t)(raw[5] ^ 0xA7);
     uint8_t dec6 = (uint8_t)(raw[6] ^ 0x69);
@@ -205,6 +221,7 @@ static bool gol4_rolling_encode(uint8_t* raw) {
     gol4_encode_bitrev_and_rotate(raw);
     return true;
 }
+#endif // SUBGHZ_GARAGE_WITH_ENCODER
 
 static void bits_to_raw(const uint8_t* bits, uint8_t* raw) {
     memset(raw, 0, GOL4_RAW_BYTES);
@@ -215,6 +232,7 @@ static void bits_to_raw(const uint8_t* bits, uint8_t* raw) {
     }
 }
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 static void raw_to_bits(const uint8_t* raw, uint8_t* bits) {
     for(uint8_t i = 0; i < subghz_protocol_ditec_gol4_const.min_count_bit_for_found; i++) {
         uint8_t byte_idx = i / 8;
@@ -230,12 +248,14 @@ static uint64_t bits_to_data(const uint8_t* bits) {
     }
     return data;
 }
+#endif // SUBGHZ_GARAGE_WITH_ENCODER
 
 static uint32_t serial_to_display(const uint8_t* s) {
     if(!s) return 0;
     return (uint32_t)((s[0] << 24) | (s[4] << 16) | (s[1] << 8) | s[3]);
 }
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 void* subghz_protocol_encoder_ditec_gol4_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderDitecGOL4* instance = malloc(sizeof(SubGhzProtocolEncoderDitecGOL4));
@@ -287,6 +307,7 @@ static void
 
     instance->encoder.size_upload = index;
 }
+#endif // SUBGHZ_GARAGE_WITH_ENCODER
 
 static void subghz_protocol_ditec_gol4_decode_key(SubGhzBlockGeneric* instance) {
     uint8_t bits[subghz_protocol_ditec_gol4_const.min_count_bit_for_found];
@@ -312,6 +333,7 @@ static void subghz_protocol_ditec_gol4_decode_key(SubGhzBlockGeneric* instance) 
     }
 }
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 static void subghz_protocol_ditec_gol4_encode_key(SubGhzBlockGeneric* instance) {
     uint8_t decrypted[GOL4_RAW_BYTES];
 
@@ -425,6 +447,7 @@ LevelDuration subghz_protocol_encoder_ditec_gol4_yield(void* context) {
 
     return ret;
 }
+#endif // SUBGHZ_GARAGE_WITH_ENCODER
 
 void* subghz_protocol_decoder_ditec_gol4_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
@@ -550,6 +573,7 @@ SubGhzProtocolStatus
         subghz_protocol_ditec_gol4_const.min_count_bit_for_found);
 }
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 bool subghz_protocol_ditec_gol4_create_data(
     void* context,
     FlipperFormat* flipper_format,
@@ -666,6 +690,7 @@ static uint8_t subghz_protocol_ditec_gol4_get_btn_code(void) {
 
     return btn;
 }
+#endif // SUBGHZ_GARAGE_WITH_ENCODER
 
 void subghz_protocol_decoder_ditec_gol4_get_string(void* context, FuriString* output) {
     furi_assert(context);

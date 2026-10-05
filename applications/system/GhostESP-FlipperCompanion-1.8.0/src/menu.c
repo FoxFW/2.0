@@ -1742,6 +1742,61 @@ static const MenuCommand ir_commands[] = {
 };
 
 #define IR_UART_PARSE_BUF_SIZE 1024
+#define IR_INITIAL_CAPACITY    4
+
+static bool ir_grow_catalog(
+    void** catalog,
+    size_t* capacity,
+    size_t element_size,
+    size_t required,
+    size_t maximum) {
+    if(!catalog || !capacity || required > maximum) return false;
+    if(required <= *capacity) return true;
+
+    size_t new_capacity = *capacity ? *capacity * 2 : IR_INITIAL_CAPACITY;
+    if(new_capacity < required) new_capacity = required;
+    if(new_capacity > maximum) new_capacity = maximum;
+
+    void* resized = realloc(*catalog, new_capacity * element_size);
+    if(!resized) return false;
+
+    if(new_capacity > *capacity) {
+        memset(
+            (uint8_t*)resized + (*capacity * element_size),
+            0,
+            (new_capacity - *capacity) * element_size);
+    }
+    *catalog = resized;
+    *capacity = new_capacity;
+    return true;
+}
+
+static bool ir_ensure_remotes(AppState* state, size_t required) {
+    return state && ir_grow_catalog(
+                        (void**)&state->ir_remotes,
+                        &state->ir_remote_capacity,
+                        sizeof(IrRemoteEntry),
+                        required,
+                        IR_REMOTE_CAPACITY);
+}
+
+static bool ir_ensure_signals(AppState* state, size_t required) {
+    return state && ir_grow_catalog(
+                        (void**)&state->ir_signals,
+                        &state->ir_signal_capacity,
+                        sizeof(IrSignalEntry),
+                        required,
+                        IR_SIGNAL_CAPACITY);
+}
+
+static bool ir_ensure_universals(AppState* state, size_t required) {
+    return state && ir_grow_catalog(
+                        (void**)&state->ir_universals,
+                        &state->ir_universal_capacity,
+                        sizeof(IrUniversalEntry),
+                        required,
+                        IR_UNIVERSAL_CAPACITY);
+}
 
 static char* next_line(char* buf, size_t* offset) {
     if(!buf || !offset) return NULL;
@@ -1786,6 +1841,7 @@ static bool ir_query_and_parse_list(AppState* state) {
     }
 
     state->ir_remote_count = 0;
+    if(!ir_ensure_remotes(state, 1)) return false;
 
     size_t pos = 0;
     char* line = NULL;
@@ -1802,7 +1858,8 @@ static bool ir_query_and_parse_list(AppState* state) {
             unsigned int idx = 0;
             char name[64] = {0};
             if(sscanf(line, "[%u] %63s", &idx, name) == 2) {
-                if(state->ir_remote_count < COUNT_OF(state->ir_remotes)) {
+                if(state->ir_remote_count < IR_REMOTE_CAPACITY &&
+                   ir_ensure_remotes(state, state->ir_remote_count + 1)) {
                     IrRemoteEntry* e = &state->ir_remotes[state->ir_remote_count++];
                     e->index = idx;
                     strncpy(e->name, name, sizeof(e->name) - 1);
@@ -1845,6 +1902,7 @@ static bool ir_query_and_parse_show(AppState* state, uint32_t remote_index) {
     }
 
     state->ir_signal_count = 0;
+    if(!ir_ensure_signals(state, 1)) return false;
 
     size_t pos = 0;
     char* line = NULL;
@@ -1863,7 +1921,8 @@ static bool ir_query_and_parse_show(AppState* state, uint32_t remote_index) {
             char proto[16] = {0};
             int n = sscanf(line, "[%u] %31s (%15[^)])", &idx, name, proto);
             if(n >= 2) {
-                if(state->ir_signal_count < COUNT_OF(state->ir_signals)) {
+                if(state->ir_signal_count < IR_SIGNAL_CAPACITY &&
+                   ir_ensure_signals(state, state->ir_signal_count + 1)) {
                     IrSignalEntry* e = &state->ir_signals[state->ir_signal_count++];
                     e->index = idx;
                     strncpy(e->name, name, sizeof(e->name) - 1);
@@ -1900,13 +1959,14 @@ static bool ir_index_buttons_from_file(AppState* state) {
         size_t block_start = 0;
 
         state->ir_signal_count = 0;
+        if(!ir_ensure_signals(state, 1)) break;
 
         while(true) {
             uint16_t read = storage_file_read(file, buf, buf_size);
             if(read == 0) break;
 
             size_t pos = 0;
-            while(pos < read && state->ir_signal_count < COUNT_OF(state->ir_signals)) {
+            while(pos < read && state->ir_signal_count < IR_SIGNAL_CAPACITY) {
                 // Consume whitespace
                 while(pos < read && (buf[pos] == '\r' || buf[pos] == '\n' || buf[pos] == ' ' ||
                                      buf[pos] == '\t')) {
@@ -1959,7 +2019,8 @@ static bool ir_index_buttons_from_file(AppState* state) {
                         val_end--;
                     }
 
-                    if(state->ir_signal_count < COUNT_OF(state->ir_signals)) {
+                    if(state->ir_signal_count < IR_SIGNAL_CAPACITY &&
+                       ir_ensure_signals(state, state->ir_signal_count + 1)) {
                         IrSignalEntry* e = &state->ir_signals[state->ir_signal_count];
                         size_t name_len = (val_end > val_start) ? (val_end - val_start) : 0;
                         if(name_len >= sizeof(e->name)) name_len = sizeof(e->name) - 1;
@@ -2039,6 +2100,7 @@ static bool ir_query_and_parse_universals(AppState* state) {
     }
 
     state->ir_universal_count = 0;
+    if(!ir_ensure_universals(state, 1)) return false;
     bool in_files_section = false;
 
     size_t pos = 0;
@@ -2073,7 +2135,8 @@ static bool ir_query_and_parse_universals(AppState* state) {
                 continue;
             }
 
-            if(state->ir_universal_count < COUNT_OF(state->ir_universals)) {
+            if(state->ir_universal_count < IR_UNIVERSAL_CAPACITY &&
+               ir_ensure_universals(state, state->ir_universal_count + 1)) {
                 IrUniversalEntry* e = &state->ir_universals[state->ir_universal_count];
                 e->index = state->ir_universal_count;
                 strncpy(e->name, line, sizeof(e->name) - 1);
@@ -2120,6 +2183,7 @@ static bool ir_query_and_parse_universal_buttons(AppState* state, const char* fi
     }
 
     state->ir_signal_count = 0;
+    if(!ir_ensure_signals(state, 1)) return false;
 
     size_t pos = 0;
     char* line = NULL;
@@ -2151,7 +2215,8 @@ static bool ir_query_and_parse_universal_buttons(AppState* state, const char* fi
                         break;
                     }
                 }
-                if(!exists && state->ir_signal_count < COUNT_OF(state->ir_signals)) {
+                if(!exists && state->ir_signal_count < IR_SIGNAL_CAPACITY &&
+                   ir_ensure_signals(state, state->ir_signal_count + 1)) {
                     IrSignalEntry* e = &state->ir_signals[state->ir_signal_count++];
                     e->index = idx;
                     strncpy(e->name, name, sizeof(e->name) - 1);
@@ -3392,7 +3457,14 @@ static void show_menu(
         submenu_set_selected_item(menu, last_index);
     }
 
-    state->previous_view = state->current_view;
+    // Transient views (log output, text input, confirmation) already have the
+    // correct previous_view set by whoever triggered them; don't clobber it
+    // with the transient view id when returning from one of them, or back
+    // navigation ends up bouncing to the default (main menu) case instead.
+    if(state->current_view != VIEW_TEXT_BOX && state->current_view != VIEW_TEXT_INPUT &&
+       state->current_view != VIEW_CONFIRMATION) {
+        state->previous_view = state->current_view;
+    }
     view_dispatcher_switch_to_view(state->view_dispatcher, view_id);
     state->current_view = view_id;
 }
@@ -3473,45 +3545,106 @@ void show_wifi_settings_menu(AppState* state) {
 
 // WiFi Settings sub-category show functions
 void show_wifi_settings_led_menu(AppState* state) {
-    show_menu(state, wifi_settings_led_commands, COUNT_OF(wifi_settings_led_commands), "LED & RGB", state->wifi_settings_led_menu, VIEW_WIFI_SETTINGS_LED);
-    submenu_change_item_label(state->wifi_settings_led_menu, 0, rgbmode_commands[current_rgb_index].label);
+    show_menu(
+        state,
+        wifi_settings_led_commands,
+        COUNT_OF(wifi_settings_led_commands),
+        "LED & RGB",
+        state->wifi_settings_led_menu,
+        VIEW_WIFI_SETTINGS_LED);
+    submenu_change_item_label(
+        state->wifi_settings_led_menu, 0, rgbmode_commands[current_rgb_index].label);
 }
 
 void show_wifi_settings_sd_menu(AppState* state) {
-    show_menu(state, wifi_settings_sd_commands, COUNT_OF(wifi_settings_sd_commands), "SD Card", state->wifi_settings_sd_menu, VIEW_WIFI_SETTINGS_SD);
+    show_menu(
+        state,
+        wifi_settings_sd_commands,
+        COUNT_OF(wifi_settings_sd_commands),
+        "SD Card",
+        state->wifi_settings_sd_menu,
+        VIEW_WIFI_SETTINGS_SD);
 }
 
 void show_wifi_settings_mgmt_menu(AppState* state) {
-    show_menu(state, wifi_settings_mgmt_commands, COUNT_OF(wifi_settings_mgmt_commands), "Settings Mgmt", state->wifi_settings_mgmt_menu, VIEW_WIFI_SETTINGS_MGMT);
+    show_menu(
+        state,
+        wifi_settings_mgmt_commands,
+        COUNT_OF(wifi_settings_mgmt_commands),
+        "Settings Mgmt",
+        state->wifi_settings_mgmt_menu,
+        VIEW_WIFI_SETTINGS_MGMT);
 }
 
 void show_wifi_settings_device_menu(AppState* state) {
-    show_menu(state, wifi_settings_device_commands, COUNT_OF(wifi_settings_device_commands), "Device & Debug", state->wifi_settings_device_menu, VIEW_WIFI_SETTINGS_DEVICE);
+    show_menu(
+        state,
+        wifi_settings_device_commands,
+        COUNT_OF(wifi_settings_device_commands),
+        "Device & Debug",
+        state->wifi_settings_device_menu,
+        VIEW_WIFI_SETTINGS_DEVICE);
 }
 
 void show_wifi_settings_misc_menu(AppState* state) {
-    show_menu(state, wifi_settings_misc_commands, COUNT_OF(wifi_settings_misc_commands), "Misc", state->wifi_settings_misc_menu, VIEW_WIFI_SETTINGS_MISC);
+    show_menu(
+        state,
+        wifi_settings_misc_commands,
+        COUNT_OF(wifi_settings_misc_commands),
+        "Misc",
+        state->wifi_settings_misc_menu,
+        VIEW_WIFI_SETTINGS_MISC);
 }
 
 // WiFi Network sub-category show functions
 void show_wifi_network_portal_menu(AppState* state) {
-    show_menu(state, wifi_network_portal_commands, COUNT_OF(wifi_network_portal_commands), "Evil Portal", state->wifi_network_portal_menu, VIEW_WIFI_NETWORK_PORTAL);
+    show_menu(
+        state,
+        wifi_network_portal_commands,
+        COUNT_OF(wifi_network_portal_commands),
+        "Evil Portal",
+        state->wifi_network_portal_menu,
+        VIEW_WIFI_NETWORK_PORTAL);
 }
 
 void show_wifi_network_conn_menu(AppState* state) {
-    show_menu(state, wifi_network_conn_commands, COUNT_OF(wifi_network_conn_commands), "WiFi Connection", state->wifi_network_conn_menu, VIEW_WIFI_NETWORK_CONN);
+    show_menu(
+        state,
+        wifi_network_conn_commands,
+        COUNT_OF(wifi_network_conn_commands),
+        "WiFi Connection",
+        state->wifi_network_conn_menu,
+        VIEW_WIFI_NETWORK_CONN);
 }
 
 void show_wifi_network_scan_menu(AppState* state) {
-    show_menu(state, wifi_network_scan_commands, COUNT_OF(wifi_network_scan_commands), "Network Scan", state->wifi_network_scan_menu, VIEW_WIFI_NETWORK_SCAN);
+    show_menu(
+        state,
+        wifi_network_scan_commands,
+        COUNT_OF(wifi_network_scan_commands),
+        "Network Scan",
+        state->wifi_network_scan_menu,
+        VIEW_WIFI_NETWORK_SCAN);
 }
 
 void show_wifi_network_iot_menu(AppState* state) {
-    show_menu(state, wifi_network_iot_commands, COUNT_OF(wifi_network_iot_commands), "IoT Control", state->wifi_network_iot_menu, VIEW_WIFI_NETWORK_IOT);
+    show_menu(
+        state,
+        wifi_network_iot_commands,
+        COUNT_OF(wifi_network_iot_commands),
+        "IoT Control",
+        state->wifi_network_iot_menu,
+        VIEW_WIFI_NETWORK_IOT);
 }
 
 void show_wifi_network_webui_menu(AppState* state) {
-    show_menu(state, wifi_network_webui_commands, COUNT_OF(wifi_network_webui_commands), "WebUI", state->wifi_network_webui_menu, VIEW_WIFI_NETWORK_WEBUI);
+    show_menu(
+        state,
+        wifi_network_webui_commands,
+        COUNT_OF(wifi_network_webui_commands),
+        "WebUI",
+        state->wifi_network_webui_menu,
+        VIEW_WIFI_NETWORK_WEBUI);
 }
 
 void show_status_idle_menu(AppState* state) {
@@ -3530,7 +3663,8 @@ void show_ble_scanning_menu(AppState* state) {
     submenu_add_item(state->ble_scanning_menu, "Flipper & Skimmer >", 0, submenu_callback, state);
     submenu_add_item(state->ble_scanning_menu, "AirTag >", 1, submenu_callback, state);
     submenu_add_item(state->ble_scanning_menu, "GATT >", 2, submenu_callback, state);
-    submenu_add_item(state->ble_scanning_menu, "Advertisers & Traffic >", 3, submenu_callback, state);
+    submenu_add_item(
+        state->ble_scanning_menu, "Advertisers & Traffic >", 3, submenu_callback, state);
     submenu_set_selected_item(state->ble_scanning_menu, state->last_ble_scanning_index);
     view_dispatcher_switch_to_view(state->view_dispatcher, VIEW_BLE_SCANNING);
     state->current_view = VIEW_BLE_SCANNING;
@@ -3538,19 +3672,43 @@ void show_ble_scanning_menu(AppState* state) {
 
 // BLE Scanning sub-category show functions
 void show_ble_scan_detect_menu(AppState* state) {
-    show_menu(state, ble_scan_detect_commands, COUNT_OF(ble_scan_detect_commands), "Flipper & Skimmer", state->ble_scan_detect_menu, VIEW_BLE_SCAN_DETECT);
+    show_menu(
+        state,
+        ble_scan_detect_commands,
+        COUNT_OF(ble_scan_detect_commands),
+        "Flipper & Skimmer",
+        state->ble_scan_detect_menu,
+        VIEW_BLE_SCAN_DETECT);
 }
 
 void show_ble_scan_airtag_menu(AppState* state) {
-    show_menu(state, ble_scan_airtag_commands, COUNT_OF(ble_scan_airtag_commands), "AirTag", state->ble_scan_airtag_menu, VIEW_BLE_SCAN_AIRTAG);
+    show_menu(
+        state,
+        ble_scan_airtag_commands,
+        COUNT_OF(ble_scan_airtag_commands),
+        "AirTag",
+        state->ble_scan_airtag_menu,
+        VIEW_BLE_SCAN_AIRTAG);
 }
 
 void show_ble_scan_gatt_menu(AppState* state) {
-    show_menu(state, ble_scan_gatt_commands, COUNT_OF(ble_scan_gatt_commands), "GATT", state->ble_scan_gatt_menu, VIEW_BLE_SCAN_GATT);
+    show_menu(
+        state,
+        ble_scan_gatt_commands,
+        COUNT_OF(ble_scan_gatt_commands),
+        "GATT",
+        state->ble_scan_gatt_menu,
+        VIEW_BLE_SCAN_GATT);
 }
 
 void show_ble_scan_adv_menu(AppState* state) {
-    show_menu(state, ble_scan_adv_commands, COUNT_OF(ble_scan_adv_commands), "Advertisers & Traffic", state->ble_scan_adv_menu, VIEW_BLE_SCAN_ADV);
+    show_menu(
+        state,
+        ble_scan_adv_commands,
+        COUNT_OF(ble_scan_adv_commands),
+        "Advertisers & Traffic",
+        state->ble_scan_adv_menu,
+        VIEW_BLE_SCAN_ADV);
 }
 
 void show_ble_capture_menu(AppState* state) {
@@ -3630,11 +3788,23 @@ void show_gps_menu(AppState* state) {
 
 // GPS sub-category show functions
 void show_gps_config_menu(AppState* state) {
-    show_menu(state, gps_config_commands, COUNT_OF(gps_config_commands), "GPS Config", state->gps_config_menu, VIEW_GPS_CONFIG);
+    show_menu(
+        state,
+        gps_config_commands,
+        COUNT_OF(gps_config_commands),
+        "GPS Config",
+        state->gps_config_menu,
+        VIEW_GPS_CONFIG);
 }
 
 void show_gps_wardrive_menu(AppState* state) {
-    show_menu(state, gps_wardrive_commands, COUNT_OF(gps_wardrive_commands), "Wardriving", state->gps_wardrive_menu, VIEW_GPS_WARDRIVE);
+    show_menu(
+        state,
+        gps_wardrive_commands,
+        COUNT_OF(gps_wardrive_commands),
+        "Wardriving",
+        state->gps_wardrive_menu,
+        VIEW_GPS_WARDRIVE);
 }
 
 void show_ir_menu(AppState* state) {
@@ -4493,21 +4663,29 @@ static bool menu_input_handler(InputEvent* event, void* context) {
                 } else {
                     navigate_to_view(state, VIEW_WIFI);
                 }
-            } else if(state->current_view >= VIEW_WIFI_SETTINGS_LED && state->current_view <= VIEW_WIFI_SETTINGS_MISC) {
+            } else if(
+                state->current_view >= VIEW_WIFI_SETTINGS_LED &&
+                state->current_view <= VIEW_WIFI_SETTINGS_MISC) {
                 if(state->came_from_settings) {
                     navigate_to_view(state, VIEW_SETTINGS_ACTIONS);
                 } else {
                     navigate_to_view(state, VIEW_WIFI_SETTINGS);
                 }
-            } else if(state->current_view >= VIEW_WIFI_NETWORK_PORTAL && state->current_view <= VIEW_WIFI_NETWORK_WEBUI) {
+            } else if(
+                state->current_view >= VIEW_WIFI_NETWORK_PORTAL &&
+                state->current_view <= VIEW_WIFI_NETWORK_WEBUI) {
                 navigate_to_view(state, VIEW_WIFI_NETWORK);
             } else if(
                 state->current_view >= VIEW_BLE_SCANNING &&
                 state->current_view <= VIEW_BLE_ATTACK) {
                 navigate_to_view(state, VIEW_BLE);
-            } else if(state->current_view >= VIEW_BLE_SCAN_DETECT && state->current_view <= VIEW_BLE_SCAN_ADV) {
+            } else if(
+                state->current_view >= VIEW_BLE_SCAN_DETECT &&
+                state->current_view <= VIEW_BLE_SCAN_ADV) {
                 navigate_to_view(state, VIEW_BLE_SCANNING);
-            } else if(state->current_view >= VIEW_GPS_CONFIG && state->current_view <= VIEW_GPS_WARDRIVE) {
+            } else if(
+                state->current_view >= VIEW_GPS_CONFIG &&
+                state->current_view <= VIEW_GPS_WARDRIVE) {
                 navigate_to_view(state, VIEW_GPS);
             } else if(
                 (state->current_view >= VIEW_WIFI && state->current_view <= VIEW_GPS) ||

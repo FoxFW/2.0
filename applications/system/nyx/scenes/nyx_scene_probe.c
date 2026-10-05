@@ -12,6 +12,16 @@ void nyx_scene_probe_on_enter(void* context) {
     tick_counter = 0;
     detected = ir_sense_probe_detect(app->settings.probe_pin_index);
     meter = ir_probe_meter_alloc(app->settings.probe_pin_index);
+    probe_view_reset(app->probe_view); // page 1, no peak carried over
+
+    /* Seed the pin labels immediately. The reset blanks them, and the first
+     * tick is a whole frame away, so without this the wiring page opens
+     * showing a pin that does not exist ("E      p0"). */
+    const IrProbePin* pins = ir_sense_probe_pins();
+    uint8_t idx = app->settings.probe_pin_index;
+    if(idx >= ir_sense_probe_pin_count()) idx = 0;
+    probe_view_update(
+        app->probe_view, pins[idx].name, pins[idx].header_number, detected, 0);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, NyxViewProbe);
 }

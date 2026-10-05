@@ -22,7 +22,6 @@
 #include <gui/modules/text_box.h>
 #include <gui/modules/widget.h>
 #include "views/dict_attack.h"
-#include "views/detect_reader.h"
 #include "views/dict_attack.h"
 
 #include <nfc/scenes/nfc_scene.h>
@@ -30,7 +29,6 @@
 #include "helpers/nfc_custom_event.h"
 #include "helpers/mf_ultralight_auth.h"
 #include "helpers/mf_user_dict.h"
-#include "helpers/mfkey32_logger.h"
 #include "helpers/nfc_emv_parser.h"
 #include "helpers/mf_classic_key_cache.h"
 #include "helpers/mf_plus_key_cache.h"
@@ -93,6 +91,27 @@
 #define NFC_APP_MF_PLUS_DICT_SYSTEM_PATH (NFC_APP_FOLDER "/assets/mf_plus_dict.nfc")
 
 #define NFC_MFKEY32_APP_PATH (EXT_PATH("apps/NFC/mfkey.fap"))
+
+/* FoxFW: the externalized "Extract MFC Keys" (Mfkey32 reader-attack) nonce
+ * collector. nfc.fap launches it instead of running the collection in-app, so
+ * the detect_reader view + emulation scenes + nonce logger no longer sit in
+ * nfc.fap's resident RAM. */
+#define NFC_MFKEY_COLLECTOR_APP_PATH (EXT_PATH("apps/NFC/mfkey_collector.fap"))
+/* Temp card handed to the collector for a per-card reader attack (saved/partial
+ * card). The collector loads it and emulates it; equivalent to the old in-app
+ * path that emulated instance->nfc_device directly. */
+#define NFC_MFKEY_COLLECTOR_TMP_CARD_PATH (NFC_APP_FOLDER "/.mfkey_collect.tmp.nfc")
+/* Marker dropped before launching the collector so that, when the loader returns
+ * to nfc.fap, the Start menu re-selects the "Extract MFC Keys" item. */
+#define NFC_FOCUS_MENU_MARKER_PATH (NFC_APP_FOLDER "/.focus_menu")
+
+/* FoxFW: the externalized MIFARE Fuzzer. nfc.fap launches it instead of running
+ * the fuzzer in-app, so its scenes / views / worker no longer sit in nfc.fap's
+ * resident RAM. */
+#define NFC_MIFARE_FUZZER_APP_PATH (EXT_PATH("apps/NFC/mifare_fuzzer.fap"))
+/* Marker dropped before launching the fuzzer so the Start menu re-selects the
+ * "Fuzzer" item when the loader returns to nfc.fap. */
+#define NFC_FOCUS_FUZZER_MARKER_PATH (NFC_APP_FOLDER "/.focus_fuzzer")
 
 typedef enum {
     NfcRpcStateIdle,
@@ -183,6 +202,12 @@ struct NfcApp {
     RpcAppSystem* rpc_ctx;
     NfcRpcState rpc_state;
 
+    /* FoxFW NFC externalization: Read-screen CLI/RPC soft-lock state. While a
+     * Read scan runs we detach USB + lock the CLI VCP session to free RPC/CDC
+     * RAM for on-demand .fal group loading; restored on leaving the Read scene. */
+    bool cli_sessions_soft_locked;
+    void* cli_hard_disconnect_usb_config;
+
     Submenu* submenu;
     DialogEx* dialog_ex;
     Popup* popup;
@@ -191,7 +216,6 @@ struct NfcApp {
     ByteInput* byte_input;
     TextBox* text_box;
     Widget* widget;
-    DetectReader* detect_reader;
     DictAttack* dict_attack;
 
     Nfc* nfc;
@@ -206,7 +230,6 @@ struct NfcApp {
     NfcMfUltralightCDictContext mf_ultralight_c_dict_context;
     NfcMfPlusDictAttackContext mf_plus_dict_context;
     NfcMfUltralightCWriteContext mf_ultralight_c_write_context;
-    Mfkey32Logger* mfkey32_logger;
     MfUserDict* mf_user_dict;
     MfClassicKeyCache* mfc_key_cache;
     CompositeApiResolver* api_resolver;
@@ -230,7 +253,6 @@ typedef enum {
     NfcViewTextBox,
     NfcViewWidget,
     NfcViewDictAttack,
-    NfcViewDetectReader,
 } NfcView;
 
 typedef enum {
@@ -279,6 +301,30 @@ void nfc_make_app_folder(NfcApp* instance);
 void nfc_append_filename_string_when_present(NfcApp* instance, FuriString* string);
 
 void nfc_app_run_external(NfcApp* nfc, const char* app_path);
+
+/* FoxFW: launch the standalone Mfkey32 nonce collector (externalized "Extract
+ * MFC Keys"). card_path NULL emulates a fresh random MIFARE Classic 4K card
+ * (main-menu entry); a .nfc path has the collector emulate that card (per-card
+ * entry). Drops a focus marker so the Start menu re-selects the menu item on
+ * return, then exits nfc.fap; the loader runs the collector and returns here. */
+void nfc_run_mfkey_collector(NfcApp* nfc, const char* card_path);
+
+/* FoxFW: save the current in-memory card to a temp .nfc and hand it to the
+ * collector — the per-card reader-attack entry (saved/partial MfClassic card). */
+void nfc_run_mfkey_collector_with_card(NfcApp* nfc);
+
+/* FoxFW: launch the externalized MIFARE Fuzzer (mifare_fuzzer.fap). Drops a focus
+ * marker so the Start menu re-selects the "Fuzzer" item on return, then exits
+ * nfc.fap; the loader runs the fuzzer and returns here. */
+void nfc_run_mifare_fuzzer(NfcApp* nfc);
+
+void nfc_cli_soft_lock(NfcApp* instance);
+
+void nfc_cli_soft_unlock(NfcApp* instance);
+
+void nfc_app_idle_views_unload(NfcApp* instance);
+
+void nfc_app_idle_views_reload(NfcApp* instance);
 
 #ifdef __cplusplus
 }

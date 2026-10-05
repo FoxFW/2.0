@@ -1,4 +1,5 @@
 #include "nord_ice.h"
+#include "protocols_common.h"
 #include <lib/subghz/blocks/const.h>
 #include <lib/subghz/blocks/decoder.h>
 #include <lib/subghz/blocks/encoder.h>
@@ -50,6 +51,7 @@ const SubGhzProtocolDecoder subghz_protocol_nord_ice_decoder = {
     .get_string = subghz_protocol_decoder_nord_ice_get_string,
 };
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 const SubGhzProtocolEncoder subghz_protocol_nord_ice_encoder = {
     .alloc = subghz_protocol_encoder_nord_ice_alloc,
     .free = subghz_protocol_encoder_nord_ice_free,
@@ -58,6 +60,15 @@ const SubGhzProtocolEncoder subghz_protocol_nord_ice_encoder = {
     .stop = subghz_protocol_encoder_nord_ice_stop,
     .yield = subghz_protocol_encoder_nord_ice_yield,
 };
+#else
+const SubGhzProtocolEncoder subghz_protocol_nord_ice_encoder = {
+    .alloc = NULL,
+    .free = NULL,
+    .deserialize = NULL,
+    .stop = NULL,
+    .yield = NULL,
+};
+#endif
 
 const SubGhzProtocol subghz_protocol_nord_ice = {
     .name = SUBGHZ_PROTOCOL_NORD_ICE_NAME,
@@ -69,6 +80,7 @@ const SubGhzProtocol subghz_protocol_nord_ice = {
     .encoder = &subghz_protocol_nord_ice_encoder,
 };
 
+#if SUBGHZ_GARAGE_WITH_ENCODER
 void* subghz_protocol_encoder_nord_ice_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderNordIce* instance = malloc(sizeof(SubGhzProtocolEncoderNordIce));
@@ -159,6 +171,7 @@ LevelDuration subghz_protocol_encoder_nord_ice_yield(void* context) {
 
     return ret;
 }
+#endif // SUBGHZ_GARAGE_WITH_ENCODER
 
 void* subghz_protocol_decoder_nord_ice_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);

@@ -267,6 +267,7 @@ static FlasherApp* app_alloc(void) {
     FlasherApp* app = malloc(sizeof(FlasherApp));
     furi_check(app);
     memset(app, 0, sizeof(FlasherApp));
+    app->board_auto = true;
 
     app->gui           = furi_record_open(RECORD_GUI);
     app->storage       = furi_record_open(RECORD_STORAGE);

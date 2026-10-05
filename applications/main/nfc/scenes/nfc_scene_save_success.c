@@ -35,10 +35,13 @@ bool nfc_scene_save_success_on_event(void* context, SceneManagerEvent event) {
                 NfcSceneSaveConfirmState scene_state =
                     scene_manager_get_scene_state(nfc->scene_manager, NfcSceneSaveConfirm);
 
-                NfcScene scene = scene_state == NfcSceneSaveConfirmStateCrackNonces ?
-                                     NfcSceneMfClassicMfkeyComplete :
-                                     NfcSceneMfClassicDetectReader;
-                scene_manager_next_scene(nfc->scene_manager, scene);
+                if(scene_state == NfcSceneSaveConfirmStateCrackNonces) {
+                    scene_manager_next_scene(nfc->scene_manager, NfcSceneMfClassicMfkeyComplete);
+                } else {
+                    /* FoxFW: reader-attack externalized — hand the just-saved card
+                     * to the standalone MFKey nonce collector. */
+                    nfc_run_mfkey_collector_with_card(nfc);
+                }
                 consumed = true;
             } else if(scene_manager_has_previous_scene(nfc->scene_manager, NfcSceneSetType)) {
                 consumed = scene_manager_search_and_switch_to_another_scene(

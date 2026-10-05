@@ -30,12 +30,25 @@ typedef struct {
     uint8_t anim;
 } ProbeModel;
 
+/* A solid triangle pointing the way a page turn is available. Without these the
+ * only clue that Left/Right do anything is the "1/2" counter, which nobody
+ * reads as an instruction.
+ *
+ * (x,y) is the midpoint of the base and the apex is `height` px along the
+ * direction, so a chevron occupies x..x+4 pointing right and x-4..x pointing
+ * left, rows y-2..y+2. Kept inside the header band, clear of the counter. */
+static void draw_chevron(Canvas* canvas, int x, int y, bool right) {
+    canvas_draw_triangle(
+        canvas, x, y, 5, 4, right ? CanvasDirectionLeftToRight : CanvasDirectionRightToLeft);
+}
+
 static void draw_header(Canvas* canvas, const ProbeModel* m) {
-    char buf[8];
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str(canvas, 2, 9, m->page == 0 ? "PROBE WIRING" : "PROBE CHECK");
-    snprintf(buf, sizeof(buf), "%u/%u", (unsigned)(m->page + 1), (unsigned)PROBE_PAGES);
-    canvas_draw_str_aligned(canvas, 126, 9, AlignRight, AlignBottom, buf);
+    /* No "1/2" counter: the title already names the page, and the counter and
+     * the left chevron overlapped on page 2 on real hardware. */
+    if(m->page > 0) draw_chevron(canvas, 110, 6, false);
+    if(m->page + 1 < PROBE_PAGES) draw_chevron(canvas, 122, 6, true);
     canvas_draw_line(canvas, 0, 11, 127, 11);
 }
 
@@ -66,10 +79,12 @@ static void draw_wiring(Canvas* canvas, const ProbeModel* m) {
     /* rail down to the tap */
     canvas_draw_line(canvas, 20, 33, 20, 42);
 
-    /* tap node out to the ADC pin */
+    /* tap node out to the ADC pin. The label has to finish before the column
+     * divider at x=60, and "ADC" is ~18px of FontSecondary, so the lead line
+     * stops at 36 rather than 42 to make room. */
     canvas_draw_disc(canvas, 20, 38, 1);
-    canvas_draw_line(canvas, 20, 38, 42, 38);
-    canvas_draw_str(canvas, 44, 41, "ADC");
+    canvas_draw_line(canvas, 20, 38, 36, 38);
+    canvas_draw_str(canvas, 38, 41, "ADC");
 
     /* load resistor */
     canvas_draw_frame(canvas, 17, 42, 7, 11);
@@ -128,8 +143,18 @@ static void draw_check(Canvas* canvas, const ProbeModel* m) {
     canvas_draw_line(canvas, 3 + pk, 46, 3 + pk, 54);
 
     /* ---- hint ---- */
-    const char* hint = ((m->anim / 30u) % 2u) ? "Reading should jump" :
-                                                "Aim a TV remote, press a key";
+    const char* hint;
+    switch((m->anim / 30u) % 3u) {
+    case 0:
+        hint = "Aim a TV remote at it";
+        break;
+    case 1:
+        hint = "Reading should jump";
+        break;
+    default:
+        hint = "OK: clear peak";
+        break;
+    }
     canvas_draw_str(canvas, 2, 62, hint);
 }
 
@@ -147,16 +172,27 @@ static bool probe_view_input(InputEvent* event, void* context) {
     ProbeView* v = context;
     if(event->type != InputTypeShort) return false;
 
+    if(event->key == InputKeyOk) {
+        /* The peak is the whole point of the check page — you wave a remote at
+         * the probe, then want to try again without leaving the screen. */
+        with_view_model(v->view, ProbeModel * m, { m->peak_mv = 0; }, true);
+        return true;
+    }
+
     if(event->key == InputKeyRight) {
+        bool consumed = false;
         with_view_model(
             v->view,
             ProbeModel * m,
             {
-                if(m->page + 1 < PROBE_PAGES) m->page++;
-                m->peak_mv = 0; // each visit to the check page starts fresh
+                if(m->page + 1 < PROBE_PAGES) {
+                    m->page++;
+                    m->peak_mv = 0; // each visit to the check page starts fresh
+                    consumed = true;
+                }
             },
             true);
-        return true;
+        return consumed;
     }
     if(event->key == InputKeyLeft) {
         bool consumed = false;
@@ -170,7 +206,7 @@ static bool probe_view_input(InputEvent* event, void* context) {
                 }
             },
             true);
-        return consumed; // Left on the first page falls through to Back
+        return consumed; // unconsumed on page 1; the dispatcher ignores it
     }
     return false;
 }
@@ -223,4 +259,9 @@ void probe_view_update(
 void probe_view_tick(ProbeView* v) {
     furi_assert(v);
     with_view_model(v->view, ProbeModel * m, { m->anim++; }, true);
+}
+
+void probe_view_reset(ProbeView* v) {
+    furi_assert(v);
+    with_view_model(v->view, ProbeModel * m, { memset(m, 0, sizeof(ProbeModel)); }, true);
 }

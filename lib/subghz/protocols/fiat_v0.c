@@ -41,6 +41,16 @@ typedef enum {
 } FiatV0DecoderStep;
 
 static void fiat_v0_finish_packet(struct SubGhzProtocolDecoderFiatV0* instance) {
+    // Fiat V0 has no CRC (structural lock only), so reject degenerate serials
+    // (all-zero / all-ones) that would otherwise surface as false decodes.
+    // (Fix 2026-10-03.)
+    if(instance->fix == 0U || instance->fix == 0xFFFFFFFFU) {
+        instance->data_low = 0;
+        instance->data_high = 0;
+        instance->bit_count = 0;
+        instance->decoder.parser_step = FiatV0DecoderStepReset;
+        return;
+    }
     instance->generic.data = ((uint64_t)instance->hop << 32) | instance->fix;
     instance->generic.data_count_bit = 71;
     instance->generic.serial = instance->fix;

@@ -46,6 +46,11 @@ struct NfcScanner {
     size_t children_protocols_idx;
     NfcProtocol children_protocols[NfcProtocolNum];
 
+    /* FoxFW hierarchical probe: protocols already probed this scan (so the
+     * per-layer loop never re-probes one). */
+    size_t probed_children_num;
+    NfcProtocol probed_children[NfcProtocolNum];
+
     size_t detected_protocols_num;
     NfcProtocol detected_protocols[NfcProtocolNum];
 
@@ -60,6 +65,8 @@ static void nfc_scanner_reset(NfcScanner* instance) {
 
     instance->children_protocols_idx = 0;
     instance->children_protocols_num = 0;
+
+    instance->probed_children_num = 0;
 
     instance->detected_protocols_num = 0;
     instance->detected_base_protocols_num = 0;
@@ -117,13 +124,39 @@ void nfc_scanner_state_handler_try_base_pollers(NfcScanner* instance) {
 }
 
 void nfc_scanner_state_handler_find_children_protocols(NfcScanner* instance) {
+    /* FoxFW HIERARCHICAL PROBE (RAM): build only the NEXT tree layer -- protocols
+     * whose DIRECT parent has been detected and that have not themselves been
+     * detected or probed yet. DetectChildren loops back here after each layer, so
+     * a card that lacks an intermediate layer (e.g. a bare ISO14443-3A card with
+     * no ISO14443-4A) never reaches that layer's children, and their .fal groups
+     * are never loaded. Detection is unchanged: a protocol is only detectable when
+     * its parent is, so the final detected set is identical to the old flat sweep,
+     * minus the pointless loads of groups that provably cannot match. */
+    instance->children_protocols_num = 0;
+    instance->children_protocols_idx = 0;
+
     for(size_t i = 0; i < NfcProtocolNum; i++) {
-        for(size_t j = 0; j < instance->detected_base_protocols_num; j++) {
-            if(nfc_protocol_has_parent(i, instance->detected_base_protocols[j])) {
-                instance->children_protocols[instance->children_protocols_num] = i;
-                instance->children_protocols_num++;
+        const NfcProtocol parent = nfc_protocol_get_parent(i);
+        if(parent == NfcProtocolInvalid) continue; /* base protocol, handled earlier */
+
+        bool parent_detected = false;
+        bool self_detected = false;
+        for(size_t j = 0; j < instance->detected_protocols_num; j++) {
+            if(instance->detected_protocols[j] == parent) parent_detected = true;
+            if(instance->detected_protocols[j] == (NfcProtocol)i) self_detected = true;
+        }
+        if(!parent_detected || self_detected) continue;
+
+        bool already_probed = false;
+        for(size_t j = 0; j < instance->probed_children_num; j++) {
+            if(instance->probed_children[j] == (NfcProtocol)i) {
+                already_probed = true;
+                break;
             }
         }
+        if(already_probed) continue;
+
+        instance->children_protocols[instance->children_protocols_num++] = i;
     }
 
     if(instance->children_protocols_num > 0) {
@@ -131,7 +164,7 @@ void nfc_scanner_state_handler_find_children_protocols(NfcScanner* instance) {
     } else {
         instance->state = NfcScannerStateComplete;
     }
-    FURI_LOG_D(TAG, "Found %zu children", instance->children_protocols_num);
+    FURI_LOG_D(TAG, "Found %zu children to probe (this layer)", instance->children_protocols_num);
 }
 
 void nfc_scanner_state_handler_detect_children_protocols(NfcScanner* instance) {
@@ -149,9 +182,14 @@ void nfc_scanner_state_handler_detect_children_protocols(NfcScanner* instance) {
         instance->detected_protocols_num++;
     }
 
+    /* Mark probed so the per-layer FindChildren loop never re-probes this one. */
+    instance->probed_children[instance->probed_children_num++] = instance->current_protocol;
+
     instance->children_protocols_idx++;
     if(instance->children_protocols_idx == instance->children_protocols_num) {
-        instance->state = NfcScannerStateComplete;
+        /* Layer finished -> go back and build the next layer (direct children of
+         * anything newly detected). FindChildren moves to Complete when none remain. */
+        instance->state = NfcScannerStateFindChildrenProtocols;
     }
 }
 

@@ -43,6 +43,12 @@ static const SubGhzProtocol* const subghz_garage_protocol_registry_items[] = {
     &subghz_protocol_beninca_arc,
     &subghz_protocol_keyfinder,
     &subghz_protocol_x10,
+    // Gate decoders activated from Unleashed (2026-10-03). RX-only in garage
+    // (encoders compiled out under SUBGHZ_GARAGE_WITH_ENCODER).
+    &subghz_protocol_nord_ice,
+    &subghz_protocol_allstar_firefly,
+    &subghz_protocol_ditec_gol4,
+    &subghz_protocol_prastel,
 };
 
 const SubGhzProtocolRegistry subghz_garage_protocol_registry = {

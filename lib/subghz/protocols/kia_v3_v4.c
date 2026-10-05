@@ -10,6 +10,7 @@
 #define TAG "SubGhzProtocolKiaV3V4"
 
 #define KIA_MF_KEY 0xA8F5DFFC8DAA5CDBULL
+#define KIA_MF_KEY_2 0xCB72B95709057920ULL
 
 static const char* kia_version_names[] = {"Kia V4", "Kia V3"};
 
@@ -63,6 +64,7 @@ struct SubGhzProtocolEncoderKiaV3V4 {
 
     uint32_t encrypted;
     uint32_t decrypted;
+    uint64_t mf_key;
 
     uint8_t crc_iter;
     uint8_t bursts_sent;
@@ -79,6 +81,33 @@ static uint8_t kia_v3_v4_reverse8(uint8_t byte) {
     byte = (byte & 0xCC) >> 2 | (byte & 0x33) << 2;
     byte = (byte & 0xAA) >> 1 | (byte & 0x55) << 1;
     return byte;
+}
+
+// Kia/Hyundai V3/V4 manufacturer keys. Both are genuine (KIA_MF_KEY_2 is the
+// second key some models use, added 2026-10-03). Decode tries each with a
+// serial/button self-check; the matching key is reused for re-encrypt so a
+// re-transmitted frame stays valid for that car.
+static uint64_t
+    kia_v3_v4_select_mf_key(uint32_t encrypted, uint8_t btn, uint8_t serial_lsb) {
+    static const uint64_t keys[2] = {KIA_MF_KEY, KIA_MF_KEY_2};
+    for(size_t i = 0; i < 2; i++) {
+        uint32_t dec = subghz_protocol_keeloq_common_decrypt(encrypted, keys[i]);
+        if(((dec >> 28) & 0x0F) == btn && ((dec >> 16) & 0xFF) == serial_lsb) {
+            return keys[i];
+        }
+    }
+    return 0;
+}
+
+// Recover the captured 32-bit encrypted word from the stored 68-bit Key
+// (generic.data), using the same byte layout the decoder built it from.
+static uint32_t kia_v3_v4_encrypted_from_keydata(uint64_t data) {
+    uint8_t b0 = (uint8_t)((data >> 56) & 0xFF);
+    uint8_t b1 = (uint8_t)((data >> 48) & 0xFF);
+    uint8_t b2 = (uint8_t)((data >> 40) & 0xFF);
+    uint8_t b3 = (uint8_t)((data >> 32) & 0xFF);
+    return ((uint32_t)kia_v3_v4_reverse8(b3) << 24) | ((uint32_t)kia_v3_v4_reverse8(b2) << 16) |
+           ((uint32_t)kia_v3_v4_reverse8(b1) << 8) | (uint32_t)kia_v3_v4_reverse8(b0);
 }
 
 static void kia_v3_v4_add_raw_bit(SubGhzProtocolDecoderKiaV3V4* instance, bool bit) {
@@ -143,13 +172,11 @@ static bool kia_v3_v4_process_buffer(SubGhzProtocolDecoderKiaV3V4* instance) {
     uint8_t btn = (kia_v3_v4_reverse8(b[7]) & 0xF0) >> 4;
     uint8_t our_serial_lsb = serial & 0xFF;
 
-    uint32_t decrypted = subghz_protocol_keeloq_common_decrypt(encrypted, KIA_MF_KEY);
-    uint8_t dec_btn = (decrypted >> 28) & 0x0F;
-    uint8_t dec_serial_lsb = (decrypted >> 16) & 0xFF;
-
-    if(dec_btn != btn || dec_serial_lsb != our_serial_lsb) {
+    uint64_t mf_key = kia_v3_v4_select_mf_key(encrypted, btn, our_serial_lsb);
+    if(mf_key == 0) {
         return false;
     }
+    uint32_t decrypted = subghz_protocol_keeloq_common_decrypt(encrypted, mf_key);
 
     instance->encrypted = encrypted;
     instance->decrypted = decrypted;
@@ -227,6 +254,7 @@ void* subghz_protocol_encoder_kia_v3_v4_alloc(SubGhzEnvironment* environment) {
     instance->btn = 0;
     instance->cnt = 0;
     instance->version = 0;
+    instance->mf_key = 0;
     instance->crc_iter = 0;
     instance->bursts_sent = 0;
 
@@ -258,7 +286,8 @@ static void subghz_protocol_encoder_kia_v3_v4_build_packet(
 
     instance->decrypted = plaintext;
 
-    uint32_t encrypted = subghz_protocol_keeloq_common_encrypt(plaintext, KIA_MF_KEY);
+    uint64_t mf_key = instance->mf_key ? instance->mf_key : KIA_MF_KEY;
+    uint32_t encrypted = subghz_protocol_keeloq_common_encrypt(plaintext, mf_key);
     instance->encrypted = encrypted;
 
     raw_bytes[0] = kia_v3_v4_reverse8((encrypted >> 0) & 0xFF);
@@ -441,6 +470,13 @@ SubGhzProtocolStatus
         instance->serial = serial;
         instance->btn = (uint8_t)btn;
         instance->cnt = (uint16_t)cnt;
+
+        // Pick the manufacturer key that decoded the captured frame so re-encrypt
+        // uses the key this car expects; 0 falls back to KIA_MF_KEY in build_packet.
+        instance->mf_key = kia_v3_v4_select_mf_key(
+            kia_v3_v4_encrypted_from_keydata(instance->generic.data),
+            instance->btn,
+            (uint8_t)(instance->serial & 0xFFU));
 
         uint32_t mult = furi_hal_subghz_get_rolling_counter_mult();
         if(mult == 0U) mult = 1U;
@@ -688,46 +724,22 @@ SubGhzProtocolStatus subghz_protocol_decoder_kia_v3_v4_serialize(
     furi_assert(context);
     SubGhzProtocolDecoderKiaV3V4* instance = context;
 
-    SubGhzProtocolStatus ret = SubGhzProtocolStatusError;
+    SubGhzProtocolStatus ret =
+        subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
+    if(ret != SubGhzProtocolStatusOk) {
+        return ret;
+    }
 
+    ret = SubGhzProtocolStatusErrorParserOthers;
     do {
-        if(!flipper_format_write_uint32(flipper_format, "Frequency", &preset->frequency, 1)) {
-            break;
-        }
+        uint32_t temp = instance->generic.serial;
+        if(!flipper_format_write_uint32(flipper_format, "Serial", &temp, 1)) break;
 
-        if(!flipper_format_write_string_cstr(
-               flipper_format, "Preset", furi_string_get_cstr(preset->name))) {
-            break;
-        }
+        temp = instance->generic.btn;
+        if(!flipper_format_write_uint32(flipper_format, "Btn", &temp, 1)) break;
 
-        if(!flipper_format_write_string_cstr(
-               flipper_format, "Protocol", SUBGHZ_PROTOCOL_KIA_V3_V4_NAME)) {
-            break;
-        }
-
-        uint32_t bits = instance->generic.data_count_bit;
-        if(!flipper_format_write_uint32(flipper_format, "Bit", &bits, 1)) {
-            break;
-        }
-
-        char key_str[20];
-        snprintf(key_str, sizeof(key_str), "%016llX", (unsigned long long)instance->generic.data);
-        if(!flipper_format_write_string_cstr(flipper_format, "Key", key_str)) {
-            break;
-        }
-
-        if(!flipper_format_write_uint32(
-               flipper_format, "Serial", &instance->generic.serial, 1)) {
-            break;
-        }
-        uint32_t btn_tmp = instance->generic.btn;
-        if(!flipper_format_write_uint32(flipper_format, "Btn", &btn_tmp, 1)) {
-            break;
-        }
-        if(!flipper_format_write_uint32(
-               flipper_format, "Cnt", &instance->generic.cnt, 1)) {
-            break;
-        }
+        temp = instance->generic.cnt;
+        if(!flipper_format_write_uint32(flipper_format, "Cnt", &temp, 1)) break;
 
         if(!flipper_format_write_uint32(flipper_format, "Encrypted", &instance->encrypted, 1)) {
             break;
@@ -737,15 +749,11 @@ SubGhzProtocolStatus subghz_protocol_decoder_kia_v3_v4_serialize(
             break;
         }
 
-        uint32_t temp = instance->version;
-        if(!flipper_format_write_uint32(flipper_format, "KIAVersion", &temp, 1)) {
-            break;
-        }
+        temp = instance->version;
+        if(!flipper_format_write_uint32(flipper_format, "KIAVersion", &temp, 1)) break;
 
         temp = instance->crc;
-        if(!flipper_format_write_uint32(flipper_format, "CRC", &temp, 1)) {
-            break;
-        }
+        if(!flipper_format_write_uint32(flipper_format, "CRC", &temp, 1)) break;
 
         ret = SubGhzProtocolStatusOk;
     } while(false);

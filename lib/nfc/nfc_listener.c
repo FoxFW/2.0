@@ -2,6 +2,7 @@
 
 #include <nfc/protocols/nfc_listener_defs.h>
 #include <nfc/nfc_device_i.h>
+#include "nfc_group_manager.h"
 
 #include <furi.h>
 
@@ -22,15 +23,21 @@ struct NfcListener {
     Nfc* nfc;
     NfcListenerList list;
     NfcDevice* nfc_dev;
+    bool list_valid;
 };
 
 static void nfc_listener_list_alloc(NfcListener* instance) {
+    instance->list_valid = true;
+
     instance->list.head = malloc(sizeof(NfcListenerListElement));
     instance->list.head->protocol = instance->protocol;
+    instance->list.head->listener = NULL;
 
-    instance->list.head->listener_api = nfc_listeners_api[instance->protocol];
+    nfc_group_ensure_loaded(instance->protocol);
+    instance->list.head->listener_api = nfc_listener_get_base(instance->protocol);
     instance->list.head->child = NULL;
     instance->list.tail = instance->list.head;
+    if(instance->list.head->listener_api == NULL) instance->list_valid = false;
 
     do {
         NfcProtocol parent_protocol = nfc_protocol_get_parent(instance->list.head->protocol);
@@ -38,11 +45,22 @@ static void nfc_listener_list_alloc(NfcListener* instance) {
 
         NfcListenerListElement* parent = malloc(sizeof(NfcListenerListElement));
         parent->protocol = parent_protocol;
-        parent->listener_api = nfc_listeners_api[parent_protocol];
+        parent->listener = NULL;
+        nfc_group_ensure_loaded(parent_protocol);
+        parent->listener_api = nfc_listener_get_base(parent_protocol);
         parent->child = instance->list.head;
 
         instance->list.head = parent;
+        if(parent->listener_api == NULL) instance->list_valid = false;
     } while(true);
+
+    /* A chain element with no listener_api (external group failed to load, or an
+     * internal protocol with no listener) means we cannot emulate this stack.
+     * Leave listeners NULL and no-op instead of dereferencing NULL. */
+    if(!instance->list_valid) {
+        FURI_LOG_E("NfcListener", "chain build failed for protocol %d", instance->protocol);
+        return;
+    }
 
     NfcListenerListElement* iter = instance->list.head;
     NfcDeviceData* data_tmp = nfc_device_get_data_ptr(instance->nfc_dev, iter->protocol);
@@ -62,7 +80,10 @@ static void nfc_listener_list_alloc(NfcListener* instance) {
 static void nfc_listener_list_free(NfcListener* instance) {
 
     do {
-        instance->list.head->listener_api->free(instance->list.head->listener);
+        if(instance->list.head->listener_api != NULL && instance->list.head->listener != NULL) {
+            instance->list.head->listener_api->free(instance->list.head->listener);
+        }
+        nfc_group_release(instance->list.head->protocol);
         NfcListenerListElement* child = instance->list.head->child;
         free(instance->list.head);
         if(child == NULL) break;
@@ -74,7 +95,9 @@ NfcListener* nfc_listener_alloc(Nfc* nfc, NfcProtocol protocol, const NfcDeviceD
     furi_check(nfc);
     furi_check(protocol < NfcProtocolNum);
     furi_check(data);
-    furi_check(nfc_listeners_api[protocol]);
+    /* External protocols load via list_alloc below; is_external() lets the guard
+     * pass before the group is resident. */
+    furi_check(nfc_group_is_external(protocol) || nfc_listener_get_base(protocol));
 
     NfcListener* instance = malloc(sizeof(NfcListener));
     instance->nfc = nfc;
@@ -115,6 +138,7 @@ NfcCommand nfc_listener_start_callback(NfcEvent event, void* context) {
 
 void nfc_listener_start(NfcListener* instance, NfcGenericCallback callback, void* context) {
     furi_check(instance);
+    if(!instance->list_valid) return;
 
     NfcListenerListElement* tail_element = instance->list.tail;
     tail_element->listener_api->set_callback(tail_element->listener, callback, context);
@@ -136,6 +160,7 @@ NfcProtocol nfc_listener_get_protocol(const NfcListener* instance) {
 const NfcDeviceData* nfc_listener_get_data(const NfcListener* instance, NfcProtocol protocol) {
     furi_check(instance);
     furi_check(instance->protocol == protocol);
+    if(!instance->list_valid) return NULL;
 
     NfcListenerListElement* tail_element = instance->list.tail;
     return tail_element->listener_api->get_data(tail_element->listener);

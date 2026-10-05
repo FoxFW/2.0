@@ -254,6 +254,10 @@ static bool honda_static_validate_reverse_packet(const uint8_t packet[9], HondaS
     for(size_t i = 0; i < 7; i++) {
         checksum ^= reversed[i];
     }
+    // The reverse/fallback path must enforce the stored checksum just like the
+    // forward path does; without this gate it accepted ~256x more false
+    // positives (button+serial only). (Fix 2026-10-03.)
+    if(checksum != honda_static_get_bits(reversed, 56, 8)) return false;
     if(!honda_static_is_valid_button(button)) return false;
     if(!honda_static_is_valid_serial(serial)) return false;
 

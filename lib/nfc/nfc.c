@@ -1,6 +1,7 @@
 #ifndef FW_CFG_unit_tests
 
 #include "nfc.h"
+#include "nfc_group_manager.h"
 #include <core/kernel.h>
 
 #include <furi_hal_nfc.h>
@@ -259,6 +260,11 @@ Nfc* nfc_alloc(void) {
 void nfc_free(Nfc* instance) {
     furi_check(instance);
     furi_check(instance->state == NfcStateIdle);
+
+    /* FoxFW NFC externalization: unload all on-demand protocol groups so their
+     * RAM is returned when the NFC app (this Nfc instance) closes. NFC is an
+     * exclusive HAL resource, so only one Nfc instance is ever live. */
+    nfc_group_manager_reset();
 
     furi_kernel_lock();
     furi_thread_free(instance->worker_thread);

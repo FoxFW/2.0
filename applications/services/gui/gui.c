@@ -594,6 +594,19 @@ void gui_remove_view_port(Gui* gui, ViewPort* view_port) {
             }
         }
     }
+    /* FoxFW: hand a layer's backing back to the heap once it becomes empty.
+     * mlib arrays keep their capacity after _remove, so the first fullscreen
+     * app of a boot would otherwise strand its layer-array backing high in the
+     * heap for the rest of the session (the max free block never fully recovers
+     * on app close). Freeing an emptied layer makes an app return ALL of its
+     * heap; a later app simply reallocates on its next push. Populated layers
+     * (desktop, status bar) are never empty, so they are untouched. */
+    for(size_t gi = 0; gi < GuiLayerMAX; gi++) {
+        if(ViewPortArray_empty_p(gui->layers[gi])) {
+            ViewPortArray_clear(gui->layers[gi]);
+            ViewPortArray_init(gui->layers[gi]);
+        }
+    }
     if(gui->ongoing_input_view_port == view_port) {
         gui->ongoing_input_view_port = NULL;
     }

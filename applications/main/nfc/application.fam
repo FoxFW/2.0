@@ -8,11 +8,114 @@ App(
     stack_size=8 * 1024,
     order=10,
     resources="resources",
-    sources=["*.c*", "!plugins", "!nfc_cli.c", "!cli"],
+    sources=["*.c*", "!plugins", "!nfc_cli.c", "!cli", "!felica_group_plugin.c", "!nfc_groups"],
     fap_libs=["assets", "mbedtls"],
     fap_icon="icon.png",
     fap_icon_assets="icons",
     fap_category="NFC",
+)
+
+# FoxFW NFC externalization: engine-loaded Felica protocol group. The firmware
+# NFC engine (lib/nfc/nfc_group_manager.c) loads this .fal from
+# apps_data/nfc/plugins/ on demand to obtain Felica's poller/listener/device
+# vtables (removed from the static firmware registries). Bundles the full,
+# byte-identical Felica stack so it is self-contained; mbedtls_des3 resolves
+# from the firmware API. NOT fal_embedded - it is a standalone .fal the FIRMWARE
+# loads, like radio_device_cc1101_ext, not an app-embedded plugin.
+App(
+    appid="grp_nfc_felica",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="grp_nfc_felica_ep",
+    targets=["f7"],
+    requires=["nfc"],
+    sources=[
+        "felica_group_plugin.c",
+        "felica_bundle/*.c*",
+    ],
+)
+
+App(
+    appid="grp_nfc_emv",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="grp_nfc_emv_ep",
+    targets=["f7"],
+    requires=["nfc"],
+    sources=[
+        "nfc_groups/emv_group_plugin.c",
+        "nfc_groups/emv_bundle/*.c*",
+    ],
+)
+
+App(
+    appid="grp_nfc_mf_plus",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="grp_nfc_mf_plus_ep",
+    targets=["f7"],
+    requires=["nfc"],
+    sources=[
+        "nfc_groups/mf_plus_group_plugin.c",
+        "nfc_groups/mf_plus_bundle/*.c*",
+    ],
+)
+
+App(
+    appid="grp_nfc_slix",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="grp_nfc_slix_ep",
+    targets=["f7"],
+    requires=["nfc"],
+    sources=[
+        "nfc_groups/slix_group_plugin.c",
+        "nfc_groups/slix_bundle/*.c*",
+    ],
+)
+
+App(
+    appid="grp_nfc_st25tb",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="grp_nfc_st25tb_ep",
+    targets=["f7"],
+    requires=["nfc"],
+    sources=[
+        "nfc_groups/st25tb_group_plugin.c",
+        "nfc_groups/st25tb_bundle/*.c*",
+    ],
+)
+
+App(
+    appid="grp_nfc_mf_desfire",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="grp_nfc_mf_desfire_ep",
+    targets=["f7"],
+    requires=["nfc"],
+    sources=[
+        "nfc_groups/mf_desfire_group_plugin.c",
+        "nfc_groups/mf_desfire_bundle/*.c*",
+    ],
+)
+
+App(
+    appid="grp_nfc_ntag4xx",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="grp_nfc_ntag4xx_ep",
+    targets=["f7"],
+    requires=["nfc"],
+    sources=[
+        "nfc_groups/ntag4xx_group_plugin.c",
+        "nfc_groups/ntag4xx_bundle/*.c*",
+    ],
+)
+
+App(
+    appid="grp_nfc_type_4_tag",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="grp_nfc_type_4_tag_ep",
+    targets=["f7"],
+    requires=["nfc"],
+    sources=[
+        "nfc_groups/type_4_tag_group_plugin.c",
+        "nfc_groups/type_4_tag_bundle/*.c*",
+    ],
 )
 
 # Protocol support plugins
@@ -88,6 +191,7 @@ App(
     sources=[
         "helpers/protocol_support/felica/*.c",
         "helpers/felica_*.c",
+        "felica_bundle/*.c*",
     ],
     fal_embedded=False,
 )
@@ -132,6 +236,7 @@ App(
         "helpers/protocol_support/iso14443_4a/*.c",
         "helpers/protocol_support/iso14443_3a/*.c",
         "helpers/mf_plus_key_cache.c",
+        "nfc_groups/mf_plus_bundle/*.c*",
     ],
     fal_embedded=True,
     fap_exclude_libs=["gcc"],
@@ -147,6 +252,7 @@ App(
         "helpers/protocol_support/mf_desfire/*.c",
         "helpers/protocol_support/iso14443_4a/*.c",
         "helpers/protocol_support/iso14443_3a/*.c",
+        "nfc_groups/mf_desfire_bundle/*.c*",
     ],
     fal_embedded=True,
 )
@@ -160,6 +266,7 @@ App(
     sources=[
         "helpers/protocol_support/slix/*.c",
         "helpers/protocol_support/iso15693_3/*.c",
+        "nfc_groups/slix_bundle/*.c*",
     ],
     fal_embedded=True,
 )
@@ -172,6 +279,7 @@ App(
     requires=["nfc"],
     sources=[
         "helpers/protocol_support/st25tb/*.c",
+        "nfc_groups/st25tb_bundle/*.c*",
     ],
     fal_embedded=True,
 )
@@ -187,6 +295,7 @@ App(
         "helpers/protocol_support/ntag4xx/*.c",
         "helpers/protocol_support/iso14443_4a/*.c",
         "helpers/protocol_support/iso14443_3a/*.c",
+        "nfc_groups/ntag4xx_bundle/*.c*",
     ],
     fal_embedded=True,
 )
@@ -200,6 +309,7 @@ App(
         "helpers/protocol_support/type_4_tag/*.c",
         "helpers/protocol_support/iso14443_4a/*.c",
         "helpers/protocol_support/iso14443_3a/*.c",
+        "nfc_groups/type_4_tag_bundle/*.c*",
     ],
     fal_embedded=True,
 )
@@ -278,7 +388,7 @@ App(
     entry_point="opal_plugin_ep",
     targets=["f7"],
     requires=["nfc"],
-    sources=["plugins/supported_cards/opal.c"],
+    sources=["plugins/supported_cards/opal.c", "nfc_groups/mf_desfire_bundle/*.c*"],
 )
 
 App(
@@ -287,7 +397,7 @@ App(
     entry_point="myki_plugin_ep",
     targets=["f7"],
     requires=["nfc"],
-    sources=["plugins/supported_cards/myki.c"],
+    sources=["plugins/supported_cards/myki.c", "nfc_groups/mf_desfire_bundle/*.c*"],
 )
 
 App(
@@ -296,7 +406,7 @@ App(
     entry_point="troika_plugin_ep",
     targets=["f7"],
     requires=["nfc"],
-    sources=["plugins/supported_cards/troika.c"],
+    sources=["plugins/supported_cards/troika.c", "plugins/supported_cards/mosgortrans/mosgortrans_util.c"],
 )
 
 App(
@@ -305,7 +415,7 @@ App(
     entry_point="social_moscow_plugin_ep",
     targets=["f7"],
     requires=["nfc"],
-    sources=["plugins/supported_cards/social_moscow.c"],
+    sources=["plugins/supported_cards/social_moscow.c", "plugins/supported_cards/mosgortrans/mosgortrans_util.c"],
 )
 
 App(
@@ -442,7 +552,7 @@ App(
     entry_point="clipper_plugin_ep",
     targets=["f7"],
     requires=["nfc"],
-    sources=["plugins/supported_cards/clipper.c"],
+    sources=["plugins/supported_cards/clipper.c", "nfc_groups/mf_desfire_bundle/*.c*"],
 )
 
 App(
@@ -518,7 +628,7 @@ App(
     entry_point="itso_plugin_ep",
     targets=["f7"],
     requires=["nfc"],
-    sources=["plugins/supported_cards/itso.c"],
+    sources=["plugins/supported_cards/itso.c", "nfc_groups/mf_desfire_bundle/*.c*"],
 )
 
 App(
@@ -630,6 +740,7 @@ App(
         "cli/commands/nfc_cli_command_emulate.c",
         "cli/commands/nfc_cli_command_scanner.c",
         "cli/commands/nfc_cli_command_field.c",
+        "felica_bundle/*.c*",
     ],
 )
 

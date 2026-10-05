@@ -5,6 +5,7 @@
 
 #include "nfc_common.h"
 #include "protocols/nfc_device_defs.h"
+#include "nfc_group_manager.h"
 
 #include <core/kernel.h>
 
@@ -38,9 +39,10 @@ void nfc_device_clear(NfcDevice* instance) {
     } else if(instance->protocol < NfcProtocolNum) {
         if(instance->protocol_data) {
             furi_kernel_lock();
-            nfc_devices[instance->protocol]->free(instance->protocol_data);
+            nfc_device_get_base(instance->protocol)->free(instance->protocol_data);
             furi_kernel_unlock();
             instance->protocol_data = NULL;
+            nfc_group_release(instance->protocol);
         }
         instance->protocol = NfcProtocolInvalid;
     }
@@ -51,7 +53,7 @@ void nfc_device_reset(NfcDevice* instance) {
     furi_check(instance->protocol < NfcProtocolNum);
 
     if(instance->protocol_data) {
-        nfc_devices[instance->protocol]->reset(instance->protocol_data);
+        nfc_device_get_base(instance->protocol)->reset(instance->protocol_data);
     }
 }
 
@@ -68,14 +70,14 @@ const NfcDeviceData* nfc_device_get_data(const NfcDevice* instance, NfcProtocol 
 const char* nfc_device_get_protocol_name(NfcProtocol protocol) {
     furi_check(protocol < NfcProtocolNum);
 
-    return nfc_devices[protocol]->protocol_name;
+    return nfc_protocol_get_name(protocol);
 }
 
 const char* nfc_device_get_name(const NfcDevice* instance, NfcDeviceNameType name_type) {
     furi_check(instance);
     furi_check(instance->protocol < NfcProtocolNum);
 
-    return nfc_devices[instance->protocol]->get_name(instance->protocol_data, name_type);
+    return nfc_device_get_base(instance->protocol)->get_name(instance->protocol_data, name_type);
 }
 
 const uint8_t* nfc_device_get_uid(const NfcDevice* instance, size_t* uid_len) {
@@ -83,7 +85,7 @@ const uint8_t* nfc_device_get_uid(const NfcDevice* instance, size_t* uid_len) {
     furi_check(uid_len);
     furi_check(instance->protocol < NfcProtocolNum);
 
-    return nfc_devices[instance->protocol]->get_uid(instance->protocol_data, uid_len);
+    return nfc_device_get_base(instance->protocol)->get_uid(instance->protocol_data, uid_len);
 }
 
 bool nfc_device_set_uid(NfcDevice* instance, const uint8_t* uid, size_t uid_len) {
@@ -91,7 +93,7 @@ bool nfc_device_set_uid(NfcDevice* instance, const uint8_t* uid, size_t uid_len)
     furi_check(uid);
     furi_check(instance->protocol < NfcProtocolNum);
 
-    return nfc_devices[instance->protocol]->set_uid(instance->protocol_data, uid, uid_len);
+    return nfc_device_get_base(instance->protocol)->set_uid(instance->protocol_data, uid, uid_len);
 }
 
 void nfc_device_set_data(
@@ -104,10 +106,11 @@ void nfc_device_set_data(
 
     nfc_device_clear(instance);
 
+    nfc_group_ensure_loaded(protocol);
     instance->protocol = protocol;
-    instance->protocol_data = nfc_devices[protocol]->alloc();
+    instance->protocol_data = nfc_device_get_base(protocol)->alloc();
 
-    nfc_devices[protocol]->copy(instance->protocol_data, protocol_data);
+    nfc_device_get_base(protocol)->copy(instance->protocol_data, protocol_data);
 }
 
 void nfc_device_copy_data(
@@ -122,7 +125,7 @@ void nfc_device_copy_data(
         furi_crash(NFC_DEV_TYPE_ERROR);
     }
 
-    nfc_devices[protocol]->copy(protocol_data, instance->protocol_data);
+    nfc_device_get_base(protocol)->copy(protocol_data, instance->protocol_data);
 }
 
 bool nfc_device_is_equal_data(
@@ -134,7 +137,7 @@ bool nfc_device_is_equal_data(
     furi_check(protocol_data);
 
     return instance->protocol == protocol &&
-           nfc_devices[protocol]->is_equal(instance->protocol_data, protocol_data);
+           nfc_device_get_base(protocol)->is_equal(instance->protocol_data, protocol_data);
 }
 
 bool nfc_device_is_equal(const NfcDevice* instance, const NfcDevice* other) {
@@ -178,7 +181,7 @@ bool nfc_device_save(NfcDevice* instance, const char* path) {
 
         furi_string_printf(temp_str, "%s can be ", NFC_DEVICE_TYPE_KEY);
         for(NfcProtocol protocol = 0; protocol < NfcProtocolNum; ++protocol) {
-            furi_string_cat(temp_str, nfc_devices[protocol]->protocol_name);
+            furi_string_cat(temp_str, nfc_protocol_get_name(protocol));
             if(protocol < NfcProtocolNum - 1) {
                 furi_string_cat(temp_str, ", ");
             }
@@ -187,7 +190,7 @@ bool nfc_device_save(NfcDevice* instance, const char* path) {
         if(!flipper_format_write_comment(ff, temp_str)) break;
 
         if(!flipper_format_write_string_cstr(
-               ff, NFC_DEVICE_TYPE_KEY, nfc_devices[instance->protocol]->protocol_name))
+               ff, NFC_DEVICE_TYPE_KEY, nfc_protocol_get_name(instance->protocol)))
             break;
 
         furi_string_printf(temp_str, "%s is common for all formats", NFC_DEVICE_UID_KEY);
@@ -197,7 +200,7 @@ bool nfc_device_save(NfcDevice* instance, const char* path) {
         const uint8_t* uid = nfc_device_get_uid(instance, &uid_len);
         if(!flipper_format_write_hex(ff, NFC_DEVICE_UID_KEY, uid, uid_len)) break;
 
-        if(!nfc_devices[instance->protocol]->save(instance->protocol_data, ff)) break;
+        if(!nfc_device_get_base(instance->protocol)->save(instance->protocol_data, ff)) break;
 
         saved = true;
     } while(false);
@@ -244,7 +247,7 @@ static bool nfc_device_load_unified(NfcDevice* instance, FlipperFormat* ff, uint
 
         NfcProtocol protocol;
         for(protocol = 0; protocol < NfcProtocolNum; ++protocol) {
-            if(furi_string_equal(temp_str, nfc_devices[protocol]->protocol_name)) {
+            if(furi_string_equal(temp_str, nfc_protocol_get_name(protocol))) {
                 break;
             }
         }
@@ -253,8 +256,9 @@ static bool nfc_device_load_unified(NfcDevice* instance, FlipperFormat* ff, uint
 
         nfc_device_clear(instance);
 
+        if(!nfc_group_ensure_loaded(protocol)) break;
         instance->protocol = protocol;
-        instance->protocol_data = nfc_devices[protocol]->alloc();
+        instance->protocol_data = nfc_device_get_base(protocol)->alloc();
 
         uint8_t uid[NFC_DEVICE_UID_MAX_LEN];
         uint32_t uid_len;
@@ -262,7 +266,7 @@ static bool nfc_device_load_unified(NfcDevice* instance, FlipperFormat* ff, uint
         if(!nfc_device_load_uid(ff, uid, &uid_len, NFC_DEVICE_UID_MAX_LEN)) break;
         if(!nfc_device_set_uid(instance, uid, uid_len)) break;
 
-        if(!nfc_devices[protocol]->load(instance->protocol_data, ff, version)) break;
+        if(!nfc_device_get_base(protocol)->load(instance->protocol_data, ff, version)) break;
 
         loaded = true;
     } while(false);
@@ -287,16 +291,17 @@ static bool nfc_device_load_legacy(NfcDevice* instance, FlipperFormat* ff, uint3
         nfc_device_clear(instance);
 
         for(NfcProtocol protocol = 0; protocol < NfcProtocolNum; protocol++) {
+            if(!nfc_group_ensure_loaded(protocol)) continue;
             instance->protocol = protocol;
-            instance->protocol_data = nfc_devices[protocol]->alloc();
+            instance->protocol_data = nfc_device_get_base(protocol)->alloc();
 
-            if(nfc_devices[protocol]->verify(instance->protocol_data, temp_str)) {
+            if(nfc_device_get_base(protocol)->verify(instance->protocol_data, temp_str)) {
                 uint8_t uid[NFC_DEVICE_UID_MAX_LEN];
                 uint32_t uid_len;
 
                 loaded = nfc_device_load_uid(ff, uid, &uid_len, NFC_DEVICE_UID_MAX_LEN) &&
                          nfc_device_set_uid(instance, uid, uid_len) &&
-                         nfc_devices[protocol]->load(instance->protocol_data, ff, version);
+                         nfc_device_get_base(protocol)->load(instance->protocol_data, ff, version);
                 break;
             }
 

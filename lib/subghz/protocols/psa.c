@@ -497,10 +497,14 @@ __attribute__((optimize("O3"))) static bool psa_brute_force_decrypt_bf2(SubGhzPr
         if((counter & 0xFFFFFF) == (dec_v0 >> 8)) {
             psa_unpack_tea_result_to_buffer(buffer, dec_v0, dec_v1);
 
+            // CRC-16/BUYPASS input is natural big-endian; the two middle dec_v0
+            // bytes must NOT be swapped. (Fix 2026-10-03: they were, so a genuine
+            // type-0x36 BF2 frame never validated. Confirmed against the
+            // Ghidra-reconstructed authoritative psa2.c and a host round-trip.)
             uint8_t crc_buffer[6] = {
                 (uint8_t)((dec_v0 >> 24) & 0xFF),
-                (uint8_t)((dec_v0 >> 8) & 0xFF),
                 (uint8_t)((dec_v0 >> 16) & 0xFF),
+                (uint8_t)((dec_v0 >> 8) & 0xFF),
                 (uint8_t)(dec_v0 & 0xFF),
                 (uint8_t)((dec_v1 >> 24) & 0xFF),
                 (uint8_t)((dec_v1 >> 16) & 0xFF),

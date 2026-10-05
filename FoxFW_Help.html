@@ -498,6 +498,15 @@
     every Flipper Zero app. Multi-app repos are supported via an advanced "subfolder" option.
   </div>
 
+  <h3 id="web-statistics">Statistics</h3>
+  <p>
+    The Web Installer, the ESP32 Web Flasher and the FAP Compiler each have a
+    <strong>Statistics</strong> bar at the bottom of the page. Click it to see
+    public, anonymous counts by month, day and country, and on the FAP
+    Compiler the most compiled and most recently compiled apps. No IP
+    addresses, cookies, device IDs or personal details are stored.
+  </p>
+
   <div class="back-top"><a href="#top">↑ Back to top</a></div>
 </section>
 
@@ -1506,7 +1515,8 @@
 
   <div class="box info">
     <strong>Compatible boards.</strong> ESP32 Classic (WROOM-32 / DevKit), ESP32-S3,
-    ESP32-S2, ESP32-C3, ESP32-C5, and ESP32-C6 are all supported. See the
+    ESP32-S2 (including the official Flipper Wi-Fi Dev Board), ESP32-C3, ESP32-C5,
+    and ESP32-C6 are all supported. Both flashers detect which chip you have. See the
     <a href="FoxESP32_Help.html" style="color:#80c890;">Fox ESP32 Firmware guide</a>
     for full wiring diagrams, board-specific notes, and the complete command reference.
   </div>
@@ -2166,12 +2176,18 @@
     <tr><td>PSA (Peugeot / Citroën / DS)</td><td>PSA GROUP</td><td>433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Ford</td><td>Ford V0</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Ford</td><td>Ford V1</td><td>315 / 433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Ford</td><td>Ford V2</td><td>315 / 433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Ford</td><td>Ford V3</td><td>315 / 433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>—</td></tr>
     <tr><td>General Motors (Chevrolet / GMC / Buick / Cadillac)</td><td>GM</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
     <tr><td>Fiat</td><td>Fiat SpA</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
-    <tr><td>Fiat</td><td>Marelli / Delphi</td><td>433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>✓</td></tr>
-    <tr><td>Renault (older models)</td><td>Marelli</td><td>433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>—</td></tr>
+    <tr><td>Fiat</td><td>Fiat V0 (type 0)</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Fiat</td><td>Fiat V1 (Hitag2 BCM)</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Fiat</td><td>Fiat V2 (Hitag2)</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Fiat</td><td>Marelli / Delphi</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Renault (older models)</td><td>Marelli</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
     <tr><td>Renault (Hitag2)</td><td>Renault V1</td><td>315 / 433 / 868 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
     <tr><td>Mazda</td><td>Siemens 5WK49365D</td><td>315 / 433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Mazda</td><td>Mazda V0</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Kia / Hyundai</td><td>KIA/HYU V0</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Kia / Hyundai</td><td>KIA/HYU V1</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Kia / Hyundai</td><td>KIA/HYU V2</td><td>315 / 433 MHz</td><td>AM/FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
@@ -2190,6 +2206,7 @@
     <tr><td>Scher-Khan</td><td>Scher-Khan</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>—</td></tr>
     <tr><td>Scher-Khan</td><td>Magic Code PRO1 / PRO2</td><td>433 MHz</td><td>FM</td><td>✓</td><td>✓</td><td>✓</td></tr>
     <tr><td>Sheriff</td><td>Sheriff CFM ZX750 / ZX930</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
+    <tr><td>Toyota</td><td>Toyota</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
   </table>
 
   <h3>Tire Pressure Monitoring (TPMS) <span class="badge">Standalone App</span></h3>
@@ -2249,6 +2266,7 @@
     <tr><td>CAME TWEE</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>5 · Italian Brands 1</td></tr>
     <tr><td>CAME Atomo</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>5 · Italian Brands 1</td></tr>
     <tr><td>Faac SLH</td><td>433 / 868 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>7 · Italian Brands 3</td></tr>
+    <tr><td>Genius (Faac SLH family)</td><td>433 / 868 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>7 · Italian Brands 3</td></tr>
     <tr><td>Telcoma/Cardin EDGE</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>7 · Italian Brands 3</td></tr>
     <tr><td>Holtek</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>1 · General</td></tr>
     <tr><td>Holtek HT12x</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>1 · General</td></tr>
@@ -2263,6 +2281,10 @@
     <tr><td>Marantec24</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td><td>9 · Germany</td></tr>
     <tr><td>GangQi</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>10 · China / Gate Only</td></tr>
     <tr><td>Jarolift</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>11 · Blinds / Shutters</td></tr>
+    <tr><td>Nord ICE</td><td>433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>—</td><td>12 · More Gates 1</td></tr>
+    <tr><td>Allstar / Firefly</td><td>315 MHz</td><td>AM</td><td>—</td><td>✓</td><td>—</td><td>12 · More Gates 1</td></tr>
+    <tr><td>Prastel</td><td>315 / 433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>—</td><td>12 · More Gates 1</td></tr>
+    <tr><td>Ditec GOL4</td><td>433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>—</td><td>13 · More Gates 2</td></tr>
   </table>
 
   <h3>General RF Protocols <span class="badge">Garage/Gate/Other</span></h3>

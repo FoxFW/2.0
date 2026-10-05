@@ -128,10 +128,17 @@ and 868 MHz bands commonly used in automotive applications.
 | PSA (Peugeot / Citroën / DS) | PSA GROUP | 433 MHz | AM/FM | ✓ | ✓ | ✓ |
 | Ford | Ford V0 | 315 / 433 MHz | AM | ✓ | ✓ | ✓ |
 | Ford | Ford V1 | 315 / 433 MHz | FM | ✓ | ✓ | ✓ |
+| Ford | Ford V2 | 315 / 433 MHz | FM | ✓ | ✓ | — |
+| Ford | Ford V3 | 315 / 433 MHz | AM/FM | ✓ | ✓ | — |
 | Fiat | Fiat SpA | 433 MHz | AM | ✓ | ✓ | ✓ |
-| Fiat | Marelli / Delphi | 433 MHz | AM | — | ✓ | ✓ |
-| Renault (older models) | Marelli | 433 MHz | AM | — | ✓ | — |
+| Fiat | Fiat V0 (type 0) | 315 / 433 MHz | AM | ✓ | ✓ | ✓ |
+| Fiat | Fiat V1 (Hitag2 BCM) | 315 / 433 MHz | AM | ✓ | ✓ | — |
+| Fiat | Fiat V2 (Hitag2) | 315 / 433 MHz | AM | ✓ | ✓ | — |
+| Fiat | Marelli / Delphi | 433 MHz | AM | ✓ | ✓ | ✓ |
+| Renault (older models) | Marelli | 433 MHz | AM | ✓ | ✓ | — |
+| Renault | Renault V1 | 315 / 433 / 868 MHz | AM | ✓ | ✓ | — |
 | Mazda | Siemens 5WK49365D | 315 / 433 MHz | AM/FM | ✓ | ✓ | ✓ |
+| Mazda | Mazda V0 | 433 MHz | FM | ✓ | ✓ | ✓ |
 | Kia / Hyundai | KIA/HYU V0 | 433 MHz | FM | ✓ | ✓ | ✓ |
 | Kia / Hyundai | KIA/HYU V1 | 315 / 433 MHz | AM | ✓ | ✓ | ✓ |
 | Kia / Hyundai | KIA/HYU V2 | 315 / 433 MHz | AM/FM | ✓ | ✓ | ✓ |
@@ -150,6 +157,8 @@ and 868 MHz bands commonly used in automotive applications.
 | Scher-Khan | Scher-Khan | 433 MHz | FM | ✓ | ✓ | — |
 | Scher-Khan | Magic Code PRO1 / PRO2 | 433 MHz | FM | ✓ | ✓ | ✓ |
 | Sheriff | Sheriff CFM ZX750 / ZX930 | 433 MHz | AM | ✓ | ✓ | — |
+| GM / Chevrolet | GM | 315 / 433 MHz | AM | ✓ | ✓ | — |
+| Toyota | Toyota | 315 / 433 MHz | AM | ✓ | ✓ | — |
 
 ### Gate & Access Control Protocols
 
@@ -162,6 +171,7 @@ and 868 MHz bands commonly used in automotive applications.
 | CAME TWEE | 433 MHz | AM | ✓ | ✓ | — |
 | CAME Atomo | 433 MHz | AM | ✓ | ✓ | — |
 | Faac SLH | 433 / 868 MHz | AM | ✓ | ✓ | — |
+| Genius (Faac SLH family) | 433 / 868 MHz | AM | ✓ | ✓ | — |
 | Holtek | 433 MHz | AM | ✓ | ✓ | — |
 | Holtek HT12x | 433 MHz | AM | ✓ | ✓ | — |
 | Somfy Telis | 433 MHz | AM | ✓ | ✓ | ✓ |
@@ -173,6 +183,10 @@ and 868 MHz bands commonly used in automotive applications.
 | Hormann HSM | 433 / 868 MHz | AM | ✓ | ✓ | — |
 | Marantec | 433 MHz | AM | ✓ | ✓ | ✓ |
 | Marantec24 | 433 MHz | AM | ✓ | ✓ | ✓ |
+| Nord ICE | 433 MHz | AM | — | ✓ | — |
+| Allstar / Firefly | 315 MHz | AM | — | ✓ | — |
+| Ditec GOL4 | 433 MHz | AM | — | ✓ | — |
+| Prastel | 315 / 433 MHz | AM | — | ✓ | — |
 
 ### General RF Protocols
 

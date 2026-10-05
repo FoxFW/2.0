@@ -19,7 +19,17 @@ void nyx_scene_splash_on_enter(void* context) {
         return;
     }
 
+    if(!app->settings.intro) {
+        /* Turned off in Settings. Post the event instead of switching scenes
+         * here: on_enter runs inside the scene manager, and navigating from it
+         * unwinds the stack underneath the call that is still running. No view
+         * is shown in the meantime, so the menu simply comes straight up. */
+        view_dispatcher_send_custom_event(app->view_dispatcher, NyxCustomEventSplashDone);
+        return;
+    }
+
     splash_view_set_done_callback(app->splash_view, nyx_splash_done_cb, app);
+    splash_view_reset(app->splash_view);
     view_dispatcher_switch_to_view(app->view_dispatcher, NyxViewSplash);
 }
 

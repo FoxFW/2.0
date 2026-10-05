@@ -15,3 +15,7 @@ void splash_view_set_done_callback(SplashView* v, SplashViewCallback cb, void* c
 /* Advance the animation one frame. Returns true once the intro is complete, so
  * the scene can move on without a second timer. */
 bool splash_view_tick(SplashView* v);
+
+/* Rewind to frame 0. The view outlives the scene, so a second visit would
+ * otherwise start past the end of the animation and show nothing. */
+void splash_view_reset(SplashView* v);

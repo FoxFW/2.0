@@ -371,6 +371,43 @@ App(
     fal_embedded=True,
 )
 
+# Groups 12 & 13 (new 2026-10-03): the four Unleashed gate decoders, split out of
+# g7 into their own groups so no single group's .fal exceeds the ~20 KB size
+# envelope (a group load costs ~15.5 KB heap at Read time). RX-only like the rest.
+App(
+    appid="grp_g12",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="subghz_garage_protocol_plugin_g12_ep",
+    requires=["subghz_garage"],
+    cdefines=["SUBGHZ_GARAGE_RX_ONLY=1", "SUBGHZ_GARAGE_HAS_GENERIC_GLOBAL=1", "SUBGHZ_GARAGE_HAS_BINRAW_TYPE=1"],
+    sources=[
+        "protocols/plugins/subghz_garage_protocol_plugin_g12.c",
+        "protocols/protocols_common.c",
+        "protocols/raw.c",
+        "protocols/bin_raw.c",
+        "protocols/nord_ice.c",
+        "protocols/allstar_firefly.c",
+        "protocols/prastel.c",
+    ],
+    fal_embedded=True,
+)
+
+App(
+    appid="grp_g13",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="subghz_garage_protocol_plugin_g13_ep",
+    requires=["subghz_garage"],
+    cdefines=["SUBGHZ_GARAGE_RX_ONLY=1", "SUBGHZ_GARAGE_HAS_GENERIC_GLOBAL=1", "SUBGHZ_GARAGE_HAS_BINRAW_TYPE=1"],
+    sources=[
+        "protocols/plugins/subghz_garage_protocol_plugin_g13.c",
+        "protocols/protocols_common.c",
+        "protocols/raw.c",
+        "protocols/bin_raw.c",
+        "protocols/ditec_gol4.c",
+    ],
+    fal_embedded=True,
+)
+
 # Each of Group 1's protocols (plus RAW/BinRAW, shared by every group) gets
 # its own tiny single-protocol TX plugin carrying just that one encoder -
 # the RX group plugin is compiled RX_ONLY (no encoders at all) to keep it

@@ -310,7 +310,7 @@
       <li><a href="#web-flasher">Web Installer</a>
         <ul class="sub">
           <li><a href="#board-select">Choosing your board</a></li>
-          <li><a href="#chip-mismatch">Chip-mismatch protection</a></li>
+          <li><a href="#chip-mismatch">Wrong-board protection</a></li>
         </ul>
       </li>
       <li><a href="#hardware">Hardware Setup</a>
@@ -488,60 +488,60 @@
 
   <h3 id="board-select">Choosing your board</h3>
   <p>
-    The flasher's <strong>Model</strong> dropdown currently lists two board
-    targets. Pick the one that matches your actual ESP32 hardware — flashing
-    the wrong image for your chip family will not work (see the
-    chip-mismatch protection below, which exists specifically to catch this
-    before it happens).
+    You don't have to. The <strong>Model</strong> dropdown starts on
+    <strong>Auto-detect on connect</strong>: when you click Connect, the
+    flasher asks the chip what it is and loads the matching Fox firmware for
+    you. Leave it on auto unless you have a reason not to.
   </p>
   <table>
-    <tr><th>Board entry</th><th>Chip family</th><th>Bootloader address</th></tr>
-    <tr><td><strong>Fox ESP32 (Classic)</strong></td><td>ESP32</td><td><code>0x1000</code></td></tr>
-    <tr><td><strong>Fox ESP32-S3</strong></td><td>ESP32-S3</td><td><code>0x0</code></td></tr>
+    <tr><th>Model entry</th><th>Chip</th><th>Bootloader address</th></tr>
+    <tr><td><strong>ESP32-S2 — Flipper Wi-Fi Dev Board (official)</strong></td><td>ESP32-S2</td><td><code>0x1000</code></td></tr>
+    <tr><td><strong>ESP32 (original) — WROOM / WROVER / ESP32-CAM</strong></td><td>ESP32</td><td><code>0x1000</code></td></tr>
+    <tr><td><strong>ESP32-S3</strong></td><td>ESP32-S3</td><td><code>0x0</code></td></tr>
+    <tr><td><strong>ESP32-C3</strong></td><td>ESP32-C3</td><td><code>0x0</code></td></tr>
+    <tr><td><strong>ESP32-C5</strong></td><td>ESP32-C5</td><td><code>0x2000</code></td></tr>
+    <tr><td><strong>ESP32-C6</strong></td><td>ESP32-C6</td><td><code>0x0</code></td></tr>
   </table>
   <p>
-    Both boards flash the same four files — <strong>Bootloader</strong>,
+    Every board flashes the same four files — <strong>Bootloader</strong>,
     <strong>Partitions</strong>, <strong>Boot App0</strong>, and
     <strong>Firmware</strong> — at the same addresses except for the
-    bootloader itself, whose address differs by chip family (classic ESP32
-    boots its bootloader from a different flash offset than S-series/C-series
-    chips do). If the board's firmware set isn't hosted online yet, the
-    flasher tells you so in the console and lets you pick each of the four
-    <code>.bin</code> files manually from your computer instead.
+    bootloader itself, whose address differs by chip family. The flasher
+    fills these in for you.
   </p>
   <div class="box info">
-    <strong>ESP32-C3/C6/C2/C5/H2 and other variants</strong> aren't listed as
-    ready-made board entries yet, but the underlying firmware is expected to
-    work on them (same Arduino APIs via arduino-esp32's RISC-V toolchain
-    support) — see <a href="#hardware" style="color:inherit;">Hardware Setup</a>
-    for what changes per chip. If you compile for one of these yourself, you
-    can still flash it with this tool using the manual file picker; just pick
-    the correct bootloader address for your chip.
+    <strong>The official Flipper Wi-Fi Dev Board is an ESP32-S2</strong>, not
+    an "ESP32 Dev Module". It has no USB-to-serial chip, so it has to be put
+    in bootloader mode by hand before the browser can see it: hold
+    <strong>BOOT</strong>, tap <strong>RESET</strong>, release
+    <strong>BOOT</strong>, then click Connect.
   </div>
 
   <h3>Step by step</h3>
   <ol>
     <li>Open the Web Flasher link above in Chrome or Edge on desktop.</li>
-    <li>Pick your board in the <strong>Model</strong> dropdown.</li>
-    <li>If prompted, choose each of the four firmware files manually (Bootloader / Partitions / Boot App0 / Firmware) — these are the files you built with Arduino IDE's <strong>Sketch → Export Compiled Binary</strong>, see <a href="#hardware" style="color:inherit;">Hardware Setup</a>.</li>
-    <li>Plug your ESP32 into your computer via USB and set the <strong>Baud rate</strong> dropdown (defaults to 115200 — leave this as-is unless you know you need otherwise).</li>
+    <li>Plug your ESP32 into your computer with a USB <strong>data</strong> cable. Flipper Wi-Fi Dev Board: hold <strong>BOOT</strong>, tap <strong>RESET</strong>, release <strong>BOOT</strong>.</li>
     <li>Click <strong>Connect</strong> and pick your device from the browser's own serial port picker.</li>
-    <li>Once connected, confirm the detected chip matches your selected board (the flasher checks this automatically).</li>
-    <li>Click <strong>Program</strong>. A progress bar tracks each of the four files as they're written.</li>
-    <li>When it finishes, the ESP32 resets automatically. The flasher then locks Program/Erase again until you disconnect and reconnect — this is expected, not an error.</li>
+    <li>The flasher identifies the chip, selects the matching board and downloads the Fox firmware for it. The hint under the Connect button tells you when it's ready.</li>
+    <li>Click <strong>Program</strong>. A progress bar tracks each of the four files as they're written, and each one is read back and verified.</li>
+    <li>When it finishes, the board restarts into the new firmware and the flasher disconnects. If the board doesn't come up, press <strong>RESET</strong> once or unplug and replug it.</li>
   </ol>
-
-  <h3 id="chip-mismatch">Chip-mismatch protection</h3>
   <p>
-    When you click Connect, the flasher reads back the ESP32's own
-    self-reported chip identity and compares it against the board you
-    selected. If they don't match, the status pill turns red, the console
-    explains exactly what was selected versus what was detected, and the
-    <strong>Program</strong> button is disabled so you can't accidentally
-    write a classic-ESP32 image to an S3 board (or vice versa) — mismatched
-    firmware for the wrong chip family simply won't boot. <strong>Erase</strong>
-    stays available even on a mismatch, since erasing doesn't write anything
-    board-specific and can help you start clean if you picked wrong.
+    To flash your own build instead, switch to the <strong>Select Custom
+    Firmware Files</strong> tab and choose each of the four files
+    (the ones Arduino IDE's <strong>Sketch → Export Compiled Binary</strong>
+    produces, see <a href="#hardware" style="color:inherit;">Hardware Setup</a>).
+  </p>
+
+  <h3 id="chip-mismatch">Wrong-board protection</h3>
+  <p>
+    The chip that answers on the port always decides which firmware is used.
+    If you picked a model by hand and it doesn't match the connected chip,
+    the flasher switches to the right one and says so in the console; while
+    a board is connected it won't let you switch to another chip's firmware.
+    Custom files are checked too: an image built for a different chip is
+    refused before anything is written, because it would leave the board
+    unable to start.
   </p>
 
   <h3>Erasing the flash</h3>
@@ -550,6 +550,21 @@
     a confirmation prompt first. This is useful if a previous flash left the
     board in a bad state, or before switching a board between firmware
     projects.
+  </p>
+
+  <h3 id="web-statistics">Statistics</h3>
+  <p>
+    At the bottom of the Web Flasher there is a <strong>Statistics</strong>
+    bar. Click it to see how many installs have finished, by month, day,
+    country, chip, firmware version, connection type, operating system and
+    browser, and where failed attempts stopped. Use <strong>&lt;</strong> and
+    <strong>&gt;</strong> to move between months. The same panel is on the
+    FoxFW Web Installer and the FAP Compiler, where it also lists the most
+    compiled and most recently compiled apps.
+  </p>
+  <p>
+    The numbers are public and anonymous: each install adds one to a counter.
+    No IP addresses, cookies, device IDs or personal details are stored.
   </p>
 
   <h3 id="fox-esp32-flasher">Flashing via Flipper Zero (no PC required)</h3>
@@ -568,20 +583,26 @@
       On your Flipper go to <strong>Apps → Fox → Fox ESP32 Flasher</strong>.
     </li>
     <li>
-      The app detects your connected ESP32 automatically. If nothing is found,
-      check your wiring and try again.
+      The app looks for an ESP32 in boot mode. If it asks, hold
+      <strong>BOOT</strong> on the ESP32, tap <strong>RST</strong>, then
+      release <strong>BOOT</strong>. If nothing is found, check your wiring
+      and try again.
     </li>
     <li>
-      Select <strong>Flash Firmware</strong>, then choose your board type from
-      the list.
+      Select <strong>Install</strong>. The <strong>Select Board</strong>
+      screen starts on <strong>Auto Detect</strong> — leave it there. The app
+      reads the chip type from the ESP32 itself and installs the matching
+      firmware, so a wrong pick can't put another chip's firmware on your
+      board. (The official Flipper Wi-Fi Dev Board is an ESP32-S2.)
     </li>
     <li>
-      Confirm the firmware files shown and press <strong>Flash</strong>. The app
-      writes the bootloader, partition table, and firmware in a single pass and
-      shows a progress bar.
+      Press <strong>Install</strong>. The app writes the bootloader,
+      partition table, and firmware in a single pass and shows a progress
+      bar.
     </li>
     <li>
-      Press <strong>Done</strong> when complete — the ESP32 resets automatically.
+      When it finishes, the result screen names the chip it installed on and
+      the ESP32 resets automatically.
     </li>
   </ol>
   <div class="box tip">
@@ -1353,17 +1374,20 @@
   <p>
     Choosing <strong>Fox ESP32 Firmware</strong> adds one extra screen before
     the check begins: <strong>Select Board</strong>. Use Left/Right to cycle
-    through the six supported targets — ESP32 Classic, ESP32-S2, ESP32-S3,
-    ESP32-C3, ESP32-C5, ESP32-C6 — then Down and OK on <strong>Continue</strong>.
+    through the six supported targets — ESP32 (original), S2 (WiFi Dev
+    Board), ESP32-S3, ESP32-C3, ESP32-C5, ESP32-C6 — then Down and OK on
+    <strong>Continue</strong>.
     This tells the app which three files to fetch (bootloader, partition
     table, and firmware image are downloaded separately for this flow) and
     which board profile to hand to the flasher afterwards.
   </p>
   <div class="box warn">
-    <strong>Pick the board that matches your actual chip.</strong> Same rule
-    as the Web Flasher's chip-mismatch protection — flashing the wrong
-    board's image won't boot. If you're not sure which chip you have, check
-    the silkscreen on your dev board or the listing you bought it from.
+    <strong>Pick the board that matches your actual chip.</strong> The
+    official Flipper Wi-Fi Dev Board is an ESP32-S2. If you pick the wrong
+    one, the flasher notices when it connects, refuses the downloaded files
+    ("Files are for …") instead of writing them, and you can run the update
+    again with the right board. If you're not sure which chip you have,
+    check the silkscreen on your dev board or the listing you bought it from.
   </div>
 
   <h3>Downloading</h3>
@@ -2218,9 +2242,12 @@ repeat (3) {
   <table>
     <tr><th>Symptom</th><th>Likely cause / fix</th></tr>
     <tr><td>Connect button does nothing</td><td>Web Serial requires Chrome or Edge on desktop — Firefox and Safari don't support it, and it's not available on mobile.</td></tr>
-    <tr><td>"Mismatch: board=..., chip=..."</td><td>You selected the wrong board for your chip. Disconnect, pick the matching board, reconnect. Erase still works regardless of a mismatch if you need to start over.</td></tr>
+    <tr><td>Board isn't in the port list, or "Failed to set control signals"</td><td>Boards without a USB-to-serial chip (the Flipper Wi-Fi Dev Board and other ESP32-S2 boards) must be in bootloader mode: hold BOOT, tap RESET, release BOOT, then click Connect and pick the port. Also check the cable is a data cable.</td></tr>
+    <tr><td>"The board didn't answer"</td><td>Hold the board's BOOT button while you click Connect, and let go once it says Connected.</td></tr>
+    <tr><td>"That port is being used by something else"</td><td>Close the Arduino IDE, serial monitors, qFlipper and any other flasher tab, then Connect again.</td></tr>
+    <tr><td>"Fox ESP32 firmware isn't available for …"</td><td>The connected chip isn't one Fox ESP32 firmware is built for (ESP32, S2, S3, C3, C5, C6).</td></tr>
     <tr><td>Flashing fails partway through</td><td>Keep the browser tab in focus the entire time — backgrounding it can interrupt the serial transfer. Try a lower baud rate if it keeps failing.</td></tr>
-    <tr><td>Device unresponsive after flashing</td><td>Disconnect and reconnect in the Web Installer, then verify with <code>AT</code>/<code>info</code> from FoxHub or Detector.</td></tr>
+    <tr><td>Device unresponsive after flashing</td><td>Press RESET on the board once, or unplug and replug it — a board flashed from bootloader mode sometimes stays there until it is reset. Then verify with <code>AT</code>/<code>info</code> from FoxHub or Detector.</td></tr>
   </table>
 
   <h3>Attacks say "ERROR:DISABLED"</h3>

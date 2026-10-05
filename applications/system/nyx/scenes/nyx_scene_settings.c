@@ -64,6 +64,13 @@ static void nyx_settings_led_cb(VariableItem* item) {
     variable_item_set_current_value_text(item, idx ? "ON" : "OFF");
 }
 
+static void nyx_settings_intro_cb(VariableItem* item) {
+    NyxApp* app = variable_item_get_context(item);
+    uint8_t idx = variable_item_get_current_value_index(item);
+    app->settings.intro = idx;
+    variable_item_set_current_value_text(item, idx ? "ON" : "OFF");
+}
+
 void nyx_scene_settings_on_enter(void* context) {
     NyxApp* app = context;
     VariableItemList* list = app->var_item_list;
@@ -98,6 +105,17 @@ void nyx_scene_settings_on_enter(void* context) {
     variable_item_set_current_value_index(item, app->settings.led);
     variable_item_set_current_value_text(item, app->settings.led ? "ON" : "OFF");
 
+    /* The intro is 1.6 s you sit through every launch, and a sweep is a thing
+     * you open and re-open. Anyone who has seen it once can turn it off. */
+    item = variable_item_list_add(list, "Intro", 2, nyx_settings_intro_cb, app);
+    variable_item_set_current_value_index(item, app->settings.intro);
+    variable_item_set_current_value_text(item, app->settings.intro ? "ON" : "OFF");
+
+    /* Keep the cursor where the user left it — this list is long enough that
+     * being thrown back to the top after every visit is a real annoyance. */
+    variable_item_list_set_selected_item(
+        list, scene_manager_get_scene_state(app->scene_manager, NyxSceneSettings));
+
     view_dispatcher_switch_to_view(app->view_dispatcher, NyxViewSettings);
 }
 
@@ -109,6 +127,10 @@ bool nyx_scene_settings_on_event(void* context, SceneManagerEvent event) {
 
 void nyx_scene_settings_on_exit(void* context) {
     NyxApp* app = context;
+    scene_manager_set_scene_state(
+        app->scene_manager,
+        NyxSceneSettings,
+        variable_item_list_get_selected_item_index(app->var_item_list));
     /* Persist on the way out, so the next launch comes up the way you left it. */
     nyx_store_settings_save(&app->settings);
     variable_item_list_reset(app->var_item_list);

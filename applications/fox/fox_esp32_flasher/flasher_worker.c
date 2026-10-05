@@ -21,16 +21,62 @@
 #define FLASHER_TURBO_ENABLED 1
 
 const FlasherBoard k_flasher_boards[FLASHER_BOARD_COUNT] = {
-    {"ESP32 Classic",  "esp32",   0x1000},
-    {"ESP32-WROOM",   "esp32",   0x1000},
-    {"ESP32-WROVER",  "esp32",   0x1000},
-    {"ESP32-CAM",     "esp32",   0x1000},
-    {"ESP32-S2",      "esp32s2", 0x1000},
-    {"ESP32-S3",      "esp32s3", 0x0000},
-    {"ESP32-C3",      "esp32c3", 0x0000},
-    {"ESP32-C5",      "esp32c5", 0x2000},
-    {"ESP32-C6",      "esp32c6", 0x0000},
+    {"ESP32 (original)",    "esp32",   0x1000},
+    {"ESP32-WROOM",         "esp32",   0x1000},
+    {"ESP32-WROVER",        "esp32",   0x1000},
+    {"ESP32-CAM",           "esp32",   0x1000},
+    {"S2 (WiFi Dev Board)", "esp32s2", 0x1000},
+    {"ESP32-S3",            "esp32s3", 0x0000},
+    {"ESP32-C3",            "esp32c3", 0x0000},
+    {"ESP32-C5",            "esp32c5", 0x2000},
+    {"ESP32-C6",            "esp32c6", 0x0000},
 };
+
+#define FLASHER_IMAGE_MAGIC   0xE9
+#define FLASHER_IMAGE_ID_NONE 0xFFFF
+
+typedef struct {
+    target_chip_t chip;
+    const char*   name;
+    const char*   folder;
+    uint16_t      image_id;
+} FlasherChip;
+
+static const FlasherChip k_flasher_chips[] = {
+    {ESP32_CHIP,   "ESP32",    "esp32",   0},
+    {ESP32S2_CHIP, "ESP32-S2", "esp32s2", 2},
+    {ESP32S3_CHIP, "ESP32-S3", "esp32s3", 9},
+    {ESP32C3_CHIP, "ESP32-C3", "esp32c3", 5},
+    {ESP32C5_CHIP, "ESP32-C5", "esp32c5", 23},
+    {ESP32C6_CHIP, "ESP32-C6", "esp32c6", 13},
+    {ESP32C2_CHIP, "ESP32-C2", NULL,      12},
+    {ESP32H2_CHIP, "ESP32-H2", NULL,      16},
+    {ESP32P4_CHIP, "ESP32-P4", NULL,      18},
+    {ESP8266_CHIP, "ESP8266",  NULL,      FLASHER_IMAGE_ID_NONE},
+};
+
+#define FLASHER_CHIP_COUNT (sizeof(k_flasher_chips) / sizeof(k_flasher_chips[0]))
+
+static const FlasherChip* flasher_chip_find(target_chip_t chip) {
+    for(size_t i = 0; i < FLASHER_CHIP_COUNT; i++) {
+        if(k_flasher_chips[i].chip == chip) return &k_flasher_chips[i];
+    }
+    return NULL;
+}
+
+static const char* flasher_image_id_name(uint16_t image_id) {
+    for(size_t i = 0; i < FLASHER_CHIP_COUNT; i++) {
+        if(k_flasher_chips[i].image_id == image_id) return k_flasher_chips[i].name;
+    }
+    return "another chip";
+}
+
+static int8_t flasher_board_for_folder(const char* folder) {
+    for(uint8_t i = 0; i < FLASHER_BOARD_COUNT; i++) {
+        if(strcmp(k_flasher_boards[i].folder, folder) == 0) return (int8_t)i;
+    }
+    return -1;
+}
 
 static FlasherApp*       g_app           = NULL;
 static FuriStreamBuffer* g_flash_rx      = NULL;
@@ -131,6 +177,30 @@ static void worker_set_progress(FlasherApp* app, uint8_t pct, const char* msg) {
     view_dispatcher_send_custom_event(app->view_dispatcher, FlasherEventFlashProgress);
 }
 
+static bool flasher_image_matches_chip(
+    FlasherApp* app,
+    const char* path,
+    const FlasherChip* chip,
+    uint16_t* found_id) {
+    uint8_t hdr[16];
+    bool    matches = true;
+
+    File* f = storage_file_alloc(app->storage);
+    if(storage_file_open(f, path, FSAM_READ, FSOM_OPEN_EXISTING)) {
+        if(storage_file_read(f, hdr, sizeof(hdr)) == sizeof(hdr) &&
+           hdr[0] == FLASHER_IMAGE_MAGIC) {
+            uint16_t id = (uint16_t)(hdr[12] | ((uint16_t)hdr[13] << 8));
+            if(id != chip->image_id) {
+                *found_id = id;
+                matches   = false;
+            }
+        }
+        storage_file_close(f);
+    }
+    storage_file_free(f);
+    return matches;
+}
+
 static esp_loader_error_t flash_one_file(
     FlasherApp* app,
     const char* path,
@@ -228,6 +298,10 @@ static int32_t flash_thread_fn(void* context) {
     FlasherApp* app = context;
     bool boot_not_detected = false;
     bool turbo_active = false;
+    const char* fail_reason = NULL;
+    char fail_buf[FLASHER_STATUS_LEN];
+
+    app->detected_chip[0] = '\0';
 
     app->flash_rx_stream = g_flash_rx = furi_stream_buffer_alloc(4096, 1);
     g_timer               = furi_timer_alloc(timer_callback, FuriTimerTypePeriodic, app);
@@ -278,35 +352,6 @@ static int32_t flash_thread_fn(void* context) {
     char path_boot0[FLASHER_PATH_LEN];
     char path_fw[FLASHER_PATH_LEN];
 
-    if(app->board_custom) {
-        snprintf(path_boot,  sizeof(path_boot),  "%s", app->file_bootloader);
-        snprintf(path_part,  sizeof(path_part),  "%s", app->file_partitions);
-        snprintf(path_boot0, sizeof(path_boot0), FLASHER_DATA_DIR "/%s/boot_app0.bin", board->folder);
-        snprintf(path_fw,    sizeof(path_fw),    "%s", app->file_firmware);
-    } else {
-        snprintf(path_boot,  sizeof(path_boot),  FLASHER_DATA_DIR "/%s/bootloader.bin", board->folder);
-        snprintf(path_part,  sizeof(path_part),  FLASHER_DATA_DIR "/%s/partitions.bin", board->folder);
-        snprintf(path_boot0, sizeof(path_boot0), FLASHER_DATA_DIR "/%s/boot_app0.bin",  board->folder);
-        snprintf(path_fw,    sizeof(path_fw),    FLASHER_DATA_DIR "/%s/firmware.bin",   board->folder);
-    }
-
-    {
-        const char* paths[4] = {path_boot, path_part, path_boot0, path_fw};
-        const char* names[4] = {"bootloader.bin", "partitions.bin",
-                                 "boot_app0.bin",  "firmware.bin"};
-        char msg[64];
-        for(int i = 0; i < 4; i++) {
-            if(storage_common_stat(app->storage, paths[i], NULL) != FSE_OK) {
-                snprintf(msg, sizeof(msg), "Missing: %s", names[i]);
-                worker_set_progress(app, 0, msg);
-                snprintf(msg, sizeof(msg), "File not found: %s\n", paths[i]);
-                loader_port_debug_print(msg);
-                loader_port_debug_print("Reflash FoxFW to restore SD card files\n");
-                goto fail;
-            }
-        }
-    }
-
     worker_set_progress(app, 0, "Entering bootloader...");
     log_write("=== boot-entry start ===\n");
     log_flush();
@@ -354,6 +399,89 @@ static int32_t flash_thread_fn(void* context) {
         goto fail;
     }
     loader_port_debug_print("Connected\n");
+
+    {
+        const FlasherChip* chip = flasher_chip_find(esp_loader_get_target());
+        char cmsg[112];
+
+        if(!chip) {
+            loader_port_debug_print("Unknown chip, cannot pick firmware\n");
+            fail_reason = "Unknown ESP chip";
+            goto fail;
+        }
+
+        snprintf(app->detected_chip, sizeof(app->detected_chip), "%s", chip->name);
+        snprintf(cmsg, sizeof(cmsg), "Detected chip: %s\n", chip->name);
+        loader_port_debug_print(cmsg);
+
+        int8_t chip_board = chip->folder ? flasher_board_for_folder(chip->folder) : -1;
+        if(chip_board < 0) {
+            snprintf(cmsg, sizeof(cmsg), "Fox firmware is not built for %s\n", chip->name);
+            loader_port_debug_print(cmsg);
+            snprintf(fail_buf, sizeof(fail_buf), "No firmware for %s", chip->name);
+            fail_reason = fail_buf;
+            goto fail;
+        }
+
+        if(strcmp(board->folder, chip->folder) != 0) {
+            if(!app->board_auto) {
+                snprintf(
+                    cmsg,
+                    sizeof(cmsg),
+                    "Selected %s, but this is %s. Switching.\n",
+                    board->label,
+                    chip->name);
+                loader_port_debug_print(cmsg);
+            }
+            app->board_index = (uint8_t)chip_board;
+            board            = &k_flasher_boards[app->board_index];
+        }
+
+        if(app->board_custom) {
+            snprintf(path_boot,  sizeof(path_boot),  "%s", app->file_bootloader);
+            snprintf(path_part,  sizeof(path_part),  "%s", app->file_partitions);
+            snprintf(path_boot0, sizeof(path_boot0), FLASHER_DATA_DIR "/%s/boot_app0.bin", board->folder);
+            snprintf(path_fw,    sizeof(path_fw),    "%s", app->file_firmware);
+        } else {
+            snprintf(path_boot,  sizeof(path_boot),  FLASHER_DATA_DIR "/%s/bootloader.bin", board->folder);
+            snprintf(path_part,  sizeof(path_part),  FLASHER_DATA_DIR "/%s/partitions.bin", board->folder);
+            snprintf(path_boot0, sizeof(path_boot0), FLASHER_DATA_DIR "/%s/boot_app0.bin",  board->folder);
+            snprintf(path_fw,    sizeof(path_fw),    FLASHER_DATA_DIR "/%s/firmware.bin",   board->folder);
+        }
+
+        const char* paths[4] = {path_boot, path_part, path_boot0, path_fw};
+        const char* names[4] = {"bootloader.bin", "partitions.bin",
+                                 "boot_app0.bin",  "firmware.bin"};
+        for(int i = 0; i < 4; i++) {
+            if(storage_common_stat(app->storage, paths[i], NULL) != FSE_OK) {
+                snprintf(fail_buf, sizeof(fail_buf), "Missing: %s", names[i]);
+                fail_reason = fail_buf;
+                loader_port_debug_print("File not found: ");
+                loader_port_debug_print(paths[i]);
+                loader_port_debug_print("\n");
+                loader_port_debug_print("Reflash FoxFW to restore SD card files\n");
+                goto fail;
+            }
+        }
+
+        for(int i = 0; i < 4; i++) {
+            uint16_t found_id = FLASHER_IMAGE_ID_NONE;
+            if(!flasher_image_matches_chip(app, paths[i], chip, &found_id)) {
+                const char* built_for = flasher_image_id_name(found_id);
+                snprintf(
+                    cmsg,
+                    sizeof(cmsg),
+                    "%s is built for %s, but this board is %s\n",
+                    names[i],
+                    built_for,
+                    chip->name);
+                loader_port_debug_print(cmsg);
+                snprintf(fail_buf, sizeof(fail_buf), "Files are for %s", built_for);
+                fail_reason = fail_buf;
+                goto fail;
+            }
+        }
+    }
 
 #if FLASHER_TURBO_ENABLED
     {
@@ -417,7 +545,8 @@ fail:
     app->worker_state.success = false;
 
     if(app->worker_state.progress >= 100) app->worker_state.progress = 99;
-    snprintf(app->worker_state.status, FLASHER_STATUS_LEN, "Flash Failed");
+    snprintf(
+        app->worker_state.status, FLASHER_STATUS_LEN, "%s", fail_reason ? fail_reason : "Flash Failed");
     furi_mutex_release(app->worker_state.mutex);
     notification_message(app->notifications, &sequence_reset_blue);
 

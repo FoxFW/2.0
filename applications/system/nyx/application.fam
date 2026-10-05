@@ -3,13 +3,21 @@ App(
     name="NightVision Finder",
     apptype=FlipperAppType.EXTERNAL,
     entry_point="nyx_app",
+    # Explicit, because fbt otherwise globs the app directory recursively and a
+    # stray file (a __pycache__ from running the tooling, say) lands in the link.
+    sources=[
+        "nyx.c",
+        "helpers/*.c",
+        "scenes/*.c",
+        "views/*.c",
+    ],
     stack_size=4 * 1024,
     fap_category="Infrared",
     fap_icon="icons/nyx_10px.png",
     fap_icon_assets="icons",
     fap_author="at0m-b0mb",
     fap_weburl="https://github.com/at0m-b0mb/Nyx-FlipperZero",
-    fap_version="1.1",
+    fap_version="1.2",
     fap_description="Passive IR-emitter sweep tool for finding covert night-vision cameras, IR beacons, and remotes. Listen-only, never transmits IR.",
     requires=["gui"],
 )

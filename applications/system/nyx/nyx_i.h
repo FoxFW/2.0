@@ -20,7 +20,7 @@
 #include "views/splash_view.h"
 #include "scenes/nyx_scene.h"
 
-#define NYX_VERSION "1.1"
+#define NYX_VERSION "1.2"
 
 typedef enum {
     NyxViewSplash,
@@ -34,16 +34,25 @@ typedef enum {
 typedef enum {
     NyxCustomEventReset = 100, // OK on the sweep screen clears peak/hits
     NyxCustomEventRenull, // long OK re-captures the ambient baseline
+    NyxCustomEventSensUp, // Right on the sweep screen — more gain
+    NyxCustomEventSensDown, // Left on the sweep screen — less gain
     NyxCustomEventSplashDone, // intro finished or was skipped
 } NyxCustomEvent;
 
+/* Every field is a uint8_t, including the flags. This struct is written to and
+ * read back from the SD card, and a _Bool holding anything other than 0 or 1 is
+ * undefined the moment it is read — which means a "normalise it on load" step
+ * written against a _Bool is dead code the compiler is entitled to delete,
+ * because it already assumes the value is 0 or 1. Storing them as plain bytes
+ * makes the clamp on load real. */
 typedef struct NyxSettings {
     uint8_t mode_index; // 0 Auto, 1 Onboard, 2 Probe  (IrSenseMode order)
     uint8_t sensitivity_index; // 0 High, 1 Medium, 2 Low
     uint8_t probe_pin_index; // index into ir_sense_probe_pins()
-    bool sound;
-    bool vibro;
-    bool led;
+    uint8_t sound;
+    uint8_t vibro;
+    uint8_t led;
+    uint8_t intro; // play the boot animation (off = straight to the menu)
 } NyxSettings;
 
 typedef struct {
