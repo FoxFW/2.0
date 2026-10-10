@@ -9,10 +9,6 @@ static constexpr auto nfc_app_api_table = sort(create_array_t<sym_entry>(
         void,
         (GallagherCredential * credential, const uint8_t* cardholder_data_obfuscated)),
     API_VARIABLE(GALLAGHER_CARDAX_ASCII, const uint8_t*),
-    /* FoxFW: mosgortrans_parse_transport_block + render_section_header were
-     * removed from the NFC plugin API and compiled directly into the only two
-     * plugins that use them (troika, social_moscow), to drop ~7.4 KB from
-     * nfc.fap's resident RAM. */
     API_METHOD(
         nfc_append_filename_string_when_present,
         void,
@@ -32,8 +28,6 @@ static constexpr auto nfc_app_api_table = sort(create_array_t<sym_entry>(
     API_METHOD(nfc_blink_read_start, void, (NfcApp * nfc)),
     API_METHOD(nfc_blink_emulate_start, void, (NfcApp * nfc)),
     API_METHOD(nfc_blink_stop, void, (NfcApp * nfc)),
-    /* FoxFW: lets the mf_classic protocol-support plugin launch the externalized
-     * MFKey nonce collector for the per-card (saved-card) reader attack. */
     API_METHOD(nfc_run_mfkey_collector_with_card, void, (NfcApp * instance)),
     API_METHOD(nfc_save_shadow_file, bool, (NfcApp * instance)),
     API_METHOD(dict_attack_reset, void, (DictAttack * instance)),

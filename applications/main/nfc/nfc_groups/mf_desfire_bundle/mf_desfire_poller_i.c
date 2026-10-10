@@ -29,7 +29,7 @@ MfDesfireError mf_desfire_process_status_code(uint8_t status_code) {
     case NXP_NATIVE_COMMAND_STATUS_ILLEGAL_COMMAND_CODE:
         return MfDesfireErrorCommandNotSupported;
     default:
-        return MfDesfireErrorProtocol;
+        return MfDesfireErrorRejected;
     }
 }
 
@@ -64,6 +64,35 @@ MfDesfireError mf_desfire_poller_send_chunks(
     }
 
     return mf_desfire_process_status_code(status_code);
+}
+
+bool mf_desfire_error_is_refusal(MfDesfireError error) {
+    return error == MfDesfireErrorAuthentication || error == MfDesfireErrorCommandNotSupported ||
+           error == MfDesfireErrorRejected;
+}
+
+MfDesfireError
+    mf_desfire_poller_read_version_any_mode(MfDesfirePoller* instance, MfDesfireVersion* data) {
+    furi_check(instance);
+
+    MfDesfireError error = mf_desfire_poller_read_version(instance, data);
+
+    if(error != MfDesfireErrorRejected && error != MfDesfireErrorCommandNotSupported) return error;
+
+    const NxpNativeCommandMode fallback_mode =
+        instance->command_mode == NxpNativeCommandModePlain ? NxpNativeCommandModeIsoWrapped :
+                                                              NxpNativeCommandModePlain;
+    const NxpNativeCommandMode original_mode = instance->command_mode;
+    instance->command_mode = fallback_mode;
+
+    error = mf_desfire_poller_read_version(instance, data);
+    if(error == MfDesfireErrorNone) {
+        FURI_LOG_I(TAG, "Command mode %d", fallback_mode);
+    } else {
+        instance->command_mode = original_mode;
+    }
+
+    return error;
 }
 
 MfDesfireError mf_desfire_poller_read_version(MfDesfirePoller* instance, MfDesfireVersion* data) {

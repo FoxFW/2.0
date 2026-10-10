@@ -257,7 +257,7 @@ void* subghz_protocol_encoder_kia_v5_alloc(SubGhzEnvironment* environment) {
 
     instance->base.protocol = &subghz_protocol_kia_v5;
     instance->generic.protocol_name = instance->base.protocol->name;
-    instance->encoder.size_upload = 400;
+    instance->encoder.size_upload = KIA_V5_UPLOAD_CAPACITY;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
     furi_check(instance->encoder.upload);
     instance->encoder.repeat = 6;
@@ -369,6 +369,22 @@ SubGhzProtocolStatus
 
         if(instance->generic.data_count_bit < subghz_protocol_kia_v5_const.min_count_bit_for_found) {
             ret = SubGhzProtocolStatusErrorParserBitCount;
+            break;
+        }
+
+        uint32_t kia_v5_txraw = 0;
+        flipper_format_rewind(flipper_format);
+        if(flipper_format_read_uint32(flipper_format, "TxRaw", &kia_v5_txraw, 1) &&
+           kia_v5_txraw != 0) {
+            instance->reencrypt_mode = false;
+            instance->replay_data = instance->generic.data;
+            instance->replay_crc = kia_v5_calculate_crc(instance->replay_data);
+            if(!subghz_protocol_encoder_kia_v5_get_upload(instance)) {
+                ret = SubGhzProtocolStatusErrorEncoderGetUpload;
+                break;
+            }
+            instance->encoder.is_running = true;
+            ret = SubGhzProtocolStatusOk;
             break;
         }
 
@@ -673,7 +689,8 @@ void subghz_protocol_decoder_kia_v5_feed(void* context, bool level, uint32_t dur
                 instance->decoder.decode_data = instance->generic.data;
                 instance->decoder.decode_count_bit = instance->generic.data_count_bit;
 
-                if(instance->base.callback)
+                if(instance->crc == kia_v5_calculate_crc(instance->generic.data) &&
+                   instance->base.callback)
                     instance->base.callback(&instance->base, instance->base.context);
             }
 
@@ -829,10 +846,6 @@ void subghz_protocol_decoder_kia_v5_get_string(void* context, FuriString* output
     furi_assert(context);
     SubGhzProtocolDecoderKiaV5* instance = context;
 
-    // The trailing CRC is sent over the air-raw payload (generic.data), which is
-    // exactly what the encoder CRCs (kia_v5_rebuild_data -> replay_crc). It must
-    // NOT be computed over the byte-bit-reversed `yek`, or a valid frame (incl.
-    // our own generated one) always shows (FAIL). (Fix 2026-10-03.)
     uint8_t calculated_crc = kia_v5_calculate_crc(instance->generic.data);
     bool crc_valid = (instance->crc == calculated_crc);
 

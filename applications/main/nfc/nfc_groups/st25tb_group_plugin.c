@@ -2,11 +2,9 @@
 #include <nfc/nfc_group_plugin.h>
 #include <flipper_application/flipper_application.h>
 
-#include "st25tb_bundle/st25tb.h"              /* nfc_device_st25tb */
-#include "st25tb_bundle/st25tb_poller_defs.h"  /* nfc_poller_st25tb */
+#include "st25tb_bundle/st25tb.h"
+#include "st25tb_bundle/st25tb_poller_defs.h"
 
-/* FoxFW NFC externalization - ST25TB protocol group (.fal). Childless base, full
- * stack bundled byte-identical. No listener. iso14443_crc resolves from firmware API. */
 static const NfcProtocol grp_st25tb_protocols[] = {NfcProtocolSt25tb};
 static const NfcPollerBase* const grp_st25tb_pollers[] = {&nfc_poller_st25tb};
 static const NfcListenerBase* const grp_st25tb_listeners[] = {NULL};

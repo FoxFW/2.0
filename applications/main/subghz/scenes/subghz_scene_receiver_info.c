@@ -6,19 +6,38 @@
 
 #include "applications/main/subghz/helpers/subghz_txrx_i.h"
 #include <lib/subghz/blocks/generic.h>
+#include <toolbox/name_generator.h>
 
 #define TAG "SubGhzSceneReceiverInfo"
+
+static char subghz_scene_receiver_info_psa_popup_text[96];
+
+static void subghz_scene_receiver_info_psa_popup_callback(void* context) {
+    SubGhz* subghz = context;
+    view_dispatcher_send_custom_event(
+        subghz->view_dispatcher, SubGhzCustomEventSceneReceiverInfoPsaDecryptGo);
+}
 
 void subghz_scene_receiver_info_callback(GuiButtonType result, InputType type, void* context) {
     furi_assert(context);
     SubGhz* subghz = context;
 
-    if((result == GuiButtonTypeCenter) && (type == InputTypePress)) {
-        view_dispatcher_send_custom_event(
-            subghz->view_dispatcher, SubGhzCustomEventSceneReceiverInfoTxStart);
-    } else if((result == GuiButtonTypeCenter) && (type == InputTypeRelease)) {
-        view_dispatcher_send_custom_event(
-            subghz->view_dispatcher, SubGhzCustomEventSceneReceiverInfoTxStop);
+    bool decrypt_mode =
+        scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneReceiverInfo) == 1;
+
+    if(result == GuiButtonTypeCenter) {
+        if(decrypt_mode) {
+            if(type == InputTypeShort) {
+                view_dispatcher_send_custom_event(
+                    subghz->view_dispatcher, SubGhzCustomEventSceneReceiverInfoDecrypt);
+            }
+        } else if(type == InputTypePress) {
+            view_dispatcher_send_custom_event(
+                subghz->view_dispatcher, SubGhzCustomEventSceneReceiverInfoTxStart);
+        } else if(type == InputTypeRelease) {
+            view_dispatcher_send_custom_event(
+                subghz->view_dispatcher, SubGhzCustomEventSceneReceiverInfoTxStop);
+        }
     } else if((result == GuiButtonTypeRight) && (type == InputTypeShort)) {
         view_dispatcher_send_custom_event(
             subghz->view_dispatcher, SubGhzCustomEventSceneReceiverInfoSave);
@@ -107,7 +126,30 @@ void subghz_scene_receiver_info_draw_widget(SubGhz* subghz) {
                 subghz);
         }
 
-        if(subghz_txrx_protocol_is_transmittable(subghz->txrx, false)) {
+        FlipperFormat* info_rx_ff =
+            subghz_history_get_raw_data(subghz->history, subghz->idx_menu_chosen);
+        bool info_needs_decrypt = subghz_signal_needs_decrypt(info_rx_ff);
+        bool info_transmittable = subghz_txrx_protocol_is_transmittable(subghz->txrx, false);
+
+        scene_manager_set_scene_state(
+            subghz->scene_manager, SubGhzSceneReceiverInfo, info_needs_decrypt ? 1 : 0);
+
+        if(info_needs_decrypt) {
+            if(info_transmittable) {
+                widget_add_button_element(
+                    subghz->widget,
+                    GuiButtonTypeLeft,
+                    "Full",
+                    subghz_scene_receiver_info_callback,
+                    subghz);
+            }
+            widget_add_button_element(
+                subghz->widget,
+                GuiButtonTypeCenter,
+                "Decrypt",
+                subghz_scene_receiver_info_callback,
+                subghz);
+        } else if(info_transmittable) {
             widget_add_button_element(
                 subghz->widget,
                 GuiButtonTypeCenter,
@@ -229,7 +271,68 @@ bool subghz_scene_receiver_info_on_event(void* context, SceneManagerEvent event)
             stream_copy_full(src, dst);
             stream_seek(dst, 0, StreamOffsetFromStart);
 
+            uint32_t txraw_full = 1;
+            flipper_format_insert_or_update_uint32(fff_data, "TxRaw", &txraw_full, 1);
+            flipper_format_rewind(fff_data);
+
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneTransmitter);
+            return true;
+        } else if(event.event == SubGhzCustomEventSceneReceiverInfoDecrypt) {
+
+            if(!subghz_scene_receiver_info_update_parser(subghz)) {
+                return false;
+            }
+
+            FlipperFormat* dec_history =
+                subghz_history_get_raw_data(subghz->history, subghz->idx_menu_chosen);
+            FlipperFormat* dec_data = subghz_txrx_get_fff_data(subghz->txrx);
+
+            Stream* dsrc = flipper_format_get_raw_stream(dec_history);
+            Stream* ddst = flipper_format_get_raw_stream(dec_data);
+            stream_seek(dsrc, 0, StreamOffsetFromStart);
+            stream_clean(ddst);
+            stream_copy_full(dsrc, ddst);
+            stream_seek(ddst, 0, StreamOffsetFromStart);
+
+            char dec_name_buf[SUBGHZ_MAX_LEN_NAME] = {0};
+            const char* dec_pname =
+                subghz_history_get_protocol_name(subghz->history, subghz->idx_menu_chosen);
+            name_generator_make_auto_datetime(
+                dec_name_buf, SUBGHZ_MAX_LEN_NAME, dec_pname, NULL);
+
+            furi_string_set(subghz->file_path, SUBGHZ_APP_FOLDER);
+            furi_string_cat_printf(
+                subghz->file_path, "/%s%s", dec_name_buf, SUBGHZ_APP_FILENAME_EXTENSION);
+
+            subghz_save_protocol_to_file(
+                subghz, dec_data, furi_string_get_cstr(subghz->file_path));
+
+            snprintf(
+                subghz_scene_receiver_info_psa_popup_text,
+                sizeof(subghz_scene_receiver_info_psa_popup_text),
+                "File saved as:\n%s%s",
+                dec_name_buf,
+                SUBGHZ_APP_FILENAME_EXTENSION);
+
+            subghz->state_notifications = SubGhzNotificationStateIDLE;
+
+            popup_set_text(
+                subghz->popup,
+                subghz_scene_receiver_info_psa_popup_text,
+                64,
+                32,
+                AlignCenter,
+                AlignCenter);
+            popup_set_timeout(subghz->popup, 2000);
+            popup_set_context(subghz->popup, subghz);
+            popup_set_callback(subghz->popup, subghz_scene_receiver_info_psa_popup_callback);
+            popup_enable_timeout(subghz->popup);
+            view_dispatcher_switch_to_view(subghz->view_dispatcher, SubGhzViewIdPopup);
+            return true;
+        } else if(event.event == SubGhzCustomEventSceneReceiverInfoPsaDecryptGo) {
+
+            popup_reset(subghz->popup);
+            scene_manager_next_scene(subghz->scene_manager, SubGhzScenePsaDecrypt);
             return true;
         }
     } else if(event.type == SceneManagerEventTypeTick) {
@@ -279,5 +382,6 @@ void subghz_scene_receiver_info_on_exit(void* context) {
     SubGhz* subghz = context;
 
     widget_reset(subghz->widget);
+    popup_reset(subghz->popup);
     subghz_txrx_reset_dynamic_and_custom_btns(subghz->txrx);
 }

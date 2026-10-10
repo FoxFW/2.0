@@ -114,10 +114,10 @@ bool subghz_scene_garage_menu_on_event(void* context, SceneManagerEvent event) {
     } else if(event.type == SceneManagerEventTypeCustom) {
         scene_manager_set_scene_state(subghz->scene_manager, SubGhzSceneGarageMenu, event.event);
         if(event.event == GarageMenuIndexRead) {
-            subghz_launch_garage_via_probe(subghz, "read");
+            subghz_launch_garage_via_probe(subghz, "read", true);
             return true;
         } else if(event.event == GarageMenuIndexReadRAW) {
-            subghz_launch_garage_via_probe(subghz, "readraw");
+            subghz_launch_garage_via_probe(subghz, "readraw", true);
             return true;
         } else if(event.event == GarageMenuIndexSaved) {
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSaved);

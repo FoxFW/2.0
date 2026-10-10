@@ -227,20 +227,25 @@ static void furi_hal_rfid_tim_emulate(void) {
     LL_TIM_GenerateEvent_UPDATE(FURI_HAL_RFID_EMULATE_TIMER);
 }
 
+static uint32_t furi_hal_rfid_capture_origin = 0;
+
 static void furi_hal_capture_dma_isr(void* context) {
     UNUSED(context);
 
     if(LL_TIM_IsActiveFlag_CC3(RFID_CAPTURE_TIM)) {
         LL_TIM_ClearFlag_CC3(RFID_CAPTURE_TIM);
         furi_hal_rfid->read_capture_callback(
-            true, LL_TIM_IC_GetCaptureCH3(RFID_CAPTURE_TIM), furi_hal_rfid->context);
+            true,
+            LL_TIM_IC_GetCaptureCH3(RFID_CAPTURE_TIM) - furi_hal_rfid_capture_origin,
+            furi_hal_rfid->context);
     }
 
     if(LL_TIM_IsActiveFlag_CC4(RFID_CAPTURE_TIM)) {
         LL_TIM_ClearFlag_CC4(RFID_CAPTURE_TIM);
-        LL_TIM_SetCounter(RFID_CAPTURE_TIM, 0);
-        furi_hal_rfid->read_capture_callback(
-            false, LL_TIM_IC_GetCaptureCH4(RFID_CAPTURE_TIM), furi_hal_rfid->context);
+        const uint32_t rise = LL_TIM_IC_GetCaptureCH4(RFID_CAPTURE_TIM);
+        const uint32_t period = rise - furi_hal_rfid_capture_origin;
+        furi_hal_rfid_capture_origin = rise;
+        furi_hal_rfid->read_capture_callback(false, period, furi_hal_rfid->context);
     }
 }
 
@@ -286,6 +291,7 @@ void furi_hal_rfid_tim_read_capture_start(FuriHalRfidReadCaptureCallback callbac
     LL_TIM_CC_EnableChannel(RFID_CAPTURE_TIM, RFID_CAPTURE_IND_CH);
     LL_TIM_CC_EnableChannel(RFID_CAPTURE_TIM, RFID_CAPTURE_DIR_CH);
     LL_TIM_SetCounter(RFID_CAPTURE_TIM, 0);
+    furi_hal_rfid_capture_origin = 0;
     LL_TIM_EnableCounter(RFID_CAPTURE_TIM);
 
     furi_hal_rfid_comp_start();

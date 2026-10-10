@@ -197,6 +197,7 @@ App(
         "protocols/bin_raw.c",
         "protocols/x10.c",
         "protocols/keyfinder.c",
+        "protocols/keyfinder2.c",
         "protocols/keeloq.c",
     ],
     fal_embedded=True,
@@ -404,6 +405,7 @@ App(
         "protocols/raw.c",
         "protocols/bin_raw.c",
         "protocols/ditec_gol4.c",
+        "protocols/doorbell32.c",
     ],
     fal_embedded=True,
 )
@@ -556,6 +558,34 @@ App(
         "protocols/plugins/subghz_garage_tx_keyfinder_plugin.c",
         "protocols/protocols_common.c",
         "protocols/keyfinder.c",
+    ],
+    fal_embedded=True,
+)
+
+App(
+    appid="tx_keyfinder2",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="subghz_garage_tx_keyfinder2_plugin_ep",
+    requires=["subghz_garage"],
+    cdefines=["SUBGHZ_GARAGE_HAS_GENERIC_GLOBAL=1", "SUBGHZ_GARAGE_HAS_BINRAW_TYPE=1"],
+    sources=[
+        "protocols/plugins/subghz_garage_tx_keyfinder2_plugin.c",
+        "protocols/protocols_common.c",
+        "protocols/keyfinder2.c",
+    ],
+    fal_embedded=True,
+)
+
+App(
+    appid="tx_doorbell32",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="subghz_garage_tx_doorbell32_plugin_ep",
+    requires=["subghz_garage"],
+    cdefines=["SUBGHZ_GARAGE_HAS_GENERIC_GLOBAL=1", "SUBGHZ_GARAGE_HAS_BINRAW_TYPE=1"],
+    sources=[
+        "protocols/plugins/subghz_garage_tx_doorbell32_plugin.c",
+        "protocols/protocols_common.c",
+        "protocols/doorbell32.c",
     ],
     fal_embedded=True,
 )

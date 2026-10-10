@@ -478,6 +478,22 @@ const SubRattProtocol subratt_protocol_x10_32bit_310 = {
     .preset = FuriHalSubGhzPresetOok650Async,
     .file = X10FileProtocol};
 
+const SubRattProtocol subratt_protocol_allstar_firefly_18bit_315 = {
+    .frequency = 315000000,
+    .bits = 18,
+    .te = 0,
+    .repeat = 3,
+    .preset = FuriHalSubGhzPresetOok650Async,
+    .file = AllstarFireflyFileProtocol};
+
+const SubRattProtocol subratt_protocol_elplast_18bit_433 = {
+    .frequency = 433920000,
+    .bits = 18,
+    .te = 0,
+    .repeat = 3,
+    .preset = FuriHalSubGhzPresetOok650Async,
+    .file = ElplastFileProtocol};
+
 const SubRattProtocol subratt_protocol_load_file =
     {0, 0, 0, 3, 0, FuriHalSubGhzPresetOok650Async, UnknownFileProtocol};
 
@@ -544,6 +560,8 @@ static const char* subratt_protocol_names[] = {
     [SubRattAttackMastercode36bit433] = "Mastercode 36bit 433MHz",
     [SubRattAttackX10_32bit310] = "X10 32bit 310MHz",
     [SubRattAttackLoadFile] = "BF existing dump",
+    [SubRattAttackAllstarFirefly18bit315] = "Allstar Firefly 18bit 315MHz",
+    [SubRattAttackElplast18bit433] = "Elplast 18bit 433MHz",
     [SubRattAttackLoadSavedKeys] = "Open Saved Keys",
     [SubRattAttackTotalCount] = "Total Count",
 };
@@ -619,6 +637,8 @@ const SubRattProtocol* subratt_protocol_registry[] = {
     [SubRattAttackMastercode36bit433] = &subratt_protocol_mastercode_36bit_433,
     [SubRattAttackX10_32bit310] = &subratt_protocol_x10_32bit_310,
     [SubRattAttackLoadFile] = &subratt_protocol_load_file,
+    [SubRattAttackAllstarFirefly18bit315] = &subratt_protocol_allstar_firefly_18bit_315,
+    [SubRattAttackElplast18bit433] = &subratt_protocol_elplast_18bit_433,
     [SubRattAttackLoadSavedKeys] = &subratt_protocol_load_saved_keys};
 
 static const SubRattAttacks came_12bit_attacks[] = {
@@ -855,6 +875,20 @@ static const SubRattTypeGroup x10_types[] = {
     {.name = "32bit", .attacks = x10_32bit_attacks, .attack_count = 1},
 };
 
+static const SubRattAttacks allstar_firefly_18bit_attacks[] = {
+    SubRattAttackAllstarFirefly18bit315,
+};
+static const SubRattTypeGroup allstar_firefly_types[] = {
+    {.name = "18bit", .attacks = allstar_firefly_18bit_attacks, .attack_count = 1},
+};
+
+static const SubRattAttacks elplast_18bit_attacks[] = {
+    SubRattAttackElplast18bit433,
+};
+static const SubRattTypeGroup elplast_types[] = {
+    {.name = "18bit", .attacks = elplast_18bit_attacks, .attack_count = 1},
+};
+
 static const SubRattBrandGroup subratt_brand_groups[] = {
     [SubRattBrandCAME] = {"CAME", came_types, 1},
     [SubRattBrandNICE] = {"NICE", nice_types, 1},
@@ -882,6 +916,8 @@ static const SubRattBrandGroup subratt_brand_groups[] = {
     [SubRattBrandMastercode] = {"Mastercode", mastercode_types, 1},
     [SubRattBrandX10] = {"X10", x10_types, 1},
     [SubRattBrandLoadFile] = {"BF existing dump", load_file_types, 1},
+    [SubRattBrandAllstarFirefly] = {"Allstar Firefly", allstar_firefly_types, 1},
+    [SubRattBrandElplast] = {"Elplast", elplast_types, 1},
     [SubRattBrandLoadSavedKeys] = {"Open Saved Keys", load_saved_keys_types, 1},
 };
 
@@ -945,6 +981,8 @@ static const char* subratt_protocol_freq_names[] = {
     [SubRattAttackMastercode36bit433] = "433MHz",
     [SubRattAttackX10_32bit310] = "310MHz",
     [SubRattAttackLoadFile] = "BF existing dump",
+    [SubRattAttackAllstarFirefly18bit315] = "315MHz",
+    [SubRattAttackElplast18bit433] = "433MHz",
     [SubRattAttackLoadSavedKeys] = "Open Saved Keys",
 };
 
@@ -978,6 +1016,8 @@ static const char* subratt_protocol_file_types[] = {
     [MegaCodeFileProtocol] = "MegaCode",
     [MastercodeFileProtocol] = "Mastercode",
     [X10FileProtocol] = "X10",
+    [AllstarFireflyFileProtocol] = "Allstar Firefly",
+    [ElplastFileProtocol] = "Elplast",
     [UnknownFileProtocol] = "Unknown"};
 
 static const char* subratt_key_file_start_no_tail =

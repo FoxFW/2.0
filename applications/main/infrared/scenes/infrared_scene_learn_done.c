@@ -4,12 +4,11 @@ void infrared_scene_learn_done_on_enter(void* context) {
     InfraredApp* infrared = context;
     Popup* popup = infrared->popup;
 
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
     if(infrared->app_state.is_learning_new_remote) {
-
-        popup_set_header(popup, "Success!", 10, 12, AlignLeft, AlignTop);
+        popup_set_header(popup, "Success!", 96, 32, AlignCenter, AlignCenter);
     } else {
-
-        popup_set_header(popup, "Saved", 15, 19, AlignLeft, AlignBottom);
+        popup_set_header(popup, "Saved", 96, 32, AlignCenter, AlignCenter);
     }
 
     popup_set_callback(popup, infrared_popup_closed_callback);

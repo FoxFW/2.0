@@ -4,7 +4,8 @@ void infrared_scene_edit_rename_done_on_enter(void* context) {
     InfraredApp* infrared = context;
     Popup* popup = infrared->popup;
 
-    popup_set_header(popup, "Saved", 15, 19, AlignLeft, AlignBottom);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Saved", 96, 32, AlignCenter, AlignCenter);
     popup_set_callback(popup, infrared_popup_closed_callback);
     popup_set_context(popup, context);
     popup_set_timeout(popup, 1500);

@@ -298,6 +298,16 @@ bool subghz_history_add_to_history(
             FURI_LOG_E(TAG, "Missing Protocol");
             break;
         }
+        if(!strcmp(furi_string_get_cstr(instance->tmp_string), "PSA GROUP")) {
+            FuriString* psa_type = furi_string_alloc();
+            flipper_format_rewind(item->flipper_string);
+            bool psa_has_type =
+                flipper_format_read_string(item->flipper_string, "Type", psa_type) &&
+                !furi_string_equal_str(psa_type, "00");
+            furi_string_free(psa_type);
+            flipper_format_rewind(item->flipper_string);
+            if(!psa_has_type) furi_string_set(instance->tmp_string, "Unknown Signal");
+        }
         if(item->type == SubGhzProtocolTypeTpms) {
 
             uint32_t id = 0;

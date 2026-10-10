@@ -42,6 +42,8 @@
 #include "roger.h"
 #include "beninca_arc.h"
 #include "keyfinder.h"
+#include "keyfinder2.h"
+#include "doorbell32.h"
 #include "x10.h"
 #include "jarolift.h"
 

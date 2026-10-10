@@ -4,6 +4,7 @@
 #include "protocol_h10301.h"
 #include "protocol_idteck.h"
 #include "protocol_indala26.h"
+#include "protocol_indala224.h"
 #include "protocol_io_prox_xsf.h"
 #include "protocol_awid.h"
 #include "protocol_fdx_a.h"
@@ -47,4 +48,5 @@ const ProtocolBase* const lfrfid_protocols[] = {
     [LFRFIDProtocolSecurakey] = &protocol_securakey,
     [LFRFIDProtocolGProxII] = &protocol_gproxii,
     [LFRFIDProtocolNoralsy] = &protocol_noralsy,
+    [LFRFIDProtocolIndala224] = &protocol_indala224,
 };

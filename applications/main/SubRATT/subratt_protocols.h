@@ -40,6 +40,8 @@ typedef enum {
 
     MastercodeFileProtocol,
     X10FileProtocol,
+    AllstarFireflyFileProtocol,
+    ElplastFileProtocol,
     UnknownFileProtocol,
     TotalFileProtocol,
 } SubRattFileProtocol;
@@ -106,6 +108,8 @@ typedef enum {
     SubRattAttackX10_32bit310,
     SubRattAttackLoadFile,
 
+    SubRattAttackAllstarFirefly18bit315,
+    SubRattAttackElplast18bit433,
     SubRattAttackLoadSavedKeys,
     SubRattAttackTotalCount,
 } SubRattAttacks;
@@ -139,6 +143,8 @@ typedef enum {
     SubRattBrandX10,
     SubRattBrandLoadFile,
 
+    SubRattBrandAllstarFirefly,
+    SubRattBrandElplast,
     SubRattBrandLoadSavedKeys,
     SubRattBrandCount,
 } SubRattBrand;

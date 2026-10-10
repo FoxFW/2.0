@@ -20,7 +20,6 @@ const SubGhzProtocol* const subghz_protocol_registry_items[] = {
     &subghz_protocol_vag,
     &subghz_protocol_porsche_cayenne,
     &subghz_protocol_ford_v0,
-    &subghz_protocol_psa,
     &subghz_protocol_fiat_spa,
     &subghz_protocol_fiat_marelli,
 
@@ -54,6 +53,7 @@ const SubGhzProtocol* const subghz_protocol_registry_items[] = {
     &renault_v1_protocol,
     &subghz_protocol_gm,
     &subghz_protocol_toyota,
+    &subghz_protocol_psa,
 
 };
 

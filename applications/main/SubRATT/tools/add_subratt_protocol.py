@@ -220,6 +220,50 @@ PROTOCOLS = [
             },
         ],
     },
+    {
+        "key": "allstar_firefly",
+        "brand_enum": "SubRattBrandAllstarFirefly",
+        "brand_name": "Allstar Firefly",
+        "file_enum": "AllstarFireflyFileProtocol",
+        "file_enum_is_new": True,
+        "file_string": "Allstar Firefly",
+        "file_string_is_new": True,
+        "type_label": "18bit",
+        "variants": [
+            {
+                "attack_enum": "SubRattAttackAllstarFirefly18bit315",
+                "name": "Allstar Firefly 18bit 315MHz",
+                "freq": 315000000,
+                "freq_name": "315MHz",
+                "bits": 18,
+                "te": 0,
+                "repeat": 3,
+                "preset": "FuriHalSubGhzPresetOok650Async",
+            },
+        ],
+    },
+    {
+        "key": "elplast",
+        "brand_enum": "SubRattBrandElplast",
+        "brand_name": "Elplast",
+        "file_enum": "ElplastFileProtocol",
+        "file_enum_is_new": True,
+        "file_string": "Elplast",
+        "file_string_is_new": True,
+        "type_label": "18bit",
+        "variants": [
+            {
+                "attack_enum": "SubRattAttackElplast18bit433",
+                "name": "Elplast 18bit 433MHz",
+                "freq": 433920000,
+                "freq_name": "433MHz",
+                "bits": 18,
+                "te": 0,
+                "repeat": 3,
+                "preset": "FuriHalSubGhzPresetOok650Async",
+            },
+        ],
+    },
 ]
 
 
@@ -296,13 +340,13 @@ def patch_subratt_protocols_h(protocol: dict, path: Path) -> None:
             text, anchor, insertion, before=True,
             label=f"SubRattFileProtocol slot {protocol['file_enum']}")
 
-    attacks_anchor = "    SubRattAttackLoadFile,\n    SubRattAttackTotalCount,\n} SubRattAttacks;"
+    attacks_anchor = "    SubRattAttackLoadSavedKeys,\n    SubRattAttackTotalCount,\n} SubRattAttacks;"
     attacks_insertion = "".join(f'    {v["attack_enum"]},\n' for v in protocol["variants"])
     text = anchored_insert(
         text, attacks_anchor, attacks_insertion, before=True,
         label=f"SubRattAttacks slots for {protocol['key']}")
 
-    brand_anchor = "    SubRattBrandLoadFile,\n    SubRattBrandCount,\n} SubRattBrand;"
+    brand_anchor = "    SubRattBrandLoadSavedKeys,\n    SubRattBrandCount,\n} SubRattBrand;"
     brand_insertion = f'    {protocol["brand_enum"]},\n'
     text = anchored_insert(
         text, brand_anchor, brand_insertion, before=True,
@@ -318,11 +362,10 @@ def patch_subratt_protocols_c(protocol: dict, path: Path) -> None:
     # 1. SubRattProtocol struct instance(s) - inserted right before the
     #    "BF existing dump" placeholder block, i.e. as the last "real"
     #    protocol(s) before the load-from-file fallback.
-    struct_anchor = "/**\n * BF existing dump\n */"
+    struct_anchor = "const SubRattProtocol subratt_protocol_load_file =\n    {0, 0, 0, 3, 0, FuriHalSubGhzPresetOok650Async, UnknownFileProtocol};"
     struct_blocks = []
     for v in protocol["variants"]:
         struct_blocks.append(
-            f'/**\n * {v["name"]}\n */\n'
             f'const SubRattProtocol subratt_protocol_{v["var_ident"]} = {{\n'
             f'    .frequency = {v["freq"]},\n'
             f'    .bits = {v["bits"]},\n'
@@ -336,7 +379,7 @@ def patch_subratt_protocols_c(protocol: dict, path: Path) -> None:
         label=f"SubRattProtocol struct(s) for {key}")
 
     # 2. subratt_protocol_names[]
-    names_anchor = '    [SubRattAttackLoadFile] = "BF existing dump",\n    [SubRattAttackTotalCount] = "Total Count",\n};'
+    names_anchor = '    [SubRattAttackLoadSavedKeys] = "Open Saved Keys",\n    [SubRattAttackTotalCount] = "Total Count",\n};'
     names_insertion = "".join(
         f'    [{v["attack_enum"]}] = "{v["name"]}",\n' for v in protocol["variants"])
     text = anchored_insert(
@@ -344,7 +387,7 @@ def patch_subratt_protocols_c(protocol: dict, path: Path) -> None:
         label=f"subratt_protocol_names[] entries for {key}")
 
     # 3. subratt_protocol_registry[]
-    registry_anchor = "    [SubRattAttackLoadFile] = &subratt_protocol_load_file};"
+    registry_anchor = "    [SubRattAttackLoadSavedKeys] = &subratt_protocol_load_saved_keys};"
     registry_lines = []
     for v in protocol["variants"]:
         registry_lines.append(
@@ -372,7 +415,7 @@ def patch_subratt_protocols_c(protocol: dict, path: Path) -> None:
         label=f"brand grouping arrays for {key}")
 
     # 5. subratt_brand_groups[] entry
-    brand_groups_anchor = '    [SubRattBrandLoadFile] = {"BF existing dump", load_file_types, 1},\n};'
+    brand_groups_anchor = '    [SubRattBrandLoadSavedKeys] = {"Open Saved Keys", load_saved_keys_types, 1},\n};'
     brand_entry = f'    [{protocol["brand_enum"]}] = {{"{protocol["brand_name"]}", {types_array_name}, 1}},\n'
     text = anchored_insert(
         text, brand_groups_anchor, brand_entry, before=True,
@@ -381,7 +424,7 @@ def patch_subratt_protocols_c(protocol: dict, path: Path) -> None:
     # 6. subratt_protocol_freq_names[] - note this table's LoadFile line
     #    is NOT followed by a TotalCount entry (unlike names[] above), so
     #    it needs a different anchor to stay unique.
-    freq_anchor = '    [SubRattAttackLoadFile] = "BF existing dump",\n};\n\n// --- End brand grouping data ---'
+    freq_anchor = '    [SubRattAttackLoadSavedKeys] = "Open Saved Keys",\n};\n\nstatic const char* subratt_protocol_file_types[] = {'
     freq_insertion = "".join(
         f'    [{v["attack_enum"]}] = "{v["freq_name"]}",\n' for v in protocol["variants"])
     text = anchored_insert(

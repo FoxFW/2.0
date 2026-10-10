@@ -5,17 +5,17 @@ void lfrfid_scene_t5577mw_write_third_key_on_enter(void* context) {
     LfRfid* app = context;
     Popup* popup = app->popup;
 
-    popup_set_header(popup, "Writing", 89, 30, AlignCenter, AlignTop);
+    popup_set_header(popup, "Writing", 64, 18, AlignCenter, AlignCenter);
     if(!furi_string_empty(app->file_name)) {
-        popup_set_text(popup, furi_string_get_cstr(app->file_name), 89, 43, AlignCenter, AlignTop);
+        popup_set_text(popup, furi_string_get_cstr(app->file_name), 64, 40, AlignCenter, AlignCenter);
     } else {
         popup_set_text(
             popup,
             protocol_dict_get_name(app->dict, app->protocol_id),
-            89,
-            43,
+            64,
+            40,
             AlignCenter,
-            AlignTop);
+            AlignCenter);
     }
 
     view_dispatcher_switch_to_view(app->view_dispatcher, LfRfidViewPopup);

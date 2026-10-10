@@ -1041,7 +1041,11 @@
     normal serial/RPC connection used by qFlipper and the CLI. <strong>Mass Storage
     Mode</strong> shares the SD card itself with your computer as a removable drive, so
     you can copy files on and off without pulling the card. The mode that is currently
-    active shows the 7&times;7 OK marker to its left.
+    active shows the 7&times;7 OK marker to its left. The list also includes
+    <strong>Music USB Mode</strong> and <strong>Media USB Mode</strong>, which launch the
+    Fox MP3 USB and Fox Media USB apps &mdash; these serve the SD card's <code>/MP3/</code>
+    and <code>/MEDIA/</code> folders to a computer as read-only drives (for speakers, TVs
+    and media players).
   </p>
   <p>
     Selecting Mass Storage takes effect immediately: Fox Settings closes and the Mass
@@ -1054,8 +1058,8 @@
     choice is not saved: the Flipper always boots in qFlipper Mode.
   </p>
   <div class="keys">
-    <div class="key-row"><span class="key-badge">&uarr; &darr;</span><span class="key-desc">Move between qFlipper Mode and Mass Storage Mode</span></div>
-    <div class="key-row"><span class="key-badge">OK</span><span class="key-desc">Switch to the highlighted mode</span></div>
+    <div class="key-row"><span class="key-badge">&uarr; &darr;</span><span class="key-desc">Move between the four USB modes</span></div>
+    <div class="key-row"><span class="key-badge">OK</span><span class="key-desc">Switch to / launch the highlighted mode</span></div>
     <div class="key-row"><span class="key-badge">Back</span><span class="key-desc">Return to Fox Settings</span></div>
   </div>
 
@@ -1149,8 +1153,7 @@
   <div class="setting">
     <div class="name">Custom Wallpaper</div>
     <div class="desc">
-      Toggles the wallpaper on or off. The dolphin animation is hidden when
-      a wallpaper is active — the desktop shows your artwork cleanly with the
+      Toggles the wallpaper on or off. When a wallpaper is active — the desktop shows your artwork cleanly with the
       status bar and any running app UI drawn on top.
     </div>
     <div class="values">Options: <span>OFF · ON</span></div>
@@ -2209,6 +2212,20 @@
     <tr><td>Toyota</td><td>Toyota</td><td>315 / 433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td></tr>
   </table>
 
+  <div class="box info">
+    <strong>PSA &amp; &ldquo;Unknown Signal&rdquo;:</strong> On receive, a PSA-group
+    signal that has not been decrypted yet is shown as <strong>Unknown Signal</strong>
+    rather than <strong>PSA GROUP</strong>. This is deliberate: several other makes&rsquo;
+    remotes (GM, Honda, VW, Ford and similar) share enough of PSA&rsquo;s signalling that an
+    undecrypted capture cannot be told apart with certainty, so FoxFW no longer claims
+    &ldquo;PSA&rdquo; until a frame is actually recovered. The capture is still saved and
+    fully usable &mdash; you can raw-replay it, and running <strong>PSA Decrypt</strong> on
+    it will reveal the real key, at which point it is relabeled <strong>PSA GROUP</strong>
+    and the saved file is renamed with a <code>PSA_decrypted_</code> prefix. If a capture
+    never decrypts, it was almost certainly another manufacturer&rsquo;s rolling code, which
+    can only be raw-replayed anyway.
+  </div>
+
   <h3>Tire Pressure Monitoring (TPMS) <span class="badge">Standalone App</span></h3>
   <div class="box info">
     <strong>TPMS is its own app.</strong> TPMS decoding doesn't run inside
@@ -2274,6 +2291,7 @@
     <tr><td>Somfy Keytis</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td><td>11 · Blinds / Shutters</td></tr>
     <tr><td>Alutech AT-4N</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>✓</td><td>8 · Spain, Russia</td></tr>
     <tr><td>Keyfinder</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>2 · General 2</td></tr>
+    <tr><td>KeyFinder2</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>2 · General 2</td></tr>
     <tr><td>KingGates Stylo4k</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>6 · Italian Brands 2</td></tr>
     <tr><td>Beninca ARC</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>5 · Italian Brands 1</td></tr>
     <tr><td>Hormann HSM</td><td>433 / 868 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>9 · Germany</td></tr>
@@ -2285,6 +2303,7 @@
     <tr><td>Allstar / Firefly</td><td>315 MHz</td><td>AM</td><td>—</td><td>✓</td><td>—</td><td>12 · More Gates 1</td></tr>
     <tr><td>Prastel</td><td>315 / 433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>—</td><td>12 · More Gates 1</td></tr>
     <tr><td>Ditec GOL4</td><td>433 MHz</td><td>AM</td><td>—</td><td>✓</td><td>—</td><td>13 · More Gates 2</td></tr>
+    <tr><td>Doorbell32</td><td>433 MHz</td><td>AM</td><td>✓</td><td>✓</td><td>—</td><td>13 · More Gates 2</td></tr>
   </table>
 
   <h3>General RF Protocols <span class="badge">Garage/Gate/Other</span></h3>

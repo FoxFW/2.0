@@ -1,4 +1,5 @@
 #include "../nfc_app_i.h"
+#include "nfc_icons.h"
 
 void nfc_scene_delete_success_popup_callback(void* context) {
     NfcApp* nfc = context;
@@ -10,7 +11,8 @@ void nfc_scene_delete_success_on_enter(void* context) {
 
     Popup* popup = nfc->popup;
 
-    popup_set_header(popup, "Deleted", 80, 19, AlignLeft, AlignBottom);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Deleted", 96, 32, AlignCenter, AlignCenter);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, nfc);
     popup_set_callback(popup, nfc_scene_delete_success_popup_callback);

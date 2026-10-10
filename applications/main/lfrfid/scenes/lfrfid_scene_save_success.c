@@ -1,4 +1,5 @@
 #include "../lfrfid_i.h"
+#include <lfrfid_icons.h>
 
 void lfrfid_scene_save_success_on_enter(void* context) {
     LfRfid* app = context;
@@ -6,7 +7,8 @@ void lfrfid_scene_save_success_on_enter(void* context) {
 
     scene_manager_set_scene_state(app->scene_manager, LfRfidSceneSaveData, 0);
 
-    popup_set_header(popup, "Saved", 15, 19, AlignLeft, AlignBottom);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Saved", 96, 32, AlignCenter, AlignCenter);
     popup_set_context(popup, app);
     popup_set_callback(popup, lfrfid_popup_timeout_callback);
     popup_set_timeout(popup, 1500);

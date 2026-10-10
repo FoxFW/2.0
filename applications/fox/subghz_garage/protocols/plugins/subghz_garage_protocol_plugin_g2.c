@@ -6,6 +6,7 @@ static const SubGhzProtocol* const subghz_garage_protocol_registry_g2_items[] = 
     &subghz_protocol_bin_raw,
     &subghz_protocol_x10,
     &subghz_protocol_keyfinder,
+    &subghz_protocol_keyfinder2,
     &subghz_protocol_keeloq,
 };
 

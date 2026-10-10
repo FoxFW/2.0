@@ -8,6 +8,8 @@
 
 #define SUBGHZ_TXRX_WORKER_MAX_TXRX_SIZE 60
 
+#define SUBGHZ_TXRX_WORKER_RX_FIFO_MAX 64
+
 #define SUBGHZ_TXRX_WORKER_TIMEOUT_READ_WRITE_BUF 40
 
 struct SubGhzTxRxWorker {
@@ -142,7 +144,7 @@ static int32_t subghz_tx_rx_worker_thread(void* context) {
     subghz_devices_set_frequency(instance->device, instance->frequency);
     subghz_devices_flush_rx(instance->device);
 
-    uint8_t data[SUBGHZ_TXRX_WORKER_MAX_TXRX_SIZE + 1] = {0};
+    uint8_t data[SUBGHZ_TXRX_WORKER_RX_FIFO_MAX] = {0};
     size_t size_tx = 0;
     uint8_t size_rx[1] = {0};
     uint8_t timeout_tx = 0;

@@ -10,8 +10,8 @@ static void lfrfid_rpc_start_emulation(LfRfid* app) {
 
     lfrfid_text_store_set(app, "emulating\n%s", furi_string_get_cstr(app->file_name));
 
-    popup_set_header(popup, "LF RFID", 89, 42, AlignCenter, AlignBottom);
-    popup_set_text(popup, app->text_store, 89, 44, AlignCenter, AlignTop);
+    popup_set_header(popup, "LF RFID", 64, 18, AlignCenter, AlignCenter);
+    popup_set_text(popup, app->text_store, 64, 40, AlignCenter, AlignCenter);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, LfRfidViewPopup);
 

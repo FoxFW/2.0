@@ -25,6 +25,9 @@ static const SubGhzProtocol* const subratt_subghz_protocol_registry_items[] = {
     &subghz_protocol_magellan,
     &subghz_protocol_mastercode,
     &subghz_protocol_x10,
+    &subghz_protocol_allstar_firefly,
+    &subghz_protocol_elplast,
+    &subghz_protocol_linear_delta3,
 };
 
 const SubGhzProtocolRegistry subratt_subghz_protocol_registry = {

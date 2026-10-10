@@ -87,6 +87,9 @@ struct FelicaListener {
     uint8_t requested_blocks[FELICA_LISTENER_READ_BLOCK_COUNT_MAX];
     uint8_t mac_calc_start;
     bool rc_written;
+    uint8_t mode;
+
+    uint8_t current_system_idx;
 
     BitBuffer* tx_buffer;
     BitBuffer* rx_buffer;
@@ -101,6 +104,8 @@ void felica_listener_reset(FelicaListener* instance);
 void felica_wcnt_increment(FelicaData* data);
 
 bool felica_listener_check_idm(const FelicaListener* instance, const FelicaIDm* request_idm);
+
+FelicaIDm felica_listener_get_current_idm(const FelicaListener* instance);
 
 bool felica_listener_check_block_list_size(
     FelicaListener* instance,

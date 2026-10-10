@@ -2,12 +2,9 @@
 #include <nfc/nfc_group_plugin.h>
 #include <flipper_application/flipper_application.h>
 
-#include "mf_desfire_bundle/mf_desfire.h"              /* nfc_device_mf_desfire */
-#include "mf_desfire_bundle/mf_desfire_poller_defs.h"  /* mf_desfire_poller */
+#include "mf_desfire_bundle/mf_desfire.h"
+#include "mf_desfire_bundle/mf_desfire_poller_defs.h"
 
-/* FoxFW NFC externalization - Mifare DESFire protocol group (.fal). Full stack
- * bundled byte-identical (incl. nxp_native_command). No listener.
- * iso14443_4a_* resolve from firmware API. */
 static const NfcProtocol grp_mf_desfire_protocols[] = {NfcProtocolMfDesfire};
 static const NfcPollerBase* const grp_mf_desfire_pollers[] = {&mf_desfire_poller};
 static const NfcListenerBase* const grp_mf_desfire_listeners[] = {NULL};

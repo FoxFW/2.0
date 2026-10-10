@@ -85,6 +85,14 @@ void subghz_scene_saved_menu_on_enter(void* context) {
 bool subghz_scene_saved_menu_on_event(void* context, SceneManagerEvent event) {
     SubGhz* subghz = context;
 
+    if(event.type == SceneManagerEventTypeBack) {
+        if(subghz->savedmenu_return) {
+            subghz_return_to_launcher(subghz);
+            return true;
+        }
+        return false;
+    }
+
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == SubmenuIndexEmulate) {
             scene_manager_set_scene_state(

@@ -2,13 +2,10 @@
 #include <nfc/nfc_group_plugin.h>
 #include <flipper_application/flipper_application.h>
 
-#include "slix_bundle/slix_device_defs.h"   /* nfc_device_slix */
-#include "slix_bundle/slix_poller_defs.h"   /* nfc_poller_slix */
-#include "slix_bundle/slix_listener_defs.h" /* nfc_listener_slix */
+#include "slix_bundle/slix_device_defs.h"
+#include "slix_bundle/slix_poller_defs.h"
+#include "slix_bundle/slix_listener_defs.h"
 
-/* FoxFW NFC externalization - SLIX protocol group (.fal). Full stack bundled
- * byte-identical. iso15693_3_* (incl. _is_equal_uid, _poller_get_data) resolve
- * from firmware API (iso15693 base stays internal). */
 static const NfcProtocol grp_slix_protocols[] = {NfcProtocolSlix};
 static const NfcPollerBase* const grp_slix_pollers[] = {&nfc_poller_slix};
 static const NfcListenerBase* const grp_slix_listeners[] = {&nfc_listener_slix};

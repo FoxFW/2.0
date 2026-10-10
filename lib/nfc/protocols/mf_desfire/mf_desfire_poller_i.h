@@ -50,6 +50,11 @@ MfDesfireError mf_desfire_process_error(Iso14443_4aError error);
 
 MfDesfireError mf_desfire_process_status_code(uint8_t status_code);
 
+bool mf_desfire_error_is_refusal(MfDesfireError error);
+
+MfDesfireError
+    mf_desfire_poller_read_version_any_mode(MfDesfirePoller* instance, MfDesfireVersion* data);
+
 const MfDesfireData* mf_desfire_poller_get_data(MfDesfirePoller* instance);
 
 #ifdef __cplusplus

@@ -17,23 +17,18 @@ const NfcListenerBase* const nfc_listeners_api[NfcProtocolNum] = {
     [NfcProtocolIso14443_4a] = &nfc_listener_iso14443_4a,
     [NfcProtocolIso14443_4b] = NULL,
     [NfcProtocolIso15693_3] = &nfc_listener_iso15693_3,
-    [NfcProtocolFelica] = NULL, /* external: grp_nfc_felica.fal */
+    [NfcProtocolFelica] = NULL,
     [NfcProtocolMfUltralight] = &mf_ultralight_listener,
     [NfcProtocolMfClassic] = &mf_classic_listener,
-    [NfcProtocolMfPlus] = NULL, /* external: grp_nfc_mf_plus.fal */
+    [NfcProtocolMfPlus] = NULL,
     [NfcProtocolMfDesfire] = NULL,
-    [NfcProtocolSlix] = NULL, /* external: grp_nfc_slix.fal */
+    [NfcProtocolSlix] = NULL,
     [NfcProtocolSt25tb] = NULL,
     [NfcProtocolNtag4xx] = NULL,
-    [NfcProtocolType4Tag] = NULL, /* external: grp_nfc_type_4_tag.fal */
+    [NfcProtocolType4Tag] = NULL,
     [NfcProtocolEmv] = NULL,
 };
 
-/* FoxFW NFC externalization: external protocols are served by an on-demand .fal
- * group (see nfc_group_manager); internal ones by the static table above.
- * nfc_group_is_external() is authoritative - a static entry can be a legitimate
- * NULL for an internal protocol (many listeners are NULL), so NULL must NOT be
- * read as "externalized". */
 const NfcListenerBase* nfc_listener_get_base(NfcProtocol protocol) {
     furi_check(protocol < NfcProtocolNum);
     if(nfc_group_is_external(protocol)) {

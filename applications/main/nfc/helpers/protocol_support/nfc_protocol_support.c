@@ -179,8 +179,6 @@ static const NfcProtocolSupportBase*
 }
 
 void nfc_protocol_support_preload(NfcProtocol protocol, void* context) {
-    /* FoxFW: warm the GUI plugin now (into a clean heap) so later heap churn
-     * cannot starve its load. Subsequent scene calls to get() reuse it. */
     nfc_protocol_support_get(protocol, context);
 }
 
@@ -378,7 +376,8 @@ static void nfc_protocol_support_scene_read_on_enter(NfcApp* instance) {
         return;
     }
 
-    popup_set_header(instance->popup, "Don't move", 85, 27, AlignCenter, AlignTop);
+    popup_set_icon(instance->popup, 0, 0, &I_fox_64x64);
+    popup_set_header(instance->popup, "Don't move\nthe Tag!", 96, 32, AlignCenter, AlignCenter);
 
     view_dispatcher_switch_to_view(instance->view_dispatcher, NfcViewPopup);
 
@@ -566,7 +565,8 @@ static void nfc_protocol_support_scene_read_saved_menu_on_exit(NfcApp* instance)
 static void nfc_protocol_support_scene_read_success_on_enter(NfcApp* instance) {
     Widget* widget = instance->widget;
 
-    popup_set_header(instance->popup, "Parsing", 85, 27, AlignCenter, AlignTop);
+    popup_set_icon(instance->popup, 0, 0, &I_fox_64x64);
+    popup_set_header(instance->popup, "Parsing", 96, 32, AlignCenter, AlignCenter);
     view_dispatcher_switch_to_view(instance->view_dispatcher, NfcViewPopup);
 
     FuriString* temp_str = furi_string_alloc();
@@ -868,10 +868,6 @@ static void nfc_protocol_support_scene_emulate_on_enter(NfcApp* instance) {
         }
     }
 
-    /* FoxFW: Fox logo on the NFC emulate screen (left, filling the space the old
-     * animation-free layout left open); status text on the right. Mirrors the
-     * lfrfid / ibutton emulate layout for a consistent look across all emulate
-     * screens. Per user: worth the small RAM cost here. */
     widget_add_icon_element(widget, 0, 0, &I_fox_64x64);
     widget_add_text_box_element(
         widget, 66, 4, 60, 56, AlignCenter, AlignCenter, furi_string_get_cstr(temp_str), false);
@@ -1160,8 +1156,8 @@ static bool nfc_protocol_support_scene_rpc_setup_ui_and_emulate(NfcApp* instance
 
     nfc_text_store_set(instance, "emulating\n%s", furi_string_get_cstr(instance->file_name));
 
-    popup_set_header(instance->popup, "NFC", 89, 42, AlignCenter, AlignBottom);
-    popup_set_text(instance->popup, instance->text_store, 89, 44, AlignCenter, AlignTop);
+    popup_set_header(instance->popup, "NFC", 64, 18, AlignCenter, AlignCenter);
+    popup_set_text(instance->popup, instance->text_store, 64, 40, AlignCenter, AlignCenter);
 
     view_dispatcher_switch_to_view(instance->view_dispatcher, NfcViewPopup);
 

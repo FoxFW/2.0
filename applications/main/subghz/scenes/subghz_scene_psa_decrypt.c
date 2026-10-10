@@ -285,13 +285,38 @@ bool subghz_scene_psa_decrypt_on_event(void* context, SceneManagerEvent event) {
                     subghz,
                     subghz_txrx_get_fff_data(subghz->txrx),
                     furi_string_get_cstr(subghz->file_path));
+                {
+                    FuriString* psa_dir = furi_string_alloc();
+                    FuriString* psa_base = furi_string_alloc();
+                    path_extract_dirname(furi_string_get_cstr(subghz->file_path), psa_dir);
+                    path_extract_filename(subghz->file_path, psa_base, true);
+                    if(furi_string_search_str(psa_base, "PSA") == FURI_STRING_FAILURE) {
+                        FuriString* psa_newpath = furi_string_alloc();
+                        furi_string_printf(
+                            psa_newpath,
+                            "%s/PSA_decrypted_%s%s",
+                            furi_string_get_cstr(psa_dir),
+                            furi_string_get_cstr(psa_base),
+                            SUBGHZ_APP_FILENAME_EXTENSION);
+                        Storage* psa_storage = furi_record_open(RECORD_STORAGE);
+                        if(storage_common_rename(
+                               psa_storage,
+                               furi_string_get_cstr(subghz->file_path),
+                               furi_string_get_cstr(psa_newpath)) == FSE_OK) {
+                            furi_string_set(subghz->file_path, psa_newpath);
+                        }
+                        furi_record_close(RECORD_STORAGE);
+                        furi_string_free(psa_newpath);
+                    }
+                    furi_string_free(psa_dir);
+                    furi_string_free(psa_base);
+                }
                 subghz_view_psa_decrypt_set_result(
                     subghz->subghz_psa_decrypt, true, furi_string_get_cstr(ctx->result));
             } else if(!ctx->cancel) {
                 if(ctx->needs_bf) {
                     char fail_msg[96];
                     snprintf(fail_msg, sizeof(fail_msg),
-                        "Decrypt FAILED!\n"
                         "BF params saved to SD:\n"
                         "w0=%08lX\nw1=%08lX",
                         ctx->w0, ctx->w1);
@@ -301,7 +326,7 @@ bool subghz_scene_psa_decrypt_on_event(void* context, SceneManagerEvent event) {
                     subghz_view_psa_decrypt_set_result(
                         subghz->subghz_psa_decrypt,
                         false,
-                        "Decrypt FAILED!\nType not supported.");
+                        "Type not supported.");
                 }
             } else {
                 subghz_view_psa_decrypt_set_result(

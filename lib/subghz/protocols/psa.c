@@ -37,6 +37,9 @@ static const SubGhzBlockConst subghz_protocol_psa_const = {
 #define PSA_AM_PRE_GLITCH_DECAY 2
 #define PSA_AM_PRE_MAX_GLITCH 3
 #define PSA_AM_RESYNC_BITS 8
+#define PSA_AM_LONG_MIN 360U
+#define PSA_AM_LONG_MAX 560U
+#define PSA_AM_LONG_MIN_PCT 4U
 
 #define TEA_DELTA 0x9E3779B9U
 #define TEA_ROUNDS 32
@@ -161,6 +164,8 @@ struct SubGhzProtocolDecoderPSA {
     uint8_t am_await_high;
     uint8_t am_bits[96];
     uint8_t am_bits_len;
+    uint16_t am_long_count;
+    uint16_t am_pulse_count;
 };
 
 struct SubGhzProtocolEncoderPSA {
@@ -180,6 +185,7 @@ struct SubGhzProtocolEncoderPSA {
     uint32_t serial;
     uint16_t crc;
     bool is_running;
+    bool raw_replay;
 };
 
 const SubGhzProtocolDecoder subghz_protocol_psa_decoder = {
@@ -652,6 +658,8 @@ void subghz_protocol_decoder_psa_reset(void* context) {
     instance->pre_glitch = 0;
     instance->am_await_high = 0;
     instance->am_bits_len = 0;
+    instance->am_long_count = 0;
+    instance->am_pulse_count = 0;
     instance->te_sum = 0;
     instance->te_count = 0;
     instance->te_detected = 0;
@@ -809,6 +817,10 @@ static bool psa_am_complete(SubGhzProtocolDecoderPSA* instance) {
 void subghz_protocol_decoder_psa_feed(void* context, bool level, uint32_t duration) {
     furi_assert(context);
     SubGhzProtocolDecoderPSA* instance = context;
+    if(instance->am_pulse_count < 0xFFFFU) instance->am_pulse_count++;
+    if(duration >= PSA_AM_LONG_MIN && duration <= PSA_AM_LONG_MAX &&
+       instance->am_long_count < 0xFFFFU)
+        instance->am_long_count++;
 
     uint32_t tolerance;
     uint32_t new_state = instance->state;
@@ -1146,6 +1158,8 @@ void subghz_protocol_decoder_psa_feed(void* context, bool level, uint32_t durati
 
         if(is_boundary && instance->pattern_counter >= PSA_AM_PRE_THRESHOLD) {
             instance->te_detected = te_avg3;
+            instance->am_long_count = 0;
+            instance->am_pulse_count = 0;
             instance->decode_data_low = 0;
             instance->decode_data_high = 0;
             instance->decode_count_bit = 0;
@@ -1162,6 +1176,8 @@ void subghz_protocol_decoder_psa_feed(void* context, bool level, uint32_t durati
 
         if(instance->pattern_counter >= PSA_AM_PRE_THRESHOLD) {
             instance->te_detected = te_avg3;
+            instance->am_long_count = 0;
+            instance->am_pulse_count = 0;
             instance->decode_data_low = 0;
             instance->decode_data_high = 0;
             instance->decode_count_bit = 0;
@@ -1641,11 +1657,17 @@ void subghz_protocol_decoder_psa_get_string(void* context, FuriString* output) {
             "%s %dbit\r\n"
             "Key1:%08lX%08lX\r\n"
             "Key2:%X",
-            instance->base.protocol->name,
+            "Unknown Signal",
             128,
             instance->key1_high,
             instance->key1_low,
             key2_value);
+        if(instance->am_pulse_count > 0) {
+            bool psa_like = (uint32_t)instance->am_long_count * 100U >=
+                            (uint32_t)instance->am_pulse_count * PSA_AM_LONG_MIN_PCT;
+            furi_string_cat_printf(
+                output, "\r\nTiming:%s", psa_like ? "PSA-typ" : "fast-OOK");
+        }
     }
 }
 
@@ -1778,32 +1800,42 @@ static void psa_build_buffer_mode36(SubGhzProtocolEncoderPSA* instance, uint8_t*
 static void psa_encoder_build_upload(SubGhzProtocolEncoderPSA* instance) {
     furi_assert(instance);
 
-    uint8_t buffer[48] = {0};
+    uint32_t key1_high;
+    uint32_t key1_low;
+    uint16_t validation_field;
 
-    uint8_t preserve_buffer01[2] = {0};
-    uint8_t* preserve_ptr = NULL;
-
-    if(instance->key1_low != 0 || instance->key1_high != 0) {
-        uint8_t orig_buffer[48] = {0};
-        psa_setup_byte_buffer(orig_buffer, instance->key1_low, instance->key1_high, instance->key2_low);
-        preserve_buffer01[0] = orig_buffer[0];
-        preserve_buffer01[1] = orig_buffer[1];
-        preserve_ptr = preserve_buffer01;
-    }
-
-    if(instance->mode == 0x23) {
-        psa_build_buffer_mode23(instance, buffer, preserve_ptr);
-    } else if(instance->mode == 0x36) {
-        psa_build_buffer_mode36(instance, buffer, preserve_ptr);
+    if(instance->raw_replay) {
+        key1_high = instance->key1_high;
+        key1_low = instance->key1_low;
+        validation_field = instance->validation_field;
     } else {
-        return;
-    }
+        uint8_t buffer[48] = {0};
 
-    uint32_t key1_high = ((uint32_t)buffer[0] << 24) | ((uint32_t)buffer[1] << 16) |
-                         ((uint32_t)buffer[2] << 8) | (uint32_t)buffer[3];
-    uint32_t key1_low = ((uint32_t)buffer[4] << 24) | ((uint32_t)buffer[5] << 16) |
-                        ((uint32_t)buffer[6] << 8) | (uint32_t)buffer[7];
-    uint16_t validation_field = ((uint16_t)buffer[8] << 8) | (uint16_t)buffer[9];
+        uint8_t preserve_buffer01[2] = {0};
+        uint8_t* preserve_ptr = NULL;
+
+        if(instance->key1_low != 0 || instance->key1_high != 0) {
+            uint8_t orig_buffer[48] = {0};
+            psa_setup_byte_buffer(orig_buffer, instance->key1_low, instance->key1_high, instance->key2_low);
+            preserve_buffer01[0] = orig_buffer[0];
+            preserve_buffer01[1] = orig_buffer[1];
+            preserve_ptr = preserve_buffer01;
+        }
+
+        if(instance->mode == 0x23) {
+            psa_build_buffer_mode23(instance, buffer, preserve_ptr);
+        } else if(instance->mode == 0x36) {
+            psa_build_buffer_mode36(instance, buffer, preserve_ptr);
+        } else {
+            return;
+        }
+
+        key1_high = ((uint32_t)buffer[0] << 24) | ((uint32_t)buffer[1] << 16) |
+                    ((uint32_t)buffer[2] << 8) | (uint32_t)buffer[3];
+        key1_low = ((uint32_t)buffer[4] << 24) | ((uint32_t)buffer[5] << 16) |
+                   ((uint32_t)buffer[6] << 8) | (uint32_t)buffer[7];
+        validation_field = ((uint16_t)buffer[8] << 8) | (uint16_t)buffer[9];
+    }
 
     size_t index = 0;
     uint32_t te = PSA_TE_LONG_250;
@@ -2040,7 +2072,25 @@ SubGhzProtocolStatus subghz_protocol_encoder_psa_deserialize(void* context, Flip
             }
         }
 
-        if(has_decrypted_data && type != 0x00) {
+        instance->raw_replay = false;
+        {
+            uint32_t txraw = 0;
+            flipper_format_rewind(flipper_format);
+            if(flipper_format_read_uint32(flipper_format, "TxRaw", &txraw, 1) && txraw != 0) {
+                instance->raw_replay = true;
+            }
+        }
+        if(!(has_decrypted_data && type != 0x00)) {
+            instance->raw_replay = true;
+        }
+
+        if(instance->raw_replay) {
+            psa_encoder_build_upload(instance);
+            instance->generic.data =
+                ((uint64_t)instance->key1_high << 32) | instance->key1_low;
+            instance->is_running = true;
+            ret = SubGhzProtocolStatusOk;
+        } else if(has_decrypted_data && type != 0x00) {
             instance->serial = serial;
             instance->counter = counter;
             instance->button = button;

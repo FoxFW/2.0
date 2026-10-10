@@ -152,6 +152,12 @@ bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog) {
             break;
         }
 
+        SubGhzGarageProtocolGroup target_group;
+        if(subghz_garage_protocol_group_for_name(
+               furi_string_get_cstr(temp_str), &target_group)) {
+            subghz_txrx_set_protocol_group(subghz->txrx, target_group);
+        }
+
         FlipperFormat* fff_data = subghz_txrx_get_fff_data(subghz->txrx);
         if(!strcmp(furi_string_get_cstr(temp_str), "RAW")) {
 
@@ -436,7 +442,8 @@ void subghz_return_to_launcher(SubGhz* subghz) {
         Storage* storage = furi_record_open(RECORD_STORAGE);
         File* f = storage_file_alloc(storage);
         if(storage_file_open(f, "/ext/subghz/.focus_menu", FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
-            storage_file_write(f, "opengarage", strlen("opengarage"));
+            const char* marker = subghz->savedmenu_return ? "gmenu:saved" : "opengarage";
+            storage_file_write(f, marker, strlen(marker));
         }
         storage_file_close(f);
         storage_file_free(f);

@@ -3,8 +3,6 @@
 #include "api/nfc_app_api_interface.h"
 #include "helpers/protocol_support/nfc_protocol_support.h"
 
-/* FoxFW TEMP diag: measure where nfc_app_alloc spends RAM (card-view margin
- * reclaim). Remove after the breakdown is captured. */
 
 #include <loader/firmware_api/firmware_api.h>
 #include <cli/cli_vcp.h>
@@ -122,8 +120,6 @@ NfcApp* nfc_app_alloc(void) {
     view_dispatcher_add_view(
         instance->view_dispatcher, NfcViewDictAttack, dict_attack_get_view(instance->dict_attack));
 
-    /* FoxFW: the detect_reader view moved to mfkey_collector.fap with the
-     * externalized "Extract MFC Keys" feature; nfc.fap no longer allocates it. */
 
     instance->iso14443_3a_edit_data = iso14443_3a_alloc();
     instance->file_path = furi_string_alloc_set(NFC_APP_FOLDER);
@@ -132,10 +128,6 @@ NfcApp* nfc_app_alloc(void) {
     return instance;
 }
 
-/* FoxFW: on entering the NFC Read scan, detach USB + lock the CLI VCP session
- * and suppress the RPC screen stream, so the on-demand .fal group load has the
- * RPC/CDC session's RAM free. qFlipper visibly disconnects; it reconnects on
- * leaving Read. Mirrors the proven subghz_garage mechanism. Idempotent. */
 void nfc_cli_soft_lock(NfcApp* instance) {
     furi_assert(instance);
     if(instance->cli_sessions_soft_locked) return;
@@ -153,8 +145,6 @@ void nfc_cli_soft_lock(NfcApp* instance) {
     instance->cli_sessions_soft_locked = true;
 }
 
-/* FoxFW: restore USB + CLI VCP session + screen stream after a Read scan. Safe
- * to call on any exit path (guarded by the flag). */
 void nfc_cli_soft_unlock(NfcApp* instance) {
     furi_assert(instance);
     if(!instance->cli_sessions_soft_locked) return;
@@ -172,15 +162,9 @@ void nfc_cli_soft_unlock(NfcApp* instance) {
     FURI_LOG_I("Nfc", "Read exit: restored USB/CLI + screen stream");
 }
 
-/* FoxFW RAM: the Read scan (nfc_scene_detect) uses only the popup/loading views.
- * Free the other view modules for the duration of the scan so the on-demand .fal
- * group loads get ~8-10KB more headroom, then reload them when the scan ends.
- * Centralised here (not scene-scoped across ~30 scenes); safe because the scene
- * manager always runs a scene's on_exit (reload) before the next scene's on_enter,
- * and the detect scene itself never touches these views. Both idempotent. */
 void nfc_app_idle_views_unload(NfcApp* instance) {
     furi_assert(instance);
-    if(instance->submenu == NULL) return; /* already unloaded */
+    if(instance->submenu == NULL) return;
     view_dispatcher_remove_view(instance->view_dispatcher, NfcViewMenu);
     submenu_free(instance->submenu);
     instance->submenu = NULL;
@@ -202,12 +186,11 @@ void nfc_app_idle_views_unload(NfcApp* instance) {
     view_dispatcher_remove_view(instance->view_dispatcher, NfcViewDictAttack);
     dict_attack_free(instance->dict_attack);
     instance->dict_attack = NULL;
-    /* FoxFW: detect_reader view externalized to mfkey_collector.fap. */
 }
 
 void nfc_app_idle_views_reload(NfcApp* instance) {
     furi_assert(instance);
-    if(instance->submenu != NULL) return; /* already loaded */
+    if(instance->submenu != NULL) return;
     instance->submenu = submenu_alloc();
     view_dispatcher_add_view(
         instance->view_dispatcher, NfcViewMenu, submenu_get_view(instance->submenu));
@@ -229,18 +212,13 @@ void nfc_app_idle_views_reload(NfcApp* instance) {
     instance->dict_attack = dict_attack_alloc();
     view_dispatcher_add_view(
         instance->view_dispatcher, NfcViewDictAttack, dict_attack_get_view(instance->dict_attack));
-    /* FoxFW: detect_reader view externalized to mfkey_collector.fap. */
 }
 
 void nfc_app_free(NfcApp* instance) {
     furi_assert(instance);
 
-    /* FoxFW: guarantee USB/CLI + screen stream are restored no matter how the
-     * app exits (safety net for the Read-screen soft-lock). Idempotent. */
     nfc_cli_soft_unlock(instance);
 
-    /* FoxFW: if we somehow exit while the idle views are unloaded for a scan,
-     * reload them so the frees below operate on valid pointers. Idempotent. */
     nfc_app_idle_views_reload(instance);
 
     if(instance->rpc_ctx) {
@@ -260,11 +238,6 @@ void nfc_app_free(NfcApp* instance) {
         nfc_protocol_support_free(instance);
     }
 
-    /* FoxFW: the composite API resolver (firmware + nfc-app interfaces) is
-     * allocated in nfc_app_alloc but was never freed — a ~56-byte leak (the
-     * resolver struct plus its two interface-list nodes) that stranded the heap
-     * high after every NFC app exit (max free block never fully recovered).
-     * Free it here, after its users (supported_cards, protocol_support). */
     composite_api_resolver_free(instance->api_resolver);
     instance->api_resolver = NULL;
 
@@ -298,7 +271,6 @@ void nfc_app_free(NfcApp* instance) {
     view_dispatcher_remove_view(instance->view_dispatcher, NfcViewDictAttack);
     dict_attack_free(instance->dict_attack);
 
-    /* FoxFW: detect_reader view externalized to mfkey_collector.fap. */
 
     view_dispatcher_free(instance->view_dispatcher);
 
@@ -531,14 +503,6 @@ bool nfc_load_from_file_select(NfcApp* instance) {
 
         nfc_show_loading_popup(instance, true);
 
-        /* FoxFW: load the card and WARM its protocol-support GUI plugin FIRST,
-         * while the heap still has a large contiguous block, THEN run the
-         * supported-cards cache sweep. The sweep loads ~12 plugins (up to 11 KB
-         * each) and shatters the heap (seen on-device: 40 KB free but only
-         * ~3.3 KB largest block), which intermittently starved the ~4 KB GUI-
-         * plugin load that used to happen after it -> "Plugin Not Loaded" on
-         * saved-card open. Warming it before the sweep gives it a clean block;
-         * the SavedMenu scene then reuses the already-loaded plugin. */
         success = nfc_load_file(instance, instance->file_path, true);
         if(success) {
             nfc_protocol_support_preload(
@@ -627,12 +591,6 @@ void nfc_app_run_external(NfcApp* nfc, const char* app_path) {
     view_dispatcher_stop(nfc->view_dispatcher);
 }
 
-/* FoxFW: launch the externalized "Extract MFC Keys" nonce collector
- * (mfkey_collector.fap). Mirrors nfc_app_run_external, but passes an optional
- * card file path to the collector and drops a focus marker so the Start menu
- * re-selects the "Extract MFC Keys" item when the loader returns to nfc.fap.
- *   card_path == NULL -> collector emulates a fresh random MIFARE Classic 4K card
- *   card_path != NULL -> collector loads+emulates that .nfc card */
 void nfc_run_mfkey_collector(NfcApp* nfc, const char* card_path) {
     furi_assert(nfc);
 
@@ -661,16 +619,10 @@ void nfc_run_mfkey_collector(NfcApp* nfc, const char* card_path) {
 
 void nfc_run_mfkey_collector_with_card(NfcApp* nfc) {
     furi_assert(nfc);
-    /* Persist the in-memory card losslessly (the same save used for a normal card
-     * save) so the collector can load and emulate exactly this card. */
     nfc_device_save(nfc->nfc_device, NFC_MFKEY_COLLECTOR_TMP_CARD_PATH);
     nfc_run_mfkey_collector(nfc, NFC_MFKEY_COLLECTOR_TMP_CARD_PATH);
 }
 
-/* FoxFW: launch the externalized MIFARE Fuzzer (mifare_fuzzer.fap). Mirrors
- * nfc_app_run_external, but drops a focus marker so the Start menu re-selects the
- * "Fuzzer" item when the loader returns to nfc.fap. The fuzzer owns its own NFC
- * HAL instance, so nfc.fap passes nothing but fully exits while it runs. */
 void nfc_run_mifare_fuzzer(NfcApp* nfc) {
     furi_assert(nfc);
 

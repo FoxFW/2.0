@@ -34,6 +34,7 @@ typedef enum {
     LFRFIDProtocolSecurakey,
     LFRFIDProtocolGProxII,
     LFRFIDProtocolNoralsy,
+    LFRFIDProtocolIndala224,
 
     LFRFIDProtocolMax,
 } LFRFIDProtocol;

@@ -44,7 +44,7 @@ static void subghz_view_psa_decrypt_draw(Canvas* canvas, void* _model) {
         if(model->status_line[0]) {
             canvas_draw_str_aligned(canvas, 64, 2, AlignCenter, AlignTop, model->status_line);
         } else {
-            canvas_draw_str_aligned(canvas, 64, 2, AlignCenter, AlignTop, "PSA Decrypt");
+            canvas_draw_str_aligned(canvas, 64, 2, AlignCenter, AlignTop, "Decrypting");
         }
 
         canvas_draw_rframe(canvas, 3, 15, 122, 12, 2);
@@ -88,15 +88,17 @@ static void subghz_view_psa_decrypt_draw(Canvas* canvas, void* _model) {
         canvas_draw_str_aligned(canvas, 126, 64, AlignRight, AlignBottom, "Hold BACK");
     } else {
         canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str_aligned(canvas, 64, 4, AlignCenter, AlignTop, "Decrypted!");
+        canvas_draw_str_aligned(
+            canvas, 64, 2, AlignCenter, AlignTop,
+            model->success ? "Decrypted!" : "Decrypt Failed");
 
 	if(model->result_str) {
             canvas_set_font(canvas, FontSecondary);
-            elements_multiline_text_aligned(canvas, 64, 20, AlignCenter, AlignTop,
+            elements_multiline_text_aligned(canvas, 64, 16, AlignCenter, AlignTop,
                 furi_string_get_cstr(model->result_str));
         }
 
-        elements_button_center(canvas, "Ok");
+        elements_button_center(canvas, model->success ? "Continue" : "Back");
     }
 }
 

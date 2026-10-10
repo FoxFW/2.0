@@ -11,15 +11,15 @@ void nfc_scene_mf_classic_keys_warn_duplicate_on_enter(void* context) {
 
     Popup* popup = instance->popup;
 
-    popup_set_header(popup, "Key Already Exists!", 64, 3, AlignCenter, AlignTop);
+    popup_set_header(popup, "Key Already Exists!", 64, 16, AlignCenter, AlignCenter);
     popup_set_text(
         popup,
         "Please enter a\n"
         "different key.",
-        4,
-        24,
-        AlignLeft,
-        AlignTop);
+        64,
+        40,
+        AlignCenter,
+        AlignCenter);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, instance);
     popup_set_callback(popup, nfc_scene_mf_classic_keys_warn_duplicate_popup_callback);

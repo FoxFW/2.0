@@ -9,8 +9,8 @@ void ibutton_scene_save_success_on_enter(void* context) {
     iButton* ibutton = context;
     Popup* popup = ibutton->popup;
 
-    popup_set_icon(popup, 36, 5, &I_DolphinSaved_92x58);
-    popup_set_header(popup, "Saved", 15, 19, AlignLeft, AlignBottom);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Saved", 96, 32, AlignCenter, AlignCenter);
     popup_set_callback(popup, ibutton_scene_save_success_popup_callback);
     popup_set_context(popup, ibutton);
     popup_set_timeout(popup, 1500);

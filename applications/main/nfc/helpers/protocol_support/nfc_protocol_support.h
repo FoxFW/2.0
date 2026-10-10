@@ -7,10 +7,6 @@
 
 typedef struct NfcProtocolSupport NfcProtocolSupport;
 
-/* FoxFW: pre-load (warm) the protocol-support GUI plugin for `protocol` now, so
- * it grabs a contiguous heap block before later activity (e.g. the supported-
- * cards cache sweep) fragments the heap. The plugin is then reused by the scenes.
- * Fixes the intermittent "Plugin Not Loaded" on saved-card load. */
 void nfc_protocol_support_preload(NfcProtocol protocol, void* context);
 
 void nfc_protocol_support_free(void* context);

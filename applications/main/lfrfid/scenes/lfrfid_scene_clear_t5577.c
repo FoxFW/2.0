@@ -1,4 +1,5 @@
 #include "../lfrfid_i.h"
+#include <lfrfid_icons.h>
 #include <bit_lib.h>
 #include "tools/t5577.h"
 #define TAG "Clear T5577"
@@ -10,9 +11,9 @@ static void lfrfid_clear_t5577_password_and_config_to_EM(LfRfid* app) {
     uint8_t default_passwords_len;
     const uint32_t* default_passwords = lfrfid_get_t5577_default_passwords(&default_passwords_len);
 
-    popup_set_header(popup, "Removing\npassword", 90, 36, AlignCenter, AlignCenter);
+    popup_set_header(popup, "Removing\npassword", 64, 22, AlignCenter, AlignCenter);
 
-    popup_set_text(popup, curr_buf, 90, 56, AlignCenter, AlignCenter);
+    popup_set_text(popup, curr_buf, 64, 46, AlignCenter, AlignCenter);
     notification_message(app->notifications, &sequence_blink_start_magenta);
 
     LFRFIDT5577 data = {
@@ -48,7 +49,8 @@ void lfrfid_scene_clear_t5577_on_enter(void* context) {
     lfrfid_clear_t5577_password_and_config_to_EM(app);
 
     notification_message(app->notifications, &sequence_success);
-    popup_set_header(popup, "Success!", 75, 10, AlignLeft, AlignTop);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Success!", 96, 32, AlignCenter, AlignCenter);
 
     popup_set_context(popup, app);
     popup_set_callback(popup, lfrfid_popup_timeout_callback);

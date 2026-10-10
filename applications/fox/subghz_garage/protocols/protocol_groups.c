@@ -73,6 +73,8 @@ const char* const subghz_garage_tx_protocol_paths[SubGhzGarageTxProtocolCount] =
     APP_ASSETS_PATH("plugins/tx_telcoma_edge.fal"),
     APP_ASSETS_PATH("plugins/tx_raw.fal"),
     APP_ASSETS_PATH("plugins/tx_bin_raw.fal"),
+    APP_ASSETS_PATH("plugins/tx_keyfinder2.fal"),
+    APP_ASSETS_PATH("plugins/tx_doorbell32.fal"),
 };
 
 typedef struct {
@@ -91,6 +93,8 @@ static const SubGhzGarageTxProtocolMapEntry subghz_garage_tx_protocol_map[] = {
     {SUBGHZ_PROTOCOL_DICKERT_MAHS_NAME, SubGhzGarageTxProtocolDickertMahs},
     {SUBGHZ_PROTOCOL_ROGER_NAME, SubGhzGarageTxProtocolRoger},
     {SUBGHZ_PROTOCOL_KEYFINDER_NAME, SubGhzGarageTxProtocolKeyFinder},
+    {SUBGHZ_PROTOCOL_KEYFINDER2_NAME, SubGhzGarageTxProtocolKeyFinder2},
+    {SUBGHZ_PROTOCOL_DOORBELL32_NAME, SubGhzGarageTxProtocolDoorbell32},
     {SUBGHZ_PROTOCOL_SECPLUS_V2_NAME, SubGhzGarageTxProtocolSecPlusV2},
     {SUBGHZ_PROTOCOL_PRINCETON_NAME, SubGhzGarageTxProtocolPrinceton},
     {SUBGHZ_PROTOCOL_GANGQI_NAME, SubGhzGarageTxProtocolGangQi},
@@ -131,6 +135,77 @@ bool subghz_garage_tx_protocol_for_name(
     for(size_t i = 0; i < COUNT_OF(subghz_garage_tx_protocol_map); i++) {
         if(strcmp(subghz_garage_tx_protocol_map[i].name, protocol_name) == 0) {
             *out_tx_protocol = subghz_garage_tx_protocol_map[i].tx_protocol;
+            return true;
+        }
+    }
+    return false;
+}
+
+
+typedef struct {
+    const char* name;
+    SubGhzGarageProtocolGroup group;
+} SubGhzGarageProtocolGroupMapEntry;
+
+static const SubGhzGarageProtocolGroupMapEntry subghz_garage_protocol_group_map[] = {
+    {SUBGHZ_PROTOCOL_SMC5326_NAME, SubGhzGarageProtocolGroup1},
+    {SUBGHZ_PROTOCOL_HOLTEK_NAME, SubGhzGarageProtocolGroup1},
+    {SUBGHZ_PROTOCOL_HOLTEK_HT12X_NAME, SubGhzGarageProtocolGroup1},
+    {SUBGHZ_PROTOCOL_PRINCETON_NAME, SubGhzGarageProtocolGroup1},
+    {SUBGHZ_PROTOCOL_X10_NAME, SubGhzGarageProtocolGroup2},
+    {SUBGHZ_PROTOCOL_KEYFINDER_NAME, SubGhzGarageProtocolGroup2},
+    {SUBGHZ_PROTOCOL_KEYFINDER2_NAME, SubGhzGarageProtocolGroup2},
+    {SUBGHZ_PROTOCOL_KEELOQ_NAME, SubGhzGarageProtocolGroup2},
+    {SUBGHZ_PROTOCOL_CHAMB_CODE_NAME, SubGhzGarageProtocolGroup3},
+    {SUBGHZ_PROTOCOL_SECPLUS_V1_NAME, SubGhzGarageProtocolGroup3},
+    {SUBGHZ_PROTOCOL_SECPLUS_V2_NAME, SubGhzGarageProtocolGroup3},
+    {SUBGHZ_PROTOCOL_LINEAR_NAME, SubGhzGarageProtocolGroup4},
+    {SUBGHZ_PROTOCOL_LINEAR_DELTA3_NAME, SubGhzGarageProtocolGroup4},
+    {SUBGHZ_PROTOCOL_MEGACODE_NAME, SubGhzGarageProtocolGroup4},
+    {SUBGHZ_PROTOCOL_BENINCA_ARC_NAME, SubGhzGarageProtocolGroup5},
+    {SUBGHZ_PROTOCOL_CAME_NAME, SubGhzGarageProtocolGroup5},
+    {SUBGHZ_PROTOCOL_CAME_ATOMO_NAME, SubGhzGarageProtocolGroup5},
+    {SUBGHZ_PROTOCOL_CAME_TWEE_NAME, SubGhzGarageProtocolGroup5},
+    {SUBGHZ_PROTOCOL_KINGGATES_STYLO_4K_NAME, SubGhzGarageProtocolGroup6},
+    {SUBGHZ_PROTOCOL_NICE_FLO_NAME, SubGhzGarageProtocolGroup6},
+    {SUBGHZ_PROTOCOL_NICE_FLOR_S_NAME, SubGhzGarageProtocolGroup6},
+    {SUBGHZ_PROTOCOL_PHOENIX_V2_NAME, SubGhzGarageProtocolGroup6},
+    {SUBGHZ_PROTOCOL_FAAC_SLH_NAME, SubGhzGarageProtocolGroup7},
+    {SUBGHZ_PROTOCOL_ROGER_NAME, SubGhzGarageProtocolGroup7},
+    {SUBGHZ_PROTOCOL_DOITRAND_NAME, SubGhzGarageProtocolGroup7},
+    {SUBGHZ_PROTOCOL_TELCOMA_EDGE_NAME, SubGhzGarageProtocolGroup7},
+    {SUBGHZ_PROTOCOL_ALUTECH_AT_4N_NAME, SubGhzGarageProtocolGroup8},
+    {SUBGHZ_PROTOCOL_ANSONIC_NAME, SubGhzGarageProtocolGroup8},
+    {SUBGHZ_PROTOCOL_CLEMSA_NAME, SubGhzGarageProtocolGroup8},
+    {SUBGHZ_PROTOCOL_MASTERCODE_NAME, SubGhzGarageProtocolGroup8},
+    {SUBGHZ_PROTOCOL_DICKERT_MAHS_NAME, SubGhzGarageProtocolGroup9},
+    {SUBGHZ_PROTOCOL_HORMANN_HSM_NAME, SubGhzGarageProtocolGroup9},
+    {SUBGHZ_PROTOCOL_MARANTEC_NAME, SubGhzGarageProtocolGroup9},
+    {SUBGHZ_PROTOCOL_MARANTEC24_NAME, SubGhzGarageProtocolGroup9},
+    {SUBGHZ_PROTOCOL_GANGQI_NAME, SubGhzGarageProtocolGroup10},
+    {SUBGHZ_PROTOCOL_GATE_TX_NAME, SubGhzGarageProtocolGroup10},
+    {SUBGHZ_PROTOCOL_HAY21_NAME, SubGhzGarageProtocolGroup10},
+    {SUBGHZ_PROTOCOL_REVERSRB2_NAME, SubGhzGarageProtocolGroup10},
+    {SUBGHZ_PROTOCOL_SOMFY_TELIS_NAME, SubGhzGarageProtocolGroup11},
+    {SUBGHZ_PROTOCOL_SOMFY_KEYTIS_NAME, SubGhzGarageProtocolGroup11},
+    {SUBGHZ_PROTOCOL_JAROLIFT_NAME, SubGhzGarageProtocolGroup11},
+    {SUBGHZ_PROTOCOL_DOOYA_NAME, SubGhzGarageProtocolGroup11},
+    {SUBGHZ_PROTOCOL_NORD_ICE_NAME, SubGhzGarageProtocolGroup12},
+    {SUBGHZ_PROTOCOL_ALLSTAR_FIREFLY_NAME, SubGhzGarageProtocolGroup12},
+    {SUBGHZ_PROTOCOL_PRASTEL_NAME, SubGhzGarageProtocolGroup12},
+    {SUBGHZ_PROTOCOL_DITEC_GOL4_NAME, SubGhzGarageProtocolGroup13},
+    {SUBGHZ_PROTOCOL_DOORBELL32_NAME, SubGhzGarageProtocolGroup13},
+};
+
+bool subghz_garage_protocol_group_for_name(
+    const char* protocol_name,
+    SubGhzGarageProtocolGroup* out_group) {
+    if(!protocol_name || !out_group) {
+        return false;
+    }
+    for(size_t i = 0; i < COUNT_OF(subghz_garage_protocol_group_map); i++) {
+        if(strcmp(subghz_garage_protocol_group_map[i].name, protocol_name) == 0) {
+            *out_group = subghz_garage_protocol_group_map[i].group;
             return true;
         }
     }

@@ -8,7 +8,7 @@ extern "C" {
 
 typedef struct DesktopSettingsViewUsbMode DesktopSettingsViewUsbMode;
 
-typedef void (*DesktopSettingsViewUsbModeCallback)(void* context, DesktopUsbMode mode);
+typedef void (*DesktopSettingsViewUsbModeCallback)(void* context, uint8_t option);
 
 DesktopSettingsViewUsbMode* desktop_settings_view_usb_mode_alloc(void);
 void desktop_settings_view_usb_mode_free(DesktopSettingsViewUsbMode* instance);

@@ -46,8 +46,6 @@ struct NfcScanner {
     size_t children_protocols_idx;
     NfcProtocol children_protocols[NfcProtocolNum];
 
-    /* FoxFW hierarchical probe: protocols already probed this scan (so the
-     * per-layer loop never re-probes one). */
     size_t probed_children_num;
     NfcProtocol probed_children[NfcProtocolNum];
 
@@ -124,20 +122,12 @@ void nfc_scanner_state_handler_try_base_pollers(NfcScanner* instance) {
 }
 
 void nfc_scanner_state_handler_find_children_protocols(NfcScanner* instance) {
-    /* FoxFW HIERARCHICAL PROBE (RAM): build only the NEXT tree layer -- protocols
-     * whose DIRECT parent has been detected and that have not themselves been
-     * detected or probed yet. DetectChildren loops back here after each layer, so
-     * a card that lacks an intermediate layer (e.g. a bare ISO14443-3A card with
-     * no ISO14443-4A) never reaches that layer's children, and their .fal groups
-     * are never loaded. Detection is unchanged: a protocol is only detectable when
-     * its parent is, so the final detected set is identical to the old flat sweep,
-     * minus the pointless loads of groups that provably cannot match. */
     instance->children_protocols_num = 0;
     instance->children_protocols_idx = 0;
 
     for(size_t i = 0; i < NfcProtocolNum; i++) {
         const NfcProtocol parent = nfc_protocol_get_parent(i);
-        if(parent == NfcProtocolInvalid) continue; /* base protocol, handled earlier */
+        if(parent == NfcProtocolInvalid) continue;
 
         bool parent_detected = false;
         bool self_detected = false;
@@ -182,13 +172,10 @@ void nfc_scanner_state_handler_detect_children_protocols(NfcScanner* instance) {
         instance->detected_protocols_num++;
     }
 
-    /* Mark probed so the per-layer FindChildren loop never re-probes this one. */
     instance->probed_children[instance->probed_children_num++] = instance->current_protocol;
 
     instance->children_protocols_idx++;
     if(instance->children_protocols_idx == instance->children_protocols_num) {
-        /* Layer finished -> go back and build the next layer (direct children of
-         * anything newly detected). FindChildren moves to Complete when none remain. */
         instance->state = NfcScannerStateFindChildrenProtocols;
     }
 }

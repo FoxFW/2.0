@@ -6,8 +6,8 @@ void subratt_scene_save_success_on_enter(void* context) {
     SubRattState* instance = context;
 
     Popup* popup = instance->popup;
-    popup_set_icon(popup, 32, 5, &I_DolphinNice_96x59);
-    popup_set_header(popup, "Saved!", 13, 22, AlignLeft, AlignBottom);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Saved!", 96, 32, AlignCenter, AlignCenter);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, instance);
     popup_set_callback(popup, subratt_popup_closed_callback);

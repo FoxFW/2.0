@@ -54,9 +54,6 @@ static void nfc_listener_list_alloc(NfcListener* instance) {
         if(parent->listener_api == NULL) instance->list_valid = false;
     } while(true);
 
-    /* A chain element with no listener_api (external group failed to load, or an
-     * internal protocol with no listener) means we cannot emulate this stack.
-     * Leave listeners NULL and no-op instead of dereferencing NULL. */
     if(!instance->list_valid) {
         FURI_LOG_E("NfcListener", "chain build failed for protocol %d", instance->protocol);
         return;
@@ -95,8 +92,6 @@ NfcListener* nfc_listener_alloc(Nfc* nfc, NfcProtocol protocol, const NfcDeviceD
     furi_check(nfc);
     furi_check(protocol < NfcProtocolNum);
     furi_check(data);
-    /* External protocols load via list_alloc below; is_external() lets the guard
-     * pass before the group is resident. */
     furi_check(nfc_group_is_external(protocol) || nfc_listener_get_base(protocol));
 
     NfcListener* instance = malloc(sizeof(NfcListener));

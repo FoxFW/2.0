@@ -293,7 +293,7 @@ SubGhz* subghz_alloc(bool alloc_for_tx_only) {
         subghz_garage_pool_get_free(),
         subghz_garage_pool_get_max_block());
 
-    SubGhz* subghz = malloc(sizeof(SubGhz));
+    SubGhz* subghz = calloc(1, sizeof(SubGhz));
 
     subghz->blank_transition_viewport = NULL;
 
@@ -595,6 +595,7 @@ int32_t subghz_app(void* p) {
     }
     subghz->launched_from_mode_picker =
         from_mode_picker || open_receiver || open_readraw || savedmenu;
+    subghz->savedmenu_return = savedmenu;
 
     if(open_receiver) {
         view_dispatcher_attach_to_gui(
@@ -628,17 +629,25 @@ int32_t subghz_app(void* p) {
         view_dispatcher_attach_to_gui(
             subghz->view_dispatcher, subghz->gui, ViewDispatcherTypeFullscreen);
         const char* saved_path = (const char*)p + 10;
-        if(subghz_key_load(subghz, saved_path, true)) {
-            furi_string_set(subghz->file_path, saved_path);
-            if(subghz_get_load_type_file(subghz) == SubGhzLoadTypeFileRaw) {
-                subghz_rx_key_state_set(subghz, SubGhzRxKeyStateRAWLoad);
-                scene_manager_next_scene(subghz->scene_manager, SubGhzSceneReadRAW);
-            } else {
-                subghz_rx_key_state_set(subghz, SubGhzRxKeyStateRAWLoad);
-                scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSavedMenu);
-            }
-        } else {
+        if(memmgr_get_free_heap() < SUBGHZ_LOW_RAM_FREE_HEAP_SAVED_LOAD &&
+           subghz_low_ram_mitigate(subghz, SUBGHZ_LOW_RAM_FREE_HEAP_SAVED_LOAD)) {
+            dialog_message_show_storage_error(
+                subghz->dialogs, "Low memory.\nClose qFlipper or\nUSB, then retry.");
             subghz_return_to_launcher(subghz);
+        } else {
+            bool gar_kl = subghz_key_load(subghz, saved_path, true);
+            if(gar_kl) {
+                furi_string_set(subghz->file_path, saved_path);
+                if(subghz_get_load_type_file(subghz) == SubGhzLoadTypeFileRaw) {
+                    subghz_rx_key_state_set(subghz, SubGhzRxKeyStateRAWLoad);
+                    scene_manager_next_scene(subghz->scene_manager, SubGhzSceneReadRAW);
+                } else {
+                    subghz_rx_key_state_set(subghz, SubGhzRxKeyStateRAWLoad);
+                    scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSavedMenu);
+                }
+            } else {
+                subghz_return_to_launcher(subghz);
+            }
         }
     } else if(p && strlen((const char*)p) && !from_mode_picker) {
         uint32_t rpc_ctx = 0;
@@ -653,7 +662,13 @@ int32_t subghz_app(void* p) {
         } else {
             view_dispatcher_attach_to_gui(
                 subghz->view_dispatcher, subghz->gui, ViewDispatcherTypeFullscreen);
-            if(subghz_key_load(subghz, p, true)) {
+            if(memmgr_get_free_heap() < SUBGHZ_LOW_RAM_FREE_HEAP_SAVED_LOAD &&
+               subghz_low_ram_mitigate(subghz, SUBGHZ_LOW_RAM_FREE_HEAP_SAVED_LOAD)) {
+                dialog_message_show_storage_error(
+                    subghz->dialogs, "Low memory.\nClose qFlipper or\nUSB, then retry.");
+                scene_manager_stop(subghz->scene_manager);
+                view_dispatcher_stop(subghz->view_dispatcher);
+            } else if(subghz_key_load(subghz, p, true)) {
                 furi_string_set(subghz->file_path, (const char*)p);
 
                 if(subghz_get_load_type_file(subghz) == SubGhzLoadTypeFileRaw) {

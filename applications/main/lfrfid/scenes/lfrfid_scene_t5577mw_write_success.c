@@ -4,8 +4,8 @@ void lfrfid_scene_t5577mw_write_success_on_enter(void* context) {
     LfRfid* app = context;
     Popup* popup = app->popup;
 
-    popup_set_header(popup, "Success!", 75, 10, AlignLeft, AlignTop);
-    popup_set_text(popup, "Successfully\nwritten!", 75, 25, AlignLeft, AlignTop);
+    popup_set_header(popup, "Success!", 64, 18, AlignCenter, AlignCenter);
+    popup_set_text(popup, "Successfully\nwritten!", 64, 40, AlignCenter, AlignCenter);
 
     popup_set_context(popup, app);
     popup_set_callback(popup, lfrfid_popup_timeout_callback);

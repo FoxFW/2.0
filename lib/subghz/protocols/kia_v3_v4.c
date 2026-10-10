@@ -154,6 +154,9 @@ static bool kia_v3_v4_process_buffer(SubGhzProtocolDecoderKiaV3V4* instance) {
 
     if(instance->is_v3_sync) {
         uint16_t num_bytes = (instance->raw_bit_count + 7) / 8;
+        if(num_bytes > sizeof(instance->raw_bits)) {
+            num_bytes = sizeof(instance->raw_bits);
+        }
         for(uint16_t i = 0; i < num_bytes; i++) {
             b[i] = ~b[i];
         }

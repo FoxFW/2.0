@@ -261,9 +261,6 @@ void nfc_free(Nfc* instance) {
     furi_check(instance);
     furi_check(instance->state == NfcStateIdle);
 
-    /* FoxFW NFC externalization: unload all on-demand protocol groups so their
-     * RAM is returned when the NFC app (this Nfc instance) closes. NFC is an
-     * exclusive HAL resource, so only one Nfc instance is ever live. */
     nfc_group_manager_reset();
 
     furi_kernel_lock();

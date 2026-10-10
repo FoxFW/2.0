@@ -2,21 +2,10 @@
 #include <nfc/nfc_group_plugin.h>
 #include <flipper_application/flipper_application.h>
 
-#include "felica_bundle/felica.h"               /* nfc_device_felica */
-#include "felica_bundle/felica_poller_defs.h"   /* nfc_poller_felica */
-#include "felica_bundle/felica_listener_defs.h" /* nfc_listener_felica */
+#include "felica_bundle/felica.h"
+#include "felica_bundle/felica_poller_defs.h"
+#include "felica_bundle/felica_listener_defs.h"
 
-/*
- * FoxFW NFC externalization - Felica protocol group (.fal).
- *
- * Loaded on demand by the firmware NFC engine (lib/nfc/nfc_group_manager.c)
- * from apps_data/nfc/plugins/ to supply Felica's poller/listener/device
- * vtables, which were removed from the static firmware registries
- * (nfc_poller_defs.c / nfc_listener_defs.c / nfc_device_defs.c). The full
- * Felica stack is bundled here (felica_bundle/) byte-for-byte identical to the
- * firmware original, so "if it worked internally it works externally" holds by
- * construction. mbedtls_des3_* resolves from the firmware API.
- */
 
 static const NfcProtocol grp_nfc_felica_protocols[] = {
     NfcProtocolFelica,

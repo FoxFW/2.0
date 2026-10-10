@@ -35,7 +35,7 @@ void subghz_scene_saved_on_enter(void* context) {
             char args[300];
             snprintf(
                 args, sizeof(args), "savedmenu:%s", furi_string_get_cstr(subghz->file_path));
-            subghz_launch_garage_via_probe(subghz, args);
+            subghz_launch_garage_via_probe(subghz, args, false);
             handed_off_to_garage = true;
         }
         furi_string_free(protocol);

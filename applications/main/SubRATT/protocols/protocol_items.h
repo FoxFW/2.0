@@ -25,5 +25,8 @@
 #include "magellan.h"
 #include "mastercode.h"
 #include "x10.h"
+#include "allstar_firefly.h"
+#include "elplast.h"
+#include "linear_delta3.h"
 
 extern const SubGhzProtocolRegistry subratt_subghz_protocol_registry;

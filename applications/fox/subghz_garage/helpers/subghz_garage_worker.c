@@ -75,7 +75,7 @@ SubGhzGarageWorker* subghz_garage_worker_alloc(void) {
     SubGhzGarageWorker* instance = malloc(sizeof(SubGhzGarageWorker));
 
     instance->thread = furi_thread_alloc_ex(
-        "SubGhzGarageWorker", 2048, subghz_garage_worker_thread_callback, instance);
+        "SubGhzGarageWorker", 4096, subghz_garage_worker_thread_callback, instance);
 
     instance->stream = furi_stream_buffer_alloc(
         sizeof(LevelDuration) * SUBGHZ_GARAGE_WORKER_STREAM_DEPTH, sizeof(LevelDuration));

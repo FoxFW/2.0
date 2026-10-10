@@ -57,6 +57,8 @@
 
 #define SUBGHZ_GARAGE_WORKER_RAM_COST 11000
 
+#define SUBGHZ_LOW_RAM_FREE_HEAP_SAVED_LOAD 44000
+
 #define SUBGHZ_LOW_RAM_FREE_HEAP_CHAIN_START (SUBGHZ_LOW_RAM_FREE_HEAP + SUBGHZ_GARAGE_WORKER_RAM_COST)
 
 #define SUBGHZ_LOW_RAM_GRACE_MS 2000
@@ -100,6 +102,7 @@ struct SubGhz {
     bool raw_send_only;
 
     bool launched_from_mode_picker;
+    bool savedmenu_return;
 
     bool save_datetime_set;
     DateTime save_datetime;

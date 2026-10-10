@@ -68,7 +68,6 @@ struct Desktop {
     ViewPort* no_sd_viewport;
 
     ViewPort* wifi_icon_viewport;
-    FuriTimer* update_wifi_timer;
     FuriThread* wifi_recheck_thread;
     bool wifi_connected;
     bool cc1101_connected;
@@ -76,9 +75,10 @@ struct Desktop {
 
     View* wallpaper_view;
     uint8_t* wallpaper_data;
+    uint8_t* wallpaper_buf[2];
+    uint8_t* wallpaper_scratch;
     FuriMutex* wallpaper_mutex;
 
-    FuriTimer* wallpaper_check_timer;
 
     Loader* loader;
     Storage* storage;

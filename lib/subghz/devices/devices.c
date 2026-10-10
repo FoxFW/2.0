@@ -16,20 +16,44 @@ void subghz_devices_preinit(void) {
     subghz_devices_get_mutex();
 }
 
+#define SUBGHZ_DEVICES_SESSION_WAIT_MAX_MS 2000u
+
+static void subghz_devices_acquire_free_registry(FuriMutex* mutex) {
+    uint32_t waited = 0;
+    furi_mutex_acquire(mutex, FuriWaitForever);
+    while(subghz_device_registry_is_valid() && waited < SUBGHZ_DEVICES_SESSION_WAIT_MAX_MS) {
+        furi_mutex_release(mutex);
+        furi_delay_ms(2);
+        waited += 2;
+        furi_mutex_acquire(mutex, FuriWaitForever);
+    }
+    furi_check(!subghz_device_registry_is_valid());
+}
+
 void subghz_devices_init(void) {
     FuriMutex* mutex = subghz_devices_get_mutex();
-    furi_mutex_acquire(mutex, FuriWaitForever);
-    furi_check(!subghz_device_registry_is_valid());
+    subghz_devices_acquire_free_registry(mutex);
     subghz_device_registry_init();
     furi_mutex_release(mutex);
 }
 
 void subghz_devices_init_internal_only(void) {
     FuriMutex* mutex = subghz_devices_get_mutex();
-    furi_mutex_acquire(mutex, FuriWaitForever);
-    furi_check(!subghz_device_registry_is_valid());
+    subghz_devices_acquire_free_registry(mutex);
     subghz_device_registry_init_internal_only();
     furi_mutex_release(mutex);
+}
+
+bool subghz_devices_try_init_internal_only(void) {
+    FuriMutex* mutex = subghz_devices_get_mutex();
+    furi_mutex_acquire(mutex, FuriWaitForever);
+    if(subghz_device_registry_is_valid()) {
+        furi_mutex_release(mutex);
+        return false;
+    }
+    subghz_device_registry_init_internal_only();
+    furi_mutex_release(mutex);
+    return true;
 }
 
 bool subghz_devices_load_external(void) {

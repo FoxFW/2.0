@@ -163,6 +163,7 @@ bool subghz_tx_start(SubGhz* subghz, FlipperFormat* flipper_format);
 void subghz_dialog_message_freq_error(SubGhz* subghz, bool only_rx);
 
 bool subghz_key_load(SubGhz* subghz, const char* file_path, bool show_dialog);
+bool subghz_signal_needs_decrypt(FlipperFormat* flipper_format);
 bool subghz_get_next_name_file(SubGhz* subghz, uint8_t max_len);
 bool subghz_save_protocol_to_file(
     SubGhz* subghz,
@@ -186,4 +187,4 @@ SubGhzRxKeyState subghz_rx_key_state_get(SubGhz* subghz);
 extern const NotificationSequence subghz_sequence_rx;
 extern const NotificationSequence subghz_sequence_rx_locked;
 void subghz_save_all(SubGhz* subghz);
-void subghz_launch_garage_via_probe(SubGhz* subghz, const char* args);
+void subghz_launch_garage_via_probe(SubGhz* subghz, const char* args, bool use_probe);

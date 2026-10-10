@@ -42,6 +42,7 @@ typedef enum {
     MfDesfireTypeEV2,
     MfDesfireTypeEV2XL,
     MfDesfireTypeEV3,
+    MfDesfireTypeLight,
 
     MfDesfireTypeUnknown,
     MfDesfireTypeNum,
@@ -167,6 +168,7 @@ typedef enum {
     MfDesfireErrorTimeout,
     MfDesfireErrorAuthentication,
     MfDesfireErrorCommandNotSupported,
+    MfDesfireErrorRejected,
 } MfDesfireError;
 
 typedef struct {
@@ -205,6 +207,8 @@ const uint8_t* mf_desfire_get_uid(const MfDesfireData* data, size_t* uid_len);
 bool mf_desfire_set_uid(MfDesfireData* data, const uint8_t* uid, size_t uid_len);
 
 Iso14443_4aData* mf_desfire_get_base_data(const MfDesfireData* data);
+
+MfDesfireType mf_desfire_get_type_from_version(const MfDesfireVersion* const version);
 
 const MfDesfireApplication*
     mf_desfire_get_application(const MfDesfireData* data, const MfDesfireApplicationId* app_id);

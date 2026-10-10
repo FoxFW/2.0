@@ -10,12 +10,6 @@
 
 #define NFC_GROUP_PLUGINS_DIR EXT_PATH("apps_data/nfc/plugins")
 
-/*
- * One slot per distinct .fal group. Each holds its OWN PluginManager so it can
- * be freed independently (the PluginManager API has no per-plugin unload). Add
- * a slot per group in Phase 2; add a proto->slot row below for every protocol
- * that group carries.
- */
 typedef struct {
     const char* fal_name;
     PluginManager* pm;
@@ -39,7 +33,6 @@ typedef struct {
     size_t slot;
 } NfcGroupProtoMap;
 
-/* Protocols NOT listed here are internal (served by the static registries). */
 static const NfcGroupProtoMap nfc_group_proto_map[] = {
     {NfcProtocolFelica, 0},
     {NfcProtocolEmv, 1},
@@ -64,9 +57,6 @@ bool nfc_group_is_external(NfcProtocol protocol) {
     return nfc_group_slot_for(protocol) >= 0;
 }
 
-/* Free every resident group not currently in use (refcount 0), except keep_si.
- * Reclaims heap when a .fal load fails (OOM) so the requested group fits — peak
- * RAM stays ~one group, which is the whole point of on-demand group loading. */
 static void nfc_group_evict_unused(int keep_si) {
     for(size_t i = 0; i < COUNT_OF(nfc_group_slots); i++) {
         if((int)i == keep_si) continue;
@@ -108,22 +98,13 @@ static bool nfc_group_try_load(NfcGroupSlot* slot) {
 
 bool nfc_group_ensure_loaded(NfcProtocol protocol) {
     const int si = nfc_group_slot_for(protocol);
-    if(si < 0) return true; /* internal protocol — nothing to load */
+    if(si < 0) return true;
 
     NfcGroupSlot* slot = &nfc_group_slots[si];
 
     if(slot->plugin == NULL) {
-        /* ON-DEMAND INVARIANT: only ONE external group resident at a time. Free
-         * every idle (refcount 0) group BEFORE loading this one, so the group's
-         * ELF sections AND the poller allocation that follows have maximum heap.
-         * This is what stops a card that sweeps several external groups (e.g. a
-         * bare ISO14443-3A card probing every 4A child: MfPlus/MfDesfire/Ntag4xx/
-         * Type4Tag/Emv) from accumulating groups and crashing on OOM. A group
-         * that stays requested back-to-back is NOT reloaded (plugin != NULL
-         * short-circuits above), so the active read of a detected card is cheap. */
         nfc_group_evict_unused(si);
         if(!nfc_group_try_load(slot)) {
-            /* Backstop: a ref may have just dropped — evict again and retry once. */
             FURI_LOG_W(TAG, "Load %s failed; evicting idle groups, retrying", slot->fal_name);
             nfc_group_evict_unused(si);
             if(!nfc_group_try_load(slot)) {
@@ -145,9 +126,6 @@ void nfc_group_release(NfcProtocol protocol) {
     if(slot->refcount > 0) {
         slot->refcount--;
     }
-    /* Keep-resident at refcount 0 (pilot): avoids reload churn on the scanner's
-     * repeated base-protocol probes. Freed in nfc_group_manager_reset(); a
-     * Phase 3 low-RAM watchdog may evict ref-0 groups early. */
 }
 
 static const NfcGroupPlugin* nfc_group_plugin_for(NfcProtocol protocol, size_t* idx_out) {

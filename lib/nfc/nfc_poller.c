@@ -61,10 +61,6 @@ static void nfc_poller_list_alloc(NfcPoller* instance) {
         if(parent->poller_api == NULL) instance->list_valid = false;
     } while(true);
 
-    /* An external protocol group that could not be loaded (e.g. missing .fal or
-     * out of heap) leaves a NULL poller_api. Do NOT build/deref the chain —
-     * leave pollers NULL and let detect/start/get_data no-op gracefully, so a
-     * failed group degrades to "that card type unavailable" instead of crashing. */
     if(!instance->list_valid) {
         FURI_LOG_E("NfcPoller", "chain build failed (group load failed) for protocol %d",
             instance->protocol);

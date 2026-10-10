@@ -1,4 +1,5 @@
 #include "../lfrfid_i.h"
+#include <lfrfid_icons.h>
 #include "tools/t5577.h"
 
 #define WIPE_T5577_CONFIG_BLOCK0                                       \
@@ -57,19 +58,20 @@ static void lfrfid_wipe_t5577_show_result(LfRfid* app, bool wiped) {
     popup_reset(popup);
 
     if(wiped) {
-        popup_set_header(popup, "Wiped!", 75, 10, AlignLeft, AlignTop);
+        popup_set_icon(popup, 0, 0, &I_fox_64x64);
+        popup_set_header(popup, "Wiped!", 96, 32, AlignCenter, AlignCenter);
 
         notification_message(app->notifications, &sequence_single_vibro);
     } else {
-        popup_set_header(popup, "Not Wiped", 64, 3, AlignCenter, AlignTop);
+        popup_set_header(popup, "Not Wiped", 64, 16, AlignCenter, AlignCenter);
 
         popup_set_text(
             popup,
             "Tag still reads.\nNot a T5577, or\nlocked/protected",
-            3,
-            19,
-            AlignLeft,
-            AlignTop);
+            64,
+            40,
+            AlignCenter,
+            AlignCenter);
         notification_message(app->notifications, &sequence_double_vibro);
     }
 

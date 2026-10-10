@@ -1,4 +1,5 @@
 #include "../lfrfid_i.h"
+#include <lfrfid_icons.h>
 
 #define RAW_READ_TIME_MS (5000UL)
 
@@ -29,8 +30,9 @@ void lfrfid_scene_raw_read_on_enter(void* context) {
     LfRfid* app = context;
     Popup* popup = app->popup;
 
-    popup_set_header(popup, "Reading ASK", 91, 16, AlignCenter, AlignTop);
-    popup_set_text(popup, "Don't move\nfor 5 sec.", 91, 29, AlignCenter, AlignTop);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Reading\nASK", 96, 12, AlignCenter, AlignCenter);
+    popup_set_text(popup, "Don't move\nfor 5 sec.", 96, 42, AlignCenter, AlignCenter);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, LfRfidViewPopup);
 
@@ -113,7 +115,7 @@ bool lfrfid_scene_raw_read_on_event(void* context, SceneManagerEvent event) {
 
                     furi_timer_start(state->timer, RAW_READ_TIME_MS);
 
-                    popup_set_header(popup, "Reading PSK", 91, 16, AlignCenter, AlignTop);
+                    popup_set_header(popup, "Reading\nPSK", 96, 12, AlignCenter, AlignCenter);
                     notification_message(app->notifications, &sequence_blink_start_yellow);
                 }
             }

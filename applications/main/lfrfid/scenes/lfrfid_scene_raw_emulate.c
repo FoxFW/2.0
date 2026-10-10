@@ -1,4 +1,5 @@
 #include "../lfrfid_i.h"
+#include <lfrfid_icons.h>
 
 #define TAG "ADC"
 
@@ -27,7 +28,8 @@ void lfrfid_scene_raw_emulate_on_enter(void* context) {
     lfrfid_worker_start_thread(app->lfworker);
     lfrfid_make_app_folder(app);
 
-    popup_set_header(popup, "Emulating\nRAW RFID", 89, 30, AlignCenter, AlignTop);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Emulating\nRAW RFID", 96, 32, AlignCenter, AlignCenter);
     lfrfid_worker_emulate_raw_start(
         app->lfworker, furi_string_get_cstr(app->file_path), lfrfid_raw_emulate_callback, app);
 

@@ -14,9 +14,6 @@ ADD_SCENE(nfc, info, Info)
 ADD_SCENE(nfc, more_info, MoreInfo)
 ADD_SCENE(nfc, supported_card, SupportedCard)
 ADD_SCENE(nfc, select_protocol, SelectProtocol)
-/* FoxFW: the MIFARE Fuzzer moved to the standalone mifare_fuzzer.fap; nfc.fap
- * launches it from the Start menu via the loader, so the in-app fuzzer scene
- * (and its views / worker) no longer build into nfc.fap. */
 ADD_SCENE(nfc, extra_actions, ExtraActions)
 ADD_SCENE(nfc, read_success, ReadSuccess)
 ADD_SCENE(nfc, read_menu, ReadMenu)
@@ -43,9 +40,6 @@ ADD_SCENE(nfc, mf_desfire_app, MfDesfireApp)
 ADD_SCENE(nfc, emv_transactions, EmvTransactions)
 
 ADD_SCENE(nfc, mf_classic_dict_attack, MfClassicDictAttack)
-/* FoxFW: mf_classic_detect_reader + mf_classic_mfkey_nonces_info moved to the
- * standalone mfkey_collector.fap. mf_classic_mfkey_complete stays: it is still
- * reached by the per-card "Crack nonces in MFKey32" path. */
 ADD_SCENE(nfc, mf_classic_mfkey_complete, MfClassicMfkeyComplete)
 ADD_SCENE(nfc, mf_classic_update_initial, MfClassicUpdateInitial)
 ADD_SCENE(nfc, update_initial_success, UpdateInitialSuccess)

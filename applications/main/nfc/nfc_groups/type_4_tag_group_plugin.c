@@ -2,14 +2,10 @@
 #include <nfc/nfc_group_plugin.h>
 #include <flipper_application/flipper_application.h>
 
-#include "type_4_tag_bundle/type_4_tag.h"              /* nfc_device_type_4_tag */
-#include "type_4_tag_bundle/type_4_tag_poller_defs.h"  /* type_4_tag_poller */
-#include "type_4_tag_bundle/type_4_tag_listener_defs.h"/* nfc_listener_type_4_tag */
+#include "type_4_tag_bundle/type_4_tag.h"
+#include "type_4_tag_bundle/type_4_tag_poller_defs.h"
+#include "type_4_tag_bundle/type_4_tag_listener_defs.h"
 
-/* FoxFW NFC externalization - Type 4 Tag protocol group (.fal). type_4_tag calls
- * mf_desfire_poller_* and ntag4xx_*, so this group bundles its OWN copies of the
- * mf_desfire + ntag4xx stacks (they also exist in their own groups - deliberate
- * duplication to keep each group small, per design). Exposes only Type4Tag. */
 static const NfcProtocol grp_type_4_tag_protocols[] = {NfcProtocolType4Tag};
 static const NfcPollerBase* const grp_type_4_tag_pollers[] = {&type_4_tag_poller};
 static const NfcListenerBase* const grp_type_4_tag_listeners[] = {&nfc_listener_type_4_tag};

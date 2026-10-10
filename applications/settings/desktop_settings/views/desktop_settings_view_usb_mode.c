@@ -4,19 +4,24 @@
 #include "desktop_settings_icons.h"
 #include <furi.h>
 
-#define OPTION_COUNT 2
+#define OPTION_COUNT  4
+#define VISIBLE_COUNT 2
 #define BOX_X        4
-#define BOX_W        120
+#define BOX_W        118
 #define BOX_H        28
 #define BOX_R        4
 #define TEXT_PAD     3
 #define ICON_GAP     3
 
-static const uint8_t k_slot_y[OPTION_COUNT] = {2, 34};
+static const uint8_t k_slot_y[VISIBLE_COUNT] = {2, 34};
 
-static const char* const k_title[OPTION_COUNT] = {"qFlipper Mode", "Mass Storage Mode"};
-static const char* const k_subtitle[OPTION_COUNT] =
-    {"Select for qFlipper Access", "Select for SD Card Access"};
+static const char* const k_title[OPTION_COUNT] =
+    {"qFlipper Mode", "Mass Storage Mode", "Music USB Mode", "Media USB Mode"};
+static const char* const k_subtitle[OPTION_COUNT] = {
+    "Select for qFlipper Access",
+    "Select for SD Card Access",
+    "Select for Music Mode",
+    "Select for Media Mode"};
 
 typedef struct {
     uint8_t cursor;
@@ -35,10 +40,14 @@ static void usb_mode_draw_cb(Canvas* canvas, void* _model) {
 
     uint8_t active = (m->desktop && desktop_api_get_usb_mode(m->desktop) == DesktopUsbModeMassStorage) ? 1 : 0;
 
-    for(uint8_t idx = 0; idx < OPTION_COUNT; idx++) {
+    uint8_t top = (m->cursor >= VISIBLE_COUNT) ? (uint8_t)(m->cursor - (VISIBLE_COUNT - 1)) : 0;
+
+    for(uint8_t slot = 0; slot < VISIBLE_COUNT; slot++) {
+        uint8_t idx = (uint8_t)(top + slot);
+        if(idx >= OPTION_COUNT) break;
         bool at_cursor = (idx == m->cursor);
         bool is_active = (idx == active);
-        uint8_t y = k_slot_y[idx];
+        uint8_t y = k_slot_y[slot];
 
         canvas_set_color(canvas, ColorBlack);
         if(at_cursor) {
@@ -70,6 +79,8 @@ static void usb_mode_draw_cb(Canvas* canvas, void* _model) {
 
         canvas_set_color(canvas, ColorBlack);
     }
+
+    elements_scrollbar(canvas, m->cursor, OPTION_COUNT);
 }
 
 static bool usb_mode_input_cb(InputEvent* event, void* context) {
@@ -98,9 +109,7 @@ static bool usb_mode_input_cb(InputEvent* event, void* context) {
         true);
 
     if(fire && instance->callback) {
-        instance->callback(
-            instance->context,
-            (chosen == 1) ? DesktopUsbModeMassStorage : DesktopUsbModeQflipper);
+        instance->callback(instance->context, chosen);
     }
     return consumed;
 }

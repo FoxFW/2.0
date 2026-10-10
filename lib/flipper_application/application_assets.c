@@ -130,6 +130,7 @@ static bool flipper_application_assets_process_files(
 
     storage_file_free(destination);
     furi_string_free(file_path);
+    furi_string_free(full_path);
 
     return success;
 }

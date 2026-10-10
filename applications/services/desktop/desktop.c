@@ -59,7 +59,6 @@ static void desktop_cli_vcp_session_lock_release(void) {
 #define WALLPAPER_CURRENT_MARKER   EXT_PATH("wallpapers/.current")
 #define DEFAULT_WALLPAPER_NAME     "Default.xbm"
 #define WALLPAPER_SIZE 1024
-#define WALLPAPER_CHECK_POLL_MS 2000
 
 #define ALARM_CHECK_POLL_MS 15000
 
@@ -83,9 +82,7 @@ static void desktop_cli_vcp_session_lock_release(void) {
 #define FOX_UPDATE_WALLPAPER_BACKUP_MAX  100
 
 #define FOX_ESP32_WIFI_STATUS_PATH EXT_PATH("apps_data/fox_esp32/wifi_status.txt")
-#define FOX_ESP32_WIFI_POLL_MS 2000
 
-#define CC1101_EXT_STATUS_PATH EXT_PATH("subghz/.cc1101_ext_status")
 
 #define FOX_ESP32_SEEN_PATH EXT_PATH("apps_data/fox_esp32/esp32_seen")
 
@@ -651,8 +648,7 @@ static void desktop_wifi_icon_draw_callback(Canvas* canvas, void* context) {
     canvas_draw_icon(canvas, 2, 0, icon);
 }
 
-static void desktop_wifi_status_timer_callback(void* context) {
-    Desktop* desktop = context;
+static void desktop_refresh_wifi_icon(Desktop* desktop) {
     furi_assert(desktop);
 
     bool wifi_connected = false;
@@ -664,27 +660,10 @@ static void desktop_wifi_status_timer_callback(void* context) {
         }
     }
     storage_file_close(f);
-
-    bool cc1101_connected = false;
-    if(storage_file_open(f, CC1101_EXT_STATUS_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
-        char buf[1] = {0};
-        if(storage_file_read(f, buf, 1) == 1) {
-            cc1101_connected = (buf[0] == '1');
-        }
-    }
-    storage_file_close(f);
     storage_file_free(f);
 
-    bool icon_changed = false;
     if(wifi_connected != desktop->wifi_connected) {
         desktop->wifi_connected = wifi_connected;
-        icon_changed = true;
-    }
-    if(cc1101_connected != desktop->cc1101_connected) {
-        desktop->cc1101_connected = cc1101_connected;
-        icon_changed = true;
-    }
-    if(icon_changed) {
         view_port_update(desktop->wifi_icon_viewport);
     }
 
@@ -836,11 +815,19 @@ static void fox_wifi_mark_esp32_seen(Storage* storage) {
     storage_file_free(file);
 }
 
+bool subghz_devices_try_init_internal_only(void);
+
 static void desktop_cc1101_ext_check(Desktop* desktop) {
+
+    if(desktop->app_running || desktop->locked || loader_is_locked(desktop->loader)) {
+        return;
+    }
 
     bool connected = false;
 
-    subghz_devices_init_internal_only();
+    if(!subghz_devices_try_init_internal_only()) {
+        return;
+    }
     if(subghz_devices_load_external()) {
         const SubGhzDevice* device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_EXT_NAME);
         if(device) {
@@ -848,16 +835,6 @@ static void desktop_cc1101_ext_check(Desktop* desktop) {
         }
     }
     subghz_devices_deinit();
-
-    File* file = storage_file_alloc(desktop->storage);
-    if(storage_file_open(file, CC1101_EXT_STATUS_PATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
-        char c = connected ? '1' : '0';
-        storage_file_write(file, &c, 1);
-        storage_file_close(file);
-    } else {
-        FURI_LOG_W(TAG, "Couldn't write %s", CC1101_EXT_STATUS_PATH);
-    }
-    storage_file_free(file);
 
     if(connected != desktop->cc1101_connected) {
         desktop->cc1101_connected = connected;
@@ -880,7 +857,7 @@ static int32_t desktop_wifi_recheck_thread(void* context) {
         }
         first_pass = false;
 
-        if(desktop->app_running || desktop->locked) {
+        if(desktop->app_running || desktop->locked || loader_is_locked(desktop->loader)) {
             continue;
         }
 
@@ -896,6 +873,10 @@ static int32_t desktop_wifi_recheck_thread(void* context) {
         if(result != -1) {
             bool connected = (result == 1);
             fox_wifi_status_write_raw(desktop->storage, connected);
+            if(connected != desktop->wifi_connected) {
+                desktop->wifi_connected = connected;
+                view_port_update(desktop->wifi_icon_viewport);
+            }
 
             if(!esp32_seen && (result == 0 || result == 1)) {
                 esp32_seen = true;
@@ -918,6 +899,10 @@ static int32_t desktop_wifi_recheck_thread(void* context) {
         if(furi_get_tick() - thread_start_tick >= furi_ms_to_ticks(FOX_CC1101_BOOT_SETTLE_MS)) {
 
             furi_delay_ms(300);
+
+            if(desktop->app_running || desktop->locked || loader_is_locked(desktop->loader)) {
+                continue;
+            }
 
             desktop_cc1101_ext_check(desktop);
         }
@@ -951,6 +936,7 @@ static bool desktop_custom_event_callback(void* context, uint32_t event) {
         desktop_auto_lock_arm(desktop);
         desktop->app_running = false;
         desktop_check_wallpaper_updates(desktop);
+        desktop_refresh_wifi_icon(desktop);
 
         if(desktop->pending_slideshow) {
             desktop->pending_slideshow = false;
@@ -1009,6 +995,12 @@ static void desktop_tick_event_callback(void* context) {
     furi_assert(context);
     Desktop* app = context;
     scene_manager_handle_tick_event(app->scene_manager);
+
+    static uint8_t wifi_icon_position_reasserts = 6;
+    if(wifi_icon_position_reasserts > 0) {
+        wifi_icon_position_reasserts--;
+        gui_view_port_send_to_front(app->gui, app->wifi_icon_viewport);
+    }
 
     static uint32_t s_last_integrity_ms = 0;
     uint32_t now = furi_get_tick();
@@ -1109,6 +1101,7 @@ static void desktop_auto_lock_inhibit(Desktop* desktop) {
 static void desktop_clock_timer_callback(void* context) {
     furi_assert(context);
     Desktop* desktop = context;
+    if(desktop->app_running) return;
     desktop_clock_update(desktop);
 }
 
@@ -1342,7 +1335,7 @@ static void desktop_load_wallpaper(Desktop* desktop) {
     char path[96];
     snprintf(path, sizeof(path), "%s/%s", WALLPAPER_DIR, filename);
 
-    uint8_t* out = malloc(WALLPAPER_SIZE);
+    uint8_t* out = desktop->wallpaper_scratch;
     bool ok = desktop_parse_xbm_file(desktop->storage, path, out);
 
     if(!ok && strcmp(filename, DEFAULT_WALLPAPER_NAME) != 0) {
@@ -1353,12 +1346,8 @@ static void desktop_load_wallpaper(Desktop* desktop) {
     }
 
     if(!ok) {
-        free(out);
         furi_mutex_acquire(desktop->wallpaper_mutex, FuriWaitForever);
-        if(desktop->wallpaper_data) {
-            free(desktop->wallpaper_data);
-            desktop->wallpaper_data = NULL;
-        }
+        desktop->wallpaper_data = NULL;
         furi_mutex_release(desktop->wallpaper_mutex);
         storage_simply_remove(desktop->storage, WALLPAPER_CURRENT_MARKER);
         return;
@@ -1367,13 +1356,12 @@ static void desktop_load_wallpaper(Desktop* desktop) {
     furi_mutex_acquire(desktop->wallpaper_mutex, FuriWaitForever);
     if(desktop->wallpaper_data && memcmp(desktop->wallpaper_data, out, WALLPAPER_SIZE) == 0) {
         furi_mutex_release(desktop->wallpaper_mutex);
-        free(out);
         return;
     }
-    uint8_t* old_data = desktop->wallpaper_data;
     desktop->wallpaper_data = out;
+    desktop->wallpaper_scratch =
+        (out == desktop->wallpaper_buf[0]) ? desktop->wallpaper_buf[1] : desktop->wallpaper_buf[0];
     furi_mutex_release(desktop->wallpaper_mutex);
-    free(old_data);
     desktop_write_current_wallpaper_marker(desktop, out);
 }
 
@@ -1412,12 +1400,6 @@ static void desktop_check_wallpaper_updates(Desktop* desktop) {
     }
 
     desktop_load_wallpaper(desktop);
-}
-
-static void desktop_wallpaper_check_timer_callback(void* context) {
-    Desktop* desktop = context;
-    furi_assert(desktop);
-    desktop_check_wallpaper_updates(desktop);
 }
 
 static uint8_t desktop_alarm_weekday_mask(uint8_t weekday) {
@@ -1600,6 +1582,9 @@ static Desktop* desktop_alloc(void) {
     Desktop* desktop = malloc(sizeof(Desktop));
 
     desktop->wallpaper_data  = NULL;
+    desktop->wallpaper_buf[0] = malloc(WALLPAPER_SIZE);
+    desktop->wallpaper_buf[1] = malloc(WALLPAPER_SIZE);
+    desktop->wallpaper_scratch = desktop->wallpaper_buf[0];
     desktop->wallpaper_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     desktop->no_sd_viewport  = NULL;
     desktop->pending_slideshow = false;
@@ -1736,14 +1721,7 @@ static Desktop* desktop_alloc(void) {
     desktop->update_clock_timer =
         furi_timer_alloc(desktop_clock_timer_callback, FuriTimerTypePeriodic, desktop);
 
-    desktop->update_wifi_timer =
-        furi_timer_alloc(desktop_wifi_status_timer_callback, FuriTimerTypePeriodic, desktop);
-    desktop_wifi_status_timer_callback(desktop);
-    furi_timer_start(desktop->update_wifi_timer, furi_ms_to_ticks(FOX_ESP32_WIFI_POLL_MS));
-
-    desktop->wallpaper_check_timer = furi_timer_alloc(
-        desktop_wallpaper_check_timer_callback, FuriTimerTypePeriodic, desktop);
-    furi_timer_start(desktop->wallpaper_check_timer, furi_ms_to_ticks(WALLPAPER_CHECK_POLL_MS));
+    desktop_refresh_wifi_icon(desktop);
 
     desktop->alarm_check_timer =
         furi_timer_alloc(desktop_alarm_check_timer_callback, FuriTimerTypePeriodic, desktop);

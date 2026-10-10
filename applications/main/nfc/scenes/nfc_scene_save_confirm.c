@@ -35,8 +35,6 @@ bool nfc_scene_save_confirm_on_event(void* context, SceneManagerEvent event) {
             if(scene_state == NfcSceneSaveConfirmStateCrackNonces) {
                 scene_manager_next_scene(nfc->scene_manager, NfcSceneMfClassicMfkeyComplete);
             } else {
-                /* FoxFW: reader-attack externalized — hand the current card to the
-                 * standalone MFKey nonce collector instead of the in-app scene. */
                 nfc_run_mfkey_collector_with_card(nfc);
             }
             consumed = true;

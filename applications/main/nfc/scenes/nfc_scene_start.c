@@ -20,7 +20,6 @@ void nfc_scene_start_on_enter(void* context) {
     NfcApp* nfc = context;
     Submenu* submenu = nfc->submenu;
 
-    /* FoxFW: back at the Start menu (not in Read/Emulate) -> reconnect qFlipper. */
     nfc_cli_soft_unlock(nfc);
 
     if(nfc->startup_holder) {
@@ -61,15 +60,11 @@ void nfc_scene_start_on_enter(void* context) {
     submenu_set_selected_item(
         submenu, scene_manager_get_scene_state(nfc->scene_manager, NfcSceneStart));
 
-    /* FoxFW: returning from the externalized MFKey nonce collector -> re-select
-     * the "Extract MFC Keys" item (the loader relaunched nfc.fap fresh, so the
-     * in-memory selection was lost; the marker carries it across). */
     if(storage_common_exists(nfc->storage, NFC_FOCUS_MENU_MARKER_PATH)) {
         submenu_set_selected_item(submenu, SubmenuIndexDetectReader);
         storage_simply_remove(nfc->storage, NFC_FOCUS_MENU_MARKER_PATH);
     }
 
-    /* FoxFW: returning from the externalized MIFARE Fuzzer -> re-select "Fuzzer". */
     if(storage_common_exists(nfc->storage, NFC_FOCUS_FUZZER_MARKER_PATH)) {
         submenu_set_selected_item(submenu, SubmenuIndexFuzzer);
         storage_simply_remove(nfc->storage, NFC_FOCUS_FUZZER_MARKER_PATH);
@@ -87,14 +82,10 @@ bool nfc_scene_start_on_event(void* context, SceneManagerEvent event) {
         if(event.event == SubmenuIndexRead) {
             scene_manager_next_scene(nfc->scene_manager, NfcSceneDetect);
         } else if(event.event == SubmenuIndexDetectReader) {
-            /* FoxFW: externalized — launch the standalone MFKey nonce collector
-             * (fresh random 4K card) instead of the in-app detect_reader scene. */
             nfc_run_mfkey_collector(nfc, NULL);
         } else if(event.event == SubmenuIndexSaved) {
             scene_manager_next_scene(nfc->scene_manager, NfcSceneFileSelect);
         } else if(event.event == SubmenuIndexFuzzer) {
-            /* FoxFW: externalized — launch the standalone MIFARE Fuzzer instead
-             * of the in-app fuzzer scene (frees its RAM from nfc.fap). */
             nfc_run_mifare_fuzzer(nfc);
         } else if(event.event == SubmenuIndexExtraAction) {
             scene_manager_next_scene(nfc->scene_manager, NfcSceneExtraActions);

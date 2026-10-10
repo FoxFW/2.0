@@ -1,10 +1,12 @@
 #include "../lfrfid_i.h"
+#include <lfrfid_icons.h>
 
 void lfrfid_scene_delete_success_on_enter(void* context) {
     LfRfid* app = context;
     Popup* popup = app->popup;
 
-    popup_set_header(popup, "Deleted", 80, 19, AlignLeft, AlignBottom);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Deleted", 96, 32, AlignCenter, AlignCenter);
     popup_set_context(popup, app);
     popup_set_callback(popup, lfrfid_popup_timeout_callback);
     popup_set_timeout(popup, 1500);

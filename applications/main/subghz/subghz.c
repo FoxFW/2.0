@@ -82,7 +82,7 @@ void subghz_save_all(SubGhz* subghz) {
 }
 
 SubGhz* subghz_alloc(bool alloc_for_tx_only) {
-    SubGhz* subghz = malloc(sizeof(SubGhz));
+    SubGhz* subghz = calloc(1, sizeof(SubGhz));
 
     subghz->blank_transition_viewport = NULL;
 
@@ -486,6 +486,8 @@ int32_t subghz_app(void* p) {
                     garage_menu_focus_index = GarageMenuIndexFrequencyAnalyzer;
                 } else if(strcmp(buf, "gmenu:menu:mod") == 0) {
                     garage_menu_focus_index = GarageMenuIndexModulationAnalyzer;
+                } else if(strcmp(buf, "gmenu:saved") == 0) {
+                    garage_menu_focus_index = GarageMenuIndexSaved;
                 } else if(strcmp(buf, "gmenu:readraw") == 0) {
                     open_garage_readraw = true;
                 } else if(strcmp(buf, "read") == 0) {
@@ -564,15 +566,17 @@ int32_t subghz_app(void* p) {
     } else if(open_garage_menu_focused) {
         view_dispatcher_attach_to_gui(
             subghz->view_dispatcher, subghz->gui, ViewDispatcherTypeFullscreen);
+        furi_string_set(subghz->file_path, SUBGHZ_APP_FOLDER);
         scene_manager_set_scene_state(
             subghz->scene_manager, SubGhzSceneGarageMenu, garage_menu_focus_index);
         scene_manager_next_scene(subghz->scene_manager, SubGhzSceneGarageMenu);
     } else if(open_garage_menu) {
         view_dispatcher_attach_to_gui(
             subghz->view_dispatcher, subghz->gui, ViewDispatcherTypeFullscreen);
+        furi_string_set(subghz->file_path, SUBGHZ_APP_FOLDER);
         scene_manager_next_scene(subghz->scene_manager, SubGhzSceneGarageMenu);
     } else if(open_garage_readraw) {
-        subghz_launch_garage_via_probe(subghz, "readraw");
+        subghz_launch_garage_via_probe(subghz, "readraw", true);
     } else if(open_receiver) {
         view_dispatcher_attach_to_gui(
             subghz->view_dispatcher, subghz->gui, ViewDispatcherTypeFullscreen);

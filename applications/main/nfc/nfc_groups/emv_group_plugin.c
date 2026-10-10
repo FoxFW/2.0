@@ -2,12 +2,9 @@
 #include <nfc/nfc_group_plugin.h>
 #include <flipper_application/flipper_application.h>
 
-#include "emv_bundle/emv.h"              /* nfc_device_emv */
-#include "emv_bundle/emv_poller_defs.h"  /* emv_poller */
+#include "emv_bundle/emv.h"
+#include "emv_bundle/emv_poller_defs.h"
 
-/* FoxFW NFC externalization - EMV protocol group (.fal). Engine-loaded from
- * apps_data/nfc/plugins/. Full EMV stack bundled byte-identical. EMV has no
- * listener. iso14443_4a_* (incl. _poller_get_data) resolve from firmware API. */
 static const NfcProtocol grp_emv_protocols[] = {NfcProtocolEmv};
 static const NfcPollerBase* const grp_emv_pollers[] = {&emv_poller};
 static const NfcListenerBase* const grp_emv_listeners[] = {NULL};

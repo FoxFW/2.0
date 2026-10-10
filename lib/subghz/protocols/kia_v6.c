@@ -620,9 +620,9 @@ void subghz_protocol_decoder_kia_v6_feed(void* context, bool level, uint32_t dur
         instance->generic.data =
             ((uint64_t)instance->stored_part1_high << 32) | instance->stored_part1_low;
 
-        kia_v6_decrypt(instance);
+        bool kia_v6_crc_ok = kia_v6_decrypt(instance);
 
-        if(instance->base.callback) {
+        if(kia_v6_crc_ok && instance->base.callback) {
             instance->base.callback(&instance->base, instance->base.context);
         }
 

@@ -26,6 +26,10 @@ bool subghz_garage_protocol_group_next_enabled(
     uint8_t start_index,
     SubGhzGarageProtocolGroup* out_group);
 
+bool subghz_garage_protocol_group_for_name(
+    const char* protocol_name,
+    SubGhzGarageProtocolGroup* out_group);
+
 extern const SubGhzProtocolRegistry subghz_garage_protocol_registry_g1;
 extern const SubGhzProtocolRegistry subghz_garage_protocol_registry_g2;
 extern const SubGhzProtocolRegistry subghz_garage_protocol_registry_g3;
@@ -84,6 +88,8 @@ typedef enum {
 
     SubGhzGarageTxProtocolRaw,
     SubGhzGarageTxProtocolBinRaw,
+    SubGhzGarageTxProtocolKeyFinder2,
+    SubGhzGarageTxProtocolDoorbell32,
     SubGhzGarageTxProtocolCount,
 } SubGhzGarageTxProtocol;
 

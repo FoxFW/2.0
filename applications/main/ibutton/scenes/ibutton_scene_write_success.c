@@ -10,8 +10,7 @@ void ibutton_scene_write_success_on_enter(void* context) {
     iButton* ibutton = context;
     Popup* popup = ibutton->popup;
 
-    popup_set_icon(popup, 0, 9, &I_iButtonDolphinVerySuccess_92x55);
-    popup_set_text(popup, "Successfully written!", 40, 12, AlignLeft, AlignBottom);
+    popup_set_text(popup, "Successfully written!", 64, 32, AlignCenter, AlignCenter);
 
     popup_set_callback(popup, ibutton_scene_write_success_popup_callback);
     popup_set_context(popup, ibutton);

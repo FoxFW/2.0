@@ -26,9 +26,9 @@ void infrared_scene_rpc_on_enter(void* context) {
 static void infrared_scene_rpc_show(InfraredApp* infrared) {
     Popup* popup = infrared->popup;
 
-    popup_set_header(popup, "Infrared", 89, 42, AlignCenter, AlignBottom);
-    popup_set_text(popup, "RPC mode", 89, 44, AlignCenter, AlignTop);
-    popup_set_text(popup, infrared->text_store[0], 89, 44, AlignCenter, AlignTop);
+    popup_set_header(popup, "Infrared", 64, 16, AlignCenter, AlignCenter);
+    popup_set_text(popup, "RPC mode", 64, 36, AlignCenter, AlignCenter);
+    popup_set_text(popup, infrared->text_store[0], 64, 48, AlignCenter, AlignCenter);
 
     popup_set_context(popup, infrared);
     popup_set_callback(popup, infrared_popup_closed_callback);

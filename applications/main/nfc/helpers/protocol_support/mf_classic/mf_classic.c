@@ -245,8 +245,6 @@ static bool nfc_scene_saved_menu_on_event_mf_classic(NfcApp* instance, SceneMana
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == SubmenuIndexDetectReader) {
-            /* FoxFW: reader-attack externalized — hand the saved card to the
-             * standalone MFKey nonce collector instead of the in-app scene. */
             nfc_run_mfkey_collector_with_card(instance);
             consumed = true;
         } else if(event.event == SubmenuIndexDictAttack) {

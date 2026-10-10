@@ -821,10 +821,8 @@ SubGhzProtocolStatus
     }
 
     flipper_format_rewind(flipper_format);
-    if(!flipper_format_read_hex(
-           flipper_format, FIAT_V1_HITAG2_KEY_FIELD, instance->hitag2_key, 6U)) {
-        return SubGhzProtocolStatusErrorParserOthers;
-    }
+    bool have_hitag2 = flipper_format_read_hex(
+        flipper_format, FIAT_V1_HITAG2_KEY_FIELD, instance->hitag2_key, 6U);
 
     uint32_t epoch = 0U;
     flipper_format_rewind(flipper_format);
@@ -834,60 +832,74 @@ SubGhzProtocolStatus
         instance->epoch = 0U;
     }
 
-    const uint8_t original_btn = (uint8_t)(button & 0x0FU);
-    if(subghz_custom_btn_get_original() == 0) {
-        subghz_custom_btn_set_original(original_btn);
-    }
-    subghz_custom_btn_set_max(4);
-    const uint8_t custom_btn_id = subghz_custom_btn_get();
-
-    switch(custom_btn_id) {
-    case SUBGHZ_CUSTOM_BTN_UP:
-        button = 0x8U;
-        break;
-    case SUBGHZ_CUSTOM_BTN_DOWN:
-        button = 0x4U;
-        break;
-    case SUBGHZ_CUSTOM_BTN_LEFT:
-        button = 0x2U;
-        break;
-    case SUBGHZ_CUSTOM_BTN_RIGHT:
-        button = 0x1U;
-        break;
-    case SUBGHZ_CUSTOM_BTN_OK:
-    default:
-
-        button = original_btn;
-        break;
-    }
-
-    {
-        uint32_t override_cnt = 0U;
-        if(subghz_block_generic_global_counter_override_get(&override_cnt)) {
-            control = override_cnt;
-        } else {
-            control += (uint32_t)furi_hal_subghz_get_rolling_counter_mult();
+    if(have_hitag2) {
+        const uint8_t original_btn = (uint8_t)(button & 0x0FU);
+        if(subghz_custom_btn_get_original() == 0) {
+            subghz_custom_btn_set_original(original_btn);
         }
+        subghz_custom_btn_set_max(4);
+        const uint8_t custom_btn_id = subghz_custom_btn_get();
+
+        switch(custom_btn_id) {
+        case SUBGHZ_CUSTOM_BTN_UP:
+            button = 0x8U;
+            break;
+        case SUBGHZ_CUSTOM_BTN_DOWN:
+            button = 0x4U;
+            break;
+        case SUBGHZ_CUSTOM_BTN_LEFT:
+            button = 0x2U;
+            break;
+        case SUBGHZ_CUSTOM_BTN_RIGHT:
+            button = 0x1U;
+            break;
+        case SUBGHZ_CUSTOM_BTN_OK:
+        default:
+
+            button = original_btn;
+            break;
+        }
+
+        {
+            uint32_t override_cnt = 0U;
+            if(subghz_block_generic_global_counter_override_get(&override_cnt)) {
+                control = override_cnt;
+            } else {
+                control += (uint32_t)furi_hal_subghz_get_rolling_counter_mult();
+            }
+        }
+
+        control &= 0x03FFU;
+        button &= 0x0FU;
+        instance->generic.serial = serial;
+        instance->generic.btn = (uint8_t)button;
+        instance->generic.cnt = control;
+        instance->hop = fiat_v1_bcm_generate_authenticator(
+            serial, (uint8_t)button, (uint16_t)control, instance->hitag2_key, instance->epoch);
+        instance->generic.data = ((uint64_t)serial << 32U) | instance->hop;
+        instance->generic.data_count_bit = FIAT_V1_LOGICAL_BITS;
+
+        fiat_v1_build_raw(
+            instance->raw_data,
+            serial,
+            (uint8_t)button,
+            (uint16_t)control,
+            instance->hop,
+            instance->tail_bits);
+        instance->frame_xor = instance->raw_data[12];
+    } else {
+        if(!fiat_v1_frame_valid(raw_from_file)) {
+            return SubGhzProtocolStatusErrorParserOthers;
+        }
+        memcpy(instance->raw_data, raw_from_file, FIAT_V1_WIRE_BYTES);
+        instance->generic.serial = fiat_v1_uid(raw_from_file);
+        instance->generic.btn = (uint8_t)(raw_from_file[6] >> 4U);
+        instance->generic.cnt = fiat_v1_counter(raw_from_file);
+        instance->generic.data = ((uint64_t)instance->generic.serial << 32U);
+        instance->generic.data_count_bit = FIAT_V1_LOGICAL_BITS;
+        instance->hop = 0U;
+        instance->frame_xor = instance->raw_data[12];
     }
-
-    control &= 0x03FFU;
-    button &= 0x0FU;
-    instance->generic.serial = serial;
-    instance->generic.btn = (uint8_t)button;
-    instance->generic.cnt = control;
-    instance->hop = fiat_v1_bcm_generate_authenticator(
-        serial, (uint8_t)button, (uint16_t)control, instance->hitag2_key, instance->epoch);
-    instance->generic.data = ((uint64_t)serial << 32U) | instance->hop;
-    instance->generic.data_count_bit = FIAT_V1_LOGICAL_BITS;
-
-    fiat_v1_build_raw(
-        instance->raw_data,
-        serial,
-        (uint8_t)button,
-        (uint16_t)control,
-        instance->hop,
-        instance->tail_bits);
-    instance->frame_xor = instance->raw_data[12];
 
     flipper_format_rewind(flipper_format);
     flipper_format_insert_or_update_hex(

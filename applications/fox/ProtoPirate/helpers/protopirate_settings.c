@@ -1,0 +1,271 @@
+// helpers/protopirate_settings.c
+#include "protopirate_settings.h"
+#include "protopirate_storage.h"
+#include <storage/storage.h>
+#include <flipper_format/flipper_format.h>
+#include <furi.h>
+#include "../protocols/protocols_common.h"
+
+#define TAG "PPSettings"
+
+#define SETTINGS_FILE_HEADER  "ProtoPirate Settings"
+#define SETTINGS_FILE_VERSION 1
+
+void protopirate_settings_set_defaults(ProtoPirateSettings* settings) {
+    settings->frequency = 433920000;
+    settings->preset_index = 0;
+    settings->tx_power = 0;
+    settings->auto_save = false;
+    settings->sound = false;
+    settings->emulate_feature_enabled = false;
+    settings->check_saved = false;
+    settings->datetime_filenames = false;
+    settings->hopper_state = 0;
+#ifdef ENABLE_MODELS_DATABASE
+    settings->car_model_index = 0;
+#endif
+}
+
+void protopirate_settings_load(ProtoPirateSettings* settings) {
+    // Set defaults first
+    protopirate_settings_set_defaults(settings);
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    FlipperFormat* ff = flipper_format_file_alloc(storage);
+
+    do {
+        if(!flipper_format_file_open_existing(ff, PROTOPIRATE_SETTINGS_FILE)) {
+            FURI_LOG_I(TAG, "Settings file not found, using defaults");
+            break;
+        }
+
+        FuriString* header = furi_string_alloc();
+        uint32_t version = 0;
+
+        if(!flipper_format_read_header(ff, header, &version)) {
+            FURI_LOG_W(TAG, "Failed to read settings header");
+            furi_string_free(header);
+            break;
+        }
+
+        if(furi_string_cmp_str(header, SETTINGS_FILE_HEADER) != 0) {
+            FURI_LOG_W(TAG, "Invalid settings file header");
+            furi_string_free(header);
+            break;
+        }
+
+        furi_string_free(header);
+
+        if(version != SETTINGS_FILE_VERSION) {
+            FURI_LOG_I(
+                TAG,
+                "Migrating settings from version %lu to %u",
+                (unsigned long)version,
+                SETTINGS_FILE_VERSION);
+        }
+
+        // Read frequency
+        if(!flipper_format_read_uint32(ff, FF_FREQUENCY, &settings->frequency, 1)) {
+            FURI_LOG_W(TAG, "Failed to read frequency, using default");
+            settings->frequency = 433920000;
+        }
+
+        // Read preset index
+        uint32_t preset_temp = 0;
+        if(!flipper_format_read_uint32(ff, "PresetIndex", &preset_temp, 1)) {
+            FURI_LOG_W(TAG, "Failed to read preset index, using default");
+            preset_temp = 0;
+        }
+        settings->preset_index = (uint8_t)preset_temp;
+
+        // Read auto-save
+        uint32_t auto_save_temp = 0;
+        if(!flipper_format_read_uint32(ff, "AutoSave", &auto_save_temp, 1)) {
+            FURI_LOG_W(TAG, "Failed to read auto-save, using default");
+            auto_save_temp = 0;
+        }
+        settings->auto_save = (auto_save_temp == 1);
+
+        // Read tx-power
+        uint32_t tx_power_temp = 0;
+        if(!flipper_format_read_uint32(ff, "TXPower", &tx_power_temp, 1)) {
+            FURI_LOG_W(TAG, "Failed to read TXPower, using default");
+            tx_power_temp = 0;
+        }
+
+        if(tx_power_temp > PROTOPIRATE_TX_POWER_MAX_INDEX) {
+            FURI_LOG_W(TAG, "TXPower %lu out of range, clamping", (unsigned long)tx_power_temp);
+            tx_power_temp = PROTOPIRATE_TX_POWER_MAX_INDEX;
+        }
+        settings->tx_power = (uint8_t)tx_power_temp;
+
+#ifdef ENABLE_EMULATE_FEATURE
+        uint32_t emulate_temp = 0;
+        if(!flipper_format_read_uint32(ff, "EmulateFeature", &emulate_temp, 1)) {
+            FURI_LOG_I(TAG, "EmulateFeature key missing, defaulting to disabled");
+            emulate_temp = 0;
+        }
+        settings->emulate_feature_enabled = (emulate_temp == 1);
+#endif
+
+        uint32_t check_saved_temp = 0;
+        if(!flipper_format_read_uint32(ff, "CheckSaved", &check_saved_temp, 1)) {
+            check_saved_temp = 0;
+        }
+        settings->check_saved = (check_saved_temp == 1);
+
+        uint32_t sound_temp = 0;
+        if(!flipper_format_read_uint32(ff, "Sound", &sound_temp, 1)) {
+            sound_temp = 0;
+        }
+        settings->sound = (sound_temp == 1);
+
+        // Read Date/Time file names.
+        uint32_t datetime_filenames_temp = 0;
+        if(!flipper_format_read_uint32(ff, "DateTimeFilenames", &datetime_filenames_temp, 1)) {
+            FURI_LOG_W(TAG, "Failed to read date-time filenames, using default");
+            datetime_filenames_temp = 0;
+        }
+        settings->datetime_filenames = (datetime_filenames_temp == 1);
+
+        // Read hopper state
+        uint32_t hopper_state_temp = 0;
+        if(!flipper_format_read_uint32(ff, "HopperState", &hopper_state_temp, 1)) {
+            FURI_LOG_W(TAG, "Failed to read Hopper State, using default");
+            hopper_state_temp = 0;
+        }
+        settings->hopper_state = (uint8_t)hopper_state_temp;
+
+        // Read Selected Car Model
+#ifdef ENABLE_MODELS_DATABASE
+        uint32_t car_model_index_temp = 0;
+        if(!flipper_format_read_uint32(ff, "CarModelIndex", &car_model_index_temp, 1)) {
+            car_model_index_temp = 0;
+        }
+        settings->car_model_index = car_model_index_temp;
+#endif
+        FURI_LOG_I(
+            TAG,
+            "Settings loaded: freq=%lu, preset=%u, auto_save=%d, hopping=%lu, emulate=%d, check_saved=%d, sound = %d",
+            settings->frequency,
+            settings->preset_index,
+            settings->auto_save,
+            settings->hopper_state,
+            settings->emulate_feature_enabled,
+            settings->check_saved,
+            settings->sound);
+
+    } while(false);
+
+    flipper_format_free(ff);
+    furi_record_close(RECORD_STORAGE);
+}
+
+void protopirate_settings_save(ProtoPirateSettings* settings) {
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+
+    // Ensure directory exists
+    if(!storage_simply_mkdir(storage, PROTOPIRATE_SETTINGS_DIR)) {
+        FURI_LOG_W(TAG, "Settings directory could not be created");
+    }
+
+    FlipperFormat* ff = flipper_format_file_alloc(storage);
+    bool write_ok = false;
+
+    const char* tmp_path = PROTOPIRATE_SETTINGS_FILE ".tmp";
+
+    do {
+        if(!flipper_format_file_open_always(ff, tmp_path)) {
+            FURI_LOG_E(TAG, "Failed to open settings file for writing");
+            break;
+        }
+
+        if(!flipper_format_write_header_cstr(ff, SETTINGS_FILE_HEADER, SETTINGS_FILE_VERSION)) {
+            FURI_LOG_E(TAG, "Failed to write settings header");
+            break;
+        }
+
+        if(!flipper_format_write_uint32(ff, FF_FREQUENCY, &settings->frequency, 1)) {
+            FURI_LOG_E(TAG, "Failed to write frequency");
+            break;
+        }
+
+        uint32_t preset_temp = settings->preset_index;
+        if(!flipper_format_write_uint32(ff, "PresetIndex", &preset_temp, 1)) {
+            FURI_LOG_E(TAG, "Failed to write preset index");
+            break;
+        }
+
+        uint32_t auto_save_temp = settings->auto_save ? 1 : 0;
+        if(!flipper_format_write_uint32(ff, "AutoSave", &auto_save_temp, 1)) {
+            FURI_LOG_E(TAG, "Failed to write auto-save");
+            break;
+        }
+
+        uint32_t tx_power_temp = settings->tx_power;
+        if(!flipper_format_write_uint32(ff, "TXPower", &tx_power_temp, 1)) {
+            FURI_LOG_E(TAG, "Failed to write TX Power");
+            break;
+        }
+
+#ifdef ENABLE_EMULATE_FEATURE
+        uint32_t emulate_temp = settings->emulate_feature_enabled ? 1 : 0;
+        if(!flipper_format_write_uint32(ff, "EmulateFeature", &emulate_temp, 1)) {
+            FURI_LOG_E(TAG, "Failed to write emulate feature flag");
+            break;
+        }
+#endif
+
+        uint32_t check_saved_temp = settings->check_saved ? 1 : 0;
+        if(!flipper_format_write_uint32(ff, "CheckSaved", &check_saved_temp, 1)) {
+            FURI_LOG_E(TAG, "Failed to write check saved");
+            break;
+        }
+        uint32_t sound_temp = settings->sound ? 1 : 0;
+        if(!flipper_format_write_uint32(ff, "Sound", &sound_temp, 1)) {
+            FURI_LOG_E(TAG, "Failed to write Sound.");
+            break;
+        }
+        uint32_t datetime_filenames_temp = settings->datetime_filenames ? 1 : 0;
+        if(!flipper_format_write_uint32(ff, "DateTimeFilenames", &datetime_filenames_temp, 1)) {
+            FURI_LOG_E(TAG, "Failed to write Date Time Filenames");
+        }
+        uint32_t hopper_state_temp = settings->hopper_state;
+        if(!flipper_format_write_uint32(ff, "HopperState", &hopper_state_temp, 1)) {
+            FURI_LOG_E(TAG, "Failed to write Hopper State");
+            break;
+        }
+#ifdef ENABLE_MODELS_DATABASE
+        uint32_t car_model_index_temp = settings->car_model_index;
+        if(!flipper_format_write_uint32(ff, "CarModelIndex", &car_model_index_temp, 1)) {
+            FURI_LOG_E(TAG, "Failed to write car model");
+
+            break;
+        }
+#endif
+        write_ok = true;
+
+        FURI_LOG_I(
+            TAG,
+            "Settings saved: freq=%lu, preset=%u, auto_save=%d, hopping=%lu, emulate=%d, check_saved=%d, sound=%d",
+            settings->frequency,
+            settings->preset_index,
+            settings->auto_save,
+            settings->hopper_state,
+            settings->emulate_feature_enabled,
+            settings->check_saved,
+            settings->sound);
+    } while(false);
+
+    flipper_format_free(ff);
+
+    if(write_ok) {
+        if(!protopirate_storage_commit_temp_file(storage, tmp_path, PROTOPIRATE_SETTINGS_FILE)) {
+            FURI_LOG_E(TAG, "Failed to commit settings file");
+        }
+    } else if(storage_file_exists(storage, tmp_path)) {
+        storage_simply_remove(storage, tmp_path);
+    }
+
+    furi_record_close(RECORD_STORAGE);
+}

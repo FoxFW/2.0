@@ -176,12 +176,15 @@ static bool subghz_protocol_keeloq_gen_data(
             instance->manufacture_name = "Aprimatic";
         } else if(prog_mode == PROG_MODE_KEELOQ_DEA_MIO) {
             instance->manufacture_name = "Dea_Mio";
+        } else if(prog_mode == PROG_MODE_KEELOQ_ERREKA) {
+            instance->manufacture_name = "Erreka";
         }
 
         uint8_t klq_last_custom_btn = 0xA;
         if((strcmp(instance->manufacture_name, "BFT") == 0) ||
            (strcmp(instance->manufacture_name, "Aprimatic") == 0) ||
            (strcmp(instance->manufacture_name, "Dea_Mio") == 0) ||
+           (strcmp(instance->manufacture_name, "Erreka") == 0) ||
            (strcmp(instance->manufacture_name, "NICE_MHOUSE") == 0)) {
             klq_last_custom_btn = 0xF;
         } else if(
@@ -236,10 +239,17 @@ static bool subghz_protocol_keeloq_gen_data(
         } else if(prog_mode == PROG_MODE_KEELOQ_DEA_MIO) {
             prog_mode = PROG_MODE_OFF;
         }
+    } else if(strcmp(instance->manufacture_name, "Erreka") == 0) {
+
+        if(btn == 0xF) {
+            prog_mode = PROG_MODE_KEELOQ_ERREKA;
+        } else if(prog_mode == PROG_MODE_KEELOQ_ERREKA) {
+            prog_mode = PROG_MODE_OFF;
+        }
     }
     subghz_custom_btn_set_prog_mode(prog_mode);
 
-    if(prog_mode == PROG_MODE_KEELOQ_BFT) {
+    if((prog_mode == PROG_MODE_KEELOQ_BFT) || (prog_mode == PROG_MODE_KEELOQ_ERREKA)) {
         hop = instance->generic.seed;
     } else if(prog_mode == PROG_MODE_KEELOQ_APRIMATIC) {
 
@@ -470,7 +480,8 @@ static bool subghz_protocol_keeloq_gen_data(
                 }
         }
     }
-    if(hop || (prog_mode == PROG_MODE_KEELOQ_DEA_MIO) || (prog_mode == PROG_MODE_KEELOQ_BFT)) {
+    if(hop || (prog_mode == PROG_MODE_KEELOQ_DEA_MIO) || (prog_mode == PROG_MODE_KEELOQ_BFT) ||
+       (prog_mode == PROG_MODE_KEELOQ_ERREKA)) {
 
         uint64_t yek = (uint64_t)fix << 32 | hop;
         instance->generic.data =
@@ -1196,6 +1207,11 @@ static uint32_t subghz_protocol_keeloq_check_remote_controller(
         *manufacture_name = "Dea_Mio";
         keystore->mfname = *manufacture_name;
         instance->cnt = temp_counter;
+    } else if(prog_mode == PROG_MODE_KEELOQ_ERREKA) {
+
+        *manufacture_name = "Erreka";
+        keystore->mfname = *manufacture_name;
+        instance->cnt = temp_counter;
     } else {
 
         furi_crash("Unsupported Prog Mode");
@@ -1233,7 +1249,8 @@ SubGhzProtocolStatus subghz_protocol_decoder_keeloq_serialize(
     subghz_protocol_keeloq_check_remote_controller(
         &instance->generic, instance->keystore, &instance->manufacture_name);
 
-    if(strcmp(instance->manufacture_name, "BFT") == 0) {
+    if((strcmp(instance->manufacture_name, "BFT") == 0) ||
+       (strcmp(instance->manufacture_name, "Erreka") == 0)) {
         uint8_t seed_data[sizeof(uint32_t)] = {0};
         for(size_t i = 0; i < sizeof(uint32_t); i++) {
             seed_data[sizeof(uint32_t) - i - 1] = (instance->generic.seed >> i * 8) & 0xFF;
@@ -1492,7 +1509,8 @@ void subghz_protocol_decoder_keeloq_get_string(void* context, FuriString* output
     uint32_t code_found_reverse_hi = code_found_reverse >> 32;
     uint32_t code_found_reverse_lo = code_found_reverse & 0x00000000ffffffff;
 
-    if(strcmp(instance->manufacture_name, "BFT") == 0) {
+    if((strcmp(instance->manufacture_name, "BFT") == 0) ||
+       (strcmp(instance->manufacture_name, "Erreka") == 0)) {
 
         subghz_block_generic_global.cnt_is_available = true;
         subghz_block_generic_global.cnt_length_bit = 16;
@@ -1503,7 +1521,7 @@ void subghz_protocol_decoder_keeloq_get_string(void* context, FuriString* output
         subghz_block_generic_global.btn_length_bit = 4;
 
         ProgMode prog_mode = subghz_custom_btn_get_prog_mode();
-        if(prog_mode == PROG_MODE_KEELOQ_BFT) {
+        if((prog_mode == PROG_MODE_KEELOQ_BFT) || (prog_mode == PROG_MODE_KEELOQ_ERREKA)) {
             furi_string_cat_printf(
                 output,
                 "%s %dbit\r\n"

@@ -56,8 +56,6 @@ Iso14443_4aError iso14443_4a_poller_halt(Iso14443_4aPoller* instance);
 Iso14443_4aError
     iso14443_4a_poller_read_ats(Iso14443_4aPoller* instance, Iso14443_4aAtsData* data);
 
-/* Externalization: exposed so external .fal protocol groups (emv, mf_plus,
- * mf_desfire, ntag4xx, type_4_tag) can read the parent 4a data. */
 const Iso14443_4aData* iso14443_4a_poller_get_data(Iso14443_4aPoller* instance);
 
 #ifdef __cplusplus

@@ -225,9 +225,12 @@ size_t memmgr_heap_get_max_free_block(void) {
 
 void memmgr_heap_printf_free_blocks(void) {
     BlockLink_t* pxBlock;
+    const uint8_t* heap_base = ucHeap;
+    const uint8_t* heap_limit = ucHeap + (size_t)configTOTAL_HEAP_SIZE;
 
     pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
-    while(pxBlock != NULL) {
+    while(pxBlock != NULL &&
+          (const uint8_t*)pxBlock >= heap_base && (const uint8_t*)pxBlock < heap_limit) {
         heapVALIDATE_BLOCK_POINTER(pxBlock);
         printf("A %p S %lu\r\n", (void*)pxBlock, (uint32_t)pxBlock->xBlockSize);
         pxBlock = heapPROTECT_BLOCK_POINTER(pxBlock->pxNextFreeBlock);
@@ -287,6 +290,7 @@ static char memmgr_heap_map_density_char(size_t used, size_t width) {
     return '*';
 }
 
+
 void memmgr_heap_write_fragmentation_map(
     MemmgrHeapMapWriteCallback write_callback,
     void* write_context,
@@ -311,7 +315,8 @@ void memmgr_heap_write_fragmentation_map(
         BlockLink_t* pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
         const uint8_t* prev_end = heap_base;
 
-        while(pxBlock != NULL && pxBlock != pxEnd) {
+        while(pxBlock != NULL && pxBlock != pxEnd &&
+              (const uint8_t*)pxBlock >= heap_base && (const uint8_t*)pxBlock < heap_limit) {
             heapVALIDATE_BLOCK_POINTER(pxBlock);
             const uint8_t* block_addr = (const uint8_t*)pxBlock;
             size_t block_size = pxBlock->xBlockSize;
@@ -472,7 +477,8 @@ void memmgr_heap_write_fragmentation_map(
 
     {
         BlockLink_t* pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
-        while(pxBlock != NULL && pxBlock != pxEnd) {
+        while(pxBlock != NULL && pxBlock != pxEnd &&
+              (const uint8_t*)pxBlock >= heap_base && (const uint8_t*)pxBlock < heap_limit) {
             heapVALIDATE_BLOCK_POINTER(pxBlock);
             written = snprintf(
                 line,
@@ -495,7 +501,8 @@ void memmgr_heap_write_fragmentation_map(
         BlockLink_t* pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
         const uint8_t* prev_end = heap_base;
 
-        while(pxBlock != NULL && pxBlock != pxEnd) {
+        while(pxBlock != NULL && pxBlock != pxEnd &&
+              (const uint8_t*)pxBlock >= heap_base && (const uint8_t*)pxBlock < heap_limit) {
             heapVALIDATE_BLOCK_POINTER(pxBlock);
             const uint8_t* block_addr = (const uint8_t*)pxBlock;
             size_t gap = memmgr_heap_map_gap_size(prev_end, block_addr);
@@ -587,7 +594,8 @@ void memmgr_heap_write_fragmentation_map(
                 size_t free_in_bucket = 0;
 
                 BlockLink_t* pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
-                while(pxBlock != NULL && pxBlock != pxEnd) {
+                while(pxBlock != NULL && pxBlock != pxEnd &&
+                      (const uint8_t*)pxBlock >= heap_base && (const uint8_t*)pxBlock < heap_limit) {
                     heapVALIDATE_BLOCK_POINTER(pxBlock);
                     const uint8_t* block_addr = (const uint8_t*)pxBlock;
                     const uint8_t* block_end = block_addr + pxBlock->xBlockSize;

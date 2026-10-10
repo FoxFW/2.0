@@ -156,10 +156,23 @@ void subghz_blink_stop(SubGhz* subghz) {
 
 bool subghz_tx_start(SubGhz* subghz, FlipperFormat* flipper_format) {
     switch(subghz_txrx_tx_start(subghz->txrx, flipper_format)) {
-    case SubGhzTxRxStartTxStateErrorParserOthers:
+    case SubGhzTxRxStartTxStateErrorParserOthers: {
+        bool psa_needs_decrypt = false;
+        if(flipper_format) {
+            FuriString* proto = furi_string_alloc();
+            flipper_format_rewind(flipper_format);
+            if(flipper_format_read_string(flipper_format, "Protocol", proto) &&
+               furi_string_cmp_str(proto, SUBGHZ_PROTOCOL_PSA_NAME) == 0) {
+                psa_needs_decrypt = true;
+            }
+            furi_string_free(proto);
+        }
         dialog_message_show_storage_error(
-            subghz->dialogs, "Error in protocol\nparameters\ndescription");
+            subghz->dialogs,
+            psa_needs_decrypt ? "Save, then run\nPSA Decrypt" :
+                                "Error in protocol\nparameters\ndescription");
         break;
+    }
     case SubGhzTxRxStartTxStateErrorOnlyRx:
         subghz_dialog_message_freq_error(subghz, true);
         break;
@@ -390,6 +403,27 @@ SubGhzLoadTypeFile subghz_get_load_type_file(SubGhz* subghz) {
     return subghz->load_type_file;
 }
 
+bool subghz_signal_needs_decrypt(FlipperFormat* flipper_format) {
+    if(!flipper_format) return false;
+    bool needs = false;
+    FuriString* proto = furi_string_alloc();
+    flipper_format_rewind(flipper_format);
+    if(flipper_format_read_string(flipper_format, "Protocol", proto)) {
+        if(furi_string_equal_str(proto, "PSA GROUP")) {
+            FuriString* type_str = furi_string_alloc();
+            flipper_format_rewind(flipper_format);
+            if(!flipper_format_read_string(flipper_format, "Type", type_str) ||
+               furi_string_equal_str(type_str, "00")) {
+                needs = true;
+            }
+            furi_string_free(type_str);
+        }
+    }
+    furi_string_free(proto);
+    flipper_format_rewind(flipper_format);
+    return needs;
+}
+
 bool subghz_get_next_name_file(SubGhz* subghz, uint8_t max_len) {
     furi_assert(subghz);
 
@@ -570,7 +604,7 @@ SubGhzRxKeyState subghz_rx_key_state_get(SubGhz* subghz) {
     return subghz->rx_key_state;
 }
 
-void subghz_launch_garage_via_probe(SubGhz* subghz, const char* args) {
+void subghz_launch_garage_via_probe(SubGhz* subghz, const char* args, bool use_probe) {
     if(!subghz->blank_transition_viewport) {
         subghz->blank_transition_viewport = view_port_alloc();
         view_port_draw_callback_set(
@@ -580,7 +614,7 @@ void subghz_launch_garage_via_probe(SubGhz* subghz, const char* args) {
     }
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
-    bool probe_installed = storage_file_exists(storage, CC1101_EXT_PROBE_FAP_PATH);
+    bool probe_installed = use_probe && storage_file_exists(storage, CC1101_EXT_PROBE_FAP_PATH);
 
     Loader* loader = furi_record_open(RECORD_LOADER);
     if(probe_installed) {

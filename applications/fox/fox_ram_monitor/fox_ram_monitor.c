@@ -16,29 +16,6 @@ typedef struct {
     RamMonitorFooterState footer_state;
 } RamMonitorApp;
 
-static void fox_ram_monitor_debug_log(const char* what) {
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    storage_simply_mkdir(storage, "/ext/apps_data");
-    storage_simply_mkdir(storage, "/ext/apps_data/rpc_gui");
-    File* file = storage_file_alloc(storage);
-    if(storage_file_open(
-           file, "/ext/apps_data/rpc_gui/screen_stream_debug.log", FSAM_WRITE, FSOM_OPEN_APPEND)) {
-        char line[64];
-        int written = snprintf(
-            line, sizeof(line), "[%lu] RamMonitor: %s\n", (unsigned long)furi_get_tick(), what);
-        if(written > 0) {
-            size_t write_len = (size_t)written;
-            if(write_len > sizeof(line) - 1) {
-                write_len = sizeof(line) - 1;
-            }
-            storage_file_write(file, line, write_len);
-        }
-    }
-    storage_file_close(file);
-    storage_file_free(file);
-    furi_record_close(RECORD_STORAGE);
-}
-
 static void fox_ram_monitor_heap_map_write_callback(void* context, const char* data, size_t length) {
     File* file = context;
     storage_file_write(file, data, length);
@@ -128,7 +105,6 @@ int32_t fox_ram_monitor_app(void* p) {
 
     app->gui = furi_record_open(RECORD_GUI);
     gui_add_view_port(app->gui, app->view_port, GuiLayerFullscreen);
-    fox_ram_monitor_debug_log("opened");
     view_port_update(app->view_port);
 
     InputEvent event;
@@ -139,18 +115,15 @@ int32_t fox_ram_monitor_app(void* p) {
                 running = false;
             } else if(event.key == InputKeyOk && event.type == InputTypeShort) {
                 app->footer_state = RamMonitorFooterDefault;
-                fox_ram_monitor_debug_log("refresh");
                 view_port_update(app->view_port);
             } else if(event.key == InputKeyUp && event.type == InputTypeShort) {
                 bool saved = fox_ram_monitor_save_heap_map();
                 app->footer_state = saved ? RamMonitorFooterSaved : RamMonitorFooterSaveFailed;
-                fox_ram_monitor_debug_log(saved ? "heap_map saved" : "heap_map save failed");
                 view_port_update(app->view_port);
             }
         }
     }
 
-    fox_ram_monitor_debug_log("closed");
     gui_remove_view_port(app->gui, app->view_port);
     furi_record_close(RECORD_GUI);
     view_port_free(app->view_port);

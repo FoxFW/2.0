@@ -10,9 +10,9 @@ void nfc_scene_field_on_enter(void* context) {
         popup,
         "Field is on\nDon't leave device\nin this mode for too long.",
         64,
-        11,
+        32,
         AlignCenter,
-        AlignTop);
+        AlignCenter);
     view_dispatcher_switch_to_view(nfc->view_dispatcher, NfcViewPopup);
 
     notification_internal_message(nfc->notifications, &sequence_set_blue_255);

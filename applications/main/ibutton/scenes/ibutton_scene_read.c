@@ -11,9 +11,9 @@ void ibutton_scene_read_on_enter(void* context) {
     iButtonKey* key = ibutton->key;
     iButtonWorker* worker = ibutton->worker;
 
-    popup_set_header(popup, "Reading", 95, 26, AlignCenter, AlignBottom);
-    popup_set_text(popup, "Connect key\nwith pogo pins", 95, 30, AlignCenter, AlignTop);
-    popup_set_icon(popup, 0, 10, &I_DolphinWait_59x54);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Reading", 96, 14, AlignCenter, AlignCenter);
+    popup_set_text(popup, "Connect key\nwith pogo pins", 96, 38, AlignCenter, AlignCenter);
 
     view_dispatcher_switch_to_view(ibutton->view_dispatcher, iButtonViewPopup);
 

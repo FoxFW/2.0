@@ -25,27 +25,19 @@ const NfcDeviceBase* const nfc_devices[NfcProtocolNum] = {
     [NfcProtocolIso14443_4a] = &nfc_device_iso14443_4a,
     [NfcProtocolIso14443_4b] = &nfc_device_iso14443_4b,
     [NfcProtocolIso15693_3] = &nfc_device_iso15693_3,
-    [NfcProtocolFelica] = NULL, /* external: grp_nfc_felica.fal */
+    [NfcProtocolFelica] = NULL,
     [NfcProtocolMfUltralight] = &nfc_device_mf_ultralight,
     [NfcProtocolMfClassic] = &nfc_device_mf_classic,
-    [NfcProtocolMfPlus] = NULL, /* external: grp_nfc_mf_plus.fal */
-    [NfcProtocolMfDesfire] = NULL, /* external: grp_nfc_mf_desfire.fal */
-    [NfcProtocolSlix] = NULL, /* external: grp_nfc_slix.fal */
-    [NfcProtocolSt25tb] = NULL, /* external: grp_nfc_st25tb.fal */
-    [NfcProtocolNtag4xx] = NULL, /* external: grp_nfc_ntag4xx.fal */
-    [NfcProtocolType4Tag] = NULL, /* external: grp_nfc_type_4_tag.fal */
-    [NfcProtocolEmv] = NULL, /* external: grp_nfc_emv.fal */
+    [NfcProtocolMfPlus] = NULL,
+    [NfcProtocolMfDesfire] = NULL,
+    [NfcProtocolSlix] = NULL,
+    [NfcProtocolSt25tb] = NULL,
+    [NfcProtocolNtag4xx] = NULL,
+    [NfcProtocolType4Tag] = NULL,
+    [NfcProtocolEmv] = NULL,
 
 };
 
-/* FoxFW NFC externalization: firmware-resident protocol-name table. These are
- * FILE-FORMAT identifiers (written as the "Device type" field in saved .nfc
- * files) and MUST match each protocol's *_PROTOCOL_NAME, which is #defined
- * .c-locally in each protocol's source (e.g. felica.c: FELICA_PROTOCOL_NAME
- * "FeliCa"). They are duplicated here, independent of the (now possibly
- * externalized) device vtable, so that save/load name resolution never has to
- * load a .fal group just to read a name. Changing any string here breaks
- * previously-saved files - treat as frozen. */
 static const char* const nfc_protocol_names[NfcProtocolNum] = {
     [NfcProtocolIso14443_3a] = "ISO14443-3A",
     [NfcProtocolIso14443_3b] = "ISO14443-3B",
@@ -69,10 +61,6 @@ const char* nfc_protocol_get_name(NfcProtocol protocol) {
     return nfc_protocol_names[protocol];
 }
 
-/* FoxFW NFC externalization: external protocols are served by an on-demand .fal
- * group (see nfc_group_manager); internal ones by the static table above.
- * nfc_group_is_external() is authoritative - NULL must NOT be read as
- * "externalized" (a static entry can be legitimately NULL). */
 const NfcDeviceBase* nfc_device_get_base(NfcProtocol protocol) {
     furi_check(protocol < NfcProtocolNum);
     if(nfc_group_is_external(protocol)) {

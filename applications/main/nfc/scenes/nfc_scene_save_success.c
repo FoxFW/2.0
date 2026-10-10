@@ -1,4 +1,5 @@
 #include "../nfc_app_i.h"
+#include "nfc_icons.h"
 
 void nfc_scene_save_success_popup_callback(void* context) {
     NfcApp* nfc = context;
@@ -10,7 +11,8 @@ void nfc_scene_save_success_on_enter(void* context) {
 
     Popup* popup = nfc->popup;
 
-    popup_set_header(popup, "Saved", 15, 19, AlignLeft, AlignBottom);
+    popup_set_icon(popup, 0, 0, &I_fox_64x64);
+    popup_set_header(popup, "Saved", 96, 32, AlignCenter, AlignCenter);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, nfc);
     popup_set_callback(popup, nfc_scene_save_success_popup_callback);
@@ -38,8 +40,6 @@ bool nfc_scene_save_success_on_event(void* context, SceneManagerEvent event) {
                 if(scene_state == NfcSceneSaveConfirmStateCrackNonces) {
                     scene_manager_next_scene(nfc->scene_manager, NfcSceneMfClassicMfkeyComplete);
                 } else {
-                    /* FoxFW: reader-attack externalized — hand the just-saved card
-                     * to the standalone MFKey nonce collector. */
                     nfc_run_mfkey_collector_with_card(nfc);
                 }
                 consumed = true;

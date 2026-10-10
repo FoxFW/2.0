@@ -70,7 +70,7 @@ void subghz_scene_saved_menu_on_enter(void* context) {
     if(is_psa_encrypted) {
         submenu_add_item(
             subghz->submenu,
-            "PSA Decrypt",
+            "Attempt Decrypt",
             SubmenuIndexPsaDecrypt,
             subghz_scene_saved_menu_submenu_callback,
             subghz);

@@ -16,7 +16,7 @@ static bool subghz_garage_cc1101_check_relaunch_garage_if_requested(void) {
         return false;
     }
 
-    char args_buf[32] = {0};
+    char args_buf[300] = {0};
     File* file = storage_file_alloc(storage);
     if(storage_file_open(file, CC1101_PROBE_RELAUNCH_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
         uint16_t read = storage_file_read(file, args_buf, sizeof(args_buf) - 1);
